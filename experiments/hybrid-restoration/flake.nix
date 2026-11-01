@@ -16,6 +16,14 @@
         echo 'all-known mutation unexpectedly passed'; exit 1
       fi
       grep -q 'AssertionError: later deletion remains through author undo' all-known.log
+      if python ${source}/check.py legacy-hide > legacy-hide.log 2>&1; then
+        echo 'legacy creator-hide policy unexpectedly passed'; exit 1
+      fi
+      grep -q 'AssertionError: creator withdrawal survives peer deletion undo' legacy-hide.log
+      if python ${source}/check.py spill > spill.log 2>&1; then
+        echo 'scope-spill mutation unexpectedly passed'; exit 1
+      fi
+      grep -q 'AssertionError: overlap restoration stays in selected scope' spill.log
       touch $out
     '';
     run = pkgs.writeShellApplication { name="hybrid-restoration"; runtimeInputs=[pkgs.python3]; text=''export PYTHONDONTWRITEBYTECODE=1; exec python ${source}/check.py "$@"''; };

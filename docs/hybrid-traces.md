@@ -14,7 +14,7 @@ Alice creates old-b; Bo atomically deletes old-b and creates new-x. Ren wants re
 
 Bo has an older insertion z, then deletes Alice's b. While disconnected from each other, Alice restores b and Bo selects his own deletion for undo. If a receiver interprets Bo's message by selecting again against its current state, delivery order can make it skip that deletion and remove z. The supplied two-message control exhibits both `{b}` and `{b,z}`.
 
-An event naming the deletion Bo actually selected preserves z in both orders. If Bo first receives Alice's restoration and then selects his older z, that is a different authored action. A receiver must not turn the former into the latter. The eventual wire/selection specification must preserve this distinction without replicating a private stack.
+An event preserving the effect Bo actually selected preserves z in both orders; that does not require an additional selected-target-ID field beyond a sufficient frozen mask. If Bo first receives Alice's restoration and then selects his older z, that is a different authored action. A receiver must not turn the former into the latter. The eventual wire/selection specification must preserve this distinction without replicating a private stack.
 
 ## redo has implementation latitude
 

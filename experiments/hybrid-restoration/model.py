@@ -9,6 +9,7 @@ class Event:
     after: tuple = ()
     creates: tuple = ()
     deletes: tuple = ()
+    withdraws: tuple = ()  # Creator-undo effects, distinct from ordinary deletions.
     releases: tuple = ()
     cancels: tuple = ()
 
@@ -45,9 +46,14 @@ class Doc:
                     for pair in event.releases}
         return self.atoms() - released
 
+    def live_withdrawals(self):
+        cancelled = {r for event in self.events.values() for r in event.cancels}
+        return {(event.id, elem) for event in self.events.values()
+                if event.id not in cancelled for elem in event.withdraws}
+
     def visible(self):
         created = {e for event in self.events.values() for e in event.creates}
-        return created - {e for _, e in self.live_atoms()}
+        return created - {e for _, e in self.live_atoms() | self.live_withdrawals()}
 
     def restore(self, name, target, mode='parallel'):
         """Author freezes mask from its supplied view. No receiver recomputation.
@@ -63,7 +69,7 @@ class Doc:
             if mode == 'all-known':
                 return True
             return other == target or not (self.before(other, target) or self.before(target, other))
-        mask = tuple(sorted((d, e) for d, e in self.atoms() if e in scope and included(d)))
+        mask = tuple(sorted((d, e) for d, e in self.atoms() if (e in scope or mode == 'spill') and included(d)))
         return Event(name, tuple(sorted(self.events)), releases=mask)
 
     def copy(self):
@@ -72,7 +78,7 @@ class Doc:
         events = []
         for row in json.loads(raw):
             row['releases'] = tuple(tuple(p) for p in row['releases'])
-            for k in ('after', 'creates', 'deletes', 'cancels'):
+            for k in ('after', 'creates', 'deletes', 'withdraws', 'cancels'):
                 row[k] = tuple(row[k])
             events.append(Event(**row))
         result = Doc()
@@ -101,7 +107,7 @@ def schedules(events, known=frozenset()):
                 yield (e,) + tail
 
 
-def replay(events, expected, expected_live):
+def replay(events, expected, expected_live, expected_withdrawals=frozenset()):
     count = 0
     for order in schedules(tuple(events)):
         d = Doc()
@@ -111,14 +117,17 @@ def replay(events, expected, expected_live):
             cold = d.copy()
             assert cold.events == d.events
             assert cold.live_atoms() == d.live_atoms()
+            assert cold.live_withdrawals() == d.live_withdrawals()
             for later in order[i + 1:]:
                 cold.put(later)
             assert cold.visible() == expected
             assert cold.live_atoms() == expected_live
+            assert cold.live_withdrawals() == expected_withdrawals
         for e in reversed(order):
             d.put(e)
         assert d.visible() == expected
         assert d.live_atoms() == expected_live
+        assert d.live_withdrawals() == expected_withdrawals
         count += 1
     assert count
     return count

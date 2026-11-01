@@ -19,21 +19,27 @@ A deletion has separately addressable atoms `(deletion-event ID, element ID)`. A
 - include atoms on T from other **observed concurrent** deletions;
 - exclude unobserved deletions and any causally earlier/later deletion.
 
-The mask is frozen into the restoration event. A receiver unions masks from uncancelled restoration events; it never reselects their targets. A fresh personal-redo event cancels the named restoration token; another writer's token remains. A later undo creates a fresh token rather than un-cancelling an old one. This explores the simpler personal-redo alternative permitted by Ren; it does not demonstrate that this is the simplest complete design.
+The mask is frozen into the restoration event. There is no separate selected-target-ID field: two local selections can produce identical masks and identical replicated events. A private checkpoint may retain the selected item if its UI/history contract needs it; the shared projection does not need that additional field in these cases. A receiver unions masks from uncancelled restoration events; it never reselects their targets. A fresh personal-redo event cancels the named restoration token; another writer's token remains. A later undo creates a fresh token rather than un-cancelling an old one. This explores the simpler personal-redo alternative permitted by Ren; it does not demonstrate that this is the simplest complete design.
 
-Restoring a deletion effect of a replacement preserves that replacement's creation effects. Author undo of the whole replacement is decomposed into a restoration event plus a removal of its inserted identities. The fixture assumes these share one eventual atomic user action; **this model does not implement atomic multi-event publication**. The model contains no permission checks, transaction grouping, insertion-order algorithm or selection/redo stack.
+Restoring a deletion effect of a replacement preserves that replacement's creation effects. Author undo of the whole replacement is decomposed into a restoration event plus a distinct creator-withdrawal token for its inserted identities. Ordinary deletion restorations do not cancel creator withdrawals. Creator redo cancels that withdrawal token; a peer's deletion redo can still hide the reactivated creation. This distinction repairs the review's replacement/deletion/undo counterexample. The fixture assumes the caller withdraws only its own creation; permission/admission is not implemented. The fixture assumes these share one eventual atomic user action; **this model does not implement atomic multi-event publication**. The model contains no permission checks, transaction grouping, insertion-order algorithm or selection/redo stack.
 
 ## checks and their boundary
 
-Eight directed fixtures replay20 legal causal schedules. At each prefix they check an immediate duplicate, a JSON full-log reconstruction through `put`, equality of live removal atoms, and continuation to the expected final visible ID set. Late reverse-order duplicates are also checked. These are crafted event sets, not generated histories or a user model. The causal scheduler and the evaluator are ordinary Python, not extracted/proved code.
+Twelve directed fixtures replay31 legal causal schedules, plus a check that two local targets can produce the same wire event. At each prefix they check an immediate duplicate, a JSON full-log reconstruction through `put`, equality of live removal atoms and creator-withdrawal tokens, and continuation to the expected final visible ID set. Late reverse-order duplicates are also checked. These are crafted event sets, not generated histories or a user model. The causal scheduler and the evaluator are ordinary Python, not extracted/proved code.
 
-The two policy negative controls fail at their intended unchanged assertions:
+The four policy negative controls fail at their intended unchanged assertions:
 
 - target-only restoration fails **q07 observed concurrent deletes**;
-- cancelling every known deletion fails **later deletion remains through author undo**.
+- cancelling every known deletion fails **later deletion remains through author undo**;
+- using an ordinary delete to hide an undone creation fails **creator withdrawal survives peer deletion undo**;
+- dropping the target-set filter fails **overlap restoration stays in selected scope**.
 
 Passing the first check on the observed-concurrent law shows compatibility with this q07 fixture, not acceptance of its behavior for unseen concurrent deletions. The retained unseen-concurrent fixture instead leaves b hidden. That is a proposed boundary, not an answer Ren has supplied.
 
 The log decoder assumes this model's JSON structure. `put` checks explicit prerequisites and duplicate-event equality only. It is not full semantic admission: no malformed-input suite, authority proof, parser/resource bound, independent reference oracle, compact checkpoint or disk failure acceptance is claimed. The fixed-event-set calculation is delivery independent by construction; the schedule count is a regression receipt, not the main argument for a general CRDT.
 
 `model.py` and `check.py` are authored for this candidate. The earlier model supplied by Ren remains unmodified in the local evidence store; its40 schedules and q07 disagreement are recorded in [hybrid-traces.md](../../docs/hybrid-traces.md). We did not replace its expected result and relabel it passing.
+
+## retained review failure
+
+`review-before-repair.txt` records the old law revealing both p and x in all three review schedules, and the scope-spill control restoring unrelated c. The repaired p-only assertion was not weakened. Creator withdrawal is now a separate fact class; ordinary deletion/restore fixtures retain their earlier required text outcomes. An initial edit command used Node inside this Python-only nested shell and did not apply; the resulting missing-field TypeError is not counted as a semantic failure or passing check. The patch was then applied using the declared Python environment.
