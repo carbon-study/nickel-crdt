@@ -36,6 +36,8 @@ No sequence/undo verifier obligation is currently discharged. The proved Boolean
 
 ## Next decision
 
-The [proposed Nickel contract and consumer profiles](docs/carbon-contract.md) is ready for review: primitives, API shapes, undo/activity semantics, acceptance witnesses and construction order. Carbon and possible Dark integrations are separate usage sketches, not part of the library’s API or release definition. It is not adopted. Settle the sequence/undo contract with concrete two-peer and cold-recovery examples before implementing the engine. In particular, decide what an invisible undo publishes, how independent peer edits survive, and which identities and ordering survive restoration. A matching method signature alone does not establish backend substitutability.
+[The response-led PR plan](docs/response-plan.md) takes priority: specify Ren’s hybrid undo behavior and both writers’ continuations before adopting the earlier local-only activity proposal.
+
+The [proposed Nickel contract and consumer profiles](docs/carbon-contract.md) remains a working comparison: primitives, API shapes, undo/activity semantics, acceptance witnesses and construction order. Carbon and possible Dark integrations are separate usage sketches, not part of the library’s API or release definition. It is not adopted. Settle the sequence/undo contract with concrete two-peer and cold-recovery examples before implementing the engine. In particular, decide what an invisible undo publishes, how independent peer edits survive, and which identities and ordering survive restoration. A matching method signature alone does not establish backend substitutability.
 
 The scaffold does not reopen the parked Dark or Loro projects. Copying their reusable loop reasoning is a scoped extraction.

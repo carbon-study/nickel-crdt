@@ -1,5 +1,7 @@
 # proposed Nickel contract, with Carbon and Dark consumer profiles
 
+**revision direction:** [the response-led PR plan](response-plan.md) now takes priority over the earlier writer-exclusive activity recommendation. Ren requests restoration of another writer’s deletion and corresponding undo-history adjustment. That behavior still needs a complete trace semantics; the older candidate below is retained for comparison, not adopted.
+
 **Review draft, not an adopted API.** Nickel is an application-independent CRDT library. Carbon and possible future Dark use motivate the priorities here; neither application is part of the library’s runtime or data model. This describes the behavior I want Nickel to provide and the order I would build it in. It proposes choices that Dark never settled, especially redo after invisible undo. No engine implements this document yet.
 
 **Read the two technical companions first for the library claim:** [prospective API and verification contract](api-verification.md) and [local-undo analysis](undo-semantics.md). The API companion distinguishes current evidence from proposed verifier obligations. The undo companion explains why the activity candidate is not yet an established local-undo algorithm. The overview below supplies motivation and proposed outcomes; it does not close that research gap.

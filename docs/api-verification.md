@@ -1,5 +1,7 @@
 # prospective API and verification contract
 
+**revision direction:** [the response-led PR plan](response-plan.md) now takes priority over the earlier writer-exclusive activity recommendation. Ren requests restoration of another writer’s deletion and corresponding undo-history adjustment. That behavior still needs a complete trace semantics; the older candidate below is retained for comparison, not adopted.
+
 **Status: unimplemented proposal for review.** This is the library boundary that was missing from the overview. None of the CRDT obligations below is currently verified. The only checked implementation is the separate Boolean loop fixture described in [proofs/README.md](../proofs/README.md).
 
 The [undo analysis](undo-semantics.md) identifies unresolved semantics. In particular, the current activity proposal is not an established implementation of general local undo. The API must not be frozen on that premise.
