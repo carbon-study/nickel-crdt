@@ -1,0 +1,5 @@
+target-only: exit 1
+AssertionError: q07 observed concurrent deletes
+
+all-known: exit 1
+AssertionError: later deletion remains through author undo

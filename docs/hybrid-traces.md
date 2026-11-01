@@ -41,6 +41,10 @@ This demonstrates why **that rule** requires a receiver to retain which deletion
 
 The model's cold copy serializes the full event dictionary and reconstructs it directly, without ordinary admission. It checks faithful event-set replay, not a compact codec, validated loading, authentication, authority, parser safety or checkpoint persistence. V8 remains unfulfilled.
 
+## candidate follow-through
+
+[The observed-concurrent candidate](hybrid-continuation.md) now explores a rule satisfying q07 under its synced premise while preserving a causally later deletion. It chooses personal-redo cancellation within Ren’s allowed alternatives, exposes durable author-undo and skipped-item continuation issues, and has a separate nested directed experiment. This does not change the earlier supplied model or adopt a complete algorithm.
+
 ## next reference-contract work
 
 1. Choose the simpler complete redo design within the permitted alternatives, and reconcile q07 with the candidate’s deletion rule.

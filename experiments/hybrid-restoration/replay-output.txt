@@ -1,0 +1,9 @@
+q07 observed concurrent deletes: 2 schedules; visible=['b']; live deletion atoms=[]
+unseen concurrent delete: 3 schedules; visible=[]; live deletion atoms=[('DB', 'b')]
+personal redo after two restores: 4 schedules; visible=['b']; live deletion atoms=[]
+both personal redos: 4 schedules; visible=[]; live deletion atoms=[('DA', 'b'), ('DB', 'b')]
+restore again after both redos: 4 schedules; visible=['b']; live deletion atoms=[]
+q11 restore deletion portion of replacement: 1 schedules; visible=['B', 'a', 'x']; live deletion atoms=[]
+author undo survives victim redo: 1 schedules; visible=['B', 'a']; live deletion atoms=[('UX', 'x')]
+later deletion remains through author undo: 1 schedules; visible=['a']; live deletion atoms=[('D2', 'B'), ('UX', 'x')]
+20 legal schedules across 8 directed fixtures
