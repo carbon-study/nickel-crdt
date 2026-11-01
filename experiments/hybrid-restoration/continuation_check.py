@@ -23,16 +23,16 @@ def synced(*sessions):
 def seeds():
     yield 'empty', [Session('A'), Session('B')]
     a, b = Session('A'), Session('B')
-    a.edit(creates=('b',)); b.edit(creates=('z',)); synced(a, b)
-    b.edit(deletes=('b',)); synced(a, b)
+    birth = a.edit(creates=('b',)); b.edit(creates=('z',)); synced(a, b)
+    b.edit(deletes=birth.creates); synced(a, b)
     yield 'synced-victim-and-older-item', [a, b]
     a, b = Session('A'), Session('B')
-    a.edit(creates=('b',)); synced(a, b)
-    a.edit(deletes=('b',)); b.edit(deletes=('b',))
+    birth = a.edit(creates=('b',)); synced(a, b)
+    a.edit(deletes=birth.creates); b.edit(deletes=birth.creates)
     yield 'partitioned-independent-deletes', [a, b]
     a, b = Session('A'), Session('B')
-    a.edit(creates=('a',)); b.edit(creates=('B',)); synced(a, b)
-    a.edit(creates=('x',), deletes=('a', 'B')); synced(a, b)
+    aa = a.edit(creates=('a',)); bb = b.edit(creates=('B',)); synced(a, b)
+    a.edit(creates=('x',), deletes=aa.creates+bb.creates); synced(a, b)
     yield 'synced-replacement', [a, b]
 
 
@@ -61,10 +61,10 @@ def actions(peers):
         visible = sorted(s.doc.visible())
         if births < 2:
             for policy in policies:
-                yield dict(peer=i, op='edit', creates=[f'{s.writer}-elem-{s.counter}'],
+                yield dict(peer=i, op='edit', creates=['x'],
                            deletes=[], policy=policy)
                 if visible:
-                    yield dict(peer=i, op='edit', creates=[f'{s.writer}-elem-{s.counter}'],
+                    yield dict(peer=i, op='edit', creates=['x'],
                                deletes=visible, policy=policy)
         for elem in visible:
             for policy in policies:
@@ -81,9 +81,9 @@ def apply(peers, action):
     op = action['op']
     if op in ('receive', 'duplicate'):
         event = next(p.doc.events[action['event']] for p in peers if action['event'] in p.doc.events)
-        private = s.checkpoint()
+        private = s.private_state()
         s.receive(event)
-        if s.checkpoint() != private:
+        if s.private_state() != private:
             raise AssertionError('receive changed private session')
         return None
     if op == 'clear':
@@ -141,11 +141,11 @@ def explore(depth=3, mutation=None):
                 raise RuntimeError('state budget exceeded; this is not a passing bounded run')
             # Both peers see the same completed event union, with private lists untouched.
             joined = deepcopy(peers)
-            private = [s.checkpoint() for s in joined]
+            private = [s.private_state() for s in joined]
             synced(*joined)
             if facts(joined[0]) != facts(joined[1]) or joined[0].doc.visible() != joined[1].doc.visible():
                 raise AssertionError('generated causal sync did not converge')
-            if private != [s.checkpoint() for s in joined]:
+            if private != [s.private_state() for s in joined]:
                 raise AssertionError('sync changed private history')
             counts['sync_checks'] += 1
             if len(prefix) == depth:

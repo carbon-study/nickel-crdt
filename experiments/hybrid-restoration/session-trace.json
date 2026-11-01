@@ -1,12 +1,18 @@
 {
-  "profile": "candidate reversible skip; identity sets only",
+  "profile": "consumed skip; library occurrence identities; identity sets only",
   "rows": [
     {
       "step": "both know the deletion",
       "visibleA": [
-        "z"
+        "[\"B\",1,0]"
       ],
       "visibleB": [
+        "[\"B\",1,0]"
+      ],
+      "valuesA": [
+        "z"
+      ],
+      "valuesB": [
         "z"
       ],
       "nextA": [
@@ -21,12 +27,20 @@
       "redoB": []
     },
     {
-      "step": "Alice restores; Bo skips his deletion",
+      "step": "Alice restores; Bo can bypass his deletion",
       "visibleA": [
+        "[\"A\",1,0]",
+        "[\"B\",1,0]"
+      ],
+      "visibleB": [
+        "[\"A\",1,0]",
+        "[\"B\",1,0]"
+      ],
+      "valuesA": [
         "b",
         "z"
       ],
-      "visibleB": [
+      "valuesB": [
         "b",
         "z"
       ],
@@ -44,11 +58,17 @@
       "redoB": []
     },
     {
-      "step": "Bo undoes older z",
+      "step": "Bo consumes bypassed deletion and undoes older z",
       "visibleA": [
-        "b"
+        "[\"A\",1,0]"
       ],
       "visibleB": [
+        "[\"A\",1,0]"
+      ],
+      "valuesA": [
+        "b"
+      ],
+      "valuesB": [
         "b"
       ],
       "nextA": [
@@ -64,11 +84,17 @@
       ]
     },
     {
-      "step": "Bo reloads private checkpoint plus shared facts",
+      "step": "Bo reloads compatible private checkpoint and shared facts",
       "visibleA": [
-        "b"
+        "[\"A\",1,0]"
       ],
       "visibleB": [
+        "[\"A\",1,0]"
+      ],
+      "valuesA": [
+        "b"
+      ],
+      "valuesB": [
         "b"
       ],
       "nextA": [
@@ -84,39 +110,35 @@
       ]
     },
     {
-      "step": "Alice redo reactivates Bo deletion",
+      "step": "Alice redo hides b; consumed Bo item does not return",
       "visibleA": [],
       "visibleB": [],
+      "valuesA": [],
+      "valuesB": [],
       "nextA": [
         "victim",
         "B:2"
       ],
-      "nextB": [
-        "own",
-        "B:2"
-      ],
+      "nextB": null,
       "redoA": [],
       "redoB": [
         "B:1"
       ]
     },
     {
-      "step": "Bo selects the reactivated deletion",
-      "visibleA": [
-        "b"
-      ],
-      "visibleB": [
-        "b"
-      ],
+      "step": "Bo undo emits nothing",
+      "visibleA": [],
+      "visibleB": [],
+      "valuesA": [],
+      "valuesB": [],
       "nextA": [
-        "own",
-        "A:1"
+        "victim",
+        "B:2"
       ],
       "nextB": null,
       "redoA": [],
       "redoB": [
-        "B:1",
-        "B:2"
+        "B:1"
       ]
     }
   ]

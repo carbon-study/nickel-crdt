@@ -16,6 +16,7 @@ class Event:
     withdraws: tuple = ()  # Creator-undo effects, distinct from ordinary deletions.
     releases: tuple = ()
     cancels: tuple = ()
+    payloads: tuple = ()  # (library occurrence ID, scalar value); directed legacy fixtures omit it.
     author: str = ""  # Trusted writer tag for the restricted session profile.
 
 
@@ -42,6 +43,13 @@ class Doc:
         if not set(event.after) <= self.events.keys():
             raise ModelError('missing prerequisite')
         past = self.ancestors(event.after)
+        existing = {elem for old in self.events.values() for elem in old.creates}
+        if len(set(event.creates)) != len(event.creates) or set(event.creates) & existing:
+            raise ModelError('conflicting occurrence birth')
+        if event.payloads and (tuple(k for k, _ in event.payloads) != event.creates or
+            any(not isinstance(v, str) or len(v) != 1 or 0xD800 <= ord(v) <= 0xDFFF
+                for _, v in event.payloads)):
+            raise ModelError('invalid scalar payloads')
         for deletion, elem in event.releases:
             if deletion not in past or elem not in self.events[deletion].deletes:
                 raise ModelError('release must name an ancestral deletion atom')
@@ -100,6 +108,7 @@ class Doc:
         events = []
         for row in json.loads(raw):
             row['releases'] = tuple(tuple(p) for p in row['releases'])
+            row['payloads'] = tuple(tuple(p) for p in row['payloads'])
             for k in ('after', 'creates', 'deletes', 'withdraws', 'cancels'):
                 row[k] = tuple(row[k])
             events.append(Event(**row))

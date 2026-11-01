@@ -16,7 +16,7 @@ class Undo:
 
 
 class Session:
-    def __init__(self, writer, document=None, skip_policy='retain'):
+    def __init__(self, writer, document=None, skip_policy='consume'):
         if skip_policy not in ('retain', 'consume'):
             raise ModelError('unknown skip policy')
         self.doc = document if document is not None else Doc()
@@ -29,6 +29,7 @@ class Session:
         self.redos = []
         self.ignored_victims = set()
         self.skip_policy = skip_policy
+        self.selection_stamps = {}
 
     def _publish(self, event):
         out = replace(event, id=f'{self.writer}:{self.counter}', author=self.writer,
@@ -45,16 +46,21 @@ class Session:
             raise ModelError('unknown redo policy')
         if self.redos and redo_policy is None:
             raise ModelError('new work with pending redo requires keep or clear')
-        births = {e for event in self.doc.events.values() for e in event.creates}
-        if len(set(creates)) != len(creates) or set(creates) & births:
-            raise ModelError('creation IDs must be fresh')
+        if any(type(v) is not str or len(v) != 1 or 0xD800 <= ord(v) <= 0xDFFF for v in creates):
+            raise ModelError('insertions must be Unicode scalars')
+        identities = tuple(self._created_identity(i, value) for i, value in enumerate(creates))
         if not set(deletes) <= self.doc.visible():
             raise ModelError('ordinary edits delete only visible identities in this profile')
-        event = self._publish(Event('', creates=creates, deletes=deletes))
+        event = self._publish(Event('', creates=identities, deletes=deletes,
+                                    payloads=tuple(zip(identities, creates))))
         self.items.append(event.id)
         if redo_policy == 'clear':
             self.redos.clear()
         return event
+
+    def _created_identity(self, index, value):
+        # Values never determine identity; the caller supplies no occurrence ID.
+        return json.dumps([self.writer, self.counter, index], separators=(',', ':'))
 
     def _own_eligible(self, source):
         if source in self.undone:
@@ -64,8 +70,8 @@ class Session:
         return bool(set(event.creates) - withdrawn or
                     {(source, e) for e in event.deletes} & self.doc.live_atoms())
 
-    def next_undo(self):
-        candidates = [('own', key) for key in self.items if self._own_eligible(key)]
+    def _selection(self):
+        candidates = [('own', key) for key in self.items if key not in self.undone]
         mine = {e for event in self.doc.events.values() if event.author == self.writer
                 for e in event.creates}
         withdrawn = {e for _, e in self.doc.live_withdrawals()}
@@ -75,17 +81,27 @@ class Session:
             if any(e in mine - withdrawn and (key, e) in self.doc.live_atoms()
                    for e in event.deletes):
                 candidates.append(('victim', key))
-        # Causal descendants take precedence. Concurrent ties favor own items,
-        # then the model's string IDs. This is not a text-order primitive.
-        maximal = [c for c in candidates
-                   if not any(self.doc.before(c[1], other[1]) for other in candidates)]
-        return min(maximal, key=lambda c: (c[0] != 'own', c[1])) if maximal else None
+        # A local redo is a new selection occurrence for that source. Later
+        # local edits still supersede it; remote private histories are untouched.
+        stamp = lambda c: self.selection_stamps.get(c, c[1])
+        skipped = []
+        while candidates:
+            maximal = [c for c in candidates
+                       if not any(self.doc.before(stamp(c), stamp(other)) for other in candidates)]
+            chosen = min(maximal, key=lambda c: (c[0] != 'victim', c[1]))
+            if chosen[0] == 'victim' or self._own_eligible(chosen[1]):
+                return chosen, skipped
+            skipped.append(chosen[1])
+            candidates.remove(chosen)
+        return None, skipped
+
+    def next_undo(self):
+        return self._selection()[0]
 
     def undo(self):
-        if self.skip_policy == 'consume':  # Negative-control alternative only.
-            self.items = [key for key in self.items
-                          if key in self.undone or self._own_eligible(key)]
-        chosen = self.next_undo()
+        chosen, skipped = self._selection()
+        if self.skip_policy == 'consume':
+            self.items = [key for key in self.items if key not in skipped]
         if chosen is None:
             return None
         kind, source = chosen
@@ -105,6 +121,7 @@ class Session:
         entry = self.redos[-1]
         out = self._publish(Event('', cancels=(entry.event,)))
         self.redos.pop()
+        self.selection_stamps[(entry.kind, entry.source)] = out.id
         if entry.kind == 'own':
             self.undone.remove(entry.source)
         return out
@@ -117,20 +134,35 @@ class Session:
         self.items.clear()
         self.undone.clear()
         self.redos.clear()
+        self.selection_stamps.clear()
         self.ignored_victims = set(self.doc.events)
 
+    def private_state(self):
+        return dict(writer=self.writer, counter=self.counter, items=list(self.items),
+            undone=sorted(self.undone), redos=[asdict(e) for e in self.redos],
+            ignored=sorted(self.ignored_victims), skip_policy=self.skip_policy,
+            selection_stamps=[[*key, value] for key, value in sorted(self.selection_stamps.items())])
+
+    @staticmethod
+    def _event_encoding(event):
+        return json.dumps(asdict(event), sort_keys=True, separators=(',', ':'))
+
     def checkpoint(self):
-        return json.dumps(dict(format='hybrid-private-session-1', writer=self.writer,
-            counter=self.counter, items=self.items, undone=sorted(self.undone),
-            redos=[asdict(e) for e in self.redos], ignored=sorted(self.ignored_victims),
-            skip_policy=self.skip_policy), sort_keys=True)
+        # Exact event encodings are a reference basis, not a compact production codec.
+        return json.dumps(dict(format='hybrid-private-session-2', **self.private_state(),
+            basis={k: self._event_encoding(e) for k, e in self.doc.events.items()}), sort_keys=True)
 
     @classmethod
     def resume(cls, raw, document):
         # A small trusted-shape checkpoint codec, not hostile-input admission.
         x = json.loads(raw)
-        if x['format'] != 'hybrid-private-session-1' or x['counter'] < 1:
+        if x['format'] != 'hybrid-private-session-2' or x['counter'] < 1:
             raise ModelError('unsupported checkpoint')
+        for key, encoded in x['basis'].items():
+            if key not in document.events or cls._event_encoding(document.events[key]) != encoded:
+                raise ModelError('incompatible document/history basis')
+        if any(e.author == x['writer'] and key not in x['basis'] for key, e in document.events.items()):
+            raise ModelError('document has later same-writer activity')
         items, undone = list(x['items']), set(x['undone'])
         redos = [Undo(**e) for e in x['redos']]
         if len(set(items)) != len(items) or not undone <= set(items):
@@ -151,4 +183,10 @@ class Session:
         result.doc, result.writer, result.counter = document, x['writer'], x['counter']
         result.items, result.undone, result.redos = items, undone, redos
         result.ignored_victims, result.skip_policy = set(x['ignored']), x['skip_policy']
+        result.selection_stamps = {(kind, source): stamp for kind, source, stamp in x['selection_stamps']}
+        for (kind, source), stamp in result.selection_stamps.items():
+            if kind not in ('own', 'victim') or source not in document.events or stamp not in document.events:
+                raise ModelError('invalid selection stamp')
+            if document.events[stamp].author != result.writer:
+                raise ModelError('foreign selection stamp')
         return result

@@ -20,6 +20,9 @@
       done
       python ${source}/session_check.py trace > session-trace.json
       cmp session-trace.json ${./session-trace.json}
+      python ${source}/session_check.py review-trace > session-review-trace.json
+      cmp session-review-trace.json ${./session-review-trace.json}
+      (cd ${source}; python -O -c 'from session_check import compatible_saves; compatible_saves()')
       (cd ${source}; python -O -c 'from check import admission_checks; admission_checks()')
       if python ${source}/check.py target-only > target-only.log 2>&1; then
         echo 'target-only mutation unexpectedly passed'; exit 1
@@ -41,10 +44,19 @@
         echo 'split undo unexpectedly passed'; exit 1
       fi
       grep -q 'AssertionError: half-published compound undo' split-undo.log
-      if python ${source}/session_check.py consume > consumed-skip.log 2>&1; then
-        echo 'consumed-skip alternative unexpectedly passed'; exit 1
+      if python ${source}/session_check.py retain > consumed-skip.log 2>&1; then
+        echo 'retained-skip alternative unexpectedly passed'; exit 1
       fi
-      grep -q 'AssertionError: skipped deletion must reactivate after peer redo' consumed-skip.log
+      grep -q 'AssertionError: bypassed deletion must stay consumed after peer redo' consumed-skip.log
+      for mode in unbound-save caller-ids old-redo-order eager-consume; do
+        if python ${source}/session_check.py "$mode" > "$mode.log" 2>&1; then
+          echo "review repair control unexpectedly passed: $mode"; exit 1
+        fi
+      done
+      grep -q 'AssertionError: cleared history must still bind shared basis' unbound-save.log
+      grep -q 'AssertionError: equal values need different occurrence identities' caller-ids.log
+      grep -q 'AssertionError: redone item must be next undo' old-redo-order.log
+      grep -q 'AssertionError: unvisited older item must not be consumed' eager-consume.log
       touch $out
     '';
     run = pkgs.writeShellApplication { name="hybrid-restoration"; runtimeInputs=[pkgs.python3]; text=''export PYTHONDONTWRITEBYTECODE=1; exec python ${source}/check.py "$@"''; };

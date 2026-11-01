@@ -12,10 +12,16 @@
             "author": "A",
             "cancels": [],
             "creates": [
-              "A-elem-1"
+              "[\"A\",1,0]"
             ],
             "deletes": [],
             "id": "A:1",
+            "payloads": [
+              [
+                "[\"A\",1,0]",
+                "x"
+              ]
+            ],
             "releases": [],
             "withdraws": []
           }
@@ -25,7 +31,7 @@
           "A:1"
         ],
         "visible": [
-          "A-elem-1"
+          "[\"A\",1,0]"
         ]
       },
       {
@@ -46,10 +52,16 @@
             "author": "A",
             "cancels": [],
             "creates": [
-              "A-elem-1"
+              "[\"A\",1,0]"
             ],
             "deletes": [],
             "id": "A:1",
+            "payloads": [
+              [
+                "[\"A\",1,0]",
+                "x"
+              ]
+            ],
             "releases": [],
             "withdraws": []
           },
@@ -62,9 +74,10 @@
             "creates": [],
             "deletes": [],
             "id": "A:2",
+            "payloads": [],
             "releases": [],
             "withdraws": [
-              "A-elem-1"
+              "[\"A\",1,0]"
             ]
           }
         ],
@@ -86,9 +99,10 @@
       "creates": [],
       "deletes": [],
       "id": "A:2",
+      "payloads": [],
       "releases": [],
       "withdraws": [
-        "A-elem-1"
+        "[\"A\",1,0]"
       ]
     },
     "status": "completed"
@@ -97,7 +111,7 @@
   "prefix": [
     {
       "creates": [
-        "A-elem-1"
+        "x"
       ],
       "deletes": [],
       "op": "edit",

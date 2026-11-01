@@ -57,10 +57,10 @@ The peer audit read the pre-repair afc8eae source. Its creator-withdrawal findin
 nix run .#sessions
 nix run .#sessions -- trace
 # intentional contrasting policy, fails the chosen reactivation assertion:
-nix run .#sessions -- consume
+nix run .#sessions -- retain
 ```
 
-The reference choice retains skipped externally reversed items so they can become eligible after peer redo. This is proposed policy, not an answer Ren supplied. The consuming alternative rejects at `skipped deletion must reactivate after peer redo`. The locked check also verifies that the committed session trace matches freshly generated output. The session checks cover selection, own/victim undo, redo, imports, chosen checkpoint cuts, explicit keep/clear redo policy and clear-history facts. No text order, grouping/children, register behavior or full input/authority/resource admission is implemented. The checkpoint codec has no hostile-input or durability guarantee.
+Ren rejected the reversible-skip candidate. The repaired profile consumes bypassed own items on an undo press; the retained-skip control rejects at `bypassed deletion must stay consumed after peer redo`. The locked check also verifies that the committed session trace matches freshly generated output. The session checks cover selection, own/victim undo, redo, imports, chosen checkpoint cuts, explicit keep/clear redo policy and clear-history facts. No text order, grouping/children, register behavior or full input/authority/resource admission is implemented. The version-2 checkpoint binds a private history to exact known shared facts, rejects missing/changed basis or later same-writer activity, and permits remote extensions. It is not a hostile-input codec or disk durability guarantee. Ordinary edits accept scalar values and allocate occurrence IDs internally. Redo updates private selection priority so the redone item, rather than an older-interleaved primary item, is undone next.
 
 An initial nested-flake edit defined its dynamic apps attribute twice; evaluation rejected it before any check ran. The app definitions were grouped and the full locked check then ran. That evaluation failure is not counted as a test pass.
 
@@ -82,7 +82,7 @@ Each writer may have at most two creation-bearing events, counting the seed.
 At each nonterminal prefix the choices are:
 
 - either writer's undo, redo or clear-history;
-- one fresh identity insertion, a singleton visible deletion, or a replacement
+- one fresh occurrence carrying scalar x, a singleton visible deletion, or a replacement
   of the whole current visible set by one fresh identity;
 - both explicit `keep` and `clear` new-edit policies when redo is pending;
 - delivery of any available event whose causal predecessors the receiver has,
@@ -98,7 +98,7 @@ key includes private checkpoints so different future histories are not merged.
 The comparator does **not** merely compare checkpoint bytes.
 
 Every visited state also completes causal synchronization to both peers and
-checks equal facts/visibility and unchanged private checkpoints. This tests the
+checks equal facts/visibility and unchanged private history (the next save may record a larger shared basis). This tests the
 transport harness and import behavior; convergence of the event-set projection
 is already built into this model. A 10,000-state budget fails the command rather
 than turning unfinished exploration into a passing result.
@@ -121,3 +121,34 @@ Other multi-edit subsets, longer histories, grouping/children, registers, text
 order, hostile checkpoints, real disk failure and split-brain writers remain
 outside it. No policy choice becomes approved merely because its warm and cold
 executions agree.
+
+## collected PR4 review repair
+
+[The profile](../../docs/private-session-profile.md) maps the repairs to the review:
+compatible shared/private saves, library-owned equal-looking occurrences,
+permanently consumed bypasses, preserved whole-deletion victim restoration,
+redo-priority stamps, and victim-first concurrent ties. The actual old failures
+are in [session-review-before-repair.txt](session-review-before-repair.txt).
+The old source remains at `15d06cf`; there was no history rewrite.
+
+The locked check also requires these deliberately broken variants to fail:
+
+```sh
+nix run .#sessions -- unbound-save
+nix run .#sessions -- caller-ids
+nix run .#sessions -- old-redo-order
+nix run .#sessions -- eager-consume
+```
+
+They respectively bypass saved-basis binding, derive occurrence IDs from values,
+erase redo selection priority, or consume an older item the undo press never
+bypassed. Existing effect-model negative controls are
+unchanged. Session fixtures now assert generated occurrence IDs and scalar
+values separately; passing equal-looking text alone cannot conceal lost identity.
+The q07 visible-b oracle is unchanged; its internal source selection follows the
+new victim-first tie rather than preserving an unapproved own-first choice.
+
+For the six review cases as actual generated observations, run
+`nix run .#sessions -- review-trace`; the locked check compares its output with
+[session-review-trace.json](session-review-trace.json). These values are shown
+without claiming a text order.

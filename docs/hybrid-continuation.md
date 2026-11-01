@@ -71,8 +71,8 @@ Two continuations satisfy the earlier examples:
 - skipping D consumed its local position permanently; Bo's next undo is empty;
 - skipping D only bypassed an externally reversed effect; when D becomes effective again, Bo can select D on a subsequent undo.
 
-The [private-session slice](private-session-profile.md) now implements the second policy as an explicit candidate, using actual selection/undo/redo calls and private checkpoint continuations. It does not treat this preference as already selected by Ren.
+Ren's PR4 review selected the first continuation: a bypassed own deletion is consumed when undo is pressed, so Bo cannot select it again after Alice's redo. The [private-session slice](private-session-profile.md) now implements that behavior. The earlier reversible-skip candidate remains in the before-repair evidence and Git history; its reactivation assertion is no longer an adopted oracle.
 
-They require different local session state and checkpoint continuation. Neither a frozen restoration mask nor the current questionnaire decides between them. A proposed session specification must choose and replay this case, rather than treating “adjust the stack” as an algorithm. If choosing the simpler policy under Ren's implementation latitude, name the resulting user-visible behavior explicitly.
+This choice changes private history, not the frozen mask projection. New primary work and redo priority have separate session rules. An empty undo can consume bypassed private items without publishing an event. No remote message directly mutates the local item list.
 
 The next gate remains a complete selection/effect/replication/continuation contract, including this case, new primary work/redo, compound items, register no-ops and historical text ordering. This artifact narrows the gap by giving q07 a concrete candidate law and pinning later-deletion/whole-replacement continuations; it does not relabel the gap closed.

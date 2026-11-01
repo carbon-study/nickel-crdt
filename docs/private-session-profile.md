@@ -1,86 +1,152 @@
-# private hybrid undo sessions: a restricted reference profile
+# private hybrid undo sessions: restricted reference profile
 
-The [restoration candidate](hybrid-continuation.md) can calculate visibility after authored events. This slice adds actual `edit`, `undo`, `redo`, `receive`, `clear_history`, `checkpoint` and `resume` calls that **select and generate** those events. The runnable implementation is [sessions.py](../experiments/hybrid-restoration/sessions.py); [session_check.py](../experiments/hybrid-restoration/session_check.py) drives two independent documents/sessions. This remains an unapproved reference profile, not Nickel's Rust API or a complete text CRDT.
+This profile runs `edit`, `undo`, `redo`, `receive`, `clear_history`, `checkpoint`
+and `resume` over two independent documents. It follows Ren's collected PR4
+review: compatible saves, library-owned occurrences, permanent bypass and redo
+priority. The implementation is [sessions.py](../experiments/hybrid-restoration/sessions.py).
+It is still a reference experiment, not Nickel's Rust API, a text-order engine
+or a complete local-undo correctness argument. V1–V9 remain unfulfilled.
 
-## 1. the skipped-item choice
+## 1. occurrences belong to the library
 
-**Candidate policy: an externally reversed deletion is bypassed, not permanently removed from its writer's private history.** If a peer's redo makes that deletion effective again, it becomes selectable again unless this session has itself undone or cleared that item. This avoids changing a private cursor merely because a remote restoration arrived. It can make an older, previously bypassed item reappear; that consequence needs review.
+`edit(creates=('x',))` supplies a Unicode scalar value, not an identity. The
+session allocates each occurrence from its trusted writer tag, event counter and
+index within the edit. The model encodes that triple as a JSON string. Even two
+`x` values in one edit get different identities. Two offline writers inserting
+`x` therefore produce two occurrences; after sync, Alice's undo withdraws only
+hers. Redo reactivates that same occurrence, not a newly allocated spelling.
 
-Let Bo first create z, Alice create b, and Bo delete b. Both receive the edits. The following table is produced by actual session calls; the visible sets do not specify text order.
+An event carries its created IDs and `(ID, scalar)` payload pairs. Deletions
+name the returned IDs, never a search for matching characters. The document
+rejects conflicting births before publication. Values are validated as single
+Unicode scalars; surrogates are rejected. This is exact-value preservation in
+an identity-set model, not a chosen production encoding or insertion order.
+Distinct writer tags and a fenced single continuation of each writer are still
+trusted preconditions; this is not account authentication or a distributed
+writer-registration protocol. Hand-authored lower-level event fixtures remain
+separate from this library-allocated session path.
 
-| action, received by both | visible IDs | Alice's next undo | Bo's next undo | waiting redo |
-| --- | --- | --- | --- | --- |
-| initial synced deletion | z | restore Bo's deletion | Bo's deletion | none |
-| Alice undo | b,z | Alice's insertion of b | Bo's older insertion z | Alice's restoration |
-| Bo undo | b | Alice's insertion of b | empty | Alice's restoration; Bo's undo of z |
-| Bo resumes a saved private session plus shared facts | b | unchanged | empty | unchanged |
-| Alice redo | empty | restore Bo's now-effective deletion | Bo's reactivated deletion | Bo's undo of z |
-| Bo undo | b | Alice's insertion of b | empty | Bo can redo the deletion restoration, then his undo of z |
+## 2. a bypassed item does not come back
 
-[session-trace.json](../experiments/hybrid-restoration/session-trace.json) records the actual IDs, next actions and each separate redo list. Run it again with:
+Bo inserts z, Alice inserts b, then Bo deletes b. Alice restores the deletion.
+Bo's next undo bypasses his already-reversed deletion and withdraws z. That
+press **consumes** the bypassed own item permanently from Bo's private history.
+When Alice redoes her restoration and b becomes hidden again, Bo's next undo is
+empty. Bo gets no redo entry for an action he skipped; his actual undo of z can
+still be redone.
 
-```sh
-cd experiments/hybrid-restoration
-nix run .#sessions -- trace
-```
+This replaces the previous reversible-skip candidate. Ren explicitly rejected
+that continuation in PR4. The old behavior is retained in Git at `15d06cf` and
+in [session-review-before-repair.txt](../experiments/hybrid-restoration/session-review-before-repair.txt).
+The `retain` control now fails the required consumed-bypass observation. The old
+reactivation assertion is not still presented as a required oracle.
 
-The alternative that consumes a skipped item fails the chosen profile's reactivation assertion. That is a policy contrast, not a proof that permanent skipping is universally wrong or that Ren already selected this behavior.
+Only ineffective own items encountered before the selected eligible action are
+consumed. An older item below a selected newer item has not been bypassed.
+Consumption occurs when undo is pressed, not merely when a remote message
+arrives or `next_undo` is inspected. An empty undo may consume ineffective own
+items without emitting an event. Imports never append foreign items to the
+private stack or consume local items on their own.
 
-## 2. state and selection rules
+## 3. selection, full-scope restoration and redo priority
 
-Each session has one trusted writer tag, a next synthetic event counter, its ordered own-item list, a set of locally undone own items, and a private redo list. Shared events gain a writer tag so the profile can identify whose creations were deleted. This tag is not authentication, an account, a user grant or an adopted Nickel wire format. Imports change the document and therefore future eligibility, but never append a foreign item to the private list or clear redo.
+An own item is eligible unless locally undone, if it has an unwithdrawn creation
+or an effective ordinary deletion atom. An ordinary deletion can matter even
+when its target's creation is withdrawn; this does not eliminate invisible undo.
 
-The candidate selects as follows:
+A foreign deletion is eligible for victim restoration when an effective atom
+removes this writer's unwithdrawn creation. Selecting it restores the deletion's
+**full original scope**, including other writers' characters in that deletion,
+while leaving its insertion effects alone. Alice can therefore reverse Cam's
+delete of both Alice's a and Bo's b. She cannot thereby restore unrelated
+identities outside that selected scope. Frozen observed-concurrent masks and
+separate creator withdrawal are unchanged from [the effect model](hybrid-continuation.md).
 
-1. An own item is eligible unless locally undone, if any of its creation effects is not withdrawn or any of its ordinary deletion atoms remains effective. An ordinary deletion can remain semantically relevant even while its target's creation is withdrawn; invisible history actions are not eliminated.
-2. A foreign deletion is a victim-restoration candidate if an effective atom targets this writer's creation and that creation has not been withdrawn. Selecting it restores the deletion's **full original scope**, which may include text from several creators, while leaving its insertion effects alone. This agrees with q11's requested restoration of a/B while preserving x; it does not settle general per-hunk/subset selection.
-3. Prefer causally later eligible source actions. Among concurrent maximal candidates, prefer an own item, then the model's string ID order. This tie policy is a concrete arbitrary profile choice, not a new ordered-ID primitive or sequence-placement decision.
+Causally later eligible actions take precedence. Concurrent ties prefer victim
+restoration, then the model's string-ID order. This implements Ren's preferred
+`a` restoration while leaving concurrent z in place. In the q07 fixture it also
+selects Bo's deletion rather than Alice's concurrent own deletion; the frozen
+mask still covers both and the required visible b is unchanged. This is a
+private selection choice, not a new ordering primitive for text.
 
-A locally selected source belongs in the private redo/history record when needed. The replicated event carries its author and frozen effect mask, not a redundant selected-source-ID field. Receivers apply it without calling their own selector.
+**A redo is a new local selection occurrence.** Its private selection stamp is
+the emitted redo event, rather than the old source event. Type a, undo it, type
+x with `keep`, then redo a: both are visible, and the next undo withdraws a,
+leaving x. A later primary edit takes precedence over that redo. These stamps
+are private checkpoint data; receivers do not recompute the author's chosen
+source or import its private stack. Victim redo gets the same priority treatment
+when the source becomes eligible again.
 
-## 3. transitions implemented in this profile
+## 4. transitions and private state
 
-| call | document effect | private effect |
+Each session keeps its writer tag/counter, own items, locally undone own items,
+redo entries, forgotten victim-source IDs and local redo selection stamps.
+
+| call | replicated effect | private effect |
 | --- | --- | --- |
-| nonempty edit | one event creates fresh supplied IDs and/or deletes currently visible IDs | append one own item; explicit pending-redo policy below |
-| undo own item | one event restores its deletion effect under the observed-concurrent law and withdraws its creations | mark that item locally undone; append its opposite to redo |
-| undo victim deletion | one restoration event, no withdrawal of the foreign creation effects | append a private redo entry; do not alter the foreign writer's private list |
-| redo | one event cancels the selected undo token and all its facets | pop the top redo; reactivate an own item locally if applicable |
-| receive | ordinary model-event validation/publication | no list/counter mutation; subsequent selection is derived again |
-| empty undo/redo | no event | no change |
-| clear history | no event; semantic facts stay intact | clear own items and redo; forget currently known victim candidates |
+| nonempty edit | one event allocates occurrences and/or deletes visible IDs | append own item; explicit pending-redo choice |
+| own undo | one event restores deletion effects and withdraws own creations | consume bypassed items, mark selected item undone, append redo |
+| victim undo | one frozen restoration event, no foreign creator withdrawal | consume bypassed own items, append private redo |
+| redo | cancel the selected undo token and all its facets | pop redo, reactivate own item if applicable, update local selection stamp |
+| receive | validate/publish a shared event | history lists/counter/stamps unchanged |
+| empty undo | no event | consume any bypassed ineffective own items |
+| empty redo | no event | unchanged |
+| clear history | no event | clear lists/stamps; forget known victim sources |
 
-Clear-history also suppresses later reselection of those same forgotten victim-source IDs, even if a peer later redoes them; a newly issued foreign deletion is a different candidate. This is a specified profile choice, not garbage collection. Full event history remains retained.
+Clear-history exclusions stay forgotten even if a peer later redoes the same
+source; a newly issued deletion is a new candidate. It is not garbage collection:
+shared semantic facts remain intact. Imports do not clear pending redo.
 
-Ordinary input edit IDs must be fresh; deletions must target the current visible identity set. Each edit is one item/event. Multi-step scratch edits, timed grouping, asynchronous children, registers, anchors, spans and positions are **not** implemented by this profile.
+Pending redo plus new nonempty work still requires an explicit `keep` or `clear`.
+Ren was unsure in q04; no default is silently selected. Retaining access does not
+settle placement in an ordered document. Grouping, derived children, registers,
+anchors, spans and positions remain outside this profile.
 
-### redo after new primary work remains an explicit choice
+## 5. compatible document/history saves
 
-Ren was unsure in q04, prioritizing data recovery. The reference method therefore refuses a nonempty new edit with waiting redo unless the caller explicitly chooses `keep` or `clear`. `keep` preserves the old redo list; `clear` drops local access without erasing replicated facts. Both are exercised. This is not a selected Nickel default, a full undo tree or a claim that reintroduced text has the desired placement. The identity-set model has no text positions.
+A checkpoint includes an exact basis of every event encoding known when it was
+saved, including when clear-history has emptied the private stack. Resume checks
+that the supplied document contains all those same events, with identical
+content. A document with later events authored by that same writer is also
+rejected: the private save does not describe that writer's continuation.
+Additional **remote** events are permitted and can change current eligibility.
 
-## 4. two peers, action timing and checkpoints
+Thus Alice cannot combine the empty document saved after undo with her later
+history saved after redo. Clearing history after that redo does not evade the
+basis check. Same event IDs with changed content are incompatible too. The
+reference stores full canonical event encodings, not a compact checkpoint or a
+cryptographic authentication mechanism. It intentionally spends space to make
+the compatibility check explicit. The checkpoint format is now
+`hybrid-private-session-2`; old version-1 saves are rejected, not silently
+reinterpreted.
 
-The directed checks generate events through session calls for:
+`private_state()` describes history independent of this basis. Receiving a new
+remote event leaves that private history unchanged, but a subsequently saved
+checkpoint records the larger shared basis. The earlier claim that checkpoint
+bytes never change on import would be wrong for this format.
 
-- the skipped-item cycle above, including resuming Bo before and after Alice's redo;
-- Bo undoing his deletion before seeing Alice's restoration versus pressing afterwards, legitimately selecting his older z. Once emitted, his message never turns into a different selection on receipt;
-- q07's synced concurrent deletes, including empty Bo undo while his deletion is externally reversed and reactivation after Alice redo;
-- q11's whole replacement and victim restoration, preserving the completed author undo through victim redo;
-- the reviewed creator-withdrawal case, then creator redo and peer deletion redo;
-- pending redo surviving remote edits, both explicit new-edit policies, and clearing history without reactivating text.
+The caller must still fence the original writer before resume. Matched saves do
+not provide disk atomicity, split-brain recovery or exactly-once user commands.
+The codec remains trusted-shape, not general hostile-input admission. Arbitrary
+interrupts, memory errors, callbacks and concurrent calls are not covered.
 
-Three action-generated event sets also cross causal-delivery replay, duplicate handling and shared-log reconstruction at every prefix. **Private sessions** in those directed checks are resumed at selected continuation cuts, not exhaustively at every prefix. A fresh reader receives shared facts but no private items; its undo is empty. The private checkpoint serializes source/token references, phases and the synthetic allocator. Shared document state is supplied separately.
+## 6. runnable evidence and remaining gate
 
-Checkpoint decoding is a small trusted-shape reference codec with reference checks, not general hostile-input admission or a selected production format. The caller must stop/fence the original writer before resuming it; no disk transaction, split-brain recovery or exactly-once user-command protocol is implemented. A stale next-ID continuation is rejected when it already occurs in the document. Memory errors, arbitrary interrupts, reentrant callbacks and concurrent method calls are outside these model checks. No general Python transaction-safety guarantee is being made.
+The directed suite checks all review outcomes, whole-replacement/creator-
+withdrawal continuations, q07, full-scope victim restoration, duplicate imports,
+private reload, explicit new-edit policies and remote redo preservation.
+[session-review-trace.json](../experiments/hybrid-restoration/session-review-trace.json)
+shows the six review cases through actual calls;
+[session-trace.json](../experiments/hybrid-restoration/session-trace.json) is
+regenerated by actual calls; it shows occurrence IDs and scalar values separately.
 
-### bounded generated cold continuations
+The [bounded explorer](../experiments/hybrid-restoration/README.md#bounded-cold-session-continuation-check)
+compares the same next operation after uninterrupted execution and JSON reload
+of either or both peers. Its explicit four-seed/depth/action bounds remain in
+its README and receipt. It is a codec/continuation regression against the same
+candidate, not an independent intended-undo oracle or an unbounded proof.
 
-A separate [bounded explorer](../experiments/hybrid-restoration/README.md#bounded-cold-session-continuation-check) now tests all outgoing actions from238 generated prefixes at depths zero through two under its explicit four seeds and action grammar. It compares uninterrupted operation with JSON reconstruction of either or both peers, then executes the same actual next operation. Its3,419 edges give10,257 warm/cold comparisons. This is separate from the directed trace's selected checkpoint cuts; it does not extend them to arbitrary histories or test outgoing actions from the depth-three leaves.
-
-The comparison checks operation results, shared facts, visible identities and next undo selection, using the same session/effect code on both sides. It does not independently judge whether the profile is the undo behavior users want. Three deliberately damaged reloads produce retained executable witnesses for lost redo, forgotten clear-history exclusions and allocator collision. No session/effect transition or proposed policy changed to make this check pass.
-
-## 5. what this closes and leaves open
-
-This slice replaces hand-authored undo targets with running private-session transitions for the stated restricted profile. It makes “the other writer's history adjusts” mean derived eligibility without replicated private lists, and chooses reversible skipping as an explicit candidate. It does not establish that the policy is the desired one in every questionnaire scenario.
-
-General command membership/children, account or permission scope, concurrent victim-choice policy, registers, text order/placement, cost/admission budgets and implementation-linked Rust proofs remain open. V1–V9 remain unfulfilled. The next contract work is to reconcile this profile with those missing cases before adopting a core API; do not silently rename it a complete local-undo algorithm.
+No Rust transition/proof, general text order, permission/account model,
+admission/storage budget, grouping/children or register continuation is supplied
+by these repairs. Review behavior and implementation remain separate from the
+complete reference-contract gate and eventual implementation-linked proofs.
