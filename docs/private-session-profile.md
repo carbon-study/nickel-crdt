@@ -1,5 +1,12 @@
 # private hybrid undo sessions: restricted reference profile
 
+**Follow-up review pending:** the rules below describe the implemented profile,
+not completion of Ren's newest review. The [selection comparison](../experiments/hybrid-restoration/README.md#follow-up-selection-review-decision-still-required)
+shows that strict creation-slot placement conflicts with the accepted overlapping-
+delete outcome. Empty-undo equivalence and ineffective-redo behavior also remain
+to implement; keep-redo stacking is provisional. No new selector is silently
+adopted by this comparison.
+
 This profile runs `edit`, `undo`, `redo`, `receive`, `clear_history`, `checkpoint`
 and `resume` over two independent documents. It follows Ren's collected PR4
 review: compatible saves, library-owned occurrences, permanent bypass and redo

@@ -4,7 +4,7 @@
   outputs = {self, nixpkgs}: let
     system = "x86_64-linux";
     pkgs = import nixpkgs {inherit system;};
-    source = pkgs.lib.fileset.toSource { root = ./.; fileset = pkgs.lib.fileset.unions [./model.py ./check.py ./sessions.py ./session_check.py ./continuation_check.py]; };
+    source = pkgs.lib.fileset.toSource { root = ./.; fileset = pkgs.lib.fileset.unions [./model.py ./check.py ./sessions.py ./session_check.py ./continuation_check.py ./selection_review.py]; };
     check = pkgs.runCommand "hybrid-restoration-directed-check" {nativeBuildInputs=[pkgs.python3];} ''
       export PYTHONDONTWRITEBYTECODE=1
       python ${source}/check.py
@@ -48,7 +48,7 @@
         echo 'retained-skip alternative unexpectedly passed'; exit 1
       fi
       grep -q 'AssertionError: bypassed deletion must stay consumed after peer redo' consumed-skip.log
-      for mode in unbound-save caller-ids old-redo-order eager-consume; do
+      for mode in unbound-save caller-ids old-redo-order eager-consume presence-only-basis; do
         if python ${source}/session_check.py "$mode" > "$mode.log" 2>&1; then
           echo "review repair control unexpectedly passed: $mode"; exit 1
         fi
@@ -57,12 +57,17 @@
       grep -q 'AssertionError: equal values need different occurrence identities' caller-ids.log
       grep -q 'AssertionError: redone item must be next undo' old-redo-order.log
       grep -q 'AssertionError: unvisited older item must not be consumed' eager-consume.log
+      grep -q 'AssertionError: same-ID changed-content basis must reject' presence-only-basis.log
       touch $out
     '';
     run = pkgs.writeShellApplication { name="hybrid-restoration"; runtimeInputs=[pkgs.python3]; text=''export PYTHONDONTWRITEBYTECODE=1; exec python ${source}/check.py "$@"''; };
   in {
     checks.${system}.default = check;
     apps.${system} = {
+    selection-review = let reviewRun = pkgs.writeShellApplication {
+      name="hybrid-selection-review"; runtimeInputs=[pkgs.python3];
+      text=''export PYTHONDONTWRITEBYTECODE=1; exec python ${source}/selection_review.py "$@"'';
+    }; in {type="app"; program="${reviewRun}/bin/hybrid-selection-review"; meta.description="Failing combined-policy comparison; exits 2 for the pending decision";};
     continuations = let continuationRun = pkgs.writeShellApplication {
       name="hybrid-continuations"; runtimeInputs=[pkgs.python3];
       text=''export PYTHONDONTWRITEBYTECODE=1; exec python ${source}/continuation_check.py "$@"'';

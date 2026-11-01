@@ -1,8 +1,8 @@
 Traceback (most recent call last):
-  File "/root/projects/nickel-crdt/experiments/hybrid-restoration/session_check.py", line 376, in <module>
+  File "/root/projects/nickel-crdt/experiments/hybrid-restoration/session_check.py", line 381, in <module>
     main(mode)
     ~~~~^^^^^^
-  File "/root/projects/nickel-crdt/experiments/hybrid-restoration/session_check.py", line 330, in main
+  File "/root/projects/nickel-crdt/experiments/hybrid-restoration/session_check.py", line 332, in main
     n = consumed_skip(skip)
   File "/root/projects/nickel-crdt/experiments/hybrid-restoration/session_check.py", line 42, in consumed_skip
     assert b.next_undo() is None, 'bypassed deletion must stay consumed after peer redo'

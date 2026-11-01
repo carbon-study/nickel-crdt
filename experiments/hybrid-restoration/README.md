@@ -152,3 +152,42 @@ For the six review cases as actual generated observations, run
 `nix run .#sessions -- review-trace`; the locked check compares its output with
 [session-review-trace.json](session-review-trace.json). These values are shown
 without claiming a text order.
+
+## follow-up selection review: decision still required
+
+`nix run .#selection-review` runs the paired before/after-redo arrivals and the
+accepted overlapping-deletion case. **It exits 2**, with the full observations in
+[selection-review.json](selection-review.json), because the strict creator-slot
+rule does not give both requested outcomes. It does not change Session's default
+selector and is not counted as a passing acceptance check.
+
+With one creation item for abc, Alice's later delete of a,b sits above it.
+Placing Bo's restore-b,c directly above the creation puts it below Alice's delete:
+`[create abc, restore Bo b,c, Alice delete a,b]`. The next undo selects Alice's
+own deletion and restores a,b. The accepted b,c outcome instead requires selecting
+Bo's deletion first. The probe uses real Session-generated edits and the ordinary
+frozen-mask evaluator for both, not hand-authored visible answers.
+
+The creator-slot comparator makes both redo-arrival orders follow remove-a,
+restore-p, remove-p, including after JSON reload. The existing selector instead
+chooses differently in those orders. It does **not** push a victim entry on import:
+its comparison uses causal stamps, and the redo event's ancestry differs according
+to whether Bo's deletion was known. Same visible text is not the same complete
+event set; the new requirement is a stronger selection-policy constraint, not a
+failure of event-set convergence or checkpoint copying.
+
+A second, **unapproved** comparator attaches the restoration above the newest
+local ordinary edit that *created or deleted* any of the affected occurrences.
+It gives b,c in the overlap case and the same remove-a-first behavior in both
+redo-arrival orders. That changes the rule from newest creation to newest touch.
+Neither comparator claims a general session algorithm: these probes reject
+cleared-history and previously redone victim-slot inputs, which they do not define.
+The owner needs to choose the rule or change the overlap expectation before the
+new default selector is implemented.
+
+The follow-up's empty-undo equivalence and visibly ineffective-redo behavior also
+remain pending; the present default is not advertised as satisfying them. Keep-
+redo branch stacking is provisional. The separate checkpoint-content fixture now
+contains every saved event ID and changes only x to y. Its presence-only-basis
+control must fail at `same-ID changed-content basis must reject`, independently
+of missing-event rejection.

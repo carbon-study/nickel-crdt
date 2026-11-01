@@ -194,16 +194,18 @@ def compatible_saves():
         pass
     else:
         raise AssertionError('later same-writer facts need a matching history save')
-    # Same IDs with different content are not a compatible basis either.
+    # Isolate content: every saved ID is present; only x's scalar becomes y.
+    only = Session('D'); born = only.edit(creates=('x',))
+    saved_only = only.checkpoint(); bad = only.doc.copy()
     from dataclasses import replace
-    bad = earlier.copy(); first = next(iter(bad.events))
-    bad.events[first] = replace(bad.events[first], author='changed')
+    bad.events[born.id] = replace(born, payloads=((born.creates[0], 'y'),))
+    assert set(bad.events) == set(only.doc.events)
     try:
-        Session.resume(Session.resume(saved, later).checkpoint(), bad)
+        Session.resume(saved_only, bad)
     except ModelError:
         pass
     else:
-        raise AssertionError('changed saved facts must reject')
+        raise AssertionError('same-ID changed-content basis must reject')
 
 
 def equal_occurrences_and_victim_scope():
@@ -352,6 +354,9 @@ if __name__ == '__main__':
             return original(self)
         Session.undo = eager
         bypass_boundaries()
+    elif mode == 'presence-only-basis':
+        Session._event_encoding = staticmethod(lambda event: event.id)
+        compatible_saves()
     elif mode == 'unbound-save':
         import json
         original = Session.resume.__func__
