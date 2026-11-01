@@ -1,0 +1,12 @@
+[package]
+name = "nickel-crdt"
+version = "0.0.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/carbon-study/nickel-crdt"
+description = "A CRDT library under development, with implementation-linked proofs"
+publish = false
+
+[workspace]
+members = ["proof-smoke"]
+resolver = "2"

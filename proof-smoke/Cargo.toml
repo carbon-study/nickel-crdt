@@ -1,0 +1,6 @@
+[package]
+name = "nickel-proof-smoke"
+version = "0.0.0"
+edition = "2021"
+publish = false
+license = "MIT"

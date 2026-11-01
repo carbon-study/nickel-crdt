@@ -1,0 +1,8 @@
+/target/
+/.cache/
+/result
+/proof-smoke/proofs/
+
+/LOG.md
+/PROMPT.md
+/notes/
