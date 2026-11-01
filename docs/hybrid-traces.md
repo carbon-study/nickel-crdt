@@ -16,7 +16,7 @@ Bo has an older insertion z, then deletes Alice's b. While disconnected from eac
 
 An event naming the deletion Bo actually selected preserves z in both orders. If Bo first receives Alice's restoration and then selects his older z, that is a different authored action. A receiver must not turn the former into the latter. The eventual wire/selection specification must preserve this distinction without replicating a private stack.
 
-## redo is still a policy choice
+## redo has implementation latitude
 
 Start with one b and one deletion D. Alice and Bo independently restore D, exchange those decisions, then Alice presses redo.
 
@@ -25,7 +25,7 @@ Start with one b and one deletion D. Alice and Bo independently restore D, excha
 | retract only Alice's named restoration | b remains | Bo's independent restoration still suppresses D |
 | retract both observed restorations | b disappears | Alice reapplies the deletion reversed by that shared round |
 
-Both authored event sets pass the bounded delivery replay. That cannot choose the intended behavior. The second option is not a proven shared-round protocol: the fixture supplies a cancellation set containing both restoration IDs. Eligibility, concurrent later restorations, repeated cycles and what the other session selects next remain unspecified. The first option also needs complete session/redo rules. Neither is adopted.
+Both authored event sets pass the bounded delivery replay. Ren subsequently permitted either result, preferring whichever simplifies implementation. Treat these as allowed alternatives when designing the complete model; no further preference decision is required for this example. The replay alone does not establish which complete design is simpler. The second option is not a proven shared-round protocol: the fixture supplies a cancellation set containing both restoration IDs. Eligibility, concurrent later restorations, repeated cycles and what the other session selects next remain unspecified. The first option also needs complete session/redo rules. Neither implementation is selected yet; either visible outcome is permitted for this trace.
 
 ## a remaining conflict with q07
 
@@ -43,7 +43,7 @@ The model's cold copy serializes the full event dictionary and reconstructs it d
 
 ## next reference-contract work
 
-1. Resolve the concurrent-restoration redo choice and reconcile q07 with the candidate's deletion rule.
+1. Choose the simpler complete redo design within the permitted alternatives, and reconcile q07 with the candidate’s deletion rule.
 2. Specify partial restoration, including mixed-author removals and replacements, while preserving atomic item semantics where required.
 3. Give actual session eligibility/selection and redo transitions, including the overwritten-register no-op and peers reconnecting with saved private stacks.
 4. Define the resulting shared event interpretation, causal/admission rules, text ordering and cold recovery, then connect it to the prospective API and V1–V9.
