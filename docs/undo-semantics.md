@@ -23,6 +23,30 @@ The bibliography and exact reading limits are in [the overview](carbon-contract.
 | [Stewen/Kleppmann 2024, §§2–5](https://arxiv.org/pdf/2404.11308) | local stacks plus RestoreOps that recover register states through operation history | a verified sequence algorithm preserving our placement and independent-insertion requirements |
 | [Dolan 2020, §2](https://arxiv.org/pdf/2006.10494) | characterization under an abstract-state-return undoability axiom | an impossibility result for every history-retaining visible-projection restoration design |
 
+### groupware prior art
+
+[Prakash and Knister (1994)](https://web.eecs.umich.edu/~aprakash/papers/undo-tochi94.pdf) already separate selection, shifted targets and dependency conflicts (§3). Their application supplies Conflict, Transpose and Inverse (§4.2). State-preserving transposition alone is insufficient: they also require counterfactual meaning and compatibility with inverse pairs. Section 8.1 exhibits incorrect restoration order after relaxing adjacency conflicts, then introduces ordered locators that can distinguish gaps at the same visible position. Their correctness result is conditional on the supplied laws, not a theorem for arbitrary editing primitives.
+
+For Nickel, this makes historical gap evidence and cancellation compatibility explicit obligations rather than new problems discovered here. We have not supplied the corresponding laws or implementation. Their conflict refusal is a policy option, not automatically our policy of retaining independent peer text. The counterfactual transformed operation must itself be defined; “as if my edit never happened” does not define later dependent edits. Their §7.3 also presents partial versus collective multi-operation undo as a choice; Nickel currently proposes atomic calls.
+
+Reading: §§3, 4.1–4.2, §5.3 Lemma 6 and theorem statement/proof, §§7.3 and 8.1. Other lemmas/algorithms were not audited and no DistEdit implementation was run. Sun's 2002 concurrent-inverse article, Ressel/Gunzenhäuser 1999 and Abowd/Dix 1992 remain reviewer-suggested leads; they are not evidence used by this revision.
+
+### deployed APIs and retained failure witnesses
+
+[Yjs's UndoManager documentation](https://docs.yjs.dev/api/undo-manager) specifies tracked origins, a 500 ms default capture window, explicit capture breaks and stack-item metadata. These are useful selection/grouping precedents. They do not establish our exact target, identity, invisible-activity or continuation laws. The numerical overlap with an editor's chosen 500 ms policy does not establish where that policy came from.
+
+[Loro's undo documentation](https://loro.dev/docs/advanced/undo) describes local-only tracking for one peer, clearing stacks on peer-ID change, configurable grouping, and cursor transformation for elements recreated by undo. This describes the documented interface, not acceptance of Nickel's witnesses.
+
+The following are retained native-fork observations, not fresh executions or claims about current upstream releases. Dark/Loro remain parked. Source and evidence are pinned to [the retained fork](https://github.com/romdotdog/loro/tree/b4bf8191de47019a0dedd5d0ba143cd2cf191185).
+
+| witness | retained result and scope | Nickel obligation |
+| --- | --- | --- |
+| delivery partition | ordinary List undo gives sax/asx for batch/incremental delivery of the same operations and same pre-undo source/version; each resulting history converges after its own undo is synced | V4 must include subsequent local history behavior, not only convergence after operations are fixed |
+| historical side | two Text histories have the same projected import diff and visible sb, but require sab versus asb on restoration | V6 needs historical placement evidence, not projected indices |
+| invisible retirement | experimental identity manager consumes B's hidden creation without a new replicated event; a later undo reveals B where the proposed oracle requires empty, and cold reconstruction has no retirement to recover | V5/V8 need an observable semantic event if this candidate policy is adopted |
+
+[Delivery/placement fixture](https://github.com/romdotdog/loro/blob/b4bf8191de47019a0dedd5d0ba143cd2cf191185/crates/loro/tests/undo_delivery_review.rs), [retained replay contract](https://github.com/romdotdog/loro/blob/b4bf8191de47019a0dedd5d0ba143cd2cf191185/scripts/undo-issue-repros/README.md), [retirement evidence](https://github.com/romdotdog/loro/blob/b4bf8191de47019a0dedd5d0ba143cd2cf191185/context/undo-trigger-lifecycle.md). The opt-in planner repairs the selected first two witnesses; it still lacks the third activity boundary. Ordinary delivery dependence is not demonstrated divergence of one common operation set. These distinctions matter more than a generic claim that an engine's undo is broken.
+
 ### a worked register distinction
 
 In Stewen/Kleppmann's Fig. 1(d), take a black register, A sets red, then B sets green. Undo by A restores black; redo restores green. In their algorithm, undo's RestoreOp anchors A's set and resolves that anchor's predecessors; redo anchors the undo and resolves its predecessors. It is not equivalent to changing A's set from active to inactive. Their Fig. 3 further has B undo after A undo, revealing red. This is a substantive semantic difference, not different stack bookkeeping. [§§2, 4–5, 7](https://arxiv.org/pdf/2404.11308).
@@ -95,6 +119,8 @@ The first two states have equal text but differ on the next undo of C. A wire/sn
 ## 5. what I recommend next, and what I am not claiming
 
 The contribution-deactivation model remains a candidate because it expresses our independent-peer and invisible-activity examples clearly. I have not shown it implements the local undo behavior Ren wants. Nor have I shown that the register restoration algorithm generalizes to sequences with those same examples. We should not choose either by terminology.
+
+The [stable questionnaire catalogue](observation-catalogue.md) now names the observation families and their open decisions. A response becomes a candidate expected outcome only after reviewing its assumptions, interactions and consistency with the other scenarios. It does not become an acceptance assertion by majority vote.
 
 The next research artifact should fix the intended observations for local sequence undo, including overwrite/replacement and edit-after-undo cases; give a complete order/target/activity interpretation; and derive a finite-history implementation with an implementation-linked proof plan. Any conflict between the desired observations and a literature policy must be resolved explicitly. No user study or paper citation here establishes a uniquely correct user expectation.
 
