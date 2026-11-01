@@ -60,6 +60,8 @@ visible(e) = active(creator(e))
              and no active deletion contribution targets e
 ```
 
+This separates creation from the deletions targeting it. Logoot-Undo derives a related visibility equation from enabled insertion/deletion patches ([Weiss et al., §6.2, eq. 1](#references)); its §§5.3–5.4 retain overlapping deletions even when they no longer change the display. We borrow that distinction, not its line-identifier allocation or multi-author patch-degree protocol.
+
 Inactive insertions and deletions remain in history as ordering and targeting evidence. This equation defines visibility, not the ordering algorithm. Activity belongs to commands, and undo removes only the selected command's contributions. Causal dependence alone never makes another command part of it.
 
 Commands begin active. Each insertion or deletion contribution belongs to exactly one command; accepted child edits belong to their trigger's command. Only the originating writer changes a command's activity. Its activity changes form a causally chained, monotonically numbered sequence; the latest admitted change for that command wins. Conflicting identities or a forked activity chain reject rather than being resolved by arrival order. An undo and redo are new semantic events with new operation IDs, causal dependencies and sync-visible versions. Duplicate delivery does nothing. A foreign writer cannot structurally toggle someone else's command. Authentication of the writer is Carbon's job, not a property of a numeric ID.
@@ -67,6 +69,18 @@ Commands begin active. Each insertion or deletion contribution belongs to exactl
 **Proposed no-op policy:** undo consumes exactly one history item, even if no visible character changes. It still publishes the activity change and creates a redo item. Redo likewise consumes exactly one item. Return a result such as `Applied { command, visible_changed, update }`; never collapse semantic success into a Boolean meaning "text changed". An empty stack returns `Empty` and publishes nothing. This deliberately differs from the old Loro no-visible-effect retirement policy. It needs approval, not a compatibility disguise.
 
 Remote imports never enter the local undo stack. They do not clear redo. A successful new primary local command clears local redo; an edit rejection does not. Undo/redo metadata identifies local history items, while replicated activity determines the document's meaning. Clearing a local history list must not reactivate previously undone work.
+
+### which undo semantics this chooses
+
+**Here, undo means origin-selective contribution deactivation.** That is a deliberate policy, not an agreed meaning of “local undo” throughout the literature.
+
+- **Independent peer insertions:** [Yu, André and Ignat, §§3–6](#references) retain operation descriptors across string splitting, but their default transitive ground-dependency policy can hide insertions built on an undone insertion. Nickel instead requires the independent X in witness 1 to survive; only explicit children join a trigger. Their §6 explicitly leaves formal proof outside the paper. The relationship bookkeeping is useful precedent; the default dependency semantics are not our specification.
+- **Who may undo:** [Yu, Elvinger and Ignat, §5](#references) distinguish concurrent equivalent undos from causally later redo through equivalence classes and undo lengths; Lemma 6 merges same-origin lengths with max. Nickel's single-writer activity chain avoids concurrent foreign toggles of one command. It does not solve that paper's broader selective-undo problem. Supporting foreign undo later requires a new semantic decision, not just removing an ownership check.
+- **Register undo differs:** [Stewen and Kleppmann, §2 and Fig. 1(d)](#references) choose restoration semantics: black → A:red → B:green → A:undo yields black; redo yields green. Merely deactivating A's contribution while preserving B's gives green instead. Their §§4–5 implement restoration with history-referencing RestoreOps, not a Boolean toggle. Nickel must not call its proposed sequence policy their “local undo,” or assume it determines register behavior. Their §7 makes precisely this distinction from counter-based activity approaches.
+
+For the next register primitive, review that black/red/green example explicitly. Preserving a later peer write and restoring the state before one's own write are different product choices. The register row in §1 remains open between them. The papers supply alternatives and separating examples, not evidence that our proposed choice is universally what users want.
+
+An invisible toggle's replicated event and redo entry are Nickel requirements motivated by witnesses 3–5. The cited work establishes useful activity/history representations; none is being cited as a proof of our child protocol, exact stack policy or cold-recovery implementation.
 
 ### explicit children and editor grouping
 
@@ -115,6 +129,8 @@ A successful core call means an in-memory semantic commit, **not** a disk write 
 
 Within the core, an ordinary rejected call leaves text, identities, versions, stacks, tokens and outgoing events unchanged. Notifications are returned data emitted after commit; no user callback runs inside mutation. The implementation should compute/validate a candidate transition and publish only at the commit point. We must prove its actual failure paths rather than assume an arbitrary Rust mutation rolls back. Traps, process death, abort-on-allocation failure and damaged storage are outside that in-memory return contract; durable recovery is checked separately.
 
+Undo here also does not restore the complete internal state: it appends history and advances versions. [Dolan, §2](#references) proves the counter characterization under a stronger undoability axiom that returns the abstract state itself. We are not claiming that inverse for the retained history; Stewen and Kleppmann explicitly discuss this internal/external distinction in §7. Our proof obligations must name the observed projection and allowed continuations, rather than asserting unrestricted cancellation.
+
 **Retention proposal:** keep full semantic history for v0.1. No tombstone GC, history truncation or bounded-memory claim. A local undo limit may evict stack entries and tokens, but cannot erase replicated facts. Explicit byte/operation/input limits reject growth before admission; reaching them requires export/recovery or an application decision, not silent data deletion. This is a usable finite first release only if the agreed note-size/offline-history workloads fit on a phone. Measure those workloads before choosing numeric defaults; do not deploy an unlimited-history claim as phone readiness.
 
 ## 7. acceptance witnesses
@@ -153,3 +169,13 @@ I recommend approving these directions, but each remains a proposal:
 - first release tested by a Carbon note client, without promising all of M3 or a zero-change Loro swap.
 
 The ordering interpretation and numeric workloads/budgets are still open requirements. Approval of this draft should authorize refining those requirements, not imply they have already been solved.
+
+## references
+
+1. **Stéphane Weiss, Pascal Urso and Pascal Molli.** “Logoot-Undo: Distributed Collaborative Editing System on P2P Networks.” *IEEE TPDS* 21(8), 1162–1174, 2010. [DOI](https://doi.org/10.1109/TPDS.2009.173), [author-uploaded full text](https://www.researchgate.net/publication/47441669_Logoot-Undo_Distributed_Collaborative_Editing_System_on_P2P_Networks). Relevant: §§4.4–6.2; unique ordered identities, patch activity, overlapping-deletion visibility. Its exactly-once delivery assumption is not a network guarantee we inherit; §6 of this contract requires duplicate admission to be idempotent.
+2. **Weihai Yu, Luc André and Claudia-Lavinia Ignat.** “A CRDT Supporting Selective Undo for Collaborative Text Editing.” *DAIS 2015*, LNCS 9038, 193–206. [DOI](https://doi.org/10.1007/978-3-319-19129-4_16), [author-hosted paper](https://members.loria.fr/CIgnat/files/pdf/YuDAIS15.pdf). Relevant: §§3–6; operation relationships and their effect on selective undo.
+3. **Weihai Yu, Victorien Elvinger and Claudia-Lavinia Ignat.** “A Generic Undo Support for State-Based CRDTs.” *OPODIS 2019*, LIPIcs 153, 14:1–14:17. [DOI](https://doi.org/10.4230/LIPIcs.OPODIS.2019.14), [open paper](https://drops.dagstuhl.de/storage/00lipics/lipics-vol153-opodis2019/LIPIcs.OPODIS.2019.14/LIPIcs.OPODIS.2019.14.pdf). Relevant: §5, concurrent undo/redo; its generic state-based construction is not an adopted Nickel backend.
+4. **Leo Stewen and Martin Kleppmann.** “Undo and Redo Support for Replicated Registers.” *PaPoC 2024*, 1–7. [DOI](https://doi.org/10.1145/3642976.3653029), [open manuscript](https://arxiv.org/pdf/2404.11308), [author publication page](https://martin.kleppmann.com/2024/04/22/undo-replicated-register.html). Relevant: §§2, 4–7; register restoration, local stacks and comparison with activity approaches.
+5. **Stephen Dolan.** “The Only Undoable CRDTs Are Counters.” 2020. [Open manuscript](https://arxiv.org/pdf/2006.10494); conference brief announcement in *PODC 2020*, 57–58, [DOI](https://doi.org/10.1145/3382734.3405749). Relevant: §§1–3, especially the abstract-state undoability axiom in §2.
+
+Reading scope: Logoot-Undo §§4.4–6.2; Yu/André/Ignat full text, especially §§3–6; Yu/Elvinger/Ignat §5; Stewen/Kleppmann §§2–7; Dolan §§1–3. No implementation, application survey or benchmark from these papers was reproduced. These references inform semantic choices; they do not settle the still-open sequence ordering, prove Nickel's implementation or establish its phone budgets. The 500 ms grouping rule, explicit-child admission policy and worker durability boundary are product/API proposals, not conclusions attributed to these papers.
