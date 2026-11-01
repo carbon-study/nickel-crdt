@@ -63,3 +63,61 @@ nix run .#sessions -- consume
 The reference choice retains skipped externally reversed items so they can become eligible after peer redo. This is proposed policy, not an answer Ren supplied. The consuming alternative rejects at `skipped deletion must reactivate after peer redo`. The locked check also verifies that the committed session trace matches freshly generated output. The session checks cover selection, own/victim undo, redo, imports, chosen checkpoint cuts, explicit keep/clear redo policy and clear-history facts. No text order, grouping/children, register behavior or full input/authority/resource admission is implemented. The checkpoint codec has no hostile-input or durability guarantee.
 
 An initial nested-flake edit defined its dynamic apps attribute twice; evaluation rejected it before any check ran. The app definitions were grouped and the full locked check then ran. That evaluation failure is not counted as a test pass.
+
+## bounded cold-session continuation check
+
+```sh
+nix run .#continuations
+# deliberate broken reloads, each exits 1 with a replayable JSON counterexample:
+nix run .#continuations -- drop-redo
+nix run .#continuations -- drop-ignored
+nix run .#continuations -- reset-counter
+```
+
+`continuation_check.py` enumerates a **fixed finite action vocabulary**, without
+changing the proposed session policy. Its four starting pairs are empty, a synced
+victim deletion with an older Bo item, partitioned independent deletes, and a
+synced replacement. From each seed it explores at most three additional actions.
+Each writer may have at most two creation-bearing events, counting the seed.
+At each nonterminal prefix the choices are:
+
+- either writer's undo, redo or clear-history;
+- one fresh identity insertion, a singleton visible deletion, or a replacement
+  of the whole current visible set by one fresh identity;
+- both explicit `keep` and `clear` new-edit policies when redo is pending;
+- delivery of any available event whose causal predecessors the receiver has,
+  or a duplicate of any already-known foreign event.
+
+The breadth-first search merges equal per-seed document/private states. It visits
+1,537 per-seed states through depth three. At the 238 prefixes of depth zero,
+one or two it tests every outgoing generated action: 3,419 edges. Each edge is
+run uninterrupted and after JSON reconstruction of A, B, or both, giving 10,257
+warm/cold comparisons. It compares the returned event or rejection, complete
+shared event facts, visible identity sets and the next selected undo. The state
+key includes private checkpoints so different future histories are not merged.
+The comparator does **not** merely compare checkpoint bytes.
+
+Every visited state also completes causal synchronization to both peers and
+checks equal facts/visibility and unchanged private checkpoints. This tests the
+transport harness and import behavior; convergence of the event-set projection
+is already built into this model. A 10,000-state budget fails the command rather
+than turning unfinished exploration into a passing result.
+
+[continuation-output.json](continuation-output.json) is the deterministic receipt.
+The three [control witnesses](continuation-controls/) retain actual operation
+failures: losing redo makes a redo return no event; forgetting cleared victim
+sources makes undo restore a deliberately forgotten deletion; resetting the
+allocator makes the next undo collide with an existing event ID. Each report
+names its seed, action prefix, selected restart and warm/cold observations. It is
+the first breadth-first counterexample in the first failing seed, not a globally
+minimal counterexample across all possible histories. The locked check regenerates
+both the receipt and all three reports and compares their bytes.
+
+This is a **bounded codec/continuation regression**, using the same session and
+effect implementation on both sides. It is not an independent intended-undo
+oracle, an implementation-linked proof or a proof about arbitrary future traces.
+The depth-three leaf states are synchronized but have no outgoing restart test.
+Other multi-edit subsets, longer histories, grouping/children, registers, text
+order, hostile checkpoints, real disk failure and split-brain writers remain
+outside it. No policy choice becomes approved merely because its warm and cold
+executions agree.

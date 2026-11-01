@@ -69,9 +69,15 @@ The directed checks generate events through session calls for:
 - the reviewed creator-withdrawal case, then creator redo and peer deletion redo;
 - pending redo surviving remote edits, both explicit new-edit policies, and clearing history without reactivating text.
 
-Three action-generated event sets also cross causal-delivery replay, duplicate handling and shared-log reconstruction at every prefix. **Private sessions** are resumed at selected continuation cuts, not exhaustively at every prefix. A fresh reader receives shared facts but no private items; its undo is empty. The private checkpoint serializes source/token references, phases and the synthetic allocator. Shared document state is supplied separately.
+Three action-generated event sets also cross causal-delivery replay, duplicate handling and shared-log reconstruction at every prefix. **Private sessions** in those directed checks are resumed at selected continuation cuts, not exhaustively at every prefix. A fresh reader receives shared facts but no private items; its undo is empty. The private checkpoint serializes source/token references, phases and the synthetic allocator. Shared document state is supplied separately.
 
 Checkpoint decoding is a small trusted-shape reference codec with reference checks, not general hostile-input admission or a selected production format. The caller must stop/fence the original writer before resuming it; no disk transaction, split-brain recovery or exactly-once user-command protocol is implemented. A stale next-ID continuation is rejected when it already occurs in the document. Memory errors, arbitrary interrupts, reentrant callbacks and concurrent method calls are outside these model checks. No general Python transaction-safety guarantee is being made.
+
+### bounded generated cold continuations
+
+A separate [bounded explorer](../experiments/hybrid-restoration/README.md#bounded-cold-session-continuation-check) now tests all outgoing actions from238 generated prefixes at depths zero through two under its explicit four seeds and action grammar. It compares uninterrupted operation with JSON reconstruction of either or both peers, then executes the same actual next operation. Its3,419 edges give10,257 warm/cold comparisons. This is separate from the directed trace's selected checkpoint cuts; it does not extend them to arbitrary histories or test outgoing actions from the depth-three leaves.
+
+The comparison checks operation results, shared facts, visible identities and next undo selection, using the same session/effect code on both sides. It does not independently judge whether the profile is the undo behavior users want. Three deliberately damaged reloads produce retained executable witnesses for lost redo, forgotten clear-history exclusions and allocator collision. No session/effect transition or proposed policy changed to make this check pass.
 
 ## 5. what this closes and leaves open
 

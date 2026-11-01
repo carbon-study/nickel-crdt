@@ -4,11 +4,20 @@
   outputs = {self, nixpkgs}: let
     system = "x86_64-linux";
     pkgs = import nixpkgs {inherit system;};
-    source = pkgs.lib.fileset.toSource { root = ./.; fileset = pkgs.lib.fileset.unions [./model.py ./check.py ./sessions.py ./session_check.py]; };
+    source = pkgs.lib.fileset.toSource { root = ./.; fileset = pkgs.lib.fileset.unions [./model.py ./check.py ./sessions.py ./session_check.py ./continuation_check.py]; };
     check = pkgs.runCommand "hybrid-restoration-directed-check" {nativeBuildInputs=[pkgs.python3];} ''
       export PYTHONDONTWRITEBYTECODE=1
       python ${source}/check.py
       python ${source}/session_check.py
+      python ${source}/continuation_check.py > continuation-output.json
+      cmp continuation-output.json ${./continuation-output.json}
+      for mode in drop-redo drop-ignored reset-counter; do
+        if python ${source}/continuation_check.py "$mode" > "$mode.json"; then
+          echo "cold-session mutation unexpectedly passed: $mode"; exit 1
+        fi
+        grep -q 'cold continuation mismatch' "$mode.json"
+        cmp "$mode.json" ${./continuation-controls}/"$mode.json"
+      done
       python ${source}/session_check.py trace > session-trace.json
       cmp session-trace.json ${./session-trace.json}
       (cd ${source}; python -O -c 'from check import admission_checks; admission_checks()')
@@ -42,6 +51,10 @@
   in {
     checks.${system}.default = check;
     apps.${system} = {
+    continuations = let continuationRun = pkgs.writeShellApplication {
+      name="hybrid-continuations"; runtimeInputs=[pkgs.python3];
+      text=''export PYTHONDONTWRITEBYTECODE=1; exec python ${source}/continuation_check.py "$@"'';
+    }; in {type="app"; program="${continuationRun}/bin/hybrid-continuations"; meta.description="Bounded cold-session continuation comparisons";};
     sessions = let sessionRun = pkgs.writeShellApplication {
       name="hybrid-sessions"; runtimeInputs=[pkgs.python3];
       text=''export PYTHONDONTWRITEBYTECODE=1; exec python ${source}/session_check.py "$@"'';

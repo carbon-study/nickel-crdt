@@ -1,0 +1,147 @@
+{
+  "action": {
+    "op": "redo",
+    "peer": 0
+  },
+  "actual": {
+    "after": [
+      {
+        "facts": [
+          {
+            "after": [],
+            "author": "A",
+            "cancels": [],
+            "creates": [
+              "A-elem-1"
+            ],
+            "deletes": [],
+            "id": "A:1",
+            "releases": [],
+            "withdraws": []
+          },
+          {
+            "after": [
+              "A:1"
+            ],
+            "author": "A",
+            "cancels": [],
+            "creates": [],
+            "deletes": [],
+            "id": "A:2",
+            "releases": [],
+            "withdraws": [
+              "A-elem-1"
+            ]
+          }
+        ],
+        "next_undo": null,
+        "visible": []
+      },
+      {
+        "facts": [],
+        "next_undo": null,
+        "visible": []
+      }
+    ],
+    "returned": null,
+    "status": "completed"
+  },
+  "expected": {
+    "after": [
+      {
+        "facts": [
+          {
+            "after": [],
+            "author": "A",
+            "cancels": [],
+            "creates": [
+              "A-elem-1"
+            ],
+            "deletes": [],
+            "id": "A:1",
+            "releases": [],
+            "withdraws": []
+          },
+          {
+            "after": [
+              "A:1"
+            ],
+            "author": "A",
+            "cancels": [],
+            "creates": [],
+            "deletes": [],
+            "id": "A:2",
+            "releases": [],
+            "withdraws": [
+              "A-elem-1"
+            ]
+          },
+          {
+            "after": [
+              "A:1",
+              "A:2"
+            ],
+            "author": "A",
+            "cancels": [
+              "A:2"
+            ],
+            "creates": [],
+            "deletes": [],
+            "id": "A:3",
+            "releases": [],
+            "withdraws": []
+          }
+        ],
+        "next_undo": [
+          "own",
+          "A:1"
+        ],
+        "visible": [
+          "A-elem-1"
+        ]
+      },
+      {
+        "facts": [],
+        "next_undo": null,
+        "visible": []
+      }
+    ],
+    "returned": {
+      "after": [
+        "A:1",
+        "A:2"
+      ],
+      "author": "A",
+      "cancels": [
+        "A:2"
+      ],
+      "creates": [],
+      "deletes": [],
+      "id": "A:3",
+      "releases": [],
+      "withdraws": []
+    },
+    "status": "completed"
+  },
+  "mutation": "drop-redo",
+  "prefix": [
+    {
+      "creates": [
+        "A-elem-1"
+      ],
+      "deletes": [],
+      "op": "edit",
+      "peer": 0,
+      "policy": "keep"
+    },
+    {
+      "op": "undo",
+      "peer": 0
+    }
+  ],
+  "resumed": [
+    0
+  ],
+  "seed": "empty",
+  "status": "cold continuation mismatch"
+}
