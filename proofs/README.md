@@ -9,3 +9,5 @@ The locked public flake checks committed F* views directly. It checks source/vie
 Trusted dependencies include Rust compilation, hax translation, Latte emission, F*, its solver and external Rust models. The external models are checked once in an immutable Nix output; each proof workspace uses that exact cache. No own admissions, hint replay or stale hash bypass is used. Ordinary proof commands have a 60-second wall limit; external-model bootstrap has a separate 180-second allowance.
 
 The smoke fixture establishes no CRDT convergence, ordering, undo, codec, Wasm or browser property.
+
+The [prospective API/verification contract](../docs/api-verification.md) lists the proposed V1–V9 obligations. None is currently discharged. The [undo analysis](../docs/undo-semantics.md) records the semantic/algorithmic stop gate; the loop proof does not bypass it.

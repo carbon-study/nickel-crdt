@@ -26,6 +26,14 @@ These are toolchain checks, not CRDT correctness results. See [proof scope](proo
 - `proofs/`: authored Latte sources and committed F* views.
 - `scripts/`: extraction, proof checks and immutable external-model bootstrap.
 
+## API and verification proposal
+
+- [Prospective API and verifier obligations](docs/api-verification.md): operation shapes, preconditions, return/error contracts and the status of each intended theorem.
+- [Local-undo analysis](docs/undo-semantics.md): selection versus effect semantics, literature alternatives, worked continuations and the unresolved sequence algorithm.
+- [Consumer motivation and required witnesses](docs/carbon-contract.md): Carbon and potential Dark uses, separate from the library contract.
+
+No sequence/undo verifier obligation is currently discharged. The proved Boolean loop is toolchain evidence only.
+
 ## Next decision
 
 The [proposed Nickel contract and consumer profiles](docs/carbon-contract.md) is ready for review: primitives, API shapes, undo/activity semantics, acceptance witnesses and construction order. Carbon and possible Dark integrations are separate usage sketches, not part of the library’s API or release definition. It is not adopted. Settle the sequence/undo contract with concrete two-peer and cold-recovery examples before implementing the engine. In particular, decide what an invisible undo publishes, how independent peer edits survive, and which identities and ordering survive restoration. A matching method signature alone does not establish backend substitutability.

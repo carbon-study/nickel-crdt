@@ -2,6 +2,8 @@
 
 **Review draft, not an adopted API.** Nickel is an application-independent CRDT library. Carbon and possible future Dark use motivate the priorities here; neither application is part of the library’s runtime or data model. This describes the behavior I want Nickel to provide and the order I would build it in. It proposes choices that Dark never settled, especially redo after invisible undo. No engine implements this document yet.
 
+**Read the two technical companions first for the library claim:** [prospective API and verification contract](api-verification.md) and [local-undo analysis](undo-semantics.md). The API companion distinguishes current evidence from proposed verifier obligations. The undo companion explains why the activity candidate is not yet an established local-undo algorithm. The overview below supplies motivation and proposed outcomes; it does not close that research gap.
+
 ## 1. what Carbon would do with it
 
 A reader has several kinds of changing data. They should not all become editable strings.
@@ -116,7 +118,7 @@ Nickel supplies explicit item boundaries and child membership. It has no clock-d
 
 ## 5. proposed functions
 
-Names are illustrative Rust shapes; the semantic distinctions are the contract. Bounds and identifiers are checked opaque types, not freely interchangeable integers.
+This table is a non-normative orientation to the proposal. The [API/verification companion](api-verification.md) now gives the prospective operation shapes, including separate primary continuation and child membership, return/error contracts, proof obligations and current status. Neither document is an implemented API. Bounds and identifiers are checked opaque types, not freely interchangeable integers.
 
 | operation | result / obligation |
 | --- | --- |
@@ -215,7 +217,7 @@ I recommend approving these directions, but each remains a proposal:
 - a standalone library release, with separate Carbon and possible Dark consumer acceptance; no promise of all of Carbon M3 or a zero-change Loro swap;
 - sequence/undo/anchors, atomic multi-edit batches and incremental change receipts prioritized for both consumer profiles before expanding the type family.
 
-The ordering interpretation and numeric workloads/budgets are still open requirements. Approval of this draft should authorize refining those requirements, not imply they have already been solved.
+The ordering interpretation, intended local-undo effect semantics, general sequence-undo algorithm and numeric workloads/budgets remain open requirements. Approving priorities or motivation must not be treated as approving an undo algorithm. [V1–V9](api-verification.md#4-prospective-verifier-obligations) are unfulfilled; the existing loop fixture verifies none of them.
 
 ## references
 
