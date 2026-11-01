@@ -1,0 +1,12 @@
+[Unit]
+Description=Nickel undo-semantics questionnaire
+After=network.target
+
+[Service]
+WorkingDirectory=/root/projects/nickel-undo-quiz/questionnaire
+ExecStart=/run/current-system/sw/bin/nix run --no-write-lock-file /root/projects/nickel-undo-quiz/questionnaire
+Restart=on-failure
+Environment=PORT=4186
+
+[Install]
+WantedBy=multi-user.target
