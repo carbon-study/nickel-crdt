@@ -1,10 +1,12 @@
-from model import Event, doc, replay
+from dataclasses import replace
+from model import Event, ModelError, doc, replay
 
 
-def withdrawal(name, after, elements, mode):
+def withdraw_in(event, elements, mode):
+    # The user's compound undo is one event with both effect facets.
     if mode == 'legacy-hide':
-        return Event(name, after, deletes=elements)
-    return Event(name, after, withdraws=elements)
+        return replace(event, deletes=elements)
+    return replace(event, withdraws=elements)
 
 
 def cases(mode='parallel'):
@@ -12,13 +14,19 @@ def cases(mode='parallel'):
     p = Event('I', creates=('p',))
     replace = Event('C', ('I',), creates=('x',), deletes=('p',))
     bo_delete = Event('DB', ('C',), deletes=('x',))
-    inverse = doc(p, replace).restore('UC', 'C', mode)
-    hide = withdrawal('UX', ('UC',), ('x',), mode)
-    prefix = [p, replace, bo_delete, inverse, hide]
+    inverse = withdraw_in(doc(p, replace).restore('UC', 'C', mode), ('x',), mode)
+    prefix = [p, replace, bo_delete, inverse]
+    withdrawal_token = 'UC'
+    if mode == 'split-undo':
+        prefix = [p, replace, bo_delete, Event('UC', inverse.after, releases=inverse.releases),
+                  Event('UX', ('UC',), withdraws=('x',))]
+        withdrawal_token = 'UX'
     restore_bo = doc(*prefix).restore('RB', 'DB', mode)
     both = prefix + [restore_bo]
-    yield 'creator withdrawal survives peer deletion undo', both, {'p'}, set(), {('UX', 'x')}
-    redo_a = Event('XA', ('RB',), cancels=('UC', 'UX'))
+    yield 'creator withdrawal survives peer deletion undo', both, {'p'}, set(), {(withdrawal_token, 'x')}
+    if mode == 'split-undo':
+        return
+    redo_a = Event('XA', ('RB',), cancels=('UC',))
     yield 'creator redo restores its creation', both + [redo_a], {'x'}, {('C', 'p')}, set()
     redo_b = Event('XB', ('XA',), cancels=('RB',))
     yield 'peer deletion redo after creator redo', both + [redo_a, redo_b], set(), {('C', 'p'), ('DB', 'x')}, set()
@@ -46,14 +54,12 @@ def cases(mode='parallel'):
     base = [old, peer, replacement]
     victim = doc(*base).restore('RV', 'C', mode)
     yield 'q11 restore deletion portion of replacement', base + [victim], {'a', 'B', 'x'}, set(), set()
-    inverse = doc(*(base + [victim])).restore('UC', 'C', mode)
-    remove_x = withdrawal('UX', ('UC',), ('x',), mode)
-    cancel_victim = Event('XV', ('UX',), cancels=('RV',))
-    yield 'author undo survives victim redo', base + [victim, inverse, remove_x, cancel_victim], {'a', 'B'}, set(), {('UX', 'x')}
+    inverse = withdraw_in(doc(*(base + [victim])).restore('UC', 'C', mode), ('x',), mode)
+    cancel_victim = Event('XV', ('UC',), cancels=('RV',))
+    yield 'author undo survives victim redo', base + [victim, inverse, cancel_victim], {'a', 'B'}, set(), {('UC', 'x')}
     new_delete = Event('D2', ('RV',), deletes=('B',))
-    later_inverse = doc(*(base + [victim, new_delete])).restore('UC', 'C', mode)
-    later_x = withdrawal('UX', ('UC',), ('x',), mode)
-    yield 'later deletion remains through author undo', base + [victim, new_delete, later_inverse, later_x], {'a'}, {('D2', 'B')}, {('UX', 'x')}
+    later_inverse = withdraw_in(doc(*(base + [victim, new_delete])).restore('UC', 'C', mode), ('x',), mode)
+    yield 'later deletion remains through author undo', base + [victim, new_delete, later_inverse], {'a'}, {('D2', 'B')}, {('UC', 'x')}
 
     # Review scope control: shared b does not authorize restoring unrelated c.
     abc = Event('I', creates=('a', 'b', 'c'))
@@ -63,19 +69,51 @@ def cases(mode='parallel'):
     yield 'overlap restoration stays in selected scope', [abc, da, db, restore], {'a', 'b'}, {('DB', 'c')}, set()
 
 
+def admission_checks():
+    i = Event('I', creates=('a',))
+    d = Event('D', ('I',), deletes=('a',))
+    r = doc(i, d).restore('R', 'D')
+    view = doc(i, d, r)
+    invalid = [
+        Event('missing', ('ghost',)),
+        Event('I', creates=('different',)),
+        Event('unseen', releases=(('D', 'a'),)),
+        Event('unknown-release', releases=(('ghost', 'a'),)),
+        Event('wrong-atom', ('D',), releases=(('D', 'other'),)),
+        Event('unknown-cancel', cancels=('ghost',)),
+        Event('unseen-cancel', cancels=('R',)),
+        Event('cancel-nontoken', ('D',), cancels=('D',)),
+        Event('unknown-creation', ('I',), withdraws=('ghost',)),
+        Event('unseen-creation', withdraws=('a',)),
+    ]
+    before = dict(view.events)
+    for event in invalid:
+        try:
+            view.put(event)
+        except ModelError:
+            pass
+        else:
+            raise RuntimeError('invalid model reference was accepted: ' + event.id)
+        if view.events != before:
+            raise RuntimeError('rejection changed event dictionary')
+    print('10 invalid-reference cases reject without publication')
+
+
 def run(mode):
-    assert mode in ('parallel', 'target-only', 'all-known', 'legacy-hide', 'spill')
+    assert mode in ('parallel', 'target-only', 'all-known', 'legacy-hide', 'spill', 'split-undo')
     # Same frozen mask can arise from either local target; no extra wire target ID.
     i = Event('I', creates=('b',))
     a = Event('DA', ('I',), deletes=('b',))
     b = Event('DB', ('I',), deletes=('b',))
     view = doc(i, a, b)
     assert view.restore('R', 'DA') == view.restore('R', 'DB')
+    admission_checks()
     total = 0
     count = 0
     for name, events, visible, active, withdrawals in cases(mode):
         try:
-            n = replay(events, visible, active, withdrawals)
+            forbidden = {frozenset({'p', 'x'})} if name.startswith(('creator ', 'peer deletion redo')) else frozenset()
+            n = replay(events, visible, active, withdrawals, forbidden)
         except AssertionError as error:
             raise AssertionError(name) from error
         print(f'{name}: {n} schedules; visible={sorted(visible)}; live deletion atoms={sorted(active)}; withdrawals={sorted(withdrawals)}')

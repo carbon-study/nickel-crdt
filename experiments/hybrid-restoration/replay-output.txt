@@ -1,13 +1,14 @@
-creator withdrawal survives peer deletion undo: 3 schedules; visible=['p']; live deletion atoms=[]; withdrawals=[('UX', 'x')]
-creator redo restores its creation: 3 schedules; visible=['x']; live deletion atoms=[('C', 'p')]; withdrawals=[]
-peer deletion redo after creator redo: 3 schedules; visible=[]; live deletion atoms=[('C', 'p'), ('DB', 'x')]; withdrawals=[]
+10 invalid-reference cases reject without publication
+creator withdrawal survives peer deletion undo: 2 schedules; visible=['p']; live deletion atoms=[]; withdrawals=[('UC', 'x')]
+creator redo restores its creation: 2 schedules; visible=['x']; live deletion atoms=[('C', 'p')]; withdrawals=[]
+peer deletion redo after creator redo: 2 schedules; visible=[]; live deletion atoms=[('C', 'p'), ('DB', 'x')]; withdrawals=[]
 q07 observed concurrent deletes: 2 schedules; visible=['b']; live deletion atoms=[]; withdrawals=[]
 unseen concurrent delete: 3 schedules; visible=[]; live deletion atoms=[('DB', 'b')]; withdrawals=[]
 personal redo after two restores: 4 schedules; visible=['b']; live deletion atoms=[]; withdrawals=[]
 both personal redos: 4 schedules; visible=[]; live deletion atoms=[('DA', 'b'), ('DB', 'b')]; withdrawals=[]
 restore again after both redos: 4 schedules; visible=['b']; live deletion atoms=[]; withdrawals=[]
 q11 restore deletion portion of replacement: 1 schedules; visible=['B', 'a', 'x']; live deletion atoms=[]; withdrawals=[]
-author undo survives victim redo: 1 schedules; visible=['B', 'a']; live deletion atoms=[]; withdrawals=[('UX', 'x')]
-later deletion remains through author undo: 1 schedules; visible=['a']; live deletion atoms=[('D2', 'B')]; withdrawals=[('UX', 'x')]
+author undo survives victim redo: 1 schedules; visible=['B', 'a']; live deletion atoms=[]; withdrawals=[('UC', 'x')]
+later deletion remains through author undo: 1 schedules; visible=['a']; live deletion atoms=[('D2', 'B')]; withdrawals=[('UC', 'x')]
 overlap restoration stays in selected scope: 2 schedules; visible=['a', 'b']; live deletion atoms=[('DB', 'c')]; withdrawals=[]
-31 legal schedules across 12 directed fixtures
+28 legal schedules across 12 directed fixtures

@@ -37,7 +37,7 @@ Use the q11 prefix: A creates a, Bo creates B, then A replaces aB with x as a ne
 | --- | --- | --- | --- |
 | after replacement C | C removes a/B and creates x | x | C is A's latest own item; B is hidden |
 | Bo restores C's deletion | RV suppresses C's a/B removal atoms | a, B, x | B's creation has not been undone; Bo has a redo for RV |
-| A undoes whole C | UC independently suppresses C's deletion atoms; UX withdraws C's x creation | a, B | this is one requested atomic item, represented by a restoration plus a distinct creator-withdrawal token only in this experiment |
+| A undoes whole C | UC atomically carries both the suppression of C's deletion atoms and withdrawal of C's x creation | a, B | one event contains both effect facets in this model |
 | Bo redoes his restoration | cancel RV | a, B | UC must still preserve A's completed undo; it cannot depend solely on Bo's RV |
 
 The independent UC matters even though C's deletion was already visibly reversed. If A's undo merely withdraws x and emits no own cancellation of C's deletion, Bo's later redo can make a/B disappear again. The directed fixture pins the durable cancellation in this limited event interpretation. This is another reason to distinguish a whole-command action from an externally restored subset of its effects.
@@ -50,7 +50,7 @@ These are identity sets, not proofs of aBx/aB ordering. The candidate restores t
 
 Alice replaces p with x. Bo deletes x while Alice independently undoes her replacement. Everyone syncs and sees p. Bo then undoes his deletion. The original candidate restored **both p and x** in all three schedules because it represented Alice's withdrawal of x as an ordinary concurrent deletion. The review's required outcome is p alone.
 
-The repaired candidate records Alice's creator withdrawal separately from ordinary removal atoms. Bo's restoration can cancel ordinary deletions of x, but cannot reactivate its withdrawn creation. If Alice later redoes her replacement, her creator-withdrawal token is cancelled; with Bo's deletion still restored, x becomes visible and p is hidden again. Bo can then redo his deletion and hide x. All three continuations are directed fixtures. Authorization for creation withdrawal and atomic publication of the compound undo remain outside this model.
+The repaired candidate records Alice's creator withdrawal separately from ordinary removal atoms. Bo's restoration can cancel ordinary deletions of x, but cannot reactivate its withdrawn creation. If Alice later redoes her replacement, her creator-withdrawal token is cancelled; with Bo's deletion still restored, x becomes visible and p is hidden again. Bo can then redo his deletion and hide x. All three continuations are directed fixtures. The current model publishes both undo facets in one event. A prefix assertion rejects splitting it into two events and exposing p,x between them. Authorization for creation withdrawal and general core transaction atomicity remain outside this model.
 
 ### review scope control
 
@@ -60,7 +60,7 @@ Alice deletes a,b; Bo concurrently deletes b,c; both sync. Alice restores her se
 
 For a finite compatible event set S with unique IDs, all causal schedules deliver the same event dictionary. Active restoration tokens are S's restoration events minus tokens named by cancellation events in S. Suppressed removal atoms are the union of those active tokens' frozen masks. Active creator-withdrawal tokens are likewise withdrawal events minus cancelled tokens. Visible IDs are all created IDs minus IDs with either an unsuppressed ordinary removal atom or an active creator withdrawal. Each expression depends only on S, so this **set projection** is schedule independent. This is a written observation about the supplied representation, not a mechanized theorem or a proof that all authored histories are valid.
 
-The [nested reference experiment](../experiments/hybrid-restoration/README.md) replays twelve directed fixtures with duplicate delivery and prefix recovery, including four semantic negative controls. It implements neither text order nor session selection, grouping, resource admission, binding or durable storage. The original supplied model and its failing-to-match-q07 policy are retained separately. None of V1–V9 is discharged.
+The [nested reference experiment](../experiments/hybrid-restoration/README.md) replays twelve directed fixtures with duplicate delivery and prefix recovery, including five semantic negative controls. It now rejects invalid causal effect references with explicit errors before publication, including under Python optimization. It implements neither general input/authority admission nor text order, session selection, grouping, resource limits, bindings or durable storage. The original supplied model and its failing-to-match-q07 policy are retained separately. None of V1–V9 is discharged.
 
 ## 5. concrete remaining session edge
 

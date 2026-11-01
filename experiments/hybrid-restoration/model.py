@@ -3,6 +3,10 @@ from dataclasses import dataclass, asdict
 import json
 
 
+class ModelError(ValueError):
+    """Invalid reference in the trusted-shape model event vocabulary."""
+
+
 @dataclass(frozen=True)
 class Event:
     id: str
@@ -18,24 +22,41 @@ class Doc:
     def __init__(self):
         self.events = {}
 
-    def put(self, event):
-        if event.id in self.events:
-            assert self.events[event.id] == event
-            return
-        assert set(event.after) <= self.events.keys()
-        self.events[event.id] = event
-
-    def before(self, a, b):
-        todo = list(self.events[b].after)
+    def ancestors(self, roots):
+        todo = list(roots)
         seen = set()
         while todo:
             key = todo.pop()
-            if key == a:
-                return True
             if key not in seen:
                 seen.add(key)
                 todo.extend(self.events[key].after)
-        return False
+        return seen
+
+    def put(self, event):
+        # All checks precede the one event-dictionary publication.
+        if event.id in self.events:
+            if self.events[event.id] != event:
+                raise ModelError('conflicting event ID')
+            return
+        if not set(event.after) <= self.events.keys():
+            raise ModelError('missing prerequisite')
+        past = self.ancestors(event.after)
+        for deletion, elem in event.releases:
+            if deletion not in past or elem not in self.events[deletion].deletes:
+                raise ModelError('release must name an ancestral deletion atom')
+        for token in event.cancels:
+            if token not in past:
+                raise ModelError('cancellation must name an ancestral token')
+            source = self.events[token]
+            if not (source.releases or source.withdraws):
+                raise ModelError('only restoration/withdrawal tokens can be cancelled')
+        births = {elem for key in past for elem in self.events[key].creates}
+        if not set(event.withdraws) <= births:
+            raise ModelError('withdrawal must name an ancestral creation')
+        self.events[event.id] = event
+
+    def before(self, a, b):
+        return a in self.ancestors(self.events[b].after)
 
     def atoms(self):
         return {(event.id, elem) for event in self.events.values() for elem in event.deletes}
@@ -107,15 +128,18 @@ def schedules(events, known=frozenset()):
                 yield (e,) + tail
 
 
-def replay(events, expected, expected_live, expected_withdrawals=frozenset()):
+def replay(events, expected, expected_live, expected_withdrawals=frozenset(), forbidden_visible=frozenset()):
     count = 0
     for order in schedules(tuple(events)):
         d = Doc()
         for i, e in enumerate(order):
             d.put(e)
+            assert frozenset(d.visible()) not in forbidden_visible, 'half-published compound undo'
             d.put(e)
             cold = d.copy()
             assert cold.events == d.events
+            assert cold.visible() == d.visible()
+            assert frozenset(cold.visible()) not in forbidden_visible, 'half-published compound undo'
             assert cold.live_atoms() == d.live_atoms()
             assert cold.live_withdrawals() == d.live_withdrawals()
             for later in order[i + 1:]:

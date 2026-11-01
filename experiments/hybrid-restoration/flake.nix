@@ -8,6 +8,7 @@
     check = pkgs.runCommand "hybrid-restoration-directed-check" {nativeBuildInputs=[pkgs.python3];} ''
       export PYTHONDONTWRITEBYTECODE=1
       python ${source}/check.py
+      (cd ${source}; python -O -c 'from check import admission_checks; admission_checks()')
       if python ${source}/check.py target-only > target-only.log 2>&1; then
         echo 'target-only mutation unexpectedly passed'; exit 1
       fi
@@ -24,6 +25,10 @@
         echo 'scope-spill mutation unexpectedly passed'; exit 1
       fi
       grep -q 'AssertionError: overlap restoration stays in selected scope' spill.log
+      if python ${source}/check.py split-undo > split-undo.log 2>&1; then
+        echo 'split undo unexpectedly passed'; exit 1
+      fi
+      grep -q 'AssertionError: half-published compound undo' split-undo.log
       touch $out
     '';
     run = pkgs.writeShellApplication { name="hybrid-restoration"; runtimeInputs=[pkgs.python3]; text=''export PYTHONDONTWRITEBYTECODE=1; exec python ${source}/check.py "$@"''; };
