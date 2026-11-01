@@ -1,6 +1,6 @@
 # observed-concurrent restoration: directed reference candidate
 
-This is a research model for the [hybrid continuation](../../docs/hybrid-continuation.md), not Nickel's core, a selected undo protocol, a general session algorithm or a CRDT text-order implementation. It is separate from the Rust/hax proof scaffold. No parked Dark/Loro code is executed or changed.
+The event-set portion is a research model for the [hybrid continuation](../../docs/hybrid-continuation.md), not Nickel's core, a selected undo protocol, a general session algorithm or a CRDT text-order implementation. It is separate from the Rust/hax proof scaffold. No parked Dark/Loro code is executed or changed.
 
 ## run
 
@@ -21,7 +21,7 @@ A deletion has separately addressable atoms `(deletion-event ID, element ID)`. A
 
 The mask is frozen into the restoration event. There is no separate selected-target-ID field: two local selections can produce identical masks and identical replicated events. A private checkpoint may retain the selected item if its UI/history contract needs it; the shared projection does not need that additional field in these cases. A receiver unions masks from uncancelled restoration events; it never reselects their targets. A fresh personal-redo event cancels the named restoration token; another writer's token remains. A later undo creates a fresh token rather than un-cancelling an old one. This explores the simpler personal-redo alternative permitted by Ren; it does not demonstrate that this is the simplest complete design.
 
-Restoring a deletion effect of a replacement preserves that replacement's creation effects. Author undo of the whole replacement is one event carrying both the restoration mask and creator withdrawal for its inserted identities. Ordinary deletion restorations do not cancel creator withdrawals. Creator redo cancels that combined undo token; a peer's deletion redo can still hide the reactivated creation. This distinction repairs the review's replacement/deletion/undo counterexample. The fixture assumes the caller withdraws only its own creation; permission/admission is not implemented. The dictionary publishes that combined event in one `put`, so no prefix exposes only one facet of this authored undo. This does not establish general core transaction atomicity or admit arbitrary multi-event packets atomically. The model contains no permission checks, transaction grouping, insertion-order algorithm or selection/redo stack.
+Restoring a deletion effect of a replacement preserves that replacement's creation effects. Author undo of the whole replacement is one event carrying both the restoration mask and creator withdrawal for its inserted identities. Ordinary deletion restorations do not cancel creator withdrawals. Creator redo cancels that combined undo token; a peer's deletion redo can still hide the reactivated creation. This distinction repairs the review's replacement/deletion/undo counterexample. The fixture assumes the caller withdraws only its own creation; permission/admission is not implemented. The dictionary publishes that combined event in one `put`, so no prefix exposes only one facet of this authored undo. This does not establish general core transaction atomicity or admit arbitrary multi-event packets atomically. The event-set evaluator alone contains no permission checks, transaction grouping, insertion-order algorithm or selection/redo stack; the private-session layer below adds a restricted selector and redo state.
 
 ## checks and their boundary
 
@@ -48,3 +48,18 @@ The log decoder assumes this model's JSON structure. `put` uses explicit `ModelE
 ## collected audit follow-through
 
 The peer audit read the pre-repair afc8eae source. Its creator-withdrawal finding was already addressed by the first repair; the remaining gaps led to the combined undo event, prefix oracle and explicit causal-reference guards described above. The earlier source and outputs remain in Git history. The positive schedule count drops when two effect facets become one event; the original p-only oracle is unchanged. Validation under optimization is tested separately from the ordinary assertion-based regression oracles.
+
+## private-session continuation slice
+
+[sessions.py](sessions.py) adds the restricted writer/session profile specified in [private-session-profile.md](../../docs/private-session-profile.md). `session_check.py` generates actions through actual edit/undo/redo calls on two independent documents, then replays selected action-generated histories. It is no longer necessary to supply those undo masks by hand. The lower-level `check.py` remains useful for policy and malformed-reference fixtures. Existing event fixtures retain their meaning; the new writer tag is trusted metadata, not authentication.
+
+```sh
+nix run .#sessions
+nix run .#sessions -- trace
+# intentional contrasting policy, fails the chosen reactivation assertion:
+nix run .#sessions -- consume
+```
+
+The reference choice retains skipped externally reversed items so they can become eligible after peer redo. This is proposed policy, not an answer Ren supplied. The consuming alternative rejects at `skipped deletion must reactivate after peer redo`. The locked check also verifies that the committed session trace matches freshly generated output. The session checks cover selection, own/victim undo, redo, imports, chosen checkpoint cuts, explicit keep/clear redo policy and clear-history facts. No text order, grouping/children, register behavior or full input/authority/resource admission is implemented. The checkpoint codec has no hostile-input or durability guarantee.
+
+An initial nested-flake edit defined its dynamic apps attribute twice; evaluation rejected it before any check ran. The app definitions were grouped and the full locked check then ran. That evaluation failure is not counted as a test pass.

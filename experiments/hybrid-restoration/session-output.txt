@@ -1,0 +1,3 @@
+skipped-item reactivation: generated 9 events; resumed both before/after peer redo
+generated-action delivery replay: 6 legal schedules across 3 event sets
+PASS private session selection/effect/redo/import/checkpoint directed cases

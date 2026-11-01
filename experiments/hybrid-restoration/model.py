@@ -16,6 +16,7 @@ class Event:
     withdraws: tuple = ()  # Creator-undo effects, distinct from ordinary deletions.
     releases: tuple = ()
     cancels: tuple = ()
+    author: str = ""  # Trusted writer tag for the restricted session profile.
 
 
 class Doc:

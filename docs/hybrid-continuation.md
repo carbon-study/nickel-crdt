@@ -60,9 +60,9 @@ Alice deletes a,b; Bo concurrently deletes b,c; both sync. Alice restores her se
 
 For a finite compatible event set S with unique IDs, all causal schedules deliver the same event dictionary. Active restoration tokens are S's restoration events minus tokens named by cancellation events in S. Suppressed removal atoms are the union of those active tokens' frozen masks. Active creator-withdrawal tokens are likewise withdrawal events minus cancelled tokens. Visible IDs are all created IDs minus IDs with either an unsuppressed ordinary removal atom or an active creator withdrawal. Each expression depends only on S, so this **set projection** is schedule independent. This is a written observation about the supplied representation, not a mechanized theorem or a proof that all authored histories are valid.
 
-The [nested reference experiment](../experiments/hybrid-restoration/README.md) replays twelve directed fixtures with duplicate delivery and prefix recovery, including five semantic negative controls. It now rejects invalid causal effect references with explicit errors before publication, including under Python optimization. It implements neither general input/authority admission nor text order, session selection, grouping, resource limits, bindings or durable storage. The original supplied model and its failing-to-match-q07 policy are retained separately. None of V1–V9 is discharged.
+The [nested reference experiment](../experiments/hybrid-restoration/README.md) replays twelve directed fixtures with duplicate delivery and prefix recovery, including five semantic negative controls. It now rejects invalid causal effect references with explicit errors before publication, including under Python optimization. The event-set layer implements neither general input/authority admission nor text order, grouping, resource limits, bindings or durable storage. The separate private-session candidate in §5 now generates selections and redo transitions for its stated profile. The original supplied model and its failing-to-match-q07 policy are retained separately. None of V1–V9 is discharged.
 
-## 5. concrete remaining session edge
+## 5. session edge and candidate follow-through
 
 Take Bo's private item list `[D,Z]`: D deletes Alice's b, and Z is Bo's older insertion z. Alice restores D; Bo learns this and presses undo, skipping the ineffective D and undoing Z. Alice then redoes her restoration, making D effective again.
 
@@ -70,6 +70,8 @@ Two continuations satisfy the earlier examples:
 
 - skipping D consumed its local position permanently; Bo's next undo is empty;
 - skipping D only bypassed an externally reversed effect; when D becomes effective again, Bo can select D on a subsequent undo.
+
+The [private-session slice](private-session-profile.md) now implements the second policy as an explicit candidate, using actual selection/undo/redo calls and private checkpoint continuations. It does not treat this preference as already selected by Ren.
 
 They require different local session state and checkpoint continuation. Neither a frozen restoration mask nor the current questionnaire decides between them. A proposed session specification must choose and replay this case, rather than treating “adjust the stack” as an algorithm. If choosing the simpler policy under Ren's implementation latitude, name the resulting user-visible behavior explicitly.
 

@@ -1,0 +1,123 @@
+{
+  "profile": "candidate reversible skip; identity sets only",
+  "rows": [
+    {
+      "step": "both know the deletion",
+      "visibleA": [
+        "z"
+      ],
+      "visibleB": [
+        "z"
+      ],
+      "nextA": [
+        "victim",
+        "B:2"
+      ],
+      "nextB": [
+        "own",
+        "B:2"
+      ],
+      "redoA": [],
+      "redoB": []
+    },
+    {
+      "step": "Alice restores; Bo skips his deletion",
+      "visibleA": [
+        "b",
+        "z"
+      ],
+      "visibleB": [
+        "b",
+        "z"
+      ],
+      "nextA": [
+        "own",
+        "A:1"
+      ],
+      "nextB": [
+        "own",
+        "B:1"
+      ],
+      "redoA": [
+        "B:2"
+      ],
+      "redoB": []
+    },
+    {
+      "step": "Bo undoes older z",
+      "visibleA": [
+        "b"
+      ],
+      "visibleB": [
+        "b"
+      ],
+      "nextA": [
+        "own",
+        "A:1"
+      ],
+      "nextB": null,
+      "redoA": [
+        "B:2"
+      ],
+      "redoB": [
+        "B:1"
+      ]
+    },
+    {
+      "step": "Bo reloads private checkpoint plus shared facts",
+      "visibleA": [
+        "b"
+      ],
+      "visibleB": [
+        "b"
+      ],
+      "nextA": [
+        "own",
+        "A:1"
+      ],
+      "nextB": null,
+      "redoA": [
+        "B:2"
+      ],
+      "redoB": [
+        "B:1"
+      ]
+    },
+    {
+      "step": "Alice redo reactivates Bo deletion",
+      "visibleA": [],
+      "visibleB": [],
+      "nextA": [
+        "victim",
+        "B:2"
+      ],
+      "nextB": [
+        "own",
+        "B:2"
+      ],
+      "redoA": [],
+      "redoB": [
+        "B:1"
+      ]
+    },
+    {
+      "step": "Bo selects the reactivated deletion",
+      "visibleA": [
+        "b"
+      ],
+      "visibleB": [
+        "b"
+      ],
+      "nextA": [
+        "own",
+        "A:1"
+      ],
+      "nextB": null,
+      "redoA": [],
+      "redoB": [
+        "B:1",
+        "B:2"
+      ]
+    }
+  ]
+}

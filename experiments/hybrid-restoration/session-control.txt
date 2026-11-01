@@ -1,0 +1,2 @@
+consume-skipped policy: exit 1
+AssertionError: skipped deletion must reactivate after peer redo
