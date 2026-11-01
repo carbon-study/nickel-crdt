@@ -28,6 +28,6 @@ These are toolchain checks, not CRDT correctness results. See [proof scope](proo
 
 ## Next decision
 
-The [proposed Carbon contract](docs/carbon-contract.md) is ready for review: primitives, API shapes, undo/activity semantics, acceptance witnesses and construction order. It is not adopted. Settle the sequence/undo contract with concrete two-peer and cold-recovery examples before implementing the engine. In particular, decide what an invisible undo publishes, how independent peer edits survive, and which identities and ordering survive restoration. A matching method signature alone does not establish backend substitutability.
+The [proposed Nickel contract, motivated by Carbon](docs/carbon-contract.md) is ready for review: primitives, API shapes, undo/activity semantics, acceptance witnesses and construction order. Carbon integration is a separate usage sketch, not part of the library’s API or release definition. It is not adopted. Settle the sequence/undo contract with concrete two-peer and cold-recovery examples before implementing the engine. In particular, decide what an invisible undo publishes, how independent peer edits survive, and which identities and ordering survive restoration. A matching method signature alone does not establish backend substitutability.
 
 The scaffold does not reopen the parked Dark or Loro projects. Copying their reusable loop reasoning is a scoped extraction.

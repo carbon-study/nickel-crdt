@@ -1,6 +1,6 @@
-# proposed Carbon contract
+# proposed Nickel contract, motivated by Carbon
 
-**Review draft, not an adopted API.** This describes the behavior I want Nickel to provide and the order I would build it in. It proposes choices that Dark never settled, especially redo after invisible undo. No engine implements this document yet.
+**Review draft, not an adopted API.** Nickel is an application-independent CRDT library. Carbon motivates the priorities here; it is not part of the library’s runtime or data model. This describes the behavior I want Nickel to provide and the order I would build it in. It proposes choices that Dark never settled, especially redo after invisible undo. No engine implements this document yet.
 
 ## 1. what Carbon would do with it
 
@@ -8,7 +8,7 @@ A reader has several kinds of changing data. They should not all become editable
 
 | Carbon action | data primitive | proposed priority |
 | --- | --- | --- |
-| type a note, including edits from another tab or device | plain Unicode sequence with local undo | first engine slice |
+| type a note, including edits from another tab or device | plain Unicode sequence with origin-selective undo | first engine slice |
 | keep a highlight attached while that note changes | stable sequence anchors | first release |
 | save a reading location or a font setting | scalar register, with an explicit concurrent-write policy | next primitive |
 | add/remove highlights, bookmarks or note records independently | keyed collection with observed removal | after registers |
@@ -17,29 +17,37 @@ A reader has several kinds of changing data. They should not all become editable
 
 An EPUB locator is not a Nickel text offset. A highlight in an immutable PDF can store the book revision and rectangles as application data; Nickel does not infer those coordinates. A note's text anchors refer to Nickel's own sequence. If a plugin replaces the underlying book revision, it must migrate or invalidate its book locators explicitly.
 
-The first useful client would be a **plain-text note plugin**: edit on the phone, edit offline elsewhere, reconnect, reload, and undo local commands without erasing the other device's contribution. That exercises identity, persistence and sync together. It does not by itself complete Carbon's M3 reading-position/highlight milestone.
+A useful Carbon integration test would be a **plain-text note plugin**: edit on the phone, edit offline elsewhere, reconnect, reload, and undo local commands without erasing the other device's contribution. That exercises identity, persistence and sync together. It does not by itself complete Carbon's M3 reading-position/highlight milestone.
 
 Carbon's merged [roadmap](https://github.com/carbon-study/carbon/blob/4195cb1092ecc46b883c4cda8a5ddd5f6639fe26/ROADMAP.md) supplies the product context: plugins own the app; the worker owns shared data; local persistence and server sync are missing. This proposal does not freeze unrelated platform development or choose Carbon's plugin trust model.
 
-## 2. ownership and the boundary to plugins
+## 2. what the library owns
 
-I propose a pure Rust state machine, a small Wasm binding, and a Carbon worker library plugin. Each browser worker instance owns its replica; frames send typed edit requests through Carbon's eventual frame/worker API. Nickel does not implement that RPC mechanism.
+Nickel is a pure Rust state machine with portable encoding/decoding. It has no knowledge of workers, frames, plugins, accounts, filesystems, network transports or storage services. An optional Wasm binding exposes the same semantics to JavaScript; it does not select a browser architecture.
 
-One mutable document has one writer at a time. A command is a finite list of declarative edits, not a callback that can re-enter the engine. A frame includes the view revision it edited; a stale positional request rejects. It can then refresh or deliberately submit an edit using stable anchors. The worker must not silently reinterpret an old index in a newer document.
+| Nickel provides | the caller provides |
+| --- | --- |
+| document and element identity; sequence/undo semantics | application records, UI and domain meaning |
+| checked edits and semantic versions | request routing, execution placement and synchronization of access |
+| update/checkpoint encoding and validated admission | transport, persistence, crash orchestration and retry policy |
+| structural writer-ID checks | identity allocation, writer fencing, authentication and authorization |
+| explicit command/child boundaries | timers, gestures, composition and user-facing grouping policy |
 
-A replica ID identifies a single operation writer. A restarted writer needs its persisted next counter, or a new replica ID. Two offline devices must not share one counter allocator. A user's account ID is therefore not a replica ID. Carbon owns allocation, durable identity and admission of devices; Nickel checks structural identity conflicts.
+One mutable document admits one mutation at a time. A command is a finite list of declarative edits, not a callback that can re-enter the engine. A positional request includes the view revision it edited; a stale request rejects. The caller can refresh or deliberately submit an edit using stable anchors. Nickel must not silently reinterpret an old index in a newer document.
 
-Each note is a separate Nickel document initially. Creating, listing and authorizing notes belongs to Carbon. Cross-document atomic edits, nesting documents inside elements, rich-text marks and arbitrary JSON trees are outside the first release.
+A replica ID identifies a single operation writer. A restarted writer needs its persisted next counter, or a new replica ID. Two independent writers must not share a counter allocator. The caller supplies that identity and prevents simultaneous reuse; Nickel checks structural identity conflicts. Accounts and devices are not concepts in the library.
+
+Each Nickel document is an independent replication unit. The caller decides whether that means a note, a shared buffer or something else. Cross-document atomic edits, nesting documents inside elements, rich-text marks and arbitrary JSON trees are outside the first release. A Carbon example appears separately in appendix A.
 
 ## 3. elements, gaps and deletion
 
-Text is a sequence of Unicode scalar values. Positions count scalars; the Wasm wrapper offers checked UTF-16 conversion for JavaScript. A UTF-16 endpoint inside a surrogate pair rejects before mutation. Byte, scalar, UTF-16 and grapheme coordinates must have different types. Grapheme-aware movement belongs to the editor.
+Text is a sequence of Unicode scalar values. Positions count scalars. An optional JavaScript/Wasm binding must offer checked UTF-16 conversion. A UTF-16 endpoint inside a surrogate pair rejects before mutation. Byte, scalar, UTF-16 and grapheme coordinates must have different types. Grapheme-aware movement belongs to the editor.
 
 Each inserted scalar has a stable logical `ElementId`. Editing equal text creates different elements. Undo/redo changes whether the original contribution is active; it does not manufacture a new logical character. Storage can pack runs, but packing must preserve every scalar's identity and target set.
 
 An insertion names a historical gap, not just an integer. A deletion names the elements selected in the author's current view. It must not later expand to delete concurrent insertions that were absent from that selection. Replacing a range combines those two actions in one command. Empty edits create no command.
 
-A gap contains enough retained ordering information to remain meaningful when its visible neighbors disappear. Anchors have explicit affinity: does an insertion exactly at the boundary stay before or after that boundary? Both directions must work. For a range, the start and end have independent affinity, so a plugin can choose whether typing at either edge enlarges the highlight. Hidden anchors remain valid while history is retained; if the sequence becomes empty they resolve to its only visible gap, while retaining their historical identity.
+A gap contains enough retained ordering information to remain meaningful when its visible neighbors disappear. Anchors have explicit affinity: does an insertion exactly at the boundary stay before or after that boundary? Both directions must work. For a range, the start and end have independent affinity, so a caller can choose whether typing at either edge enlarges its range. Hidden anchors remain valid while history is retained; if the sequence becomes empty they resolve to its only visible gap, while retaining their historical identity.
 
 Required ordering behavior:
 
@@ -64,7 +72,7 @@ This separates creation from the deletions targeting it. Logoot-Undo derives a r
 
 Inactive insertions and deletions remain in history as ordering and targeting evidence. This equation defines visibility, not the ordering algorithm. Activity belongs to commands, and undo removes only the selected command's contributions. Causal dependence alone never makes another command part of it.
 
-Commands begin active. Each insertion or deletion contribution belongs to exactly one command; accepted child edits belong to their trigger's command. Only the originating writer changes a command's activity. Its activity changes form a causally chained, monotonically numbered sequence; the latest admitted change for that command wins. Conflicting identities or a forked activity chain reject rather than being resolved by arrival order. An undo and redo are new semantic events with new operation IDs, causal dependencies and sync-visible versions. Duplicate delivery does nothing. A foreign writer cannot structurally toggle someone else's command. Authentication of the writer is Carbon's job, not a property of a numeric ID.
+Commands begin active. Each insertion or deletion contribution belongs to exactly one command; accepted child edits belong to their trigger's command. Only the originating writer changes a command's activity. Its activity changes form a causally chained, monotonically numbered sequence; the latest admitted change for that command wins. Conflicting identities or a forked activity chain reject rather than being resolved by arrival order. An undo and redo are new semantic events with new operation IDs, causal dependencies and sync-visible versions. Duplicate delivery does nothing. A foreign writer cannot structurally toggle someone else's command. Authentication of the writer belongs to the caller, not to a numeric ID.
 
 **Proposed no-op policy:** undo consumes exactly one history item, even if no visible character changes. It still publishes the activity change and creates a redo item. Redo likewise consumes exactly one item. Return a result such as `Applied { command, visible_changed, update }`; never collapse semantic success into a Boolean meaning "text changed". An empty stack returns `Empty` and publishes nothing. This deliberately differs from the old Loro no-visible-effect retirement policy. It needs approval, not a compatibility disguise.
 
@@ -88,9 +96,7 @@ A primary command may acquire explicit derived edits: an auto-pair close, renumb
 
 For the first release, a late child may join only an active, retained, locally owned command with an open child token. If the command was undone, evicted or its token was closed, admission rejects **before** changing anything. The app can cancel the job or request a new primary command; it cannot silently revive an inactive trigger. Accepted child contributions thereafter follow the trigger's activity, including across imports and cold recovery.
 
-The engine has explicit item boundaries. Carbon's editor adapter implements its grouping policy: 500 ms, single-selection primary edits only; Enter, direction changes and multiple selections split. A peer import closes primary coalescing. Explicit children still join their trigger across that boundary. Composition previews/final commits and multi-selection restoration need adapter-level tests; a low-level grouping token is not physical IME acceptance.
-
-The first thin note plugin may send one primary item per committed edit. It must describe that UI honestly; it does not pass the grouped-editor acceptance slice until the grouping adapter is tested.
+Nickel supplies explicit item boundaries and child membership. It has no clock-driven grouping rule, editor selection policy or composition lifecycle. The caller decides when edits share a primary item and when to close one. Timers, Enter/direction-change rules, composition previews and multi-selection restoration belong to an editor adapter, not to sequence replication. Appendix A sketches that distinction for Carbon.
 
 ## 5. proposed functions
 
@@ -115,23 +121,23 @@ Names are illustrative Rust shapes; the semantic distinctions are the contract. 
 
 An edit list contains inserts at checked gaps and removals of checked selections. It cannot supply an invented creation identity, arbitrary restoration relation or a forged child membership declaration. The public decoder validates those declarations against the selected protocol.
 
-There is no general checkout/fork-at-history API in the first release. A clone for a new writer gets a new replica identity and an empty local history session. Resuming the same writer is a different operation: Carbon must fence out its previous instance. Persisted counters alone do not prevent two resumed copies from writing concurrently.
+There is no general checkout/fork-at-history API in the first release. A clone for a new writer gets a new replica identity and an empty local history session. Resuming the same writer is a different operation: the caller must fence out its previous instance. Persisted counters alone do not prevent two resumed copies from writing concurrently.
 
-## 6. sync, storage and failures
+## 6. encoded exchange, persistence boundary and failures
 
 The engine admits only causally complete batches initially. Missing dependencies return `NeedDependencies`; it retains no hidden unbounded pending queue. An invalid suffix rejects the entire call, not just that suffix. A duplicate operation ID with different content rejects, including when the ID is already known. A complete transaction may be transported in several packets, but the receiver assembles it within an explicit byte budget before calling admission.
 
 Updates carry document ID, format/order profile, operation IDs, dependency/version information, command membership and activity. A cold receiver must reconstruct the same behavior from those bytes without a private sender-side restoration map. Different compatible batching is semantically irrelevant. Incompatible profiles reject; first release has no migration promise.
 
-Version summaries must include activity events even when the text is unchanged. A per-replica prefix vector is a proposed representation, subject to the actual protocol. The server may store opaque encrypted payloads and use an agreed exposed envelope for backfill. Nickel does not implement encryption, signatures, authorization or prove that an envelope describes its ciphertext honestly. Renee's old Loro envelope is prior art, not our wire format.
+Version summaries must include activity events even when the text is unchanged. A per-replica prefix vector is a proposed representation, subject to the actual protocol. Export is data production; import is semantic admission. Neither operation opens a connection, chooses a server protocol or schedules delivery. Encryption, signatures and authorization are outside the library.
 
-A successful core call means an in-memory semantic commit, **not** a disk write or peer acknowledgement. Returned receipts include the update/version needed for storage. Carbon should stage changes on a candidate document/session, persist the candidate checkpoint plus an outbox record atomically, then publish it to frames and send the outbox. A crash after persistence but before a reply can yield an already committed command on reload; request IDs in the worker's durable ledger prevent a blind retry from issuing it twice. Local write failure publishes no candidate. This orchestration and IndexedDB/OPFS transaction choice need their own integration check.
+A successful core call means an in-memory semantic commit, **not** a disk write or peer acknowledgement. Returned receipts expose the update/version needed by a caller. Snapshots reconstruct replicated semantics; checkpoints additionally reconstruct the specified local history session. Nickel produces and validates these values without choosing where they are stored. It promises neither durable acknowledgement nor exactly-once application requests. A host can use the encoded state to build those guarantees; appendix A gives one possible Carbon design, not an additional Nickel requirement.
 
-Within the core, an ordinary rejected call leaves text, identities, versions, stacks, tokens and outgoing events unchanged. Notifications are returned data emitted after commit; no user callback runs inside mutation. The implementation should compute/validate a candidate transition and publish only at the commit point. We must prove its actual failure paths rather than assume an arbitrary Rust mutation rolls back. Traps, process death, abort-on-allocation failure and damaged storage are outside that in-memory return contract; durable recovery is checked separately.
+Within the core, an ordinary rejected call leaves text, identities, versions, stacks, tokens and outgoing events unchanged. Notifications are returned data emitted after commit; no user callback runs inside mutation. The implementation should compute/validate a candidate transition and publish only at the commit point. We must prove its actual failure paths rather than assume an arbitrary Rust mutation rolls back. Traps, process death, abort-on-allocation failure and damaged storage are outside that in-memory return contract. Recovery from a valid encoded checkpoint is a library obligation; making such a checkpoint durable is a host obligation.
 
 Undo here also does not restore the complete internal state: it appends history and advances versions. [Dolan, §2](#references) proves the counter characterization under a stronger undoability axiom that returns the abstract state itself. We are not claiming that inverse for the retained history; Stewen and Kleppmann explicitly discuss this internal/external distinction in §7. Our proof obligations must name the observed projection and allowed continuations, rather than asserting unrestricted cancellation.
 
-**Retention proposal:** keep full semantic history for v0.1. No tombstone GC, history truncation or bounded-memory claim. A local undo limit may evict stack entries and tokens, but cannot erase replicated facts. Explicit byte/operation/input limits reject growth before admission; reaching them requires export/recovery or an application decision, not silent data deletion. This is a usable finite first release only if the agreed note-size/offline-history workloads fit on a phone. Measure those workloads before choosing numeric defaults; do not deploy an unlimited-history claim as phone readiness.
+**Retention proposal:** keep full semantic history for v0.1. No tombstone GC, history truncation or bounded-memory claim. A local undo limit may evict stack entries and tokens, but cannot erase replicated facts. Explicit byte/operation/input limits reject growth before admission; reaching them requires export/recovery or an application decision, not silent data deletion. The library must document supported resource limits and measure its history/update growth. Carbon supplies a phone workload as one target profile, not a platform assumption built into Nickel. Numeric limits remain to be agreed; full retention is not a bounded-memory promise.
 
 ## 7. acceptance witnesses
 
@@ -144,18 +150,30 @@ These are required tests to implement, not results of the current scaffold. Run 
 5. **redo an invisible item:** redo B after the previous empty result reveals B; redo A restores `ax` and hides B again. No command may disappear from history because its first toggle was invisible.
 6. **late child:** one writer issues primary `(`, an independent primary command inserts B after it, then an explicit child `)` inserted after B. Undo B gives `()`; undo the trigger gives empty; redo trigger gives `()`; redo B gives `(B)`. A child submitted while its trigger is inactive rejects without effect.
 7. **historical side:** create `ab`, hide a, insert X once at an anchor before a and once in a separate history after a. Reactivate a: results are `Xab` and `aXb`, even though both insertions originally displayed `Xb`. Visible text alone cannot select the restoration side.
-8. **admission and crash:** missing dependencies, conflicting known IDs, malformed activity and oversized batches publish nothing. Replaying a durably recorded update after a lost response does not duplicate characters or history membership. A persisted undo stays undone after cold load.
-9. **real coordinates:** non-BMP scalars, combining sequences, empty text, both affinities, forward/backward ranges and multiple selections cross the actual Rust/Wasm/Carbon boundary. Invalid UTF-16 endpoints reject before edits. Book locators remain outside this coordinate test.
+8. **admission and checkpoint recovery:** missing dependencies, conflicting known IDs, malformed activity and oversized batches publish nothing. Reimporting the same encoded update does not duplicate characters or history membership. Serializing and loading a checkpoint preserves inactive contributions and the specified local history continuation. Storage crashes and lost application responses are separate host tests.
+9. **coordinates:** non-BMP scalars, combining sequences, empty text, both affinities and forward/backward ranges pass through the actual Rust API. If a JavaScript/Wasm binding ships, test that actual binding too, including rejection of invalid UTF-16 endpoints before edits. Selection lists and book locators are caller data, not sequence primitives.
 
 ## 8. construction and proof order
 
 1. **Settle the reference semantics.** Specify complete ordering, activity authority, child membership and version/admission rules. Turn the witnesses into a small executable specification. Agree the counterfactual redo examples, not just the function list.
 2. **Build the pure sequence/activity slice and its proofs together.** Prove identifier uniqueness under the writer contract, deterministic interpretation, delivery/idempotence laws, visibility/activity laws and implementation-linked transition preservation. Cross the original two-peer and cold-reader witnesses with actual encoded operations. A model's convergence theorem does not automatically prove the Rust receiver.
 3. **Close admission and local history.** Prove rejection neutrality and one-item stack transitions; test fault/limit paths, conflicting duplicates and checkpoint continuation. Extraction and bindings remain named trust boundaries.
-4. **Ship the Wasm/Carbon note slice.** Add checked coordinate bindings, typed worker calls, local durable checkpoint/outbox and real reconnect/reload acceptance. Measure quota-sized Unicode edits, long inactive history, cold import, memory and update growth on the chosen phone test target. Set explicit supported budgets.
-5. **Then add reader data primitives.** Specify registers before implementation: does a concurrent location choose one deterministic winner, or expose alternatives? A font setting and reading location need not have the same product policy. For keyed highlights, observed removal should not erase a concurrently added independent record; editing an already removed record needs an explicit policy. Reuse the engine's causal/activity machinery only after these meanings are fixed.
+4. **Close the portable library boundary.** Test actual encoding/decoding and, if shipped, checked Wasm bindings. Measure Unicode edits, long inactive history, cold import, memory and update growth under explicit supported budgets. Keep host integrations separate; use Carbon as an external consumer test, as described in appendix A.
+5. **Then add registers and keyed collections.** Specify registers before implementation: does a concurrent location choose one deterministic winner, or expose alternatives? A font setting and reading location need not have the same product policy. For keyed highlights, observed removal should not erase a concurrently added independent record; editing an already removed record needs an explicit policy. Reuse the engine's causal/activity machinery only after these meanings are fixed.
 
-**Proposed v0.1 exit:** a real Carbon plain-note plugin uses Nickel through the Wasm/worker boundary; two offline writers and a cold reload preserve the listed sequence/undo laws; the shipped Rust transitions have source-linked proofs with explicit external assumptions; admission/storage failure tests and measured phone budgets pass. Rich text, general containers, arbitrary selective remote undo, permissions, GC and the full reader remain later work.
+**Proposed Nickel v0.1 exit:** an application-independent sequence/undo/anchor API and portable update/checkpoint format pass the listed two-writer, duplicate-delivery and cold-recovery laws; shipped Rust transitions have source-linked proofs with explicit external assumptions; admission failure paths and resource limits are checked. The examples and tests run without Carbon. Rich text, general containers, arbitrary selective remote undo, permissions and GC remain later work.
+
+## appendix A. a possible Carbon integration, outside Nickel
+
+This is a usage sketch for review with Carbon's maintainers. It is neither part of the Nickel API nor a decision about Carbon's architecture.
+
+- A Carbon library plugin could hold a Nickel instance in its worker half, with frames issuing typed requests through Carbon's RPC. A native app or CLI could call the same library without any worker or plugin. Carbon chooses instance ownership and routing.
+- Carbon could use one document per note, keep a separate note index, and carry format-specific book locators alongside Nickel anchors. Nickel sees neither note lists nor book formats.
+- An editor adapter chooses undo grouping. A possible policy is a 500 ms window for single-selection edits, splitting on Enter, direction changes, multiple selections or peer imports. That is an application proposal, not a Nickel default or a settled Carbon rule. Explicit child tokens allow a later auto-pair result to join its trigger without teaching Nickel about keyboards or timers.
+- One possible durability design stages a candidate document/session, persists its checkpoint plus an outbox atomically, then publishes the new view. A durable request-ID ledger handles a lost response without blindly issuing the command again. Carbon must select the storage mechanism and demonstrate its crash behavior; Nickel's in-memory receipt cannot establish it.
+- Carbon chooses server transport, encryption, authentication and any exposed backfill envelope. No Renee/Loro envelope or particular version-vector server interface is adopted here.
+
+**Consumer acceptance:** a Carbon plain-note plugin edits on two offline devices, reconnects and reloads without losing the specified contributions, and demonstrates its own persistence/retry guarantees on the target phone. This would test that Nickel accommodates Carbon. It is a separate Carbon integration milestone, not the definition of a Nickel release or completion of Carbon M3. No Carbon code change is authorized by this document.
 
 ## review decisions
 
@@ -166,7 +184,7 @@ I recommend approving these directions, but each remains a proposal:
 - single-origin command activity; foreign selective undo deferred;
 - explicit late children, rejected while inactive; editor grouping outside the pure engine;
 - full semantic retention with admission budgets for v0.1;
-- first release tested by a Carbon note client, without promising all of M3 or a zero-change Loro swap.
+- a standalone library release, with Carbon note-client acceptance tracked separately; no promise of all of M3 or a zero-change Loro swap.
 
 The ordering interpretation and numeric workloads/budgets are still open requirements. Approval of this draft should authorize refining those requirements, not imply they have already been solved.
 
@@ -178,4 +196,4 @@ The ordering interpretation and numeric workloads/budgets are still open require
 4. **Leo Stewen and Martin Kleppmann.** “Undo and Redo Support for Replicated Registers.” *PaPoC 2024*, 1–7. [DOI](https://doi.org/10.1145/3642976.3653029), [open manuscript](https://arxiv.org/pdf/2404.11308), [author publication page](https://martin.kleppmann.com/2024/04/22/undo-replicated-register.html). Relevant: §§2, 4–7; register restoration, local stacks and comparison with activity approaches.
 5. **Stephen Dolan.** “The Only Undoable CRDTs Are Counters.” 2020. [Open manuscript](https://arxiv.org/pdf/2006.10494); conference brief announcement in *PODC 2020*, 57–58, [DOI](https://doi.org/10.1145/3382734.3405749). Relevant: §§1–3, especially the abstract-state undoability axiom in §2.
 
-Reading scope: Logoot-Undo §§4.4–6.2; Yu/André/Ignat full text, especially §§3–6; Yu/Elvinger/Ignat §5; Stewen/Kleppmann §§2–7; Dolan §§1–3. No implementation, application survey or benchmark from these papers was reproduced. These references inform semantic choices; they do not settle the still-open sequence ordering, prove Nickel's implementation or establish its phone budgets. The 500 ms grouping rule, explicit-child admission policy and worker durability boundary are product/API proposals, not conclusions attributed to these papers.
+Reading scope: Logoot-Undo §§4.4–6.2; Yu/André/Ignat full text, especially §§3–6; Yu/Elvinger/Ignat §5; Stewen/Kleppmann §§2–7; Dolan §§1–3. No implementation, application survey or benchmark from these papers was reproduced. These references inform semantic choices; they do not settle the still-open sequence ordering, prove Nickel's implementation or establish its phone budgets. Explicit-child admission is a Nickel API proposal; the grouping and durability sketches in appendix A are caller proposals. Neither is a conclusion attributed to these papers.
