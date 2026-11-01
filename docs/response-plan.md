@@ -2,6 +2,8 @@
 
 This is the revision plan for [PR1](https://github.com/carbon-study/nickel-crdt/pull/1), based on Ren's completed questionnaire edition2026-11-01.1. It replaces “approve the current contribution-deactivation proposal” as the next decision. Ren's desired behavior is the design target to investigate; Rotbot's answers provide comparisons, not a vote against it. The exported answers remain unchanged and are not republished here.
 
+The [supplied finite model follow-through](hybrid-traces.md) now records40 directed delivery schedules, the fixed-selection and partial-replacement constraints, the concurrent-restoration redo fork, and a remaining mismatch with q07. It is supporting evidence, not a completed reference contract.
+
 ## 1. put the hybrid undo behavior first
 
 The first question is now: **when another writer deletes my text, can my undo restore it, and what does their next undo/redo do?**
