@@ -4,6 +4,10 @@ A sequence CRDT library being built for Carbon, with proofs tied to its Rust imp
 
 This repository currently contains the toolchain scaffold. It has **no CRDT implementation or public API yet**. Sequence ordering, identity, undo, replication and the first release boundary still need an agreed contract.
 
+## Undo questionnaire
+
+[40 scenarios, local progress and JSON answer export](https://nickel-undo.shit.yachts/) support the design discussion. The standalone [questionnaire](questionnaire/README.md) has its own locked flake and is not a CRDT implementation or verifier.
+
 ## Run the checks
 
 On x86_64 Linux with Nix:
