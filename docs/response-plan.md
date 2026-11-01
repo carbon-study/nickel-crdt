@@ -50,6 +50,8 @@ These are the next requested specifications, not filled-in outcomes or an implem
 
 The same option in q20/q21 does not imply the same trace: Ren assumes two undo presses where the questionnaire stipulated one. Preserve that changed premise. “Unsure” in q33/q34/q37 records an explanation failure, not rejection of those mechanisms. No additional40-question round is needed; use a few small worked examples.
 
+Ren clarified q39 after the export: undo/redo history stays on the device, not in the shared snapshot. Keep local stack save/restore available (q35), but do not copy a writer’s private undo session to a new peer. Specify any replicated operation/identity/activity facts separately; their necessary representation is still an algorithm obligation, not a requirement to replicate local stacks.
+
 ## 3. research the behavior before selecting its representation
 
 Map each proposed trace against the relevant paper's actual premises and criteria. Prakash/Knister informs selection, dependency conflicts, transposition/cancellation and historical gaps. Yu/Elvinger/Ignat is relevant to concurrent undo equivalence and supersession, but supplies neither victim eligibility nor cross-writer session bookkeeping. Stewen/Kleppmann provides a concrete register-restoration comparison, not a selected sequence policy. Read the outstanding OT/selective-undo leads where they address these traces; record gaps instead of claiming coverage from titles.
