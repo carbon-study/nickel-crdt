@@ -9,8 +9,9 @@
         mkdir -p $out
         cp -r ${./public}/. $out/
       '';
-      checksSource = pkgs.lib.fileset.toSource { root = ./.; fileset = pkgs.lib.fileset.unions [ ./public ./test ]; };
+      checksSource = pkgs.lib.fileset.toSource { root = ./.; fileset = pkgs.lib.fileset.unions [ ./public ./test ./scripts ]; };
       check = pkgs.runCommand "nickel-undo-model-check" { nativeBuildInputs = [ pkgs.nodejs_22 ]; } ''
+        node ${checksSource}/scripts/portable.mjs --check
         node ${checksSource}/test/model.test.mjs
         node --check ${checksSource}/public/app.js
         touch $out

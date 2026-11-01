@@ -1,0 +1,1601 @@
+{
+  "format": "nickel-undo-answers-v1",
+  "questionnaireVersion": "2026-11-01.1",
+  "title": "Nickel / undo decisions",
+  "assumptions": [
+    "Each question is independent. Quoted letters are text; Alice and Bo are writers.",
+    "Each listed edit is its own item unless explicit grouping or child membership is stated.",
+    "Concurrent means neither writer saw the other operation when issuing its own.",
+    "Some questions stipulate an observed intermediate result; that is not an endorsement of your earlier answer.",
+    "There is no answer key, score, adopted Nickel policy or CRDT simulation behind this questionnaire."
+  ],
+  "exportedAt": "2026-11-01T00:00:00.000Z",
+  "respondent": "",
+  "answeredCount": 0,
+  "totalQuestions": 40,
+  "answers": [
+    {
+      "question": {
+        "id": "q01",
+        "section": "1 · choosing an item",
+        "title": "whose last edit?",
+        "events": [
+          "Start with empty text. Alice inserts “a”. Bo receives it and appends “b”. Alice receives Bo’s edit; both see “ab”.",
+          "Alice presses undo."
+        ],
+        "prompt": "which edit should Alice’s undo select?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "Alice’s insertion of “a”"
+          },
+          {
+            "id": "2",
+            "label": "Bo’s more recent insertion of “b”"
+          },
+          {
+            "id": "3",
+            "label": "neither; Bo’s edit blocks Alice’s undo"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q02",
+        "section": "1 · choosing an item",
+        "title": "one account, two devices",
+        "events": [
+          "You edit one document on your phone, then edit it again on your laptop. The devices have synced.",
+          "You press undo on the phone."
+        ],
+        "prompt": "which history should that button use?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "the phone’s own edit history"
+          },
+          {
+            "id": "2",
+            "label": "your account’s combined history, including the laptop edit"
+          },
+          {
+            "id": "3",
+            "label": "the currently focused editing session only, even if it excludes earlier phone edits"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q03",
+        "section": "1 · choosing an item",
+        "title": "the top item is invisible",
+        "events": [
+          "Alice inserts “a”, then makes a separate insertion of “b”. Bo deletes “b”; Alice receives the deletion. The screen shows “a”.",
+          "Alice presses undo once. Her newest item is the insertion of the now-hidden “b”."
+        ],
+        "prompt": "what should this single press do?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "consume the “b” item, with no immediate text change"
+          },
+          {
+            "id": "2",
+            "label": "skip invisible “b” and undo “a” too"
+          },
+          {
+            "id": "3",
+            "label": "do nothing and keep “b” at the top"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q04",
+        "section": "1 · choosing an item",
+        "title": "typing after undo",
+        "events": [
+          "In a single-user document, you insert “a”, insert “b”, then undo the insertion of “b”. The text is “a”.",
+          "You now type “x”, producing “ax”."
+        ],
+        "prompt": "what happens to the old redo of “b”?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "discard it when “x” is committed"
+          },
+          {
+            "id": "2",
+            "label": "keep it as the next redo"
+          },
+          {
+            "id": "3",
+            "label": "keep both branches and let the user choose"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q05",
+        "section": "1 · choosing an item",
+        "title": "a peer edits while redo waits",
+        "events": [
+          "Alice inserts “a”, then undoes it. Her redo is waiting.",
+          "Bo inserts “B” into the empty document. Alice receives it and sees “B”."
+        ],
+        "prompt": "what should happen to Alice’s redo?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "keep the redo of her “a”"
+          },
+          {
+            "id": "2",
+            "label": "clear redo because a remote edit arrived"
+          },
+          {
+            "id": "3",
+            "label": "keep it but ask for confirmation before applying it"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q06",
+        "section": "2 · sequence effects",
+        "title": "a peer inside my insertion",
+        "events": [
+          "Alice inserts “ab” as one item. Bo receives it and inserts “X” between the two characters. Everyone sees “aXb”.",
+          "Alice undoes her insertion."
+        ],
+        "prompt": "what text should remain?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "“X”"
+          },
+          {
+            "id": "2",
+            "label": "empty text"
+          },
+          {
+            "id": "3",
+            "label": "“aXb” — the peer edit prevents undoing the surrounding insertion"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q07",
+        "section": "2 · sequence effects",
+        "title": "two deletions of one character",
+        "events": [
+          "Start with the same original “b” on both peers. Alice and Bo independently delete it before seeing each other’s deletion. They then sync.",
+          "Alice undoes only her deletion. Bo has not undone his."
+        ],
+        "prompt": "what should be visible?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "empty text — Bo’s deletion still applies"
+          },
+          {
+            "id": "2",
+            "label": "“b” — undo restores what Alice deleted"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q08",
+        "section": "2 · sequence effects",
+        "title": "does dependence imply membership?",
+        "events": [
+          "Alice inserts “this is hard”. Bo receives it and independently inserts “not ” inside it, giving “this is not hard”.",
+          "No derived-edit membership was declared. Alice undoes her original insertion."
+        ],
+        "prompt": "what should remain?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "“not ”"
+          },
+          {
+            "id": "2",
+            "label": "empty text — the later insertion loses its ground"
+          },
+          {
+            "id": "3",
+            "label": "ask whether to keep Bo’s text, with a specified rule for peers that receive the answer late"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q09",
+        "section": "2 · sequence effects",
+        "title": "a deletion did not see the new character",
+        "events": [
+          "Both peers see “ab”. Alice deletes both original characters. Concurrently, Bo inserts “X” between them without seeing Alice’s deletion.",
+          "They sync."
+        ],
+        "prompt": "should Alice’s deletion remove Bo’s unseen X?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "no; show “X”"
+          },
+          {
+            "id": "2",
+            "label": "yes; show empty text because X lies inside the deleted region"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q10",
+        "section": "2 · sequence effects",
+        "title": "same spelling, different insertion",
+        "events": [
+          "Both peers see one original “b”. Alice deletes it. Bo receives that deletion and independently types a new “b”.",
+          "Alice receives Bo’s new character, then undoes her deletion of the original."
+        ],
+        "prompt": "how many characters should appear?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "two “b” characters — the original and Bo’s new one"
+          },
+          {
+            "id": "2",
+            "label": "one “b” — equal spelling should be combined"
+          },
+          {
+            "id": "3",
+            "label": "one “b” — the newer insertion should block restoration of the original"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q11",
+        "section": "2 · sequence effects",
+        "title": "hidden creation under a replacement",
+        "events": [
+          "Alice inserts “a”. Bo receives it and appends “B”. Alice receives that, then replaces all of “aB” with “x” as a new, separate item.",
+          "Bo receives the replacement and undoes his now-hidden insertion of B. Alice receives that undo, then undoes only her replacement item."
+        ],
+        "prompt": "what should Alice see?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "“a” — B’s creation remains undone"
+          },
+          {
+            "id": "2",
+            "label": "“aB” — restore the text before Alice’s replacement"
+          },
+          {
+            "id": "3",
+            "label": "empty text"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q12",
+        "section": "2 · sequence effects",
+        "title": "concurrent runs in one gap",
+        "events": [
+          "Both peers start with empty text. Alice inserts “ab” in one operation. Concurrently, Bo inserts “XY” in one operation.",
+          "There are no other edits. They sync."
+        ],
+        "prompt": "which outputs should the library permit?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "“abXY” or “XYab”, with a deterministic rule; no interleaving"
+          },
+          {
+            "id": "2",
+            "label": "interleavings such as “aXbY” are acceptable if everyone agrees"
+          },
+          {
+            "id": "3",
+            "label": "the library should expose a conflict instead of choosing an order"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q13",
+        "section": "3 · register effects",
+        "title": "overwriting someone else’s overwrite",
+        "events": [
+          "A shared color register starts black. Alice sets red. Bo sees red and sets green. Alice receives green.",
+          "Alice presses undo on her own red-setting item."
+        ],
+        "prompt": "what color should appear?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "green — preserve Bo’s later contribution"
+          },
+          {
+            "id": "2",
+            "label": "black — restore the state before Alice’s own write"
+          },
+          {
+            "id": "3",
+            "label": "red — undo the most recent global change"
+          },
+          {
+            "id": "4",
+            "label": "undo should be unavailable here"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q14",
+        "section": "3 · register effects",
+        "title": "redo after that register undo",
+        "events": [
+          "Independently of the previous question: black → Alice sets red → Bo sees it and sets green → Alice undoes her own red write.",
+          "With no intervening edit, Alice now presses redo."
+        ],
+        "prompt": "what should the color be after redo?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "green — the state immediately before Alice’s undo"
+          },
+          {
+            "id": "2",
+            "label": "red — reapply Alice’s selected write as her choice"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q15",
+        "section": "3 · register effects",
+        "title": "both authors undo their register writes",
+        "events": [
+          "Start black. Alice sets red. Bo receives red and sets green. Everyone syncs.",
+          "Alice undoes her own write and everyone syncs. Bo then undoes his own green write. There are no other edits."
+        ],
+        "prompt": "what should be visible after both undos?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "black — both original writes are inactive"
+          },
+          {
+            "id": "2",
+            "label": "red — restore the state before Bo’s green write"
+          },
+          {
+            "id": "3",
+            "label": "green"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q16",
+        "section": "3 · register effects",
+        "title": "two concurrent colors",
+        "events": [
+          "Alice and Bo both start from black. Without seeing the other’s write, Alice chooses red and Bo chooses blue.",
+          "They sync."
+        ],
+        "prompt": "what should a register expose?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "both alternatives, so the caller can resolve them"
+          },
+          {
+            "id": "2",
+            "label": "one deterministic winner, while retaining the other write for future undo"
+          },
+          {
+            "id": "3",
+            "label": "one deterministic winner; the losing value may be forgotten"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q17",
+        "section": "3 · register effects",
+        "title": "an equal-valued overwrite",
+        "events": [
+          "Start black. Alice sets red. Bo sees that and independently sets red again. Everyone syncs.",
+          "Alice undoes only her own red-setting item."
+        ],
+        "prompt": "does Bo’s equal-valued write matter?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "yes; the register stays red"
+          },
+          {
+            "id": "2",
+            "label": "no; the register returns to black"
+          },
+          {
+            "id": "3",
+            "label": "equal-valued writes should not create separate history items"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q18",
+        "section": "4 · invisible actions",
+        "title": "must an invisible undo travel?",
+        "events": [
+          "Alice’s inserted character is currently hidden by a peer’s deletion. Alice undoes that insertion. Her text does not change.",
+          "Another peer may later undo the deletion."
+        ],
+        "prompt": "what must Alice publish now?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "an undo/activity event, even though text is unchanged"
+          },
+          {
+            "id": "2",
+            "label": "nothing until the character would become visible"
+          },
+          {
+            "id": "3",
+            "label": "nothing; undo with no visible effect should not be recorded"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q19",
+        "section": "4 · invisible actions",
+        "title": "a late child and an invisible peer undo",
+        "events": [
+          "Alice’s item C inserts “a”. Bo inserts “B” after it. Alice adds an explicitly declared child to C: delete B and insert “x”. Everyone sees “ax”.",
+          "Bo undoes his hidden insertion of B. Alice receives that undo, then undoes all of C, including its child."
+        ],
+        "prompt": "what should remain?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "empty text"
+          },
+          {
+            "id": "2",
+            "label": "“B” — restoring the child’s deletion reveals it"
+          },
+          {
+            "id": "3",
+            "label": "“x”"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q20",
+        "section": "4 · invisible actions",
+        "title": "the same undo arrives late",
+        "events": [
+          "Use the same history: C creates a and its child replaces Bo’s B with x. Bo has undone his hidden B, but that event is delayed.",
+          "Alice first undoes C and temporarily sees “B”. She then receives Bo’s earlier undo."
+        ],
+        "prompt": "what should happen on receipt?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "B disappears; the final state becomes empty"
+          },
+          {
+            "id": "2",
+            "label": "B stays because it was restored before the event arrived"
+          },
+          {
+            "id": "3",
+            "label": "report a conflict for the application to resolve"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q21",
+        "section": "4 · invisible actions",
+        "title": "redoing the invisible item",
+        "events": [
+          "Again C creates a and its child replaces Bo’s B with x. Bo undoes B; Alice receives that, then undoes C. Everyone now sees empty text.",
+          "Bo presses redo on his previously invisible undo."
+        ],
+        "prompt": "what should appear?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "“B”"
+          },
+          {
+            "id": "2",
+            "label": "nothing — the invisible item should not have a redo entry"
+          },
+          {
+            "id": "3",
+            "label": "“ax”"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q22",
+        "section": "4 · invisible actions",
+        "title": "redoing the parent afterwards",
+        "events": [
+          "Continue the previous history: C and B were both undone, then Bo redid B, so the text is “B”.",
+          "Alice now redoes C, including its previously admitted child."
+        ],
+        "prompt": "what should appear?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "“ax” — C’s child again hides B"
+          },
+          {
+            "id": "2",
+            "label": "“aB” — redo should not repeat the child’s deletion"
+          },
+          {
+            "id": "3",
+            "label": "“aBx” — preserve B and also reinsert x"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q23",
+        "section": "4 · invisible actions",
+        "title": "a consumed invisible item",
+        "events": [
+          "Alice inserts a character; Bo deletes it. Alice presses undo on that now-hidden creation.",
+          "Assume the operation is recorded and synchronizes."
+        ],
+        "prompt": "what should Alice’s next redo be allowed to select?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "that same item, despite its undo having no visible effect"
+          },
+          {
+            "id": "2",
+            "label": "only an older item whose undo visibly changed text"
+          },
+          {
+            "id": "3",
+            "label": "nothing; this kind of item has no opposite"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q24",
+        "section": "5 · groups and derived edits",
+        "title": "ordinary typing",
+        "events": [
+          "In one focused text field with one cursor, you type “a”, then “b” 200 ms later. There is no movement, import or other edit.",
+          "You press undo once."
+        ],
+        "prompt": "what grouping would you prefer?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "remove “ab” together"
+          },
+          {
+            "id": "2",
+            "label": "remove only “b”"
+          },
+          {
+            "id": "3",
+            "label": "let the editor choose; the library should only support explicit boundaries"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q25",
+        "section": "5 · groups and derived edits",
+        "title": "Enter between two edits",
+        "events": [
+          "You type “a”, press Enter, then type “b”, all within half a second. There is one cursor.",
+          "You press undo once."
+        ],
+        "prompt": "what should the editor undo?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "only the final “b”"
+          },
+          {
+            "id": "2",
+            "label": "Enter and “b” together"
+          },
+          {
+            "id": "3",
+            "label": "the whole “a”, Enter, “b” sequence"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q26",
+        "section": "5 · groups and derived edits",
+        "title": "remote import between typing",
+        "events": [
+          "You type “a”. A remote edit is imported elsewhere in the same document. You then type “b” at your cursor, within 200 ms.",
+          "The two local insertions would otherwise coalesce."
+        ],
+        "prompt": "should that import split the local undo group?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "yes"
+          },
+          {
+            "id": "2",
+            "label": "no"
+          },
+          {
+            "id": "3",
+            "label": "only if the remote edit touches the local editing region"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q27",
+        "section": "5 · groups and derived edits",
+        "title": "delayed auto-pair close",
+        "events": [
+          "One writer inserts “(” as item C. It makes a separate primary item inserting “B” after it.",
+          "A delayed job explicitly tagged as C’s child inserts “)” after B. The text is “(B)”. The newest primary item is B."
+        ],
+        "prompt": "what should one undo remove?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "only B, leaving “()”"
+          },
+          {
+            "id": "2",
+            "label": "the delayed “)” first, leaving “(B”"
+          },
+          {
+            "id": "3",
+            "label": "all of “(B)” as one group"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q28",
+        "section": "5 · groups and derived edits",
+        "title": "a child completes while its trigger is undone",
+        "events": [
+          "You type “(” and start an auto-pair job tagged as its child. Before the job completes, you undo “(”.",
+          "The delayed result now wants to add “)”."
+        ],
+        "prompt": "what should happen?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "reject/cancel that child with no document effect"
+          },
+          {
+            "id": "2",
+            "label": "record it as an inactive child, so it appears if the trigger is redone"
+          },
+          {
+            "id": "3",
+            "label": "commit it as a new independent item"
+          },
+          {
+            "id": "4",
+            "label": "reactivate the trigger and attach it"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q29",
+        "section": "5 · groups and derived edits",
+        "title": "later does not necessarily mean derived",
+        "events": [
+          "Alice inserts “a”. Later, after other activity, she independently inserts “b”; she declares no child relationship.",
+          "She undoes only the first item using a hypothetical explicit item-selection command."
+        ],
+        "prompt": "should b disappear because it happened after a?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "no; keep b"
+          },
+          {
+            "id": "2",
+            "label": "yes; later local edits should be undone with their causal predecessor"
+          },
+          {
+            "id": "3",
+            "label": "only when b was inserted inside a region created by the first item"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q30",
+        "section": "6 · identity and anchors",
+        "title": "before a hidden character",
+        "events": [
+          "Create “ab”. Keep a stable gap immediately before a, then delete a. The visible text is “b”.",
+          "Insert X at that historical gap, then undo the deletion of a."
+        ],
+        "prompt": "what should be visible?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "“Xab”"
+          },
+          {
+            "id": "2",
+            "label": "“aXb”"
+          },
+          {
+            "id": "3",
+            "label": "the two histories may be indistinguishable once a is hidden"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q31",
+        "section": "6 · identity and anchors",
+        "title": "after a hidden character",
+        "events": [
+          "Create “ab”. This time keep a stable gap immediately after a, then delete a. The visible text is “b”.",
+          "Insert X at that historical gap, then undo the deletion of a."
+        ],
+        "prompt": "what should be visible?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "“aXb”"
+          },
+          {
+            "id": "2",
+            "label": "“Xab”"
+          },
+          {
+            "id": "3",
+            "label": "the two histories may be indistinguishable once a is hidden"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q32",
+        "section": "6 · identity and anchors",
+        "title": "typing at a range boundary",
+        "events": [
+          "A saved annotation covers “word”. Someone inserts X exactly at the annotation’s start boundary.",
+          "There is no other edit."
+        ],
+        "prompt": "what should the anchor API allow?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "the caller chooses whether X belongs inside or outside via explicit affinity"
+          },
+          {
+            "id": "2",
+            "label": "always include X"
+          },
+          {
+            "id": "3",
+            "label": "always exclude X"
+          },
+          {
+            "id": "4",
+            "label": "leave it to the library’s insertion-order tie-break"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q33",
+        "section": "6 · identity and anchors",
+        "title": "cursor positions after a cycle",
+        "events": [
+          "You edit with two selections and later move both cursors. You undo the edit, then move the cursors again before redo.",
+          "The library supplies anchors; an editor adapter chooses selection restoration."
+        ],
+        "prompt": "after redo, which selection should the editor prefer?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "the selection saved when the original edit finished"
+          },
+          {
+            "id": "2",
+            "label": "the selection in effect when undo was invoked"
+          },
+          {
+            "id": "3",
+            "label": "the selection in effect immediately before redo"
+          },
+          {
+            "id": "4",
+            "label": "leave selections where they are, transformed through the change"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q34",
+        "section": "6 · identity and anchors",
+        "title": "is restored text the same element?",
+        "events": [
+          "Alice inserts a. Bo saves an anchor attached to that character. Alice undoes and then redoes her insertion.",
+          "The character again displays as a."
+        ],
+        "prompt": "what should the anchor treat it as?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "the same logical element as before"
+          },
+          {
+            "id": "2",
+            "label": "a fresh element; the old anchor follows a documented fallback"
+          },
+          {
+            "id": "3",
+            "label": "either representation is fine only if every future anchor/edit observation is equivalent"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q35",
+        "section": "7 · recovery and limits",
+        "title": "undo after a reload",
+        "events": [
+          "You edit a document, persist it, close the app and reopen it. No remote edit occurs."
+        ],
+        "prompt": "what history behavior should the API support?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "resume the exact local undo/redo session from an explicit checkpoint"
+          },
+          {
+            "id": "2",
+            "label": "restore document meaning but start a fresh local history"
+          },
+          {
+            "id": "3",
+            "label": "support either as two clearly different loading operations"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q36",
+        "section": "7 · recovery and limits",
+        "title": "clear the local history",
+        "events": [
+          "You undo an insertion, leaving it inactive. Then you choose “clear undo history”.",
+          "Later a peer undoes a deletion that also hid that insertion."
+        ],
+        "prompt": "what should clearing history have changed?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "only local access to undo/redo; the insertion stays inactive"
+          },
+          {
+            "id": "2",
+            "label": "forgetting the undo allows the insertion to become active again"
+          },
+          {
+            "id": "3",
+            "label": "clearing should be forbidden until every peer acknowledges it"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q37",
+        "section": "7 · recovery and limits",
+        "title": "when retained history gets too large",
+        "events": [
+          "A phone reaches the configured history/storage budget. Some hidden identities and activity may still matter to an offline peer."
+        ],
+        "prompt": "what is an acceptable first-release response?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "refuse further growth and offer export/recovery; do not silently change meaning"
+          },
+          {
+            "id": "2",
+            "label": "discard local undo access, but keep all replicated semantic facts until there is room"
+          },
+          {
+            "id": "3",
+            "label": "garbage-collect old facts only after an explicit protocol proves it safe"
+          },
+          {
+            "id": "4",
+            "label": "make a new document and require every device to adopt that reset"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q38",
+        "section": "7 · recovery and limits",
+        "title": "an error halfway through a batch",
+        "events": [
+          "One requested item replaces two separate ranges. The first replacement can be applied, but validating the second finds an invalid endpoint.",
+          "The operation returns an ordinary error, not a process crash."
+        ],
+        "prompt": "what should callers observe?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "no document, history, ID-allocation or event changes"
+          },
+          {
+            "id": "2",
+            "label": "the first replacement remains committed, with a partial-success receipt"
+          },
+          {
+            "id": "3",
+            "label": "the library may keep the first replacement if the UI can recover"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q39",
+        "section": "7 · recovery and limits",
+        "title": "a cold peer receives equal text",
+        "events": [
+          "Two histories display identical text but disagree about whether an invisible creation is active. A later undo can reveal the difference.",
+          "A third peer opens a saved document without access to the original writer’s in-memory tables."
+        ],
+        "prompt": "what should the snapshot preserve?",
+        "choices": [
+          {
+            "id": "1",
+            "label": "enough identity/history/activity to reproduce those future differences"
+          },
+          {
+            "id": "2",
+            "label": "only current visible text; history is private to the editing device"
+          },
+          {
+            "id": "3",
+            "label": "text plus application-supplied restoration metadata outside the CRDT"
+          },
+          {
+            "id": "other",
+            "label": "another outcome — explain below"
+          },
+          {
+            "id": "unsure",
+            "label": "depends / unsure — explain if you can"
+          }
+        ]
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    },
+    {
+      "question": {
+        "id": "q40",
+        "section": "7 · recovery and limits",
+        "title": "what would change your mind?",
+        "events": [],
+        "prompt": "describe a missing undo/redo scenario, a requirement you would not compromise on, or a case where your answers depend on the application. “nothing to add” is fine.",
+        "choices": [],
+        "free": true
+      },
+      "status": "unanswered",
+      "answer": {
+        "choiceId": null,
+        "choiceLabel": null,
+        "note": ""
+      }
+    }
+  ]
+}

@@ -14,6 +14,12 @@ Progress is saved in localStorage under a revision-scoped key. It is not uploade
 
 The app has no API, form submission or telemetry. Its CSP disallows network connections from scripts. Hosting still receives ordinary asset requests; this does not promise anonymous access or control over the public edge. The questionnaire is separately hosted so the main lynn-site writing site remains free of authored browser JavaScript.
 
+## answer without a browser
+
+Download [the Markdown questions](https://nickel-undo.shit.yachts/undo-questions.md) and [the blank response JSON](https://nickel-undo.shit.yachts/undo-answers-template.json). Both are generated from the unchanged web edition. Set respondent, then each answer.choiceId and answer.note; leave question snapshots intact. Choice IDs are strings ("1", "other", "unsure"), not numbers. Question 40 uses only its note. The web importer accepts this file and regenerates derived labels/status/counts on export. Send the completed JSON for comparison; no answers are chosen for you.
+
+Run `node scripts/portable.mjs` after an intentional edition update. The locked check rejects stale generated files and checks blank/full response import roundtrips.
+
 ## run and check
 
 This directory owns a locked flake independent of the Rust/hax proof environment.
