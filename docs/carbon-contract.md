@@ -1,6 +1,6 @@
-# proposed Nickel contract, motivated by Carbon
+# proposed Nickel contract, with Carbon and Dark consumer profiles
 
-**Review draft, not an adopted API.** Nickel is an application-independent CRDT library. Carbon motivates the priorities here; it is not part of the library’s runtime or data model. This describes the behavior I want Nickel to provide and the order I would build it in. It proposes choices that Dark never settled, especially redo after invisible undo. No engine implements this document yet.
+**Review draft, not an adopted API.** Nickel is an application-independent CRDT library. Carbon and possible future Dark use motivate the priorities here; neither application is part of the library’s runtime or data model. This describes the behavior I want Nickel to provide and the order I would build it in. It proposes choices that Dark never settled, especially redo after invisible undo. No engine implements this document yet.
 
 ## 1. what Carbon would do with it
 
@@ -21,6 +21,22 @@ A useful Carbon integration test would be a **plain-text note plugin**: edit on 
 
 Carbon's merged [roadmap](https://github.com/carbon-study/carbon/blob/4195cb1092ecc46b883c4cda8a5ddd5f6639fe26/ROADMAP.md) supplies the product context: plugins own the app; the worker owns shared data; local persistence and server sync are missing. This proposal does not freeze unrelated platform development or choose Carbon's plugin trust model.
 
+### a second prospective consumer: Dark
+
+Nickel may also be used by Dark if that project resumes and a future integration meets its requirements. This changes the development priorities: the sequence API should support a sustained editor workload as well as reader notes, rather than growing around Carbon's storage layout. It does not reopen Dark, select a replacement engine or make the parked editor candidate an acceptance result for Nickel.
+
+| shared library requirement | Carbon motivation | possible Dark motivation |
+| --- | --- | --- |
+| sequence edits, explicit history items and child tokens | note editing and derived edits | continuous typing, multi-hunk edits and derived-edit continuations |
+| stable anchors with independent affinity | anchored note annotations | multiple selection endpoints and restoration through undo/import |
+| checked coordinate conversion and exact scalar preservation | JavaScript consumers, Unicode notes | editor UTF-16 batches, CR/LF and leading FEFF preservation |
+| revision-bound incremental change receipts | update subscribed views | update a large projected view without mandatory full-text replacement |
+| encoded updates and cold history recovery | offline use and persisted documents | reconnecting editing sessions with retained identity/history |
+
+The engine must preserve inserted scalars exactly, including CR, LF and FEFF. Newline selection, BOM-as-file-metadata and normalization offers belong to the caller. Nickel's Unicode sequence does not decide file-format policy.
+
+**Development consequence:** prioritize atomic multi-edit batches, activity/undo, anchors and change receipts together before broadening to reader registers/collections. Keep one semantic model and API, with separate workload profiles: many independently persisted documents for Carbon; sustained edits, large active text, multi-hunk updates and long undo/import continuations for a possible Dark client. Document size, event rate, history length, memory and change-generation costs need numeric targets for both. Sharing an API does not mean either workload has passed.
+
 ## 2. what the library owns
 
 Nickel is a pure Rust state machine with portable encoding/decoding. It has no knowledge of workers, frames, plugins, accounts, filesystems, network transports or storage services. An optional Wasm binding exposes the same semantics to JavaScript; it does not select a browser architecture.
@@ -37,7 +53,7 @@ One mutable document admits one mutation at a time. A command is a finite list o
 
 A replica ID identifies a single operation writer. A restarted writer needs its persisted next counter, or a new replica ID. Two independent writers must not share a counter allocator. The caller supplies that identity and prevents simultaneous reuse; Nickel checks structural identity conflicts. Accounts and devices are not concepts in the library.
 
-Each Nickel document is an independent replication unit. The caller decides whether that means a note, a shared buffer or something else. Cross-document atomic edits, nesting documents inside elements, rich-text marks and arbitrary JSON trees are outside the first release. A Carbon example appears separately in appendix A.
+Each Nickel document is an independent replication unit. The caller decides whether that means a note, a shared buffer or something else. Cross-document atomic edits, nesting documents inside elements, rich-text marks and arbitrary JSON trees are outside the first release. Consumer examples appear separately in appendices A and B.
 
 ## 3. elements, gaps and deletion
 
@@ -118,6 +134,9 @@ Names are illustrative Rust shapes; the semantic distinctions are the contract. 
 | `import_complete(batch)` | validate/dependency-check whole batch, then atomic semantic admission; duplicates idempotent |
 | `snapshot()` | self-contained semantic state, including hidden elements, activity and required causal history |
 | `checkpoint()` / `resume(checkpoint)` | snapshot plus local history session, counters, stacks and retained trigger identities |
+| `ChangeReceipt` from a successful edit/import/undo/redo | before/after view revisions, resulting semantic version and ordered scalar splices for that transition |
+
+Applying a receipt’s splices to its stated before-view must produce its after-view. Splices are interpreted in their declared sequential order; a receipt cannot be applied to an unrelated view revision. An invisible activity change can have an empty splice list while still advancing the semantic version. Equal final text or different delivery partitions need not produce a canonical identical diff. Anchors derive their meaning from document identity/order, not from replaying this presentation delta. A full replacement can be a correct fallback; avoiding it at useful sizes is a measured performance requirement, not an already-proved complexity bound.
 
 An edit list contains inserts at checked gaps and removals of checked selections. It cannot supply an invented creation identity, arbitrary restoration relation or a forged child membership declaration. The public decoder validates those declarations against the selected protocol.
 
@@ -151,17 +170,18 @@ These are required tests to implement, not results of the current scaffold. Run 
 6. **late child:** one writer issues primary `(`, an independent primary command inserts B after it, then an explicit child `)` inserted after B. Undo B gives `()`; undo the trigger gives empty; redo trigger gives `()`; redo B gives `(B)`. A child submitted while its trigger is inactive rejects without effect.
 7. **historical side:** create `ab`, hide a, insert X once at an anchor before a and once in a separate history after a. Reactivate a: results are `Xab` and `aXb`, even though both insertions originally displayed `Xb`. Visible text alone cannot select the restoration side.
 8. **admission and checkpoint recovery:** missing dependencies, conflicting known IDs, malformed activity and oversized batches publish nothing. Reimporting the same encoded update does not duplicate characters or history membership. Serializing and loading a checkpoint preserves inactive contributions and the specified local history continuation. Storage crashes and lost application responses are separate host tests.
-9. **coordinates:** non-BMP scalars, combining sequences, empty text, both affinities and forward/backward ranges pass through the actual Rust API. If a JavaScript/Wasm binding ships, test that actual binding too, including rejection of invalid UTF-16 endpoints before edits. Selection lists and book locators are caller data, not sequence primitives.
+9. **coordinates:** non-BMP scalars, combining sequences, exact CR/LF/FEFF preservation, empty text, both affinities and forward/backward ranges pass through the actual Rust API. If a JavaScript/Wasm binding ships, test that actual binding too, including rejection of invalid UTF-16 endpoints before edits. Selection lists and book locators are caller data, not sequence primitives.
+10. **change receipts:** a multi-hunk edit and a remote import each produce splices whose application to the stated before-view equals the actual after-view. Exercise unchanged text with changed activity/version, Unicode coordinate boundaries and stale-view rejection. Receipt generation must not alter anchor resolution or command membership.
 
 ## 8. construction and proof order
 
 1. **Settle the reference semantics.** Specify complete ordering, activity authority, child membership and version/admission rules. Turn the witnesses into a small executable specification. Agree the counterfactual redo examples, not just the function list.
 2. **Build the pure sequence/activity slice and its proofs together.** Prove identifier uniqueness under the writer contract, deterministic interpretation, delivery/idempotence laws, visibility/activity laws and implementation-linked transition preservation. Cross the original two-peer and cold-reader witnesses with actual encoded operations. A model's convergence theorem does not automatically prove the Rust receiver.
 3. **Close admission and local history.** Prove rejection neutrality and one-item stack transitions; test fault/limit paths, conflicting duplicates and checkpoint continuation. Extraction and bindings remain named trust boundaries.
-4. **Close the portable library boundary.** Test actual encoding/decoding and, if shipped, checked Wasm bindings. Measure Unicode edits, long inactive history, cold import, memory and update growth under explicit supported budgets. Keep host integrations separate; use Carbon as an external consumer test, as described in appendix A.
+4. **Close the portable library boundary.** Test actual encoding/decoding and, if shipped, checked Wasm bindings. Measure Unicode edits, long inactive history, cold import, memory and update growth under explicit supported budgets. Keep host integrations separate; use the Carbon and possible Dark profiles as external consumer tests, as described in appendices A and B.
 5. **Then add registers and keyed collections.** Specify registers before implementation: does a concurrent location choose one deterministic winner, or expose alternatives? A font setting and reading location need not have the same product policy. For keyed highlights, observed removal should not erase a concurrently added independent record; editing an already removed record needs an explicit policy. Reuse the engine's causal/activity machinery only after these meanings are fixed.
 
-**Proposed Nickel v0.1 exit:** an application-independent sequence/undo/anchor API and portable update/checkpoint format pass the listed two-writer, duplicate-delivery and cold-recovery laws; shipped Rust transitions have source-linked proofs with explicit external assumptions; admission failure paths and resource limits are checked. The examples and tests run without Carbon. Rich text, general containers, arbitrary selective remote undo, permissions and GC remain later work.
+**Proposed Nickel v0.1 exit:** an application-independent sequence/undo/anchor API and portable update/checkpoint format pass the listed two-writer, duplicate-delivery and cold-recovery laws; shipped Rust transitions have source-linked proofs with explicit external assumptions; admission failure paths and resource limits are checked. The examples and tests run without Carbon or Dark. Rich text, general containers, arbitrary selective remote undo, permissions and GC remain later work.
 
 ## appendix A. a possible Carbon integration, outside Nickel
 
@@ -175,6 +195,14 @@ This is a usage sketch for review with Carbon's maintainers. It is neither part 
 
 **Consumer acceptance:** a Carbon plain-note plugin edits on two offline devices, reconnects and reloads without losing the specified contributions, and demonstrates its own persistence/retry guarantees on the target phone. This would test that Nickel accommodates Carbon. It is a separate Carbon integration milestone, not the definition of a Nickel release or completion of Carbon M3. No Carbon code change is authorized by this document.
 
+## appendix B. possible Dark integration, outside Nickel
+
+Dark is a prospective second consumer, not resumed work. A future adapter would translate its admitted multi-edit batches into Nickel operations and apply checked change receipts to its projection. It would store and restore its own complete selection lists using Nickel anchors; the library need not know which endpoint is the main selection or how CodeMirror merges ranges.
+
+Composition gating, input flushing, editor grouping, file metadata, normalization UI and rendering remain Dark responsibilities. Nickel provides explicit batch/history/child operations; it does not handle DOM events or run asynchronous editor jobs. Delayed derived results must still pass ordinary revision and token admission when they return.
+
+**Consumer acceptance:** preserve exact source, identity-sensitive undo/redo, independent peer edits and anchor continuations through the actual Dark adapter, including multi-hunk/Unicode edits, remote import, selection restoration and composition lifecycle. That would require new integration evidence if Dark resumes. Shared signatures and Nickel's standalone laws cannot certify the existing Loro assumptions, guarantee a drop-in swap or replace Dark's own implementation-linked proofs.
+
 ## review decisions
 
 I recommend approving these directions, but each remains a proposal:
@@ -184,7 +212,8 @@ I recommend approving these directions, but each remains a proposal:
 - single-origin command activity; foreign selective undo deferred;
 - explicit late children, rejected while inactive; editor grouping outside the pure engine;
 - full semantic retention with admission budgets for v0.1;
-- a standalone library release, with Carbon note-client acceptance tracked separately; no promise of all of M3 or a zero-change Loro swap.
+- a standalone library release, with separate Carbon and possible Dark consumer acceptance; no promise of all of Carbon M3 or a zero-change Loro swap;
+- sequence/undo/anchors, atomic multi-edit batches and incremental change receipts prioritized for both consumer profiles before expanding the type family.
 
 The ordering interpretation and numeric workloads/budgets are still open requirements. Approval of this draft should authorize refining those requirements, not imply they have already been solved.
 
