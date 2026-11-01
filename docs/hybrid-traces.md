@@ -14,7 +14,7 @@ Alice creates old-b; Bo atomically deletes old-b and creates new-x. Ren wants re
 
 Bo has an older insertion z, then deletes Alice's b. While disconnected from each other, Alice restores b and Bo selects his own deletion for undo. If a receiver interprets Bo's message by selecting again against its current state, delivery order can make it skip that deletion and remove z. The supplied two-message control exhibits both `{b}` and `{b,z}`.
 
-An event naming the deletion Bo actually selected preserves z in both orders. If Bo first receives Alice's restoration and then selects his older z, that is a different authored action. A receiver must not turn the former into the latter. The eventual wire/selection specification must preserve this distinction without replicating a private stack.
+An event preserving the effect Bo actually selected preserves z in both orders; that does not require an additional selected-target-ID field beyond a sufficient frozen mask. If Bo first receives Alice's restoration and then selects his older z, that is a different authored action. A receiver must not turn the former into the latter. The eventual wire/selection specification must preserve this distinction without replicating a private stack.
 
 ## redo has implementation latitude
 
@@ -40,6 +40,10 @@ Bo and Cam independently delete old-b. In history H1 Alice restores Bo's deletio
 This demonstrates why **that rule** requires a receiver to retain which deletion was restored, beyond visible text/IDs. It does not require sharing Bo's private stack: a new session with no stack selects nothing in both histories. This respects Ren's q39 clarification about device-local undo history while distinguishing it from shared semantic facts used to interpret later operations.
 
 The model's cold copy serializes the full event dictionary and reconstructs it directly, without ordinary admission. It checks faithful event-set replay, not a compact codec, validated loading, authentication, authority, parser safety or checkpoint persistence. V8 remains unfulfilled.
+
+## candidate follow-through
+
+[The observed-concurrent candidate](hybrid-continuation.md) now explores a rule satisfying q07 under its synced premise while preserving a causally later deletion. It chooses personal-redo cancellation within Ren’s allowed alternatives, exposes durable author-undo and skipped-item continuation issues, and has a separate nested directed experiment. This does not change the earlier supplied model or adopt a complete algorithm.
 
 ## next reference-contract work
 
