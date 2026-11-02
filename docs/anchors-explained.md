@@ -50,13 +50,15 @@ separate questions come up. They're easy to blur together.
 ```text
 before:   ab|c          an anchor between b and c
 type X at the anchor:
-  left affinity:    abX|c   anchor stays glued to b, so X lands before it
-  right affinity:   ab|Xc   anchor stays glued to c, so X lands after it
+  anchor ends up after X:    abX|c   the anchor stays next to c; X goes before it
+  anchor ends up before X:   ab|Xc   the anchor stays next to b; X goes after it
 ```
 
-Affinity is just "which neighbour am I attached to". A cursor usually wants
-left affinity, so that typed text appears before it and the cursor moves along.
-The end of a highlight might want either.
+Affinity is the choice between those two outcomes. (Nickel hasn't fixed a
+naming convention such as "left/right" yet, so this document names the
+outcomes instead.) A typing cursor usually wants the first one: X appears
+before the cursor, and the cursor moves along with the text. The end of a
+highlight might want either.
 
 ### 2b. does the new text belong to the span? (membership)
 
@@ -72,13 +74,11 @@ whether X is part of the link.
 
 A range's endpoints have their own affinity, and the
 [contract](carbon-contract.md) uses it for exactly this: the end's affinity
-decides whether typing at that edge enlarges the range. But that is **one fixed
-rule per range**, the same for every keystroke. A cursor's affinity answers a
-different question: does the cursor move along with what you type? Neither one
-says "*this* keystroke belongs inside". "Inside the link" isn't the same thing
-as "attached to the left character".
+decides whether typing at that edge enlarges the range. That is what q32 asks:
+should the caller choose edge inclusion through explicit affinity, rather than
+the library always including, always excluding, or leaving it to a tie-break?
 
-### Ren's Obsidian cursor (q32)
+### Ren's Obsidian cursor (an additional behaviour from his q32 note)
 
 In Obsidian, when the cursor sits at the end of a link and you press →, the
 cursor doesn't visibly move. It steps from *inside* the link to *outside* it,
@@ -90,18 +90,19 @@ see [docs|] now     cursor inside: typing extends the link
 see [docs]| now     cursor outside: typing is plain text
 ```
 
-This uses both layers:
+This goes one step beyond q32. The endpoint affinity chosen when the link's
+anchors were created decides inclusion the same way for every insertion at that
+edge. Obsidian's inside/outside state changes from one keystroke to the next at
+the same visible position, so it needs something more. The documents don't yet
+settle which mechanism. The alternatives include:
 
-- the cursor is an anchor with an affinity (which side it sticks to), **and**
-- the editor tracks whether the cursor is inside or outside the span
-  (membership).
+- the editor replaces the link's endpoint anchor with one of the other
+  affinity before the insertion, or adjusts the range explicitly afterwards;
+- a per-insertion "inside/outside this range" input.
 
-The **editor** decides how arrow keys move between those states. What Nickel
-has to provide is a way to *carry out* the choice: when text is typed at the
-link's edge, put it inside or outside the link for this insertion, even though
-the link's own edge rule says otherwise. Fixed edge affinity alone can't do
-that. Whether the API gets such a per-insertion choice, or leaves the editor to
-adjust the range afterwards, is what q32 is really asking.
+The **editor** decides how arrow keys move between the inside and outside
+states. Which of these Nickel mechanisms supports it is an open design
+alternative, not a requirement this document adds.
 
 ## 3. anchors through deleted text (q30, q31)
 
@@ -139,9 +140,11 @@ was gone.
 **This needs a decision.** Ren answered "Xab" for *both* q30 and q31. Witness 7
 ("historical side") in [carbon-contract.md](carbon-contract.md) currently
 requires "Xab" for the first history and "aXb" for the second. One of them has
-to change. If "Xab" both times is the intended rule, then X always lands before
-a restored neighbour, whichever side of it X was typed on. That gives up the
-historical side, and witness 7 and the `Gap` promise would need rewording. If
+to change. If "Xab" in both of these histories is intended, it conflicts with the
+current witness. It doesn't by itself define the broader rule: it doesn't say
+that X must precede every restored neighbour, or that all historical-side
+information can be discarded. That ordering rule would still need to be
+written down. If
 the q31 answer came from an unclear question, the pictures above are meant to
 fix that.
 
@@ -182,17 +185,20 @@ Is Bo's comment still attached?
 ```
 
 - **Same element:** the redone "a" *is* the original character, switched back
-  on. Bo's anchor just works.
+  on. Bo's anchor can keep pointing at it.
 - **Fresh element:** redo inserts a new "a" that happens to look the same. Bo's
   anchor points at the old, now-dead character, and needs a documented
   fallback (for example, "move to the nearest live neighbour").
+- **Equivalent observations:** either representation is acceptable, but only
+  if every future anchor and edit observation is equivalent between them.
+  (This is q34's option 3: it fixes the behaviour, not the representation.)
 
-The merged Python reference model
-([private-session profile](private-session-profile.md); not the engine) gives
-"same element" in both ways the "a" can come back: redo switches Alice's original element back
-on, and so does an explicit Restore. Neither creates a fresh "a", so Bo's
-anchor keeps working. q34 asks whether nickel should *promise* that, or
-whether it's just what this model happens to do.
+Some evidence, but not an answer: in the merged Python reference model
+([private-session profile](private-session-profile.md); not the engine), redo
+re-enables the original occurrence ID instead of creating a fresh one. That
+model has no anchors and no `resolve`, so it doesn't test what Bo's anchor
+would observe. Hidden-endpoint resolution, affinity and ordering are the open
+V6 work.
 
 ## 6. when history gets too big (q37)
 
