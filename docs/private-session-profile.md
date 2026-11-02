@@ -1,11 +1,9 @@
 # private hybrid undo sessions: restricted reference profile
 
-**Follow-up review pending:** the rules below describe the implemented profile,
-not completion of Ren's newest review. The [selection comparison](../experiments/hybrid-restoration/README.md#follow-up-selection-review-decision-still-required)
-shows that strict creation-slot placement conflicts with the accepted overlapping-
-delete outcome. Empty-undo equivalence and ineffective-redo behavior also remain
-to implement; keep-redo stacking is provisional. No new selector is silently
-adopted by this comparison.
+Ren's follow-up selects **creator-slot placement**. The earlier overlapping-
+delete answer is retracted: the first undo restores a,b, not b,c. Empty undo
+preserves history; visibly ineffective redo emits nothing and preserves history.
+Keep-redo branch stacking remains provisional.
 
 This profile runs `edit`, `undo`, `redo`, `receive`, `clear_history`, `checkpoint`
 and `resume` over two independent documents. It follows Ren's collected PR4
@@ -51,8 +49,7 @@ reactivation assertion is not still presented as a required oracle.
 Only ineffective own items encountered before the selected eligible action are
 consumed. An older item below a selected newer item has not been bypassed.
 Consumption occurs when undo is pressed, not merely when a remote message
-arrives or `next_undo` is inspected. An empty undo may consume ineffective own
-items without emitting an event. Imports never append foreign items to the
+arrives or `next_undo` is inspected. An empty undo consumes nothing, including ineffective own items it inspected. Imports never append foreign items to the
 private stack or consume local items on their own.
 
 ## 3. selection, full-scope restoration and redo priority
@@ -69,12 +66,26 @@ delete of both Alice's a and Bo's b. She cannot thereby restore unrelated
 identities outside that selected scope. Frozen observed-concurrent masks and
 separate creator withdrawal are unchanged from [the effect model](hybrid-continuation.md).
 
-Causally later eligible actions take precedence. Concurrent ties prefer victim
-restoration, then the model's string-ID order. This implements Ren's preferred
-`a` restoration while leaving concurrent z in place. In the q07 fixture it also
-selects Bo's deletion rather than Alice's concurrent own deletion; the frozen
-mask still covers both and the required visible b is unchanged. This is a
-private selection choice, not a new ordering primitive for text.
+A foreign deletion's restoration sits immediately above the newest local
+**creation item** containing any occurrence that deletion targeted. One deletion
+gets one choice, even when its scope spans several creation items. Newer own
+items stay above that slot. Foreign receipt time and its relation to a local
+redo's causal ancestry do not set priority. Same-slot victims use string event-ID
+order, independent of receipt order. A forgotten creation still supplies a slot
+for a newly received deletion; clear-history suppresses only already known victims.
+
+For p older than a, with a undone and redone, Bo's offline deletion of p gives
+three undos: remove a, restore p, remove p. This holds whether the deletion
+arrives before or after redo and after compatible reload. With p,a in one item,
+restore p precedes withdrawing that whole item. A deletion spanning p and q sits
+once above q, the newer affected creation.
+
+For one creation abc followed by Alice deleting a,b and Bo deleting b,c offline,
+Alice's own deletion lies above Bo's creation-anchored choice. The first undo
+restores **a,b**. This is the outcome Ren accepted on retracting the inconsistent
+b,c answer; the frozen-mask effect rule is unchanged. q07 similarly selects
+Alice's own deletion and still restores b. The previous concurrent victim-first
+preference is superseded. This ranks private actions, not characters in text.
 
 **A redo is a new local selection occurrence.** Its private selection stamp is
 the emitted redo event, rather than the old source event. Type a, undo it, type
@@ -94,18 +105,36 @@ redo entries, forgotten victim-source IDs and local redo selection stamps.
 | nonempty edit | one event allocates occurrences and/or deletes visible IDs | append own item; explicit pending-redo choice |
 | own undo | one event restores deletion effects and withdraws own creations | consume bypassed items, mark selected item undone, append redo |
 | victim undo | one frozen restoration event, no foreign creator withdrawal | consume bypassed own items, append private redo |
-| redo | cancel the selected undo token and all its facets | pop redo, reactivate own item if applicable, update local selection stamp |
+| effective redo | cancel the selected undo token and all its facets | pop redo, reactivate own item if applicable, update local selection stamp |
 | receive | validate/publish a shared event | history lists/counter/stamps unchanged |
-| empty undo | no event | consume any bypassed ineffective own items |
-| empty redo | no event | unchanged |
+| empty undo | no event | unchanged, including inspected ineffective items |
+| empty or visibly ineffective redo | no event | unchanged, including the pending redo entry and counter |
 | clear history | no event | clear lists/stamps; forget known victim sources |
+
+Redo first previews cancellation on a document copy. If the visible **identity
+set** is unchanged, it returns no event and changes neither shared facts nor
+private state. Equal-looking scalar values do not substitute for identity. A
+later retry can succeed after another action changes the document. This is a
+reference evaluator, not a performance claim or a fatal-failure atomicity proof.
+
+This rule has consequences beyond the motivating causal-delete example. Two
+independent restorations that both keep b visible can each make the other's
+redo ineffective: neither redo is consumed or published, so b stays visible.
+For the replacement continuation, Bo's ineffective redo waits while Alice's
+undo also restores the same deletion; after Alice redoes, Bo can retry and
+successfully hide the restored originals. These are changed session
+continuations required by the no-advance rule. The raw effect model still allows
+explicit cancellation events; it does not impose this session-level gate.
+Invisible **undo of an eligible item** remains allowed; an empty undo means no
+eligible item was selected, not merely that the screen did not change.
 
 Clear-history exclusions stay forgotten even if a peer later redoes the same
 source; a newly issued deletion is a new candidate. It is not garbage collection:
 shared semantic facts remain intact. Imports do not clear pending redo.
 
 Pending redo plus new nonempty work still requires an explicit `keep` or `clear`.
-Ren was unsure in q04; no default is silently selected. Retaining access does not
+Ren was unsure in q04; no default is silently selected. Keep-redo branch stacking
+is provisional, not a settled policy for arbitrary histories. Retaining access does not
 settle placement in an ordered document. Grouping, derived children, registers,
 anchors, spans and positions remain outside this profile.
 
@@ -139,7 +168,7 @@ interrupts, memory errors, callbacks and concurrent calls are not covered.
 
 ## 6. runnable evidence and remaining gate
 
-The directed suite checks all review outcomes, whole-replacement/creator-
+The directed suite checks the implemented review continuations, whole-replacement/creator-
 withdrawal continuations, q07, full-scope victim restoration, duplicate imports,
 private reload, explicit new-edit policies and remote redo preservation.
 [session-review-trace.json](../experiments/hybrid-restoration/session-review-trace.json)

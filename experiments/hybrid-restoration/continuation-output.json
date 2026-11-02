@@ -13,20 +13,20 @@
     },
     "partitioned-independent-deletes": {
       "edges": 817,
-      "states": 392
+      "states": 386
     },
     "synced-replacement": {
       "edges": 966,
-      "states": 417
+      "states": 416
     },
     "synced-victim-and-older-item": {
       "edges": 1468,
-      "states": 648
+      "states": 644
     }
   },
   "state_budget": 10000,
-  "states": 1537,
+  "states": 1526,
   "status": "bounded comparisons passed",
-  "sync_checks": 1537,
+  "sync_checks": 1526,
   "transport_sync_depth_max": 3
 }

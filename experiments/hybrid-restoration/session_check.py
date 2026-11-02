@@ -60,10 +60,12 @@ def frozen_vs_observed():
     count = replay([z, birth, d, ra, rb], set(z.creates + birth.creates), set())
     fresh = Session('C', b.doc.copy())
     assert fresh.undo() is None
-    deliver(a.redo(), b)
+    before = a.checkpoint()
+    assert a.redo() is None and a.checkpoint() == before
     assert shown(b) == ['b', 'z']
-    deliver(b.redo(), a)
-    assert shown(a) == shown(b) == ['z']
+    before = b.checkpoint()
+    assert b.redo() is None and b.checkpoint() == before
+    assert shown(a) == shown(b) == ['b', 'z']
     aa, bb, zz, _, _ = pair()
     deliver(aa.undo(), bb)
     assert bb.next_undo() == ('own', zz.id)
@@ -76,15 +78,16 @@ def q07():
     i = a.edit(creates=('b',)); deliver(i, b)
     da = a.edit(deletes=i.creates); db = b.edit(deletes=i.creates)
     deliver(da, b); deliver(db, a)
-    # Victim-first concurrent tie selects the other deletion; the frozen mask
+    # Own deletion is newer than the victim's creation slot; its frozen mask
     # still covers both observed concurrent removals, preserving q07's b result.
-    assert a.next_undo() == ('victim', db.id)
+    assert a.next_undo() == ('own', da.id)
     assert b.next_undo() == ('own', db.id)
     ra = a.undo(); deliver(ra, b)
     assert shown(a) == shown(b) == ['b']
-    assert b.undo() is None  # This press consumes the bypassed item, with no event.
+    before = b.checkpoint()
+    assert b.undo() is None and b.checkpoint() == before, 'empty undo must preserve history'
     deliver(a.redo(), b)
-    assert b.next_undo() is None
+    assert b.next_undo() == ('own', db.id)
     return replay([i, da, db, ra], set(i.creates), set())
 
 
@@ -100,11 +103,13 @@ def replacement():
     uc = a.undo(); deliver(uc, b)
     assert uc.withdraws == c.creates and uc.releases
     assert shown(b) == ['B', 'a']
-    deliver(b.redo(), a)
-    assert shown(a) == ['B', 'a']
+    before = b.checkpoint()
+    assert b.redo() is None and b.checkpoint() == before, 'ineffective redo must preserve history'
     a = same_after_resume(a)
     deliver(a.redo(), b)
-    assert shown(b) == ['x']
+    assert shown(b) == ['B', 'a', 'x']
+    deliver(b.redo(), a)
+    assert shown(a) == shown(b) == ['x']
 
 
 def creator_withdrawal():
@@ -237,13 +242,14 @@ def equal_occurrences_and_victim_scope():
     deletion = c.edit(deletes=aa.creates+bb.creates); deliver(deletion, a, b)
     deliver(a.undo(), b, c)
     assert shown(a) == shown(b) == shown(c) == ['a', 'b'], 'victim restores full deletion scope'
-    # Ren prefers restoration over an independent concurrent own edit.
+    # Creator placement supersedes the earlier concurrent victim-first preference.
     a, b = Session('A'), Session('B')
     birth = a.edit(creates=('a',)); deliver(birth, b)
     deletion = b.edit(deletes=birth.creates); z = a.edit(creates=('z',))
     deliver(deletion, a); deliver(z, b)
-    assert a.next_undo() == ('victim', deletion.id)
-    deliver(a.undo(), b); assert shown(a) == ['a', 'z']
+    assert a.next_undo() == ('own', z.id)
+    deliver(a.undo(), b); assert shown(a) == []
+    deliver(a.undo(), b); assert shown(a) == ['a']
 
 
 def bypass_boundaries():
@@ -272,6 +278,36 @@ def bypass_boundaries():
     a = same_after_resume(a)
     assert a.next_undo() == ('victim', d.id)
     deliver(a.undo(), b); assert shown(a) == ['b', 'x', 'z']
+
+
+def no_op_history():
+    for cold in (False, True):
+        results = []
+        for empty_press in (False, True):
+            a, b = Session('A'), Session('B')
+            birth = a.edit(creates=('b',)); deliver(birth, b)
+            deletion = b.edit(deletes=birth.creates); deliver(deletion, a)
+            deliver(a.undo(), b)
+            if cold: b = same_after_resume(b)
+            before = b.checkpoint()
+            if empty_press:
+                assert b.undo() is None
+                assert b.checkpoint() == before, 'empty undo must preserve history'
+            deliver(a.redo(), b)
+            event = b.undo()
+            assert event is not None, 'empty undo must not forget a future eligible item'
+            results.append((shown(b), event.releases))
+        assert results[0] == results[1]
+        # A later causal deletion makes this redo ineffective. No event, ID,
+        # counter, selection stamp or redo entry may change, warm or cold.
+        a, b, c = Session('A'), Session('B'), Session('C')
+        birth = a.edit(creates=('x',)); deliver(birth, b, c)
+        deletion = b.edit(deletes=birth.creates); deliver(deletion, a, c)
+        restoration = a.undo(); deliver(restoration, b, c)
+        later = c.edit(deletes=birth.creates); deliver(later, a, b)
+        if cold: a = same_after_resume(a)
+        before = a.checkpoint()
+        assert a.redo() is None and a.checkpoint() == before, 'ineffective redo must preserve history'
 
 
 def trace():
@@ -324,7 +360,7 @@ def review_trace():
     deletion = b.edit(deletes=birth.creates); z = a.edit(creates=('z',))
     deliver(deletion, a); deliver(z, b)
     selected = a.next_undo(); deliver(a.undo(), b)
-    cases['concurrent_victim_first'] = dict(selected=selected, after_undo=shown(a))
+    cases['creator_slot_below_newer_own'] = dict(selected=selected, after_undo=shown(a))
     return dict(scope='actual restricted reference calls; visible values are not text order', cases=cases)
 
 
@@ -333,7 +369,7 @@ def main(skip='consume'):
     print(f'consumed bypass: generated {n} events; cold resume preserves consumed history')
     total = frozen_vs_observed() + q07() + creator_withdrawal()
     replacement(); redo_policy_and_clear(); remote_edit_keeps_redo()
-    compatible_saves(); equal_occurrences_and_victim_scope(); bypass_boundaries()
+    compatible_saves(); equal_occurrences_and_victim_scope(); bypass_boundaries(); no_op_history()
     print(f'generated-action delivery replay: {total} legal schedules across 3 event sets')
     print('PASS private session review repairs and directed continuations')
 
@@ -354,6 +390,35 @@ if __name__ == '__main__':
             return original(self)
         Session.undo = eager
         bypass_boundaries()
+    elif mode == 'empty-consumes':
+        original = Session.undo
+        def empty_consumes(self):
+            chosen, skipped = self._selection()
+            if chosen is None:
+                self.items = [k for k in self.items if k not in skipped]
+            return original(self)
+        Session.undo = empty_consumes
+        no_op_history()
+    elif mode == 'ineffective-redo-advances':
+        def advancing(self):
+            if not self.redos: return None
+            from model import Event
+            entry = self.redos.pop()
+            return self._publish(Event('', cancels=(entry.event,)))
+        Session.redo = advancing
+        no_op_history()
+    elif mode == 'receipt-ranking':
+        original = Session._selection
+        def receipt(self):
+            chosen, skipped = original(self)
+            if chosen and chosen[0] == 'own':
+                victims = [k for k, e in self.doc.events.items() if e.author != self.writer and e.deletes
+                           and not self.doc.before(k, self.selection_stamps.get(chosen, chosen[1]))]
+                if victims: return ('victim', min(victims)), skipped
+            return chosen, skipped
+        Session._selection = receipt
+        from selection_review import report
+        report()
     elif mode == 'presence-only-basis':
         Session._event_encoding = staticmethod(lambda event: event.id)
         compatible_saves()

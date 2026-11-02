@@ -196,15 +196,12 @@
         "x"
       ]
     },
-    "concurrent_victim_first": {
+    "creator_slot_below_newer_own": {
       "selected": [
-        "victim",
-        "B:1"
+        "own",
+        "A:2"
       ],
-      "after_undo": [
-        "a",
-        "z"
-      ]
+      "after_undo": []
     }
   }
 }

@@ -56,7 +56,7 @@ The peer audit read the pre-repair afc8eae source. Its creator-withdrawal findin
 ```sh
 nix run .#sessions
 nix run .#sessions -- trace
-# intentional contrasting policy, fails the chosen reactivation assertion:
+# intentional contrasting policy, fails the consumed-bypass assertion:
 nix run .#sessions -- retain
 ```
 
@@ -89,7 +89,7 @@ At each nonterminal prefix the choices are:
   or a duplicate of any already-known foreign event.
 
 The breadth-first search merges equal per-seed document/private states. It visits
-1,537 per-seed states through depth three. At the 238 prefixes of depth zero,
+1,526 per-seed states through depth three. At the 238 prefixes of depth zero,
 one or two it tests every outgoing generated action: 3,419 edges. Each edge is
 run uninterrupted and after JSON reconstruction of A, B, or both, giving 10,257
 warm/cold comparisons. It compares the returned event or rejection, complete
@@ -127,7 +127,7 @@ executions agree.
 [The profile](../../docs/private-session-profile.md) maps the repairs to the review:
 compatible shared/private saves, library-owned equal-looking occurrences,
 permanently consumed bypasses, preserved whole-deletion victim restoration,
-redo-priority stamps, and victim-first concurrent ties. The actual old failures
+redo-priority stamps. The follow-up below supersedes the earlier victim-first tie. The actual old failures
 are in [session-review-before-repair.txt](session-review-before-repair.txt).
 The old source remains at `15d06cf`; there was no history rewrite.
 
@@ -145,49 +145,50 @@ erase redo selection priority, or consume an older item the undo press never
 bypassed. Existing effect-model negative controls are
 unchanged. Session fixtures now assert generated occurrence IDs and scalar
 values separately; passing equal-looking text alone cannot conceal lost identity.
-The q07 visible-b oracle is unchanged; its internal source selection follows the
-new victim-first tie rather than preserving an unapproved own-first choice.
+The q07 visible-b oracle is unchanged; its internal selection now follows the
+accepted creator-slot rule.
 
 For the six review cases as actual generated observations, run
 `nix run .#sessions -- review-trace`; the locked check compares its output with
 [session-review-trace.json](session-review-trace.json). These values are shown
 without claiming a text order.
 
-## follow-up selection review: decision still required
+## follow-up selection review: creator slots and no-op history
 
-`nix run .#selection-review` runs the paired before/after-redo arrivals and the
-accepted overlapping-deletion case. **It exits 2**, with the full observations in
-[selection-review.json](selection-review.json), because the strict creator-slot
-rule does not give both requested outcomes. It does not change Session's default
-selector and is not counted as a passing acceptance check.
+`nix run .#selection-review` now checks the **actual Session selector**, and exits
+success only when its directed assertions hold. [selection-review.json](selection-review.json)
+is regenerated and byte-compared by the locked check. The old failing comparison
+is preserved at `490bb09`; Ren retracted its b,c overlap answer and accepted a,b.
+The newest-touch alternative was not adopted.
 
-With one creation item for abc, Alice's later delete of a,b sits above it.
-Placing Bo's restore-b,c directly above the creation puts it below Alice's delete:
-`[create abc, restore Bo b,c, Alice delete a,b]`. The next undo selects Alice's
-own deletion and restores a,b. The accepted b,c outcome instead requires selecting
-Bo's deletion first. The probe uses real Session-generated edits and the ordinary
-frozen-mask evaluator for both, not hand-authored visible answers.
+A peer deletion is placed above the newest local creation item it targets, once
+for its whole scope. Receipt timing does not rank it against local actions.
+The checks exercise both deletion-before/after-redo arrivals, warm and reloaded;
+grouped creations; one deletion spanning two creation items; the a,b overlap;
+replacement chains; equal-value occurrences; clear before/after receipt; and
+same-slot event-ID ties. Successful local redo still supplies a private priority
+stamp, including a redone victim action. These slots use this profile's trusted
+writer-local event counters; they are not text order or a general clock protocol.
 
-The creator-slot comparator makes both redo-arrival orders follow remove-a,
-restore-p, remove-p, including after JSON reload. The existing selector instead
-chooses differently in those orders. It does **not** push a victim entry on import:
-its comparison uses causal stamps, and the redo event's ancestry differs according
-to whether Bo's deletion was known. Same visible text is not the same complete
-event set; the new requirement is a stronger selection-policy constraint, not a
-failure of event-set convergence or checkpoint copying.
+Empty undo leaves both facts and private state unchanged. It does not consume
+an ineffective item unless a later eligible action is actually selected in that
+press. Visibly ineffective redo similarly leaves the pending entry, counter,
+selection stamps and facts untouched. Warm/cold tests compare Bo waiting versus
+pressing empty Undo, and a redo hidden by a later causal deletion. Extra controls:
 
-A second, **unapproved** comparator attaches the restoration above the newest
-local ordinary edit that *created or deleted* any of the affected occurrences.
-It gives b,c in the overlap case and the same remove-a-first behavior in both
-redo-arrival orders. That changes the rule from newest creation to newest touch.
-Neither comparator claims a general session algorithm: these probes reject
-cleared-history and previously redone victim-slot inputs, which they do not define.
-The owner needs to choose the rule or change the overlap expectation before the
-new default selector is implemented.
+```sh
+nix run .#sessions -- empty-consumes
+nix run .#sessions -- ineffective-redo-advances
+nix run .#sessions -- receipt-ranking
+```
 
-The follow-up's empty-undo equivalence and visibly ineffective-redo behavior also
-remain pending; the present default is not advertised as satisfying them. Keep-
-redo branch stacking is provisional. The separate checkpoint-content fixture now
-contains every saved event ID and changes only x to y. Its presence-only-basis
-control must fail at `same-ID changed-content basis must reject`, independently
-of missing-event rejection.
+Each deliberately broken variant must fail its named observation. See
+[the profile](../../docs/private-session-profile.md) for the changed independent-
+restoration and replacement continuations implied by ineffective-redo gating.
+Keep-redo branch stacking remains provisional. The isolated checkpoint-content
+fixture retains every saved event ID and changes only x to y; its presence-only-
+basis control still fails independently of missing-event rejection.
+
+No general intended-undo oracle, Rust transition, text-order engine or CRDT proof
+is supplied by these finite checks. The admission and effect-model controls
+remain unchanged; all V1–V9 obligations remain unfulfilled.

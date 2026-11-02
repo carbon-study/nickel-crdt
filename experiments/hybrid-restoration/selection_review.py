@@ -1,47 +1,7 @@
-"""Directed comparison for the new creator-slot rule; not the adopted selector."""
+"""Accepted creator-slot regressions using the actual Session transitions."""
 import json
 from sessions import Session
 from session_check import deliver, shown
-
-
-class CreationSlots(Session):
-    touch_anchor = False
-
-    def _selection(self):
-        # This probe covers the supplied uncleared histories, not arbitrary sessions.
-        if self.ignored_victims or any(kind == 'victim' for kind, _ in self.selection_stamps):
-            raise ValueError('probe does not define cleared histories or redone victim slots')
-        own = {k: e for k, e in self.doc.events.items() if e.author == self.writer}
-        def rank(source):
-            stamp = self.selection_stamps.get(('own', source), source)
-            return int(stamp.rsplit(':', 1)[1])
-        candidates = [(('own', k), (rank(k), 0)) for k in self.items if k not in self.undone]
-        mine = {elem for e in own.values() for elem in e.creates}
-        withdrawn = {elem for _, elem in self.doc.live_withdrawals()}
-        for source, event in self.doc.events.items():
-            if event.author == self.writer:
-                continue
-            if not any(elem in mine-withdrawn and (source, elem) in self.doc.live_atoms()
-                       for elem in event.deletes):
-                continue
-            targets = set(event.deletes)
-            anchors = [k for k, e in own.items()
-                       if targets & (set(e.creates) | (set(e.deletes) if self.touch_anchor else set()))]
-            candidates.append((('victim', source), (max(map(rank, anchors)), 1)))
-        skipped = []
-        while candidates:
-            top = max(priority for _, priority in candidates)
-            selected = min(c for c, priority in candidates if priority == top)
-            if selected[0] == 'victim' or self._own_eligible(selected[1]):
-                return selected, skipped
-            skipped.append(selected[1])
-            candidates = [(c, p) for c, p in candidates if c != selected]
-        return None, skipped
-
-
-class LatestTouchSlots(CreationSlots):
-    # A possible revision to the rule, not an authorized default.
-    touch_anchor = True
 
 
 def redo_arrival(cls, before_redo, cold=False):
@@ -76,25 +36,84 @@ def overlap(cls):
     deliver(own_delete, b); deliver(peer_delete, a)
     selected = a.next_undo(); restored = a.undo()
     return dict(creation_item=birth.id, own_delete=own_delete.id, peer_delete=peer_delete.id,
-        selected=selected, released_atoms=restored.releases, actual=shown(a), requested=list('bc'))
+        selected=selected, released_atoms=restored.releases, actual=shown(a), requested=list('ab'))
+
+
+def grouped_and_spanning():
+    cases = {}
+    for cold in (False, True):
+        a, b = Session('A'), Session('B')
+        group = a.edit(creates=('p', 'a')); deliver(group, b)
+        deletion = b.edit(deletes=(group.creates[0],)); deliver(deletion, a)
+        if cold: a = Session.resume(a.checkpoint(), a.doc.copy())
+        a.undo(); first = shown(a)
+        a.undo(); second = shown(a)
+        assert (first, second) == (['a', 'p'], []), 'group creator placement'
+        cases[f'group-cold-{cold}'] = [first, second]
+        a, b = Session('A'), Session('B')
+        p = a.edit(creates=('p',)); middle = a.edit(creates=('a',)); q = a.edit(creates=('q',))
+        for e in (p, middle, q): deliver(e, b)
+        deletion = b.edit(deletes=p.creates+q.creates); deliver(deletion, a)
+        if cold: a = Session.resume(a.checkpoint(), a.doc.copy())
+        assert a.next_undo() == ('victim', deletion.id), 'newest affected creation anchors one victim'
+        a.undo(); sequence = [shown(a)]
+        for _ in range(3):
+            a.undo(); sequence.append(shown(a))
+        assert sequence == [['a', 'p', 'q'], ['a', 'p'], ['p'], []], 'spanning deletion has one slot'
+        cases[f'spanning-cold-{cold}'] = sequence
+    return cases
+
+
+def retained_review_cases():
+    results = {}
+    # A's replacement is reached only after restoring the peer's deletion of a.
+    a, b = Session('A'), Session('B')
+    p = a.edit(creates=('p',)); deliver(p, b)
+    aa = a.edit(creates=('a',), deletes=p.creates); deliver(aa, b)
+    bb = b.edit(creates=('b',), deletes=aa.creates); deliver(bb, a)
+    a.undo(); first = shown(a); a.undo(); second = shown(a)
+    assert (first, second) == (['a', 'b'], ['b', 'p'])
+    results['replacement_chain'] = [first, second]
+    # Matching scalar values remain distinct when victim restoration brings back x.
+    a, b = Session('A'), Session('B')
+    x = a.edit(creates=('x',)); deliver(x, b)
+    xx = b.edit(creates=('x',), deletes=x.creates); deliver(xx, a)
+    a.undo(); assert shown(a) == ['x', 'x']
+    results['equal_replacement'] = shown(a)
+    # Clear forgets known victims, without erasing the birth used by new victims.
+    for before in (True, False):
+        a, b = Session('A'), Session('B')
+        x = a.edit(creates=('x',)); deliver(x, b)
+        deletion = b.edit(deletes=x.creates)
+        if before: a.clear_history()
+        deliver(deletion, a)
+        if not before: a.clear_history()
+        a = Session.resume(a.checkpoint(), a.doc.copy())
+        assert (a.next_undo() is not None) == before
+        results[f'clear-before-receipt-{before}'] = a.next_undo()
+    # Same-slot candidates use stable event IDs, independent of receipt order.
+    selected = []
+    for reverse in (False, True):
+        a, b, c = Session('A'), Session('B'), Session('C')
+        birth = a.edit(creates=('a', 'b')); deliver(birth, b, c)
+        db = b.edit(deletes=(birth.creates[0],)); dc = c.edit(deletes=(birth.creates[1],))
+        for e in ([dc, db] if reverse else [db, dc]): deliver(e, a)
+        selected.append(a.next_undo())
+    assert selected == [('victim', db.id)] * 2
+    results['same-slot-order'] = selected
+    return results
 
 
 def report():
-    profiles = {}
-    for cls in (Session, CreationSlots, LatestTouchSlots):
-        profiles[cls.__name__] = dict(
-            redo_arrival=[redo_arrival(cls, before, cold) for before in (True, False) for cold in (False, True)],
-            overlap=overlap(cls))
-    strict = profiles['CreationSlots']
+    arrivals = [redo_arrival(Session, before, cold) for before in (True, False) for cold in (False, True)]
     assert all([step['values'] for step in r['undo_sequence']] == [[], ['p'], []]
-               for r in strict['redo_arrival'])
-    assert strict['overlap']['actual'] == list('ab')
-    assert strict['overlap']['actual'] != strict['overlap']['requested']
-    assert profiles['LatestTouchSlots']['overlap']['actual'] == list('bc')
-    return dict(status='decision required: strict creator placement conflicts with accepted overlap outcome',
-        boundary='directed selector comparisons only; default Session unchanged', profiles=profiles)
+               for r in arrivals), 'creator-slot arrival independence'
+    overlapping = overlap(Session)
+    assert overlapping['actual'] == overlapping['requested'] == list('ab'), 'accepted overlap restores a,b'
+    return dict(status='accepted creator-slot regressions pass',
+        boundary='actual restricted Session calls; identity sets, not text ordering',
+        redo_arrival=arrivals, overlap=overlapping, grouped_and_spanning=grouped_and_spanning(), retained_review_cases=retained_review_cases())
 
 
 if __name__ == '__main__':
     print(json.dumps(report(), indent=2))
-    raise SystemExit(2)

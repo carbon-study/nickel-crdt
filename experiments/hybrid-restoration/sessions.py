@@ -81,14 +81,28 @@ class Session:
             if any(e in mine - withdrawn and (key, e) in self.doc.live_atoms()
                    for e in event.deletes):
                 candidates.append(('victim', key))
-        # A local redo is a new selection occurrence for that source. Later
-        # local edits still supersede it; remote private histories are untouched.
-        stamp = lambda c: self.selection_stamps.get(c, c[1])
+        # Foreign receipt never establishes recency. Anchor a deletion above
+        # the newest local creation it touches, including forgotten creations.
+        # A successful local redo is an explicit new selection occurrence.
+        def local_rank(key):
+            return int(key.rsplit(':', 1)[1])
+        def priority(candidate):
+            kind, source = candidate
+            stamp = self.selection_stamps.get(candidate)
+            if stamp is not None:
+                return local_rank(stamp), 1 if kind == 'victim' else 0
+            if kind == 'own':
+                return local_rank(source), 0
+            targets = set(self.doc.events[source].deletes)
+            anchors = [e.id for e in self.doc.events.values()
+                       if e.author == self.writer and targets.intersection(e.creates)]
+            newest = max(anchors, key=local_rank)
+            anchor_stamp = self.selection_stamps.get(('own', newest), newest)
+            return local_rank(anchor_stamp), 1
         skipped = []
         while candidates:
-            maximal = [c for c in candidates
-                       if not any(self.doc.before(stamp(c), stamp(other)) for other in candidates)]
-            chosen = min(maximal, key=lambda c: (c[0] != 'victim', c[1]))
+            top = max(map(priority, candidates))
+            chosen = min(c for c in candidates if priority(c) == top)
             if chosen[0] == 'victim' or self._own_eligible(chosen[1]):
                 return chosen, skipped
             skipped.append(chosen[1])
@@ -100,10 +114,10 @@ class Session:
 
     def undo(self):
         chosen, skipped = self._selection()
-        if self.skip_policy == 'consume':
-            self.items = [key for key in self.items if key not in skipped]
         if chosen is None:
             return None
+        if self.skip_policy == 'consume':
+            self.items = [key for key in self.items if key not in skipped]
         kind, source = chosen
         original = self.doc.events[source]
         effect = self.doc.restore('', source) if original.deletes else Event('')
@@ -119,7 +133,13 @@ class Session:
         if not self.redos:
             return None
         entry = self.redos[-1]
-        out = self._publish(Event('', cancels=(entry.event,)))
+        effect = Event('', cancels=(entry.event,))
+        trial = self.doc.copy()
+        trial.put(replace(effect, id=f'{self.writer}:{self.counter}', author=self.writer,
+                          after=tuple(sorted(self.doc.events))))
+        if trial.visible() == self.doc.visible():
+            return None
+        out = self._publish(effect)
         self.redos.pop()
         self.selection_stamps[(entry.kind, entry.source)] = out.id
         if entry.kind == 'own':
