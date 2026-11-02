@@ -40,7 +40,7 @@ No sequence/undo verifier obligation is currently discharged. The proved Boolean
 
 ## Current reference candidate
 
-[Own-action Undo and explicit Restore](docs/private-session-profile.md): running edit/restore/undo/redo selection over two independent identity-set documents, with private checkpoint continuations. This is a restricted research model, not the Rust core or an adopted complete undo API.
+[Own-action Undo and explicit Restore](docs/private-session-profile.md): running edit/restore/undo/redo selection over two independent identity-set documents, with private checkpoint continuations. This is a restricted research model, not the Rust core or an adopted complete undo API. The [Restore preview follow-up](docs/restore-preview.md) adds inspect/confirm calls bound to the exact document/private basis.
 
 ## Next decision
 

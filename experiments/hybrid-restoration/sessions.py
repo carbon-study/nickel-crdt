@@ -3,8 +3,9 @@
 One event per ordinary item; no clocks, accounts, grouping, positions or registers.
 Writer tags are trusted metadata, not authentication. This is not Nickel's API.
 """
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 import json
+from weakref import WeakKeyDictionary
 from model import Doc, Event, ModelError
 
 
@@ -21,6 +22,47 @@ class Blocked:
     reason: str
     source: str
     token: str = ''
+
+
+@dataclass(frozen=True)
+class Occurrence:
+    identity: str
+    scalar: str | None
+    creator: str
+
+
+class _RestoreIssuance:
+    __slots__ = ('__weakref__',)
+
+    def __copy__(self):
+        return self
+
+    def __deepcopy__(self, memo):
+        return self
+
+
+# A held in-process proposal keeps its issuance alive, including across a
+# matching Session.resume in this interpreter. Records never retain their key.
+_restore_issuances = WeakKeyDictionary()
+
+
+def _preview_record(p):
+    return (p.writer, p.source, p.basis, p.event, p.before, p.after,
+            p.restored, p.retained, p.still_hidden)
+
+
+@dataclass(frozen=True)
+class RestorePreview:
+    writer: str
+    source: str
+    basis: str
+    event: Event
+    before: tuple
+    after: tuple
+    restored: tuple
+    retained: tuple
+    still_hidden: tuple
+    _issuance: _RestoreIssuance | None = field(default=None, repr=False, compare=False)
 
 
 class Session:
@@ -106,30 +148,68 @@ class Session:
                           after=tuple(sorted(self.doc.events))))
         return trial.visible() != self.doc.visible()
 
-    def restore(self, source, redo_policy=None):
-        if redo_policy not in (None, 'keep', 'clear'):
-            raise ModelError('unknown redo policy')
+    def _occurrences(self, identities):
+        births = {identity: event for event in self.doc.events.values() for identity in event.creates}
+        values = {identity: scalar for event in self.doc.events.values() for identity, scalar in event.payloads}
+        # Legacy hand-authored fixtures can lack scalar payloads; never invent one.
+        return tuple(Occurrence(identity, values.get(identity), births[identity].author)
+                     for identity in sorted(identities))
+
+    def inspect_restore(self, source):
         if source not in {key for key, _ in self.restoration_choices()}:
             raise ModelError('restore needs a known offered foreign deletion')
         effect = self.doc.restore('', source)
-        # Explicit Restore may re-enable ONLY this author's own occurrences in
-        # the selected deletion's scope, not the rest of a withdrawn paste.
         scope = set(self.doc.events[source].deletes)
         mine = {elem for event in self.doc.events.values() if event.author == self.writer
                 for elem in event.creates}
         reactivates = tuple(sorted((token, elem) for token, elem in self.doc.live_withdrawals()
                                    if elem in scope & mine and self.doc.events[token].author == self.writer))
-        effect = replace(effect, reactivates=reactivates)
-        if not self._preview_changes(effect):
-            return Blocked('restore', 'unchanged-visible-identities', source)
+        # Predict, but do not reserve, the event identity or advance the allocator.
+        event = replace(effect, reactivates=reactivates,
+                        id=f'{self.writer}:{self.counter}', author=self.writer,
+                        after=tuple(sorted(self.doc.events)))
+        trial = self.doc.copy()
+        trial.put(event)
+        before, after = self.doc.visible(), trial.visible()
+        issuance = _RestoreIssuance()
+        preview = RestorePreview(self.writer, source, self.checkpoint(), event,
+            self._occurrences(before), self._occurrences(after),
+            self._occurrences(after-before), self._occurrences(before & after),
+            self._occurrences(scope-after), _issuance=issuance)
+        _restore_issuances[issuance] = _preview_record(preview)
+        return preview
+
+    def confirm_restore(self, preview, redo_policy=None):
+        if type(preview) is not RestorePreview:
+            raise ModelError('expected a Restore preview')
+        # Bind hidden shared facts AND private continuation, even for no-op UI.
+        if preview.writer != self.writer or preview.basis != self.checkpoint():
+            raise ModelError('stale or foreign Restore preview')
+        # Semantic recomputation alone cannot bind selection: two valid source
+        # IDs can have identical masks and visible effects. Match what we issued.
+        issued = (_restore_issuances.get(preview._issuance)
+                  if type(preview._issuance) is _RestoreIssuance else None)
+        if issued is None or issued != _preview_record(preview):
+            raise ModelError('altered or unissued Restore preview')
+        if redo_policy not in (None, 'keep', 'clear'):
+            raise ModelError('unknown redo policy')
+        if preview.before == preview.after:
+            return Blocked('restore', 'unchanged-visible-identities', preview.source)
         if self.redos and redo_policy is None:
             raise ModelError('new work with pending redo requires keep or clear')
-        out = self._publish(effect)
+        out = self._publish(preview.event)
         self.items.append(out.id)
         self.restore_tokens[out.id] = out.id
         if redo_policy == 'clear':
             self.redos.clear()
         return out
+
+    def restore(self, source, redo_policy=None):
+        # Immediate convenience call; the explicit two-step path lets a consumer
+        # inspect effects before deciding whether to confirm.
+        if redo_policy not in (None, 'keep', 'clear'):
+            raise ModelError('unknown redo policy')
+        return self.confirm_restore(self.inspect_restore(source), redo_policy)
 
     def _selection(self):
         candidates = [key for key in self.items if key not in self.undone]

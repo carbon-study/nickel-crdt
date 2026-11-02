@@ -83,6 +83,12 @@ deletions. The next Undo targets that fresh token. The ordinary item previously
 undone stays undone in private history: Restore is a new choice, not an implicit
 redo of an entire old paste.
 
+The follow-up [Restore preview contract](restore-preview.md) exposes
+`inspect_restore` and `confirm_restore`: inspect actual visible effects, then
+confirm only on the same document/private basis. `restore` remains their
+immediate convenience call. This adds inspection and stale rejection without
+changing the Restore/Undo/Redo effect rule.
+
 ## 4. blocked Redo is different from empty Redo
 
 Redo selects only the top private redo entry. It previews that entry against

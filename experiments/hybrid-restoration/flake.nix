@@ -4,10 +4,14 @@
   outputs = {self, nixpkgs}: let
     system = "x86_64-linux";
     pkgs = import nixpkgs {inherit system;};
-    source = pkgs.lib.fileset.toSource { root = ./.; fileset = pkgs.lib.fileset.unions [./model.py ./check.py ./sessions.py ./session_check.py ./continuation_check.py ./selection_review.py]; };
+    source = pkgs.lib.fileset.toSource { root = ./.; fileset = pkgs.lib.fileset.unions [./model.py ./check.py ./sessions.py ./session_check.py ./continuation_check.py ./selection_review.py ./preview_check.py]; };
     check = pkgs.runCommand "hybrid-restoration-directed-check" {nativeBuildInputs=[pkgs.python3];} ''
       export PYTHONDONTWRITEBYTECODE=1
       python ${source}/check.py
+      python ${source}/preview_check.py > restore-preview-output.json
+      cmp restore-preview-output.json ${./restore-preview-output.json}
+      python -O ${source}/preview_check.py > restore-preview-optimized.json
+      cmp restore-preview-optimized.json ${./restore-preview-output.json}
       python ${source}/session_check.py
       python ${source}/selection_review.py > selection-review.json
       cmp selection-review.json ${./selection-review.json}
@@ -76,12 +80,26 @@
         echo 'Restore-only peer-cancel mutation unexpectedly passed'; exit 1
       fi
       grep -q 'AssertionError: peer cancellation of Restore must reject' peer-cancel-restore.log
+      for mode in reselect-on-confirm accept-altered-preview reserve-on-inspect preview-target-list recomputed-validity; do
+        if python ${source}/preview_check.py "$mode" > "$mode.log" 2>&1; then
+          echo "Restore preview mutation unexpectedly passed: $mode"; exit 1
+        fi
+      done
+      grep -q 'AssertionError: changed basis must reject confirmation' reselect-on-confirm.log
+      grep -q 'AssertionError: altered preview must reject before publication' accept-altered-preview.log
+      grep -q 'AssertionError: inspection must not change document or private history' reserve-on-inspect.log
+      grep -q 'AssertionError: preview must report actual visible delta' preview-target-list.log
+      grep -q 'AssertionError: equivalent valid source substitution must reject' recomputed-validity.log
       touch $out
     '';
     run = pkgs.writeShellApplication { name="hybrid-restoration"; runtimeInputs=[pkgs.python3]; text=''export PYTHONDONTWRITEBYTECODE=1; exec python ${source}/check.py "$@"''; };
   in {
     checks.${system}.default = check;
     apps.${system} = {
+    restore-preview = let previewRun = pkgs.writeShellApplication {
+      name="restore-preview"; runtimeInputs=[pkgs.python3];
+      text=''export PYTHONDONTWRITEBYTECODE=1; exec python ${source}/preview_check.py "$@"'';
+    }; in {type="app"; program="${previewRun}/bin/restore-preview"; meta.description="Inspect exact Restore effects and confirm only on the bound basis";};
     selection-review = let reviewRun = pkgs.writeShellApplication {
       name="hybrid-selection-review"; runtimeInputs=[pkgs.python3];
       text=''export PYTHONDONTWRITEBYTECODE=1; exec python ${source}/selection_review.py "$@"'';
