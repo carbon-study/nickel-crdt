@@ -45,7 +45,7 @@ No sequence/undo verifier obligation is currently discharged. The proved Boolean
 ## Roadmap and next decision
 
 [The implementation roadmap](ROADMAP.md) proposes the first usable native
-release, its semantic gates, and Rust/proof/consumer acceptance slices. We are
+release, an earlier experimental crate, and Rust/proof/consumer acceptance gates. We are
 still closing the reference profile, not implementing a CRDT engine. Next is
 the skipped-history decision sheet and ordered-reference/API reconciliation;
 no ordering algorithm is adopted by the roadmap.

@@ -36,6 +36,16 @@ general remote selective undo, permissions, distributed identity allocation,
 automatic history GC and server/storage/UI implementations are outside this cut.
 This does not reopen Dark or the Loro fork.
 
+### an earlier experimental delivery
+
+The first externally usable artifact need not wait for every v0.1 requirement.
+Milestone 2 should publish an experimental native crate with a narrow supported
+profile, an unstable API and a small external caller. Its supported operations
+must compose beyond a canned trace; missing features and incomplete guarantees
+must be listed. There is no production-readiness or whole-CRDT verification
+claim. The full profile above remains the eventual verified v0.1 target; this
+earlier delivery does not quietly remove anchors, children or recovery from it.
+
 ## where we are
 
 | available now | what it does not establish |
@@ -106,16 +116,33 @@ selected Undo/Restore continuation. Include independent peer text, duplicate
 imports and invisible effects from the start, rather than finishing an engine
 whose Undo is deferred as an unspecified extension.
 
-For each transition, add its hax extraction and Latte/F* refinement,
-well-formedness, targeting and rejection obligations alongside the code. Name
-any supporting lemma still missing; don't label the slice verified by assuming
-its central reference law. A semantic mutation must fail the unchanged relevant
-observation/theorem. Run the accepted trace against two real Rust instances.
+Define the slice's reference state and an explicit Rust-to-reference abstraction
+before using a differential check as evidence. For each transition, add its hax
+extraction and Latte/F* refinement, well-formedness, targeting and rejection
+obligations alongside the code. Name any supporting lemma still missing; don't
+label the slice verified by assuming its central reference law. A semantic
+mutation must fail the unchanged relevant observation/theorem.
 
-**Exit:** the declared vertical trace crosses actual writer/receiver code and
-its source-linked proof obligations are discharged for that slice. Remaining
-V1–V9 coverage is listed explicitly. A subset implementation is development
-progress, not the first usable release or proof of the whole CRDT.
+The minimum acceptance harness must include a bounded **history generator**,
+not just the chosen vertical trace. Generate both writers' supported edits and
+Undo/Restore continuations, delayed/duplicate deliveries and multiple legal
+partitions/interleavings. Compare the Rust/reference transition results and
+abstract states at each step, including private history/allocator observations
+and unchanged-state rejection where those are in scope, rather than only final
+strings. Distinguish changing author knowledge before a press from permuting
+delivery of one already authored event set. Declare the operation vocabulary,
+depth, replica/data bounds and schedule coverage; retain counterexamples.
+Generated agreement does not supply a general refinement or convergence proof.
+
+**Exit:** two real Rust instances cross the declared boundaries; the generator
+and directed cases pass; source-linked obligations are discharged for the
+specified slice; remaining V1–V9 coverage is listed explicitly. An external
+native caller uses that supported crate API without test-model internals, and
+can exercise histories within the declared subset rather than invoke a
+hardcoded replay. Publish the experimental artifact and its limitations at
+this point. Full portable codecs, checkpoint recovery and other features may
+still be unavailable as explicitly declared; a structured-operation harness
+must not be described as encoded-wire or persistence acceptance.
 
 ## 3. complete the profile, continuation and recovery
 
@@ -142,9 +169,9 @@ models explicitly covered or excluded from each theorem. Closure is relative
 to the documented profile and named trust base, not all possible CRDTs. Binding
 V9 is additionally required if the JavaScript/Wasm interface ships.
 
-## 4. demonstrate usability and cut the release
+## 4. close full-profile usability and cut verified v0.1
 
-Run the small external native consumer through editing, replication,
+Extend the experimental external native consumer through editing, replication,
 Undo/Restore, anchors and restart, using only the crate's supported boundary.
 Publish the runnable example, API/error documentation, format compatibility
 policy and measurements against the declared workload budgets. Include Unicode,
