@@ -3,8 +3,9 @@
 One event per ordinary item; no clocks, accounts, grouping, positions or registers.
 Writer tags are trusted metadata, not authentication. This is not Nickel's API.
 """
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 import json
+from weakref import WeakKeyDictionary
 from model import Doc, Event, ModelError
 
 
@@ -30,6 +31,26 @@ class Occurrence:
     creator: str
 
 
+class _RestoreIssuance:
+    __slots__ = ('__weakref__',)
+
+    def __copy__(self):
+        return self
+
+    def __deepcopy__(self, memo):
+        return self
+
+
+# A held in-process proposal keeps its issuance alive, including across a
+# matching Session.resume in this interpreter. Records never retain their key.
+_restore_issuances = WeakKeyDictionary()
+
+
+def _preview_record(p):
+    return (p.writer, p.source, p.basis, p.event, p.before, p.after,
+            p.restored, p.retained, p.still_hidden)
+
+
 @dataclass(frozen=True)
 class RestorePreview:
     writer: str
@@ -41,6 +62,7 @@ class RestorePreview:
     restored: tuple
     retained: tuple
     still_hidden: tuple
+    _issuance: _RestoreIssuance | None = field(default=None, repr=False, compare=False)
 
 
 class Session:
@@ -149,10 +171,13 @@ class Session:
         trial = self.doc.copy()
         trial.put(event)
         before, after = self.doc.visible(), trial.visible()
-        return RestorePreview(self.writer, source, self.checkpoint(), event,
+        issuance = _RestoreIssuance()
+        preview = RestorePreview(self.writer, source, self.checkpoint(), event,
             self._occurrences(before), self._occurrences(after),
             self._occurrences(after-before), self._occurrences(before & after),
-            self._occurrences(scope-after))
+            self._occurrences(scope-after), _issuance=issuance)
+        _restore_issuances[issuance] = _preview_record(preview)
+        return preview
 
     def confirm_restore(self, preview, redo_policy=None):
         if type(preview) is not RestorePreview:
@@ -160,11 +185,12 @@ class Session:
         # Bind hidden shared facts AND private continuation, even for no-op UI.
         if preview.writer != self.writer or preview.basis != self.checkpoint():
             raise ModelError('stale or foreign Restore preview')
-        # This is a trusted in-process value, not an authenticated capability.
-        # Still reject altered display fields, target or masks rather than accept
-        # an event supplied by the caller. Validation never crosses a changed basis.
-        if preview != self.inspect_restore(preview.source):
-            raise ModelError('altered Restore preview')
+        # Semantic recomputation alone cannot bind selection: two valid source
+        # IDs can have identical masks and visible effects. Match what we issued.
+        issued = (_restore_issuances.get(preview._issuance)
+                  if type(preview._issuance) is _RestoreIssuance else None)
+        if issued is None or issued != _preview_record(preview):
+            raise ModelError('altered or unissued Restore preview')
         if redo_policy not in (None, 'keep', 'clear'):
             raise ModelError('unknown redo policy')
         if preview.before == preview.after:

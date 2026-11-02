@@ -191,13 +191,14 @@ consistency of trusted author metadata, not authentication or complete admission
 `nix run .#restore-preview` runs the actual inspection/confirmation cases and
 prints [restore-preview-output.json](restore-preview-output.json). The locked
 check regenerates that receipt, checks guards under Python optimization, and
-rejects four preview mutations:
+rejects five preview mutations:
 
 ```sh
 nix run .#restore-preview -- reselect-on-confirm
 nix run .#restore-preview -- accept-altered-preview
 nix run .#restore-preview -- reserve-on-inspect
 nix run .#restore-preview -- preview-target-list
+nix run .#restore-preview -- recomputed-validity
 ```
 
 The [contract](../../docs/restore-preview.md) explains the returned visible
@@ -208,3 +209,12 @@ These are directed held-proposal cases; the existing bounded explorer still
 uses immediate Restore, not arbitrary pending proposals. Its receipts and the
 old session/selection receipts remain unchanged. No text order, preview UI,
 wire capability, concurrent-call atomicity or CRDT proof is claimed.
+
+The source-substitution repair binds each proposal to a process-local issuance
+record, not merely a newly recomputed valid effect. Bo/Cam previews with identical
+effects cannot be interchanged by changing only source. Matching resume tests
+hold the original handle in the same interpreter; process restart discards it.
+The weak-key registry releases records when the last proposal copy drops its
+handle. This is not a serialized capability or authentication against arbitrary
+in-process code. Full-basis invalidation remains conservative: the five-unrelated-
+keystroke scenario is retained, not a material-change reconfirmation policy.

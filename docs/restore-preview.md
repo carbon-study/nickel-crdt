@@ -39,7 +39,12 @@ provide text reconstruction, location, human author names and presentation.
 Inspection publishes nothing and changes neither history nor the allocator.
 Its predicted event ID is not a reservation or an admitted history fact. The
 consumer must not treat that ID as committed before confirmation succeeds.
-Repeated inspection on the same basis yields the same immutable proposal.
+Each inspection also issues an opaque process-local handle and retains a frozen
+record of the proposal under that handle. The handle reserves no event identity
+and changes no document or private checkpoint. Repeated inspection yields equal
+public data with distinct valid handles. A weak-key registry drops the issuance
+record when no proposal/copy retains its handle; it does not retain discarded
+proposals indefinitely.
 
 ## what confirmation binds
 
@@ -57,19 +62,45 @@ private continuation, such as clear-history, also invalidates it. This is
 conservative: the caller must obtain and display a fresh proposal rather than
 silently reselecting the old deletion against the new state.
 
-On an unchanged basis, the session recomputes the expected proposal for
-validation and rejects altered display fields, source or event masks. It then
-publishes **the inspected event**, not a newly chosen action. Under the
-single-threaded profile, successful confirmation returns an event equal to
+On an unchanged basis, confirmation compares every field with the frozen record
+associated with the issued handle. It rejects an unknown handle or changed
+source, display fields or event masks. Recomputing a valid proposal is **not**
+sufficient: Bo and Cam can independently delete the same x, giving identical
+restoration masks and predicted events for two different valid choices. Changing
+only a Bo preview's source to Cam must still reject. A separately issued Cam
+proposal remains a valid choice; the API binds the submitted issuance, not proof
+that a human looked at it. Confirmation then publishes **the inspected event**,
+not a newly chosen action. Under the single-threaded profile, successful
+confirmation returns an event equal to
 `proposal.event`; the resulting visible identities equal `proposal.after`.
 That publication changes the binding, so confirming the same old proposal again
 rejects. Rejected confirmation changes neither document nor private history.
 
 An exact duplicate import or a no-op call that changes no state does not
-invalidate a proposal. A matching resume can confirm the same in-process
-proposal after reconstructing the identical document/private checkpoint; the
-caller must first fence the original writer. Proposals have no public wire or
-save format, and the existing version-3 session checkpoint format is unchanged.
+invalidate a proposal. A matching resume **in the same interpreter** can confirm
+a held proposal after reconstructing the identical document/private checkpoint; the caller must first
+fence the original writer. In-process copies retain the same immutable handle.
+An interpreter restart loses the issuance registry: inspect again rather than
+reconstructing a proposal from public fields. Proposals have no public wire or
+save format; the registry is not persisted in the version-3 session checkpoint.
+This is not a network capability or an authentication boundary against arbitrary
+Python code that can modify the module's private memory.
+
+### reference invalidation versus editor reconfirmation
+
+The reference retains conservative full-basis rejection. Five successive
+unrelated introduction edits each invalidate an appendix preview, even though
+the same occurrences would return. The directed receipt demonstrates that case;
+it is not silently relaxed to visible-string equality.
+
+An editor may eventually distinguish revalidation from asking for another
+click, but that needs a separate material-change contract. Selected deletion
+identity, masks and actual occurrence effects matter; identical strings alone
+cannot define equivalence. This draft does not implement that editor policy.
+`retained` covers the whole currently visible view. To label “Monday will remain”,
+intersect it with the **selected original edit's** `creates`, not the Restore
+event's empty `creates`. Unrelated introduction text can remain outside that
+label even though it is included in the full reference view.
 
 ## blocked results and history policy
 
@@ -94,12 +125,14 @@ nix run .#restore-preview
 nix flake check -L
 ```
 
-The generated receipt covers full mixed-author scope, retained replacement
-text, Carol's later invisible withdrawal, unrelated and semantic-no-op remote
+The generated receipt covers equivalent-effect Bo/Cam source substitution live
+and after matching in-process resume, issued-handle lifetime, five unrelated
+edits, full mixed-author scope, retained replacement text, Carol's later invisible withdrawal, unrelated and semantic-no-op remote
 facts, altered/foreign/untyped proposals, private clear-history, repeated
 confirmation, selected own reactivation, explicit policy, blocked proposals and
-matching warm/cold continuations. Four wrong implementations fail: reselecting
-at confirmation, accepting altered preview fields, reserving an identity during
+matching warm/cold continuations. Five wrong implementations fail: replacing
+issuance checking with semantic recomputation, reselecting at confirmation,
+accepting altered preview fields, reserving an identity during
 inspection, and reporting all deleted targets as visibly restored.
 
 The older session/selection/continuation receipts remain unchanged. The bounded

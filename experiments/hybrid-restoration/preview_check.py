@@ -108,11 +108,14 @@ def private_binding_and_tamper():
             'altered preview must reject before publication')
     rejects(a,replace(p,source='missing'),'altered preview must reject before publication')
     rejects(a,asdict(p),'untyped preview must reject')
+    rejects(a,replace(p,_issuance=None),'unissued preview must reject')
+    from sessions import _RestoreIssuance
+    rejects(a,replace(p,_issuance=_RestoreIssuance()),'unissued preview must reject')
     # Same document, different private continuation is not the same confirmation.
     doc=dict(a.doc.events); a.clear_history(); assert a.doc.events==doc
     rejects(a,p,'changed private history must reject confirmation')
     return dict(foreign_writer=True,display_tamper=True,event_tamper=True,source_tamper=True,
-                untyped_value=True,clear_history=True)
+                untyped_value=True,unissued_handle=True,clear_history=True)
 
 
 def scoped_reactivation_and_policy():
@@ -149,8 +152,64 @@ def blocked_confirmation():
     return dict(reason=result.reason,still_hidden=[o.scalar for o in p.still_hidden],unchanged=True)
 
 
+def equivalent_source_binding():
+    rows=[]
+    for cold in (False,True):
+        a,b,c=Session('A'),Session('B'),Session('C')
+        birth=a.edit(creates=('x',)); synced(a,b,c)
+        bo=b.edit(deletes=birth.creates); cam=c.edit(deletes=birth.creates)
+        synced(a,b,c)
+        original=inspect(a,bo.id); alternate=inspect(a,cam.id)
+        assert original.source!=alternate.source
+        assert original.event==alternate.event and original.restored==alternate.restored
+        saved,document=a.checkpoint(),a.doc.copy()
+        if cold: a=Session.resume(saved,document.copy())
+        rejects(a,replace(original,source=cam.id),
+                'equivalent valid source substitution must reject')
+        emitted=a.confirm_restore(original)
+        other=Session.resume(saved,document.copy())
+        assert other.confirm_restore(alternate)==emitted==original.event
+        rows.append(dict(cold=cold,inspected=bo.id,alternative=cam.id,
+                         identical_effects=True,substitution_rejected=True,published=emitted.id))
+    return rows
+
+
+def repeated_unrelated_edits():
+    a,b,c,f,cc,m=mixed()
+    p=inspect(a,m.id); restored=p.restored
+    replacement_ids=set(m.creates)
+    for _ in range(5):
+        deliver(c.edit(creates=('x',)),a,b)
+        rejects(a,p,'changed basis must reject confirmation')
+        p=inspect(a,m.id)
+        assert p.restored==restored
+        assert identities(p.retained)&replacement_ids==replacement_ids
+    event=a.confirm_restore(p)
+    assert event==p.event
+    return dict(unrelated_edits=5,each_old_preview_rejected=True,
+                restored_identities_unchanged=True,replacement_retained=True)
+
+
+def issuance_lifetime():
+    import gc,weakref
+    from sessions import _restore_issuances
+    a,b,c,f,cc,m=mixed()
+    gc.collect(); baseline=len(_restore_issuances)
+    p=inspect(a,m.id); ref=weakref.ref(p._issuance)
+    assert len(_restore_issuances)==baseline+1
+    copied=deepcopy(p)
+    assert copied._issuance is p._issuance
+    a.confirm_restore(copied)
+    del copied,p
+    gc.collect()
+    assert ref() is None and len(_restore_issuances)==baseline
+    return dict(in_process_copy_preserves_handle=True,released_proposal_drops_issuance_record=True)
+
+
 def report():
     return dict(scope='in-process full-checkpoint-bound Restore proposals; identity sets, no text ordering',
+        source_binding=equivalent_source_binding(),
+        unrelated_edits=repeated_unrelated_edits(),issuance_lifetime=issuance_lifetime(),
         whole_scope=whole_scope_and_reload(),stale=stale_and_hidden_effects(),
         rejected=private_binding_and_tamper(),own_scope=scoped_reactivation_and_policy(),
         blocked=blocked_confirmation())
@@ -164,12 +223,25 @@ if __name__=='__main__':
         stale_and_hidden_effects()
     elif mode=='accept-altered-preview':
         import inspect as introspect,textwrap
-        from sessions import RestorePreview
+        from sessions import RestorePreview, _RestoreIssuance, _restore_issuances, _preview_record
         source=textwrap.dedent(introspect.getsource(Session.confirm_restore)).replace(
-            'if preview != self.inspect_restore(preview.source):','if False:')
-        namespace=dict(RestorePreview=RestorePreview,ModelError=ModelError,Blocked=Blocked)
+            'if issued is None or issued != _preview_record(preview):','if False:')
+        namespace=dict(RestorePreview=RestorePreview,ModelError=ModelError,Blocked=Blocked,
+                       _RestoreIssuance=_RestoreIssuance,_restore_issuances=_restore_issuances,
+                       _preview_record=_preview_record)
         exec(source,namespace); Session.confirm_restore=namespace['confirm_restore']
         private_binding_and_tamper()
+    elif mode=='recomputed-validity':
+        import inspect as introspect,textwrap
+        from sessions import RestorePreview, _RestoreIssuance, _restore_issuances, _preview_record
+        source=textwrap.dedent(introspect.getsource(Session.confirm_restore)).replace(
+            'if issued is None or issued != _preview_record(preview):',
+            'if preview != self.inspect_restore(preview.source):')
+        namespace=dict(RestorePreview=RestorePreview,ModelError=ModelError,Blocked=Blocked,
+                       _RestoreIssuance=_RestoreIssuance,_restore_issuances=_restore_issuances,
+                       _preview_record=_preview_record)
+        exec(source,namespace); Session.confirm_restore=namespace['confirm_restore']
+        equivalent_source_binding()
     elif mode=='reserve-on-inspect':
         original=Session.inspect_restore
         def reserve(self,source):

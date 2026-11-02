@@ -80,7 +80,7 @@
         echo 'Restore-only peer-cancel mutation unexpectedly passed'; exit 1
       fi
       grep -q 'AssertionError: peer cancellation of Restore must reject' peer-cancel-restore.log
-      for mode in reselect-on-confirm accept-altered-preview reserve-on-inspect preview-target-list; do
+      for mode in reselect-on-confirm accept-altered-preview reserve-on-inspect preview-target-list recomputed-validity; do
         if python ${source}/preview_check.py "$mode" > "$mode.log" 2>&1; then
           echo "Restore preview mutation unexpectedly passed: $mode"; exit 1
         fi
@@ -89,6 +89,7 @@
       grep -q 'AssertionError: altered preview must reject before publication' accept-altered-preview.log
       grep -q 'AssertionError: inspection must not change document or private history' reserve-on-inspect.log
       grep -q 'AssertionError: preview must report actual visible delta' preview-target-list.log
+      grep -q 'AssertionError: equivalent valid source substitution must reject' recomputed-validity.log
       touch $out
     '';
     run = pkgs.writeShellApplication { name="hybrid-restoration"; runtimeInputs=[pkgs.python3]; text=''export PYTHONDONTWRITEBYTECODE=1; exec python ${source}/check.py "$@"''; };

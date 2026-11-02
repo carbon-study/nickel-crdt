@@ -1,5 +1,33 @@
 {
   "scope": "in-process full-checkpoint-bound Restore proposals; identity sets, no text ordering",
+  "source_binding": [
+    {
+      "cold": false,
+      "inspected": "B:1",
+      "alternative": "C:1",
+      "identical_effects": true,
+      "substitution_rejected": true,
+      "published": "A:2"
+    },
+    {
+      "cold": true,
+      "inspected": "B:1",
+      "alternative": "C:1",
+      "identical_effects": true,
+      "substitution_rejected": true,
+      "published": "A:2"
+    }
+  ],
+  "unrelated_edits": {
+    "unrelated_edits": 5,
+    "each_old_preview_rejected": true,
+    "restored_identities_unchanged": true,
+    "replacement_retained": true
+  },
+  "issuance_lifetime": {
+    "in_process_copy_preserves_handle": true,
+    "released_proposal_drops_issuance_record": true
+  },
   "whole_scope": {
     "restored": [
       {
@@ -40,6 +68,7 @@
     "event_tamper": true,
     "source_tamper": true,
     "untyped_value": true,
+    "unissued_handle": true,
     "clear_history": true
   },
   "own_scope": {
