@@ -72,6 +72,9 @@ adopts the policy. Then close the ordered interpretation and API reconciliation.
 The source of each expected result must be a stated decision or argument, not
 whatever today's implementation happens to return.
 
+[Four concrete decision scenarios](docs/first-cut-decisions.md) collect the
+proposed answers and their costs. They are pending choices, not adopted policy.
+
 Close these dependencies before committing the corresponding engine behavior:
 
 1. **History continuation.** Compare consume/retain when a suppressed deletion

@@ -46,8 +46,9 @@ No sequence/undo verifier obligation is currently discharged. The proved Boolean
 
 [The implementation roadmap](ROADMAP.md) proposes the first usable native
 release, an earlier experimental crate, and Rust/proof/consumer acceptance gates. We are
-still closing the reference profile, not implementing a CRDT engine. Next is
-the skipped-history decision sheet and ordered-reference/API reconciliation;
+still closing the reference profile, not implementing a CRDT engine. The
+[four decision scenarios](docs/first-cut-decisions.md) collect the pending
+history/effect/identity choices before ordered-reference/API reconciliation;
 no ordering algorithm is adopted by the roadmap.
 
 The [response-led plan](docs/response-plan.md) preserves why Ren's questionnaire
