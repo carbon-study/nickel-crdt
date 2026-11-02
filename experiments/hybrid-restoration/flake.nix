@@ -29,7 +29,7 @@
       python ${source}/session_check.py review-trace > session-review-trace.json
       cmp session-review-trace.json ${./session-review-trace.json}
       (cd ${source}; python -O -c 'from session_check import compatible_saves; compatible_saves()')
-      (cd ${source}; python -O -c 'from check import admission_checks, cancel_authority_checks; admission_checks(); cancel_authority_checks()')
+      (cd ${source}; python -O -c 'from check import admission_checks, cancel_authority_checks, withdrawal_authority_checks; admission_checks(); cancel_authority_checks(); withdrawal_authority_checks()')
       if python ${source}/check.py target-only > target-only.log 2>&1; then
         echo 'target-only mutation unexpectedly passed'; exit 1
       fi
@@ -80,6 +80,14 @@
         echo 'Restore-only peer-cancel mutation unexpectedly passed'; exit 1
       fi
       grep -q 'AssertionError: peer cancellation of Restore must reject' peer-cancel-restore.log
+      if python ${source}/check.py peer-withdrawal > peer-withdrawal.log 2>&1; then
+        echo 'foreign withdrawal mutation unexpectedly passed'; exit 1
+      fi
+      grep -q 'AssertionError: peer withdrawal of foreign must reject' peer-withdrawal.log
+      if python ${source}/check.py first-withdrawal-only > first-withdrawal-only.log 2>&1; then
+        echo 'first-only withdrawal mutation unexpectedly passed'; exit 1
+      fi
+      grep -q 'AssertionError: peer withdrawal of mixed-own-first must reject' first-withdrawal-only.log
       for mode in reselect-on-confirm accept-altered-preview reserve-on-inspect preview-target-list recomputed-validity; do
         if python ${source}/preview_check.py "$mode" > "$mode.log" 2>&1; then
           echo "Restore preview mutation unexpectedly passed: $mode"; exit 1

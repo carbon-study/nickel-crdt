@@ -67,9 +67,12 @@ class Doc:
                 raise ModelError('only the token author can cancel it')
             if not (source.releases or source.withdraws or source.reactivates):
                 raise ModelError('only restoration/withdrawal tokens can be cancelled')
-        births = {elem for key in past for elem in self.events[key].creates}
-        if not set(event.withdraws) <= births:
+        births = {elem: self.events[key].author for key in past
+                  for elem in self.events[key].creates}
+        if not set(event.withdraws) <= births.keys():
             raise ModelError('withdrawal must name an ancestral creation')
+        if any(event.author != births[elem] for elem in event.withdraws):
+            raise ModelError('only the creator can withdraw a creation')
         self.events[event.id] = event
 
     def before(self, a, b):

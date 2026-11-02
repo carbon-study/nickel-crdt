@@ -70,7 +70,7 @@ def cases(mode='parallel'):
 
 
 def admission_checks():
-    i = Event('I', creates=('a',))
+    i = Event('I', creates=('a',), author='A')
     d = Event('D', ('I',), deletes=('a',))
     r = doc(i, d).restore('R', 'D')
     withdrawal = Event('W', ('I',), withdraws=('a',), author='A')
@@ -102,6 +102,49 @@ def admission_checks():
         if view.events != before:
             raise RuntimeError('rejection changed event dictionary')
     print(f'{len(invalid)} invalid-reference cases reject without publication')
+
+
+def withdrawal_authority_checks():
+    # Named authors and both mixed-target orders: legacy author="" cannot expose this.
+    from sessions import Session
+    a,b=Session('A'),Session('B')
+    paste=a.edit(creates=('p','q')); b.receive(paste)
+    own=b.edit(creates=('b',)); a.receive(own)
+    p,q=paste.creates; bb=own.creates[0]
+    cases=[('foreign', (p,)), ('mixed-own-first', (bb,p)),
+           ('mixed-foreign-first', (p,bb))]
+    for cold in (False,True):
+        for label, targets in cases:
+            view=b.doc.copy() if cold else b.doc
+            before=dict(view.events); visible=view.visible()
+            forged=Event('B:forged-'+label, after=tuple(view.events),
+                         author='B', withdraws=targets)
+            try: view.put(forged)
+            except ModelError: pass
+            else: raise AssertionError('peer withdrawal of '+label+' must reject')
+            if view.events != before or view.visible() != visible:
+                raise AssertionError('rejected peer withdrawal changed document')
+            restored=view.copy()
+            if restored.events != before or restored.visible() != visible:
+                raise AssertionError('rejected peer withdrawal changed cold reconstruction')
+    # Same targets, genuine creator: partial withdrawal and owner cancellation
+    # remain valid and reconstruct through the same admission path.
+    view=b.doc.copy()
+    withdrawal=Event('A:scoped', after=tuple(view.events), author='A', withdraws=(p,))
+    view.put(withdrawal); view.put(withdrawal)
+    if view.visible() != {q,bb} or view.copy().visible() != {q,bb}:
+        raise AssertionError('creator scoped withdrawal must work')
+    cancel=Event('A:cancel', after=tuple(view.events), author='A', cancels=(withdrawal.id,))
+    view.put(cancel)
+    if view.visible() != {p,q,bb} or view.copy().visible() != {p,q,bb}:
+        raise AssertionError('creator withdrawal cancellation must work')
+    owner=b.undo(); a.receive(owner)
+    if owner.withdraws != own.creates or a.doc.visible() != set(paste.creates):
+        raise AssertionError('session owner withdrawal must work')
+    redo=b.redo(); a.receive(redo)
+    if a.doc.visible() != b.doc.visible() or b.doc.visible() != {p,q,bb}:
+        raise AssertionError('session owner redo must work')
+    print('6 named-author foreign/mixed withdrawals reject unchanged; creator scope/cancel/session paths succeed')
 
 
 def cancel_authority_checks():
@@ -147,6 +190,7 @@ def run(mode):
     assert view.restore('R', 'DA') == view.restore('R', 'DB')
     admission_checks()
     cancel_authority_checks()
+    withdrawal_authority_checks()
     total = 0
     count = 0
     for name, events, visible, active, withdrawals in cases(mode):
@@ -164,7 +208,20 @@ def run(mode):
 if __name__ == '__main__':
     import sys
     mode=sys.argv[1] if len(sys.argv)>1 else 'parallel'
-    if mode in ('peer-cancel','peer-cancel-restore'):
+    if mode in ('peer-withdrawal','first-withdrawal-only'):
+        import inspect, textwrap
+        from model import Doc
+        source=textwrap.dedent(inspect.getsource(Doc.put))
+        needle='if any(event.author != births[elem] for elem in event.withdraws):'
+        if needle not in source:
+            raise RuntimeError('withdrawal authority mutation site missing')
+        wrong=('if False:' if mode=='peer-withdrawal' else
+               'if any(event.author != births[elem] for elem in event.withdraws[:1]):')
+        namespace=dict(ModelError=ModelError)
+        exec(source.replace(needle,wrong),namespace)
+        Doc.put=namespace['put']
+        withdrawal_authority_checks()
+    elif mode in ('peer-cancel','peer-cancel-restore'):
         import inspect, textwrap
         from model import Doc
         wrong = ('if False:' if mode=='peer-cancel' else
