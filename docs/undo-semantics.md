@@ -1,6 +1,6 @@
 # local undo: decisions, candidate and missing argument
 
-**revision direction:** [the response-led PR plan](response-plan.md) now takes priority over the earlier writer-exclusive activity recommendation. Ren requests restoration of another writer’s deletion and corresponding undo-history adjustment. That behavior still needs a complete trace semantics; the older candidate below is retained for comparison, not adopted.
+**revision direction:** [the response-led PR plan](response-plan.md) now takes priority over the earlier writer-exclusive activity recommendation. Ren requests restoration of another writer’s deletion and corresponding undo-history adjustment. His later clarification selects own-action Undo plus an explicit, undoable Restore command; the [restricted session profile](private-session-profile.md) records it. This does not reinstate writer-exclusive effects. That behavior still needs a complete trace semantics; the older candidate below is retained for comparison, not adopted.
 
 **Research/design analysis, not an implementation claim.** Nickel has no undo algorithm or undo correctness theorem. Restricting a stack to local commands does not establish the meaning or correctness of its undo. This document identifies the gap rather than treating the activity proposal as solved local undo.
 

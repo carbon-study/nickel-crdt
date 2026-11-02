@@ -1,14 +1,8 @@
 {
-  "profile": "consumed skip; library occurrence identities; identity sets only",
+  "profile": "explicit Restore; own-action undo; identity sets only",
   "rows": [
     {
-      "step": "both know the deletion",
-      "visibleA": [
-        "[\"B\",1,0]"
-      ],
-      "visibleB": [
-        "[\"B\",1,0]"
-      ],
+      "step": "ordinary undo targets own creation, not foreign deletion",
       "valuesA": [
         "z"
       ],
@@ -16,8 +10,8 @@
         "z"
       ],
       "nextA": [
-        "victim",
-        "B:2"
+        "own",
+        "A:1"
       ],
       "nextB": [
         "own",
@@ -27,15 +21,7 @@
       "redoB": []
     },
     {
-      "step": "Alice restores; Bo can bypass his deletion",
-      "visibleA": [
-        "[\"A\",1,0]",
-        "[\"B\",1,0]"
-      ],
-      "visibleB": [
-        "[\"A\",1,0]",
-        "[\"B\",1,0]"
-      ],
+      "step": "Alice explicitly restores; Restore becomes own item",
       "valuesA": [
         "b",
         "z"
@@ -45,26 +31,18 @@
         "z"
       ],
       "nextA": [
-        "own",
-        "A:1"
+        "restore",
+        "A:2"
       ],
       "nextB": [
         "own",
         "B:1"
       ],
-      "redoA": [
-        "B:2"
-      ],
+      "redoA": [],
       "redoB": []
     },
     {
       "step": "Bo consumes bypassed deletion and undoes older z",
-      "visibleA": [
-        "[\"A\",1,0]"
-      ],
-      "visibleB": [
-        "[\"A\",1,0]"
-      ],
       "valuesA": [
         "b"
       ],
@@ -72,52 +50,8 @@
         "b"
       ],
       "nextA": [
-        "own",
-        "A:1"
-      ],
-      "nextB": null,
-      "redoA": [
-        "B:2"
-      ],
-      "redoB": [
-        "B:1"
-      ]
-    },
-    {
-      "step": "Bo reloads compatible private checkpoint and shared facts",
-      "visibleA": [
-        "[\"A\",1,0]"
-      ],
-      "visibleB": [
-        "[\"A\",1,0]"
-      ],
-      "valuesA": [
-        "b"
-      ],
-      "valuesB": [
-        "b"
-      ],
-      "nextA": [
-        "own",
-        "A:1"
-      ],
-      "nextB": null,
-      "redoA": [
-        "B:2"
-      ],
-      "redoB": [
-        "B:1"
-      ]
-    },
-    {
-      "step": "Alice redo hides b; consumed Bo item does not return",
-      "visibleA": [],
-      "visibleB": [],
-      "valuesA": [],
-      "valuesB": [],
-      "nextA": [
-        "victim",
-        "B:2"
+        "restore",
+        "A:2"
       ],
       "nextB": null,
       "redoA": [],
@@ -126,14 +60,66 @@
       ]
     },
     {
-      "step": "Bo undo emits nothing",
-      "visibleA": [],
-      "visibleB": [],
+      "step": "Bo reloads matched private/shared checkpoint",
+      "valuesA": [
+        "b"
+      ],
+      "valuesB": [
+        "b"
+      ],
+      "nextA": [
+        "restore",
+        "A:2"
+      ],
+      "nextB": null,
+      "redoA": [],
+      "redoB": [
+        "B:1"
+      ]
+    },
+    {
+      "step": "Alice undoes her Restore; b hides; Bo item stays consumed",
       "valuesA": [],
       "valuesB": [],
       "nextA": [
-        "victim",
-        "B:2"
+        "own",
+        "A:1"
+      ],
+      "nextB": null,
+      "redoA": [
+        "A:2"
+      ],
+      "redoB": [
+        "B:1"
+      ]
+    },
+    {
+      "step": "Bo empty undo changes nothing",
+      "valuesA": [],
+      "valuesB": [],
+      "nextA": [
+        "own",
+        "A:1"
+      ],
+      "nextB": null,
+      "redoA": [
+        "A:2"
+      ],
+      "redoB": [
+        "B:1"
+      ]
+    },
+    {
+      "step": "Alice redoes Restore with fresh original-mask token",
+      "valuesA": [
+        "b"
+      ],
+      "valuesB": [
+        "b"
+      ],
+      "nextA": [
+        "restore",
+        "A:2"
       ],
       "nextB": null,
       "redoA": [],

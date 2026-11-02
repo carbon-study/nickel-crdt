@@ -1,12 +1,20 @@
 # PR1 plan based on ren's responses
 
+**Current clarification:** after the appendix review, Ren approved ordinary
+Undo selecting own actions and victim Restore as a separate, explicit own
+action. This revises the original q03/q18/q23 button behavior, not the raw
+questionnaire answers. The [private-session profile](private-session-profile.md)
+owns the running restricted contract. Frozen restoration effects remain; this
+is not a return to writer-exclusive activity semantics. The response traces
+below motivated the work and do not override that later selection decision.
+
 This is the revision plan for [PR1](https://github.com/carbon-study/nickel-crdt/pull/1), based on Ren's completed questionnaire edition2026-11-01.1. It replaces “approve the current contribution-deactivation proposal” as the next decision. Ren's desired behavior is the design target to investigate; Rotbot's answers provide comparisons, not a vote against it. The exported answers remain unchanged and are not republished here.
 
 The [supplied finite model follow-through](hybrid-traces.md) now records40 directed delivery schedules, the fixed-selection and partial-replacement constraints, the concurrent-restoration redo alternatives (either permitted by Ren, implementation simplicity preferred), and a remaining mismatch with q07. It is supporting evidence, not a completed reference contract.
 
 ## 1. put the hybrid undo behavior first
 
-The first question is now: **when another writer deletes my text, can my undo restore it, and what does their next undo/redo do?**
+The first question is now: **when another writer deletes my text, how can I explicitly restore it, and what do both histories do afterward?**
 
 Ren requests this in q03, q18, q19, q23 and q40. It conflicts with the draft's restriction that an undo selects only its own writer's item and that only that writer changes its activity. Calling the action local does not remove this conflict. The current single-origin activity proposal is suspended as a release recommendation until this behavior is specified. Registers cannot silently inherit sequence semantics: q13–q15 require a different continuation from simply deactivating hidden writes.
 
@@ -20,7 +28,7 @@ Use these named actions, keeping identities distinct from spelling:
 | --- | --- | --- |
 | 1 | Alice inserts b; both receive it | both display b |
 | 2 | Bo deletes that b; both receive it | both display empty text |
-| 3 | Alice presses undo | Ren wants b restored by undoing Bo's deletion, rather than withdrawing Alice's insertion |
+| 3 | Alice presses undo | original q03 asks for b back; the later clarification makes this an explicit Restore, not ordinary Undo |
 | 4 | Bo presses undo | Ren wants the already-undone deletion skipped; define what happens if no older eligible action exists, and repeat with an older action present |
 | 5 | redo on each writer | define whose redo can delete b again, which action it selects and how the other writer's next selection changes |
 
@@ -39,7 +47,7 @@ These are the next requested specifications, not filled-in outcomes or an implem
 
 | area | response IDs | planned contract change |
 | --- | --- | --- |
-| ordinary selection | q01–q02 | retain own-device/session selection as the baseline, with explicit victim-restoration exceptions |
+| ordinary selection | q01–q02 | own-device/session Undo selects own actions; victim Restore is explicit and becomes an own action |
 | independent text | q05–q06, q08–q10, q12, q29 | retain independent insertions and equal-spelling distinctions; require whole concurrent runs rather than arbitrary character interleaving |
 | deletion conflicts | q07, q11, q18–q23 | replace the draft's blanket active-remover rule with a complete account of restoration, overlapping deletes and cross-writer continuation |
 | registers | q13–q17 | specify an ineffective undo after overwrite, its stack result and later Bo undo revealing red; decide why an equal-valued write behaves differently from a distinct text insertion |

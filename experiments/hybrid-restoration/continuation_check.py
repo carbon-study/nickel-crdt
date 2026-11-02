@@ -34,6 +34,12 @@ def seeds():
     aa = a.edit(creates=('a',)); bb = b.edit(creates=('B',)); synced(a, b)
     a.edit(creates=('x',), deletes=aa.creates+bb.creates); synced(a, b)
     yield 'synced-replacement', [a, b]
+    a,b=Session('A'),Session('B')
+    birth=a.edit(creates=('b',)); synced(a,b)
+    deletion=b.edit(deletes=birth.creates); synced(a,b)
+    a.restore(deletion.id); a.undo(); synced(a,b)
+    yield 'undone-explicit-restore', [a,b]
+
 
 
 def facts(s):
@@ -41,7 +47,8 @@ def facts(s):
 
 
 def observation(peers):
-    return [dict(facts=facts(s), visible=sorted(s.doc.visible()), next_undo=s.next_undo())
+    return [dict(facts=facts(s), visible=sorted(s.doc.visible()), next_undo=s.next_undo(),
+                 restoration_choices=s.restoration_choices())
             for s in peers]
 
 
@@ -58,6 +65,9 @@ def actions(peers):
         # At most two creation-bearing events per writer, including seed events.
         births = sum(bool(e.creates) for e in s.doc.events.values() if e.author == s.writer)
         policies = ('keep', 'clear') if s.redos else ('keep',)
+        for source, _ in s.restoration_choices():
+            for policy in policies:
+                yield dict(peer=i,op='restore',source=source,policy=policy)
         visible = sorted(s.doc.visible())
         if births < 2:
             for policy in policies:
@@ -92,7 +102,9 @@ def apply(peers, action):
         if facts(s) != before:
             raise AssertionError('clear changed replicated facts')
         return None
-    if op == 'edit':
+    if op == 'restore':
+        result = s.restore(action['source'],action['policy'])
+    elif op == 'edit':
         result = s.edit(action['creates'], action['deletes'], action['policy'])
     else:
         result = getattr(s, op)()
@@ -108,6 +120,8 @@ def cold(peers, subset, mutation):
             result[i].redos.clear()
         elif mutation == 'drop-ignored':
             result[i].ignored_victims.clear()
+        elif mutation == 'drop-restore-tokens':
+            result[i].restore_tokens.clear()
         elif mutation == 'reset-counter':
             result[i].counter = 1
     return result
@@ -170,7 +184,7 @@ def explore(depth=3, mutation=None):
                 if k not in seen:
                     seen.add(k); queue.append((warm, prefix+[action]))
         by_seed[name] = dict(states=local_states, edges=local_edges)
-    if covered != {'undo', 'redo', 'clear', 'edit', 'receive', 'duplicate'}:
+    if covered != {'undo', 'redo', 'clear', 'edit', 'restore', 'receive', 'duplicate'}:
         raise AssertionError('action vocabulary not covered')
     return dict(status='bounded comparisons passed', depth=depth, seeds=by_seed,
         creation_events_per_writer=2, state_budget=10000,
@@ -180,7 +194,7 @@ def explore(depth=3, mutation=None):
 
 if __name__ == '__main__':
     mutation = sys.argv[1] if len(sys.argv) > 1 else None
-    if mutation not in (None, 'drop-redo', 'drop-ignored', 'reset-counter'):
+    if mutation not in (None, 'drop-redo', 'drop-ignored', 'reset-counter', 'drop-restore-tokens'):
         raise SystemExit('unknown mutation')
     try:
         report = explore(mutation=mutation)

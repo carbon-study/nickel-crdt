@@ -1,32 +1,36 @@
 {
   "boundary": "one-step warm/cold observable comparisons at generated reachable prefixes; not an independent undo oracle",
-  "cold_comparisons": 10257,
+  "cold_comparisons": 15849,
   "creation_events_per_writer": 2,
   "depth": 3,
-  "edges": 3419,
+  "edges": 5283,
   "restart_prefix_depth_max": 2,
-  "restart_prefixes": 238,
+  "restart_prefixes": 345,
   "seeds": {
     "empty": {
       "edges": 168,
       "states": 80
     },
     "partitioned-independent-deletes": {
-      "edges": 817,
-      "states": 386
+      "edges": 840,
+      "states": 399
     },
     "synced-replacement": {
-      "edges": 966,
-      "states": 416
+      "edges": 1161,
+      "states": 508
     },
     "synced-victim-and-older-item": {
-      "edges": 1468,
-      "states": 644
+      "edges": 1771,
+      "states": 786
+    },
+    "undone-explicit-restore": {
+      "edges": 1343,
+      "states": 519
     }
   },
   "state_budget": 10000,
-  "states": 1526,
+  "states": 2292,
   "status": "bounded comparisons passed",
-  "sync_checks": 1526,
+  "sync_checks": 2292,
   "transport_sync_depth_max": 3
 }

@@ -73,7 +73,8 @@ def admission_checks():
     i = Event('I', creates=('a',))
     d = Event('D', ('I',), deletes=('a',))
     r = doc(i, d).restore('R', 'D')
-    view = doc(i, d, r)
+    withdrawal = Event('W', ('I',), withdraws=('a',), author='A')
+    view = doc(i, d, r, withdrawal)
     invalid = [
         Event('missing', ('ghost',)),
         Event('I', creates=('different',)),
@@ -85,6 +86,10 @@ def admission_checks():
         Event('cancel-nontoken', ('D',), cancels=('D',)),
         Event('unknown-creation', ('I',), withdraws=('ghost',)),
         Event('unseen-creation', withdraws=('a',)),
+        Event('unseen-reactivation', author='A', reactivates=(('W','a'),)),
+        Event('unknown-reactivation', ('W',), author='A', reactivates=(('ghost','a'),)),
+        Event('wrong-reactivation-atom', ('W',), author='A', reactivates=(('W','other'),)),
+        Event('peer-reactivation', ('W',), author='B', reactivates=(('W','a'),)),
     ]
     before = dict(view.events)
     for event in invalid:
@@ -96,7 +101,7 @@ def admission_checks():
             raise RuntimeError('invalid model reference was accepted: ' + event.id)
         if view.events != before:
             raise RuntimeError('rejection changed event dictionary')
-    print('10 invalid-reference cases reject without publication')
+    print(f'{len(invalid)} invalid-reference cases reject without publication')
 
 
 def run(mode):

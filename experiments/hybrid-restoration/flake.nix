@@ -13,7 +13,7 @@
       cmp selection-review.json ${./selection-review.json}
       python ${source}/continuation_check.py > continuation-output.json
       cmp continuation-output.json ${./continuation-output.json}
-      for mode in drop-redo drop-ignored reset-counter; do
+      for mode in drop-redo drop-ignored reset-counter drop-restore-tokens; do
         if python ${source}/continuation_check.py "$mode" > "$mode.json"; then
           echo "cold-session mutation unexpectedly passed: $mode"; exit 1
         fi
@@ -50,7 +50,7 @@
         echo 'retained-skip alternative unexpectedly passed'; exit 1
       fi
       grep -q 'AssertionError: bypassed deletion must stay consumed after peer redo' consumed-skip.log
-      for mode in unbound-save caller-ids old-redo-order eager-consume presence-only-basis empty-consumes ineffective-redo-advances receipt-ranking; do
+      for mode in unbound-save caller-ids old-redo-order eager-consume presence-only-basis empty-consumes ineffective-redo-advances receipt-ranking refreeze-restore-redo drop-restore-reactivation peer-reactivation scope-reactivation-spill skip-blocked-redo; do
         if python ${source}/session_check.py "$mode" > "$mode.log" 2>&1; then
           echo "review repair control unexpectedly passed: $mode"; exit 1
         fi
@@ -62,7 +62,12 @@
       grep -q 'AssertionError: same-ID changed-content basis must reject' presence-only-basis.log
       grep -q 'AssertionError: empty undo must preserve history' empty-consumes.log
       grep -q 'AssertionError: ineffective redo must preserve history' ineffective-redo-advances.log
-      grep -q 'AssertionError: creator-slot arrival independence' receipt-ranking.log
+      grep -q 'AssertionError: foreign deletion must not enter undo selection' receipt-ranking.log
+      grep -q 'AssertionError: Restore redo must preserve original frozen mask' refreeze-restore-redo.log
+      grep -q 'AssertionError: explicit author Restore must recover only selected p' drop-restore-reactivation.log
+      grep -q 'AssertionError: peer must not reactivate another author withdrawal' peer-reactivation.log
+      grep -q 'AssertionError: explicit author Restore must recover only selected p' scope-reactivation-spill.log
+      grep -q 'AssertionError: blocked top redo must not skip to older item' skip-blocked-redo.log
       touch $out
     '';
     run = pkgs.writeShellApplication { name="hybrid-restoration"; runtimeInputs=[pkgs.python3]; text=''export PYTHONDONTWRITEBYTECODE=1; exec python ${source}/check.py "$@"''; };
@@ -72,7 +77,7 @@
     selection-review = let reviewRun = pkgs.writeShellApplication {
       name="hybrid-selection-review"; runtimeInputs=[pkgs.python3];
       text=''export PYTHONDONTWRITEBYTECODE=1; exec python ${source}/selection_review.py "$@"'';
-    }; in {type="app"; program="${reviewRun}/bin/hybrid-selection-review"; meta.description="Accepted creator-slot and follow-up review regressions";};
+    }; in {type="app"; program="${reviewRun}/bin/hybrid-selection-review"; meta.description="Own-action undo and explicit Restore regressions";};
     continuations = let continuationRun = pkgs.writeShellApplication {
       name="hybrid-continuations"; runtimeInputs=[pkgs.python3];
       text=''export PYTHONDONTWRITEBYTECODE=1; exec python ${source}/continuation_check.py "$@"'';

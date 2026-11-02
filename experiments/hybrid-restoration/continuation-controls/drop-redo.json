@@ -22,6 +22,7 @@
                 "x"
               ]
             ],
+            "reactivates": [],
             "releases": [],
             "withdraws": []
           },
@@ -35,6 +36,7 @@
             "deletes": [],
             "id": "A:2",
             "payloads": [],
+            "reactivates": [],
             "releases": [],
             "withdraws": [
               "[\"A\",1,0]"
@@ -42,11 +44,13 @@
           }
         ],
         "next_undo": null,
+        "restoration_choices": [],
         "visible": []
       },
       {
         "facts": [],
         "next_undo": null,
+        "restoration_choices": [],
         "visible": []
       }
     ],
@@ -72,6 +76,7 @@
                 "x"
               ]
             ],
+            "reactivates": [],
             "releases": [],
             "withdraws": []
           },
@@ -85,6 +90,7 @@
             "deletes": [],
             "id": "A:2",
             "payloads": [],
+            "reactivates": [],
             "releases": [],
             "withdraws": [
               "[\"A\",1,0]"
@@ -103,6 +109,7 @@
             "deletes": [],
             "id": "A:3",
             "payloads": [],
+            "reactivates": [],
             "releases": [],
             "withdraws": []
           }
@@ -111,6 +118,7 @@
           "own",
           "A:1"
         ],
+        "restoration_choices": [],
         "visible": [
           "[\"A\",1,0]"
         ]
@@ -118,6 +126,7 @@
       {
         "facts": [],
         "next_undo": null,
+        "restoration_choices": [],
         "visible": []
       }
     ],
@@ -134,6 +143,7 @@
       "deletes": [],
       "id": "A:3",
       "payloads": [],
+      "reactivates": [],
       "releases": [],
       "withdraws": []
     },

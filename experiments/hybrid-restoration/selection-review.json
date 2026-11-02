@@ -1,280 +1,212 @@
 {
-  "status": "accepted creator-slot regressions pass",
-  "boundary": "actual restricted Session calls; identity sets, not text ordering",
-  "redo_arrival": [
+  "status": "own-action undo and explicit Restore directed regressions pass",
+  "boundary": "actual restricted identity-set Session calls; no editor or text-order claim",
+  "appendix": [
     {
-      "deletion_received": "before redo",
+      "before": false,
       "cold": false,
-      "initial": [
-        "a"
+      "after_ordinary_undo": [
+        "M"
       ],
-      "redone_source": "A:2",
-      "redo_after": [
-        "A:1",
-        "A:2",
-        "A:3",
-        "B:1"
+      "after_explicit_restore": [
+        "F",
+        "M"
       ],
-      "undo_sequence": [
-        {
-          "selected": [
-            "own",
-            "A:2"
-          ],
-          "emitted": "A:5",
-          "values": []
-        },
-        {
-          "selected": [
-            "victim",
-            "B:1"
-          ],
-          "emitted": "A:6",
-          "values": [
-            "p"
-          ]
-        },
-        {
-          "selected": [
-            "own",
-            "A:1"
-          ],
-          "emitted": "A:7",
-          "values": []
-        }
+      "after_undo_restore": [
+        "M"
       ]
     },
     {
-      "deletion_received": "before redo",
+      "before": false,
       "cold": true,
-      "initial": [
-        "a"
+      "after_ordinary_undo": [
+        "M"
       ],
-      "redone_source": "A:2",
-      "redo_after": [
-        "A:1",
-        "A:2",
-        "A:3",
-        "B:1"
+      "after_explicit_restore": [
+        "F",
+        "M"
       ],
-      "undo_sequence": [
-        {
-          "selected": [
-            "own",
-            "A:2"
-          ],
-          "emitted": "A:5",
-          "values": []
-        },
-        {
-          "selected": [
-            "victim",
-            "B:1"
-          ],
-          "emitted": "A:6",
-          "values": [
-            "p"
-          ]
-        },
-        {
-          "selected": [
-            "own",
-            "A:1"
-          ],
-          "emitted": "A:7",
-          "values": []
-        }
+      "after_undo_restore": [
+        "M"
       ]
     },
     {
-      "deletion_received": "after redo",
+      "before": true,
       "cold": false,
-      "initial": [
-        "a"
+      "after_ordinary_undo": [
+        "M"
       ],
-      "redone_source": "A:2",
-      "redo_after": [
-        "A:1",
-        "A:2",
-        "A:3"
+      "after_explicit_restore": [
+        "F",
+        "M"
       ],
-      "undo_sequence": [
-        {
-          "selected": [
-            "own",
-            "A:2"
-          ],
-          "emitted": "A:5",
-          "values": []
-        },
-        {
-          "selected": [
-            "victim",
-            "B:1"
-          ],
-          "emitted": "A:6",
-          "values": [
-            "p"
-          ]
-        },
-        {
-          "selected": [
-            "own",
-            "A:1"
-          ],
-          "emitted": "A:7",
-          "values": []
-        }
+      "after_undo_restore": [
+        "M"
       ]
     },
     {
-      "deletion_received": "after redo",
+      "before": true,
       "cold": true,
-      "initial": [
-        "a"
+      "after_ordinary_undo": [
+        "M"
       ],
-      "redone_source": "A:2",
-      "redo_after": [
-        "A:1",
-        "A:2",
-        "A:3"
+      "after_explicit_restore": [
+        "F",
+        "M"
       ],
-      "undo_sequence": [
-        {
-          "selected": [
-            "own",
-            "A:2"
-          ],
-          "emitted": "A:5",
-          "values": []
-        },
-        {
-          "selected": [
-            "victim",
-            "B:1"
-          ],
-          "emitted": "A:6",
-          "values": [
-            "p"
-          ]
-        },
-        {
-          "selected": [
-            "own",
-            "A:1"
-          ],
-          "emitted": "A:7",
-          "values": []
-        }
+      "after_undo_restore": [
+        "M"
       ]
     }
   ],
-  "overlap": {
-    "creation_item": "A:1",
-    "own_delete": "A:2",
-    "peer_delete": "B:1",
-    "selected": [
-      "own",
-      "A:2"
-    ],
-    "released_atoms": [
-      [
-        "A:2",
-        "[\"A\",1,0]"
-      ],
-      [
-        "A:2",
-        "[\"A\",1,1]"
-      ],
-      [
+  "redo_arrival": [
+    {
+      "before": false,
+      "cold": false,
+      "steps": [
+        [],
+        [
+          "p"
+        ],
+        []
+      ]
+    },
+    {
+      "before": false,
+      "cold": true,
+      "steps": [
+        [],
+        [
+          "p"
+        ],
+        []
+      ]
+    },
+    {
+      "before": true,
+      "cold": false,
+      "steps": [
+        [],
+        [
+          "p"
+        ],
+        []
+      ]
+    },
+    {
+      "before": true,
+      "cold": true,
+      "steps": [
+        [],
+        [
+          "p"
+        ],
+        []
+      ]
+    }
+  ],
+  "creator_display": [
+    {
+      "cold": false,
+      "choice": [
         "B:1",
-        "[\"A\",1,1]"
-      ]
-    ],
-    "actual": [
-      "a",
-      "b"
-    ],
-    "requested": [
-      "a",
-      "b"
-    ]
-  },
-  "grouped_and_spanning": {
-    "group-cold-False": [
-      [
-        "a",
-        "p"
+        "A:1"
       ],
-      []
-    ],
-    "spanning-cold-False": [
-      [
-        "a",
+      "restore": "A:5",
+      "after_restore": [
         "p",
         "q"
+      ]
+    },
+    {
+      "cold": true,
+      "choice": [
+        "B:1",
+        "A:1"
       ],
-      [
-        "a",
-        "p"
-      ],
-      [
-        "p"
-      ],
-      []
-    ],
-    "group-cold-True": [
-      [
-        "a",
-        "p"
-      ],
-      []
-    ],
-    "spanning-cold-True": [
-      [
-        "a",
+      "restore": "A:5",
+      "after_restore": [
         "p",
         "q"
-      ],
-      [
-        "a",
-        "p"
-      ],
-      [
-        "p"
-      ],
-      []
-    ]
-  },
-  "retained_review_cases": {
-    "replacement_chain": [
-      [
-        "a",
-        "b"
-      ],
-      [
-        "b",
-        "p"
       ]
+    }
+  ],
+  "immediate": [
+    {
+      "cold": false,
+      "after_redo": [
+        "q"
+      ],
+      "after_undo": []
+    },
+    {
+      "cold": true,
+      "after_redo": [
+        "q"
+      ],
+      "after_undo": []
+    }
+  ],
+  "frozen_restore": [
+    {
+      "cold": false,
+      "original": "A:2",
+      "redo": "A:4",
+      "releases": [
+        [
+          "B:1",
+          "[\"A\",1,0]"
+        ],
+        [
+          "B:1",
+          "[\"A\",1,1]"
+        ]
+      ],
+      "values_after_redo": [
+        "q"
+      ]
+    },
+    {
+      "cold": true,
+      "original": "A:2",
+      "redo": "A:4",
+      "releases": [
+        [
+          "B:1",
+          "[\"A\",1,0]"
+        ],
+        [
+          "B:1",
+          "[\"A\",1,1]"
+        ]
+      ],
+      "values_after_redo": [
+        "q"
+      ]
+    }
+  ],
+  "same_value": {
+    "before": [
+      "[\"A\",1,0]"
     ],
-    "equal_replacement": [
-      "x",
+    "after": [
+      "[\"A\",2,0]"
+    ],
+    "values": [
       "x"
-    ],
-    "clear-before-receipt-True": [
-      "victim",
-      "B:1"
-    ],
-    "clear-before-receipt-False": null,
-    "same-slot-order": [
-      [
-        "victim",
-        "B:1"
-      ],
-      [
-        "victim",
-        "B:1"
-      ]
     ]
+  },
+  "scoped_author_reactivation": {
+    "restored": [
+      "p"
+    ],
+    "grouped_q_stays_withdrawn": true,
+    "peer_reactivation": "rejected"
+  },
+  "blocked_older_redo": {
+    "blocked_source": "A:4",
+    "older_effective_source": "A:1",
+    "reason": "unchanged-visible-identities",
+    "history_unchanged": true
   }
 }
