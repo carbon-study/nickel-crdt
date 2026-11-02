@@ -123,7 +123,7 @@ start:    a b
 gap after a:      a| b
 delete a:         ~~a~~| b      visible "b"  (looks exactly like the case above!)
 insert X there:   ~~a~~ X b     visible "Xb"
-undo the delete:  a X b         visible "aXb"   ← q31
+undo the delete:  a X b         visible "aXb"   ← q31, earlier candidate outcome
 ```
 
 Both histories show the same text, "Xb", in the middle. They only differ
@@ -131,10 +131,17 @@ Both histories show the same text, "Xb", in the middle. They only differ
 difference (so the results differ: "Xab" vs "aXb"), or treat both gaps the same
 once `a` is hidden (option 3 in each question).
 
-Remembering it is what the API draft's `Gap` and `Anchor` types promise
-("retain historical identity/order and affinity", in
-[api-verification.md](api-verification.md)). Not remembering it means a restored character can land on a different side
-of text typed while it was gone.
+Two separate things are involved here:
+
+- **Retained information:** whether Nickel still knows which side of the hidden
+  a each gap was on. The API draft's `Gap` and `Anchor` types promise to keep
+  it ("retain historical identity/order and affinity", in
+  [api-verification.md](api-verification.md)).
+- **The placement rule:** where restored text goes relative to text typed
+  while it was hidden.
+
+Keeping the information doesn't force a placement. Nickel can retain both
+original gaps and still choose a rule that gives "Xab" for both histories.
 
 **Decided for this scenario (Ren, 2026-11-02): "Xab" in both histories.**
 Ren's reason: "I kind of want a to stick with b." So in the after-a history, the
