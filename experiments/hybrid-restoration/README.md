@@ -90,7 +90,8 @@ after Alice already undid Friday. Restoring p from her undone paste pq does not
 revive q. The event carries frozen `reactivates` pairs in addition to its frozen
 ordinary-deletion mask. Peers cannot override her withdrawal. Undo Restore
 retracts both masks; Redo copies both into a fresh token. The model checks the
-withdrawal event's author under trusted metadata; this is not authentication or
+withdrawal event's author under trusted metadata and applies the same author
+restriction to cancellation of restoration/withdrawal tokens; this is not authentication or
 a general authority proof. Causal/atom/author failures reject before publication,
 including under Python optimization.
 
@@ -169,3 +170,18 @@ requires these variants to fail at their named assertions:
 The scope, creator-withdrawal, later-deletion and q07 oracles remain intact. The
 new selected-author reactivation is explicit and separately controlled; it does
 not reinterpret peer restoration as permission to revive another author’s text.
+
+## cancellation-authority review repair
+
+The review of `8b0bc38` found that a peer could bypass the reactivation guard by
+cancelling an entire foreign withdrawal. The model now checks the token author
+in the `cancels` loop too. Two **named-session** fixtures reject Bo cancelling
+Alice's withdrawal and her Restore token, without changing the document, and
+check that Alice's corresponding cancellation still works. They run under normal
+and optimized Python; anonymous legacy fixtures cannot establish this property.
+
+`nix run . -- peer-cancel` removes that guard;
+`nix run . -- peer-cancel-restore` keeps it for withdrawals but admits foreign
+Restore cancellation. Each must fail at its matching peer-cancellation oracle.
+The committed session and continuation receipts remain unchanged. This enforces
+consistency of trusted author metadata, not authentication or complete admission.

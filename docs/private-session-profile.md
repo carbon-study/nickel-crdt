@@ -70,7 +70,10 @@ scope**. These `reactivates` pairs are frozen alongside the deletion mask. With
 an undone paste pq and Bo deleting p, Restore p re-enables p, not q. Bo cannot
 reactivate Alice's withdrawal. Session restricts this to its own births; the
 model additionally rejects a reactivation whose event author differs from the
-withdrawal event's author. Writer metadata remains trusted, not authenticated.
+withdrawal event's author. Cancelling a restoration/withdrawal token likewise
+requires the cancellation event's author to match that token's author. Otherwise
+a peer could bypass the reactivation guard by cancelling the entire withdrawal.
+Writer metadata remains trusted, not authenticated.
 
 The Restore event is appended as a new own history item. Its Undo cancels that
 Restore's current token, retracting both masks, even if another restoration
@@ -127,7 +130,7 @@ The [experiment README](../experiments/hybrid-restoration/README.md) owns comman
 finite exploration bounds, generated receipts and rejecting controls. Directed
 calls cover the appendix press-time arrivals warm/cold, immediate Undo after
 Redo, highest-current creator display slots, full-scope Restore, selected own
-reactivation, peer reactivation rejection, fresh-token restore redo, unchanged
+reactivation, peer reactivation/cancellation rejection, fresh-token restore redo, unchanged
 masks after late concurrent deletion, equal-looking occurrences, empty presses,
 consumed bypasses, and compatible reload.
 

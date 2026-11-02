@@ -63,6 +63,8 @@ class Doc:
             if token not in past:
                 raise ModelError('cancellation must name an ancestral token')
             source = self.events[token]
+            if event.author != source.author:
+                raise ModelError('only the token author can cancel it')
             if not (source.releases or source.withdraws or source.reactivates):
                 raise ModelError('only restoration/withdrawal tokens can be cancelled')
         births = {elem for key in past for elem in self.events[key].creates}

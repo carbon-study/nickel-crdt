@@ -25,7 +25,7 @@
       python ${source}/session_check.py review-trace > session-review-trace.json
       cmp session-review-trace.json ${./session-review-trace.json}
       (cd ${source}; python -O -c 'from session_check import compatible_saves; compatible_saves()')
-      (cd ${source}; python -O -c 'from check import admission_checks; admission_checks()')
+      (cd ${source}; python -O -c 'from check import admission_checks, cancel_authority_checks; admission_checks(); cancel_authority_checks()')
       if python ${source}/check.py target-only > target-only.log 2>&1; then
         echo 'target-only mutation unexpectedly passed'; exit 1
       fi
@@ -68,6 +68,14 @@
       grep -q 'AssertionError: peer must not reactivate another author withdrawal' peer-reactivation.log
       grep -q 'AssertionError: explicit author Restore must recover only selected p' scope-reactivation-spill.log
       grep -q 'AssertionError: blocked top redo must not skip to older item' skip-blocked-redo.log
+      if python ${source}/check.py peer-cancel > peer-cancel.log 2>&1; then
+        echo 'peer-cancel admission mutation unexpectedly passed'; exit 1
+      fi
+      grep -q 'AssertionError: peer cancellation of withdrawal must reject' peer-cancel.log
+      if python ${source}/check.py peer-cancel-restore > peer-cancel-restore.log 2>&1; then
+        echo 'Restore-only peer-cancel mutation unexpectedly passed'; exit 1
+      fi
+      grep -q 'AssertionError: peer cancellation of Restore must reject' peer-cancel-restore.log
       touch $out
     '';
     run = pkgs.writeShellApplication { name="hybrid-restoration"; runtimeInputs=[pkgs.python3]; text=''export PYTHONDONTWRITEBYTECODE=1; exec python ${source}/check.py "$@"''; };
