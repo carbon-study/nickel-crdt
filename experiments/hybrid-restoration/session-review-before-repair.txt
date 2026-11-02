@@ -1,0 +1,5 @@
+old mismatched save accepted: [] next undo: None
+old two offline x occurrences collapse: ['x']
+old Bo next undo after bypass then peer redo: ('own', 'B:2')
+old Bo undo restores: ['b']
+old next undo after redo: ('own', 'A:3') expected redone source: A:1

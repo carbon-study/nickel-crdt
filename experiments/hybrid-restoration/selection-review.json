@@ -1,0 +1,212 @@
+{
+  "status": "own-action undo and explicit Restore directed regressions pass",
+  "boundary": "actual restricted identity-set Session calls; no editor or text-order claim",
+  "appendix": [
+    {
+      "before": false,
+      "cold": false,
+      "after_ordinary_undo": [
+        "M"
+      ],
+      "after_explicit_restore": [
+        "F",
+        "M"
+      ],
+      "after_undo_restore": [
+        "M"
+      ]
+    },
+    {
+      "before": false,
+      "cold": true,
+      "after_ordinary_undo": [
+        "M"
+      ],
+      "after_explicit_restore": [
+        "F",
+        "M"
+      ],
+      "after_undo_restore": [
+        "M"
+      ]
+    },
+    {
+      "before": true,
+      "cold": false,
+      "after_ordinary_undo": [
+        "M"
+      ],
+      "after_explicit_restore": [
+        "F",
+        "M"
+      ],
+      "after_undo_restore": [
+        "M"
+      ]
+    },
+    {
+      "before": true,
+      "cold": true,
+      "after_ordinary_undo": [
+        "M"
+      ],
+      "after_explicit_restore": [
+        "F",
+        "M"
+      ],
+      "after_undo_restore": [
+        "M"
+      ]
+    }
+  ],
+  "redo_arrival": [
+    {
+      "before": false,
+      "cold": false,
+      "steps": [
+        [],
+        [
+          "p"
+        ],
+        []
+      ]
+    },
+    {
+      "before": false,
+      "cold": true,
+      "steps": [
+        [],
+        [
+          "p"
+        ],
+        []
+      ]
+    },
+    {
+      "before": true,
+      "cold": false,
+      "steps": [
+        [],
+        [
+          "p"
+        ],
+        []
+      ]
+    },
+    {
+      "before": true,
+      "cold": true,
+      "steps": [
+        [],
+        [
+          "p"
+        ],
+        []
+      ]
+    }
+  ],
+  "creator_display": [
+    {
+      "cold": false,
+      "choice": [
+        "B:1",
+        "A:1"
+      ],
+      "restore": "A:5",
+      "after_restore": [
+        "p",
+        "q"
+      ]
+    },
+    {
+      "cold": true,
+      "choice": [
+        "B:1",
+        "A:1"
+      ],
+      "restore": "A:5",
+      "after_restore": [
+        "p",
+        "q"
+      ]
+    }
+  ],
+  "immediate": [
+    {
+      "cold": false,
+      "after_redo": [
+        "q"
+      ],
+      "after_undo": []
+    },
+    {
+      "cold": true,
+      "after_redo": [
+        "q"
+      ],
+      "after_undo": []
+    }
+  ],
+  "frozen_restore": [
+    {
+      "cold": false,
+      "original": "A:2",
+      "redo": "A:4",
+      "releases": [
+        [
+          "B:1",
+          "[\"A\",1,0]"
+        ],
+        [
+          "B:1",
+          "[\"A\",1,1]"
+        ]
+      ],
+      "values_after_redo": [
+        "q"
+      ]
+    },
+    {
+      "cold": true,
+      "original": "A:2",
+      "redo": "A:4",
+      "releases": [
+        [
+          "B:1",
+          "[\"A\",1,0]"
+        ],
+        [
+          "B:1",
+          "[\"A\",1,1]"
+        ]
+      ],
+      "values_after_redo": [
+        "q"
+      ]
+    }
+  ],
+  "same_value": {
+    "before": [
+      "[\"A\",1,0]"
+    ],
+    "after": [
+      "[\"A\",2,0]"
+    ],
+    "values": [
+      "x"
+    ]
+  },
+  "scoped_author_reactivation": {
+    "restored": [
+      "p"
+    ],
+    "grouped_q_stays_withdrawn": true,
+    "peer_reactivation": "rejected"
+  },
+  "blocked_older_redo": {
+    "blocked_source": "A:4",
+    "older_effective_source": "A:1",
+    "reason": "unchanged-visible-identities",
+    "history_unchanged": true
+  }
+}

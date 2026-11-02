@@ -15,7 +15,10 @@ class Event:
     deletes: tuple = ()
     withdraws: tuple = ()  # Creator-undo effects, distinct from ordinary deletions.
     releases: tuple = ()
+    reactivates: tuple = ()  # Explicit author Restore of selected own withdrawal atoms.
     cancels: tuple = ()
+    payloads: tuple = ()  # (library occurrence ID, scalar value); directed legacy fixtures omit it.
+    author: str = ""  # Trusted writer tag for the restricted session profile.
 
 
 class Doc:
@@ -41,14 +44,28 @@ class Doc:
         if not set(event.after) <= self.events.keys():
             raise ModelError('missing prerequisite')
         past = self.ancestors(event.after)
+        existing = {elem for old in self.events.values() for elem in old.creates}
+        if len(set(event.creates)) != len(event.creates) or set(event.creates) & existing:
+            raise ModelError('conflicting occurrence birth')
+        if event.payloads and (tuple(k for k, _ in event.payloads) != event.creates or
+            any(not isinstance(v, str) or len(v) != 1 or 0xD800 <= ord(v) <= 0xDFFF
+                for _, v in event.payloads)):
+            raise ModelError('invalid scalar payloads')
         for deletion, elem in event.releases:
             if deletion not in past or elem not in self.events[deletion].deletes:
                 raise ModelError('release must name an ancestral deletion atom')
+        for token, elem in event.reactivates:
+            if token not in past or elem not in self.events[token].withdraws:
+                raise ModelError('reactivation must name an ancestral withdrawal atom')
+            if event.author != self.events[token].author:
+                raise ModelError('only the withdrawing author can reactivate a creation')
         for token in event.cancels:
             if token not in past:
                 raise ModelError('cancellation must name an ancestral token')
             source = self.events[token]
-            if not (source.releases or source.withdraws):
+            if event.author != source.author:
+                raise ModelError('only the token author can cancel it')
+            if not (source.releases or source.withdraws or source.reactivates):
                 raise ModelError('only restoration/withdrawal tokens can be cancelled')
         births = {elem for key in past for elem in self.events[key].creates}
         if not set(event.withdraws) <= births:
@@ -69,8 +86,10 @@ class Doc:
 
     def live_withdrawals(self):
         cancelled = {r for event in self.events.values() for r in event.cancels}
+        reactivated = {pair for event in self.events.values() if event.id not in cancelled
+                       for pair in event.reactivates}
         return {(event.id, elem) for event in self.events.values()
-                if event.id not in cancelled for elem in event.withdraws}
+                if event.id not in cancelled for elem in event.withdraws} - reactivated
 
     def visible(self):
         created = {e for event in self.events.values() for e in event.creates}
@@ -99,6 +118,8 @@ class Doc:
         events = []
         for row in json.loads(raw):
             row['releases'] = tuple(tuple(p) for p in row['releases'])
+            row['reactivates'] = tuple(tuple(p) for p in row['reactivates'])
+            row['payloads'] = tuple(tuple(p) for p in row['payloads'])
             for k in ('after', 'creates', 'deletes', 'withdraws', 'cancels'):
                 row[k] = tuple(row[k])
             events.append(Event(**row))

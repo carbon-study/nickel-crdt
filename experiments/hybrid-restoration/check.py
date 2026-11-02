@@ -73,7 +73,8 @@ def admission_checks():
     i = Event('I', creates=('a',))
     d = Event('D', ('I',), deletes=('a',))
     r = doc(i, d).restore('R', 'D')
-    view = doc(i, d, r)
+    withdrawal = Event('W', ('I',), withdraws=('a',), author='A')
+    view = doc(i, d, r, withdrawal)
     invalid = [
         Event('missing', ('ghost',)),
         Event('I', creates=('different',)),
@@ -85,6 +86,10 @@ def admission_checks():
         Event('cancel-nontoken', ('D',), cancels=('D',)),
         Event('unknown-creation', ('I',), withdraws=('ghost',)),
         Event('unseen-creation', withdraws=('a',)),
+        Event('unseen-reactivation', author='A', reactivates=(('W','a'),)),
+        Event('unknown-reactivation', ('W',), author='A', reactivates=(('ghost','a'),)),
+        Event('wrong-reactivation-atom', ('W',), author='A', reactivates=(('W','other'),)),
+        Event('peer-reactivation', ('W',), author='B', reactivates=(('W','a'),)),
     ]
     before = dict(view.events)
     for event in invalid:
@@ -96,7 +101,40 @@ def admission_checks():
             raise RuntimeError('invalid model reference was accepted: ' + event.id)
         if view.events != before:
             raise RuntimeError('rejection changed event dictionary')
-    print('10 invalid-reference cases reject without publication')
+    print(f'{len(invalid)} invalid-reference cases reject without publication')
+
+
+def cancel_authority_checks():
+    # Actual named sessions: empty-author legacy fixtures cannot test this guard.
+    from sessions import Session
+    a,b=Session('A'),Session('B')
+    paste=a.edit(creates=('p','q')); b.receive(paste)
+    withdrawal=a.undo(); b.receive(withdrawal)
+    def reject_peer(view, token, label):
+        before=dict(view.events)
+        forged=Event('B:forged-'+label, after=tuple(view.events),
+                     author='B', cancels=(token,))
+        try: view.put(forged)
+        except ModelError: pass
+        else: raise AssertionError('peer cancellation of '+label+' must reject')
+        if view.events != before:
+            raise AssertionError('rejected peer cancel changed document')
+    reject_peer(b.doc,withdrawal.id,'withdrawal')
+    # The owner's ordinary redo still cancels her own withdrawal.
+    redone=a.redo(); b.receive(redone)
+    if a.doc.visible()!=set(paste.creates) or b.doc.visible()!=a.doc.visible():
+        raise AssertionError('same-author withdrawal cancellation must work')
+    a,b=Session('A'),Session('B')
+    paste=a.edit(creates=('p','q')); b.receive(paste)
+    deletion=b.edit(deletes=(paste.creates[0],)); a.receive(deletion)
+    withdrawal=a.undo(); b.receive(withdrawal)
+    restoration=a.restore(deletion.id,redo_policy='keep'); b.receive(restoration)
+    reject_peer(b.doc,restoration.id,'Restore')
+    # Restore includes both release and reactivation facets; own Undo retracts both.
+    retracted=a.undo(); b.receive(retracted)
+    if retracted.cancels!=(restoration.id,) or a.doc.visible() or b.doc.visible():
+        raise AssertionError('same-author Restore cancellation must work')
+    print('2 named-session peer cancellations reject unchanged; both owner cancellations succeed')
 
 
 def run(mode):
@@ -108,6 +146,7 @@ def run(mode):
     view = doc(i, a, b)
     assert view.restore('R', 'DA') == view.restore('R', 'DB')
     admission_checks()
+    cancel_authority_checks()
     total = 0
     count = 0
     for name, events, visible, active, withdrawals in cases(mode):
@@ -124,4 +163,17 @@ def run(mode):
 
 if __name__ == '__main__':
     import sys
-    run(sys.argv[1] if len(sys.argv) > 1 else 'parallel')
+    mode=sys.argv[1] if len(sys.argv)>1 else 'parallel'
+    if mode in ('peer-cancel','peer-cancel-restore'):
+        import inspect, textwrap
+        from model import Doc
+        wrong = ('if False:' if mode=='peer-cancel' else
+                 'if event.author != source.author and not source.releases:')
+        source=textwrap.dedent(inspect.getsource(Doc.put)).replace(
+            'if event.author != source.author:', wrong)
+        namespace=dict(ModelError=ModelError)
+        exec(source,namespace)
+        Doc.put=namespace['put']
+        cancel_authority_checks()
+    else:
+        run(mode)

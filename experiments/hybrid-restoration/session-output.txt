@@ -1,0 +1,3 @@
+consumed bypass: generated 7 events; cold resume preserves consumed history
+generated-action delivery replay: 6 legal schedules across 3 event sets
+PASS private session review repairs and directed continuations

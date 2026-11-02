@@ -10,7 +10,7 @@ This is a proposed extension to the supplied model. Restoring only D fails q07: 
 
 Ren permits either redo outcome after concurrent restoration. This candidate uses **personal cancellation**: redo cancels only the caller's restoration token. Undoing again creates a new token. This is a concrete hypothesis for review, not another request for the same preference.
 
-## 2. two independent deletions: both sessions
+## 2. two independent deletions: retained raw-effect continuations
 
 `I` creates b; `DA` and `DB` independently delete that same b. Both peers receive both deletions before the restoration. Each session has its own local items. Let Alice's local list be `[DA,I]` and Bo's be `[DB]`, newest first. A list here names retained items, not a proposed shared stack encoding.
 
@@ -23,7 +23,7 @@ Ren permits either redo outcome after concurrent restoration. This candidate use
 | Bo redo | XB cancels RB | empty | both original deletions are effective again | both original deletions are effective again |
 | a new selected restoration of DA | a fresh RA2 suppresses both original atoms | b | new token has its own opposite | peer import does not create a private redo item |
 
-The visibility rows are executed by the directed model. The session columns identify required bookkeeping and the remaining open selection rule; they are **not** claims that the model generates these session actions. In particular, whether a skipped deletion becomes selectable again after another writer's redo is not determined just by the atom calculation.
+The visibility rows are executed by the raw event model. The session columns retain the earlier continuation discussion; they are **not** the current session API. Explicit Restore is now a primary own action, and its Undo retracts it; blocked Redo does not publish an ineffective cancellation. In particular, whether a skipped deletion becomes selectable again after another writer's redo is not determined just by the atom calculation.
 
 ### an important knowledge boundary
 
@@ -52,25 +52,39 @@ Alice replaces p with x. Bo deletes x while Alice independently undoes her repla
 
 The repaired candidate records Alice's creator withdrawal separately from ordinary removal atoms. Bo's restoration can cancel ordinary deletions of x, but cannot reactivate its withdrawn creation. If Alice later redoes her replacement, her creator-withdrawal token is cancelled; with Bo's deletion still restored, x becomes visible and p is hidden again. Bo can then redo his deletion and hide x. All three continuations are directed fixtures. The current model publishes both undo facets in one event. A prefix assertion rejects splitting it into two events and exposing p,x between them. Authorization for creation withdrawal and general core transaction atomicity remain outside this model.
 
+### explicit author reactivation
+
+The approved explicit-Restore split also needs a scoped author choice after an own undo. If Alice withdrew a paste pq and deliberately restores Bo's deletion of p, she must be able to re-enable p without re-enabling q. The extended event model carries frozen `reactivates` pairs `(own-withdrawal-token, occurrence)` alongside the deletion mask. Only the withdrawing author may issue those pairs under the model's trusted author metadata. Active pairs suppress the named creator-withdrawal atoms. Cancelling the explicit Restore retracts both its deletion and creator masks; Restore redo copies both masks into a fresh token. Ordinary peer deletion restoration still cannot override another author's withdrawal. This is an additional reference-model rule, not a derived CRDT theorem or authentication guarantee.
+
 ### review scope control
 
 Alice deletes a,b; Bo concurrently deletes b,c; both sync. Alice restores her selected deletion's target set a,b. The required visible IDs are a,b, with c still hidden by Bo's deletion. A version that omits the target-set restriction also suppresses the removal of c; the new fixture rejects it. Shared overlap at b does not authorize restoring unrelated identities.
 
 ## 4. fixed-action delivery argument and its limits
 
-For a finite compatible event set S with unique IDs, all causal schedules deliver the same event dictionary. Active restoration tokens are S's restoration events minus tokens named by cancellation events in S. Suppressed removal atoms are the union of those active tokens' frozen masks. Active creator-withdrawal tokens are likewise withdrawal events minus cancelled tokens. Visible IDs are all created IDs minus IDs with either an unsuppressed ordinary removal atom or an active creator withdrawal. Each expression depends only on S, so this **set projection** is schedule independent. This is a written observation about the supplied representation, not a mechanized theorem or a proof that all authored histories are valid.
+For a finite compatible event set S with unique IDs, all causal schedules deliver the same event dictionary. Active restoration tokens are S's restoration events minus tokens named by cancellation events in S. Suppressed removal atoms are the union of those active tokens' frozen masks. Active creator-withdrawal atoms come from uncancelled withdrawal tokens, minus the frozen reactivation pairs of uncancelled explicit author-Restore tokens. Visible IDs are all created IDs minus IDs with either an unsuppressed ordinary removal atom or an active creator withdrawal. Each expression depends only on S, so this **set projection** is schedule independent. This is a written observation about the supplied representation, not a mechanized theorem or a proof that all authored histories are valid.
 
-The [nested reference experiment](../experiments/hybrid-restoration/README.md) replays twelve directed fixtures with duplicate delivery and prefix recovery, including five semantic negative controls. It now rejects invalid causal effect references with explicit errors before publication, including under Python optimization. It implements neither general input/authority admission nor text order, session selection, grouping, resource limits, bindings or durable storage. The original supplied model and its failing-to-match-q07 policy are retained separately. None of V1–V9 is discharged.
+The [nested reference experiment](../experiments/hybrid-restoration/README.md) replays twelve directed fixtures with duplicate delivery and prefix recovery, including five semantic negative controls. It now rejects invalid causal effect references with explicit errors before publication, including under Python optimization. The event-set layer implements neither general input/authority admission nor text order, grouping, resource limits, bindings or durable storage. The separate private-session candidate in §5 now generates selections and redo transitions for its stated profile. The original supplied model and its failing-to-match-q07 policy are retained separately. None of V1–V9 is discharged.
 
-## 5. concrete remaining session edge
+## 5. own-action sessions and explicit Restore
 
-Take Bo's private item list `[D,Z]`: D deletes Alice's b, and Z is Bo's older insertion z. Alice restores D; Bo learns this and presses undo, skipping the ineffective D and undoing Z. Alice then redoes her restoration, making D effective again.
+Ren approved separating ordinary Undo from victim Restore after the appendix
+scenario. Ordinary Undo selects own actions. Explicit Restore becomes a new own
+action whose Undo retracts it and whose Redo uses a fresh original-mask token.
+Creator slots organize offered choices, not the Undo walk. The
+[private-session profile](private-session-profile.md) specifies the current
+restricted implementation, including scoped author reactivation and blocked
+Redo. The old implicit-victim profile remains at `c475d6d`.
 
-Two continuations satisfy the earlier examples:
+The consumed-bypass choice remains: Bo deletes Alice's b and has an older own
+insertion z. Alice explicitly restores b. Bo's Undo skips his ineffective
+delete and withdraws z, consuming the bypassed item. Alice then **undoes her
+Restore**, hiding b; Bo's skipped deletion does not return. Empty Undo, unlike a
+press that reaches z, consumes nothing. No remote message directly mutates the
+private item list. The earlier reversible-skip and implicit-victim candidates
+remain historical evidence, not current required outcomes.
 
-- skipping D consumed its local position permanently; Bo's next undo is empty;
-- skipping D only bypassed an externally reversed effect; when D becomes effective again, Bo can select D on a subsequent undo.
-
-They require different local session state and checkpoint continuation. Neither a frozen restoration mask nor the current questionnaire decides between them. A proposed session specification must choose and replay this case, rather than treating “adjust the stack” as an algorithm. If choosing the simpler policy under Ren's implementation latitude, name the resulting user-visible behavior explicitly.
-
-The next gate remains a complete selection/effect/replication/continuation contract, including this case, new primary work/redo, compound items, register no-ops and historical text ordering. This artifact narrows the gap by giving q07 a concrete candidate law and pinning later-deletion/whole-replacement continuations; it does not relabel the gap closed.
+The remaining gate is a complete selection/effect/replication/continuation
+contract, including grouping/children, registers and historical text order.
+These restrictions and directed cases do not turn the research model into a
+verified CRDT implementation. None of V1–V9 is discharged.

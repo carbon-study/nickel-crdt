@@ -1,0 +1,131 @@
+{
+  "profile": "explicit Restore; own-action undo; identity sets only",
+  "rows": [
+    {
+      "step": "ordinary undo targets own creation, not foreign deletion",
+      "valuesA": [
+        "z"
+      ],
+      "valuesB": [
+        "z"
+      ],
+      "nextA": [
+        "own",
+        "A:1"
+      ],
+      "nextB": [
+        "own",
+        "B:2"
+      ],
+      "redoA": [],
+      "redoB": []
+    },
+    {
+      "step": "Alice explicitly restores; Restore becomes own item",
+      "valuesA": [
+        "b",
+        "z"
+      ],
+      "valuesB": [
+        "b",
+        "z"
+      ],
+      "nextA": [
+        "restore",
+        "A:2"
+      ],
+      "nextB": [
+        "own",
+        "B:1"
+      ],
+      "redoA": [],
+      "redoB": []
+    },
+    {
+      "step": "Bo consumes bypassed deletion and undoes older z",
+      "valuesA": [
+        "b"
+      ],
+      "valuesB": [
+        "b"
+      ],
+      "nextA": [
+        "restore",
+        "A:2"
+      ],
+      "nextB": null,
+      "redoA": [],
+      "redoB": [
+        "B:1"
+      ]
+    },
+    {
+      "step": "Bo reloads matched private/shared checkpoint",
+      "valuesA": [
+        "b"
+      ],
+      "valuesB": [
+        "b"
+      ],
+      "nextA": [
+        "restore",
+        "A:2"
+      ],
+      "nextB": null,
+      "redoA": [],
+      "redoB": [
+        "B:1"
+      ]
+    },
+    {
+      "step": "Alice undoes her Restore; b hides; Bo item stays consumed",
+      "valuesA": [],
+      "valuesB": [],
+      "nextA": [
+        "own",
+        "A:1"
+      ],
+      "nextB": null,
+      "redoA": [
+        "A:2"
+      ],
+      "redoB": [
+        "B:1"
+      ]
+    },
+    {
+      "step": "Bo empty undo changes nothing",
+      "valuesA": [],
+      "valuesB": [],
+      "nextA": [
+        "own",
+        "A:1"
+      ],
+      "nextB": null,
+      "redoA": [
+        "A:2"
+      ],
+      "redoB": [
+        "B:1"
+      ]
+    },
+    {
+      "step": "Alice redoes Restore with fresh original-mask token",
+      "valuesA": [
+        "b"
+      ],
+      "valuesB": [
+        "b"
+      ],
+      "nextA": [
+        "restore",
+        "A:2"
+      ],
+      "nextB": null,
+      "redoA": [],
+      "redoB": [
+        "B:1"
+      ]
+    }
+  ]
+}

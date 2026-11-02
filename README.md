@@ -38,6 +38,10 @@ These are toolchain checks, not CRDT correctness results. See [proof scope](proo
 
 No sequence/undo verifier obligation is currently discharged. The proved Boolean loop is toolchain evidence only.
 
+## Current reference candidate
+
+[Own-action Undo and explicit Restore](docs/private-session-profile.md): running edit/restore/undo/redo selection over two independent identity-set documents, with private checkpoint continuations. This is a restricted research model, not the Rust core or an adopted complete undo API.
+
 ## Next decision
 
 [The response-led PR plan](docs/response-plan.md) takes priority: specify Ren’s hybrid undo behavior and both writers’ continuations before adopting the earlier local-only activity proposal.

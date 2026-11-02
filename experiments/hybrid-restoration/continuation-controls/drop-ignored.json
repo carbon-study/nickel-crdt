@@ -1,0 +1,297 @@
+{
+  "action": {
+    "op": "undo",
+    "peer": 0
+  },
+  "actual": {
+    "after": [
+      {
+        "facts": [
+          {
+            "after": [],
+            "author": "A",
+            "cancels": [],
+            "creates": [
+              "[\"A\",1,0]"
+            ],
+            "deletes": [],
+            "id": "A:1",
+            "payloads": [
+              [
+                "[\"A\",1,0]",
+                "b"
+              ]
+            ],
+            "reactivates": [],
+            "releases": [],
+            "withdraws": []
+          },
+          {
+            "after": [],
+            "author": "B",
+            "cancels": [],
+            "creates": [
+              "[\"B\",1,0]"
+            ],
+            "deletes": [],
+            "id": "B:1",
+            "payloads": [
+              [
+                "[\"B\",1,0]",
+                "z"
+              ]
+            ],
+            "reactivates": [],
+            "releases": [],
+            "withdraws": []
+          },
+          {
+            "after": [
+              "A:1",
+              "B:1"
+            ],
+            "author": "B",
+            "cancels": [],
+            "creates": [],
+            "deletes": [
+              "[\"A\",1,0]"
+            ],
+            "id": "B:2",
+            "payloads": [],
+            "reactivates": [],
+            "releases": [],
+            "withdraws": []
+          }
+        ],
+        "next_undo": null,
+        "restoration_choices": [
+          [
+            "B:2",
+            "A:1"
+          ]
+        ],
+        "visible": [
+          "[\"B\",1,0]"
+        ]
+      },
+      {
+        "facts": [
+          {
+            "after": [],
+            "author": "A",
+            "cancels": [],
+            "creates": [
+              "[\"A\",1,0]"
+            ],
+            "deletes": [],
+            "id": "A:1",
+            "payloads": [
+              [
+                "[\"A\",1,0]",
+                "b"
+              ]
+            ],
+            "reactivates": [],
+            "releases": [],
+            "withdraws": []
+          },
+          {
+            "after": [],
+            "author": "B",
+            "cancels": [],
+            "creates": [
+              "[\"B\",1,0]"
+            ],
+            "deletes": [],
+            "id": "B:1",
+            "payloads": [
+              [
+                "[\"B\",1,0]",
+                "z"
+              ]
+            ],
+            "reactivates": [],
+            "releases": [],
+            "withdraws": []
+          },
+          {
+            "after": [
+              "A:1",
+              "B:1"
+            ],
+            "author": "B",
+            "cancels": [],
+            "creates": [],
+            "deletes": [
+              "[\"A\",1,0]"
+            ],
+            "id": "B:2",
+            "payloads": [],
+            "reactivates": [],
+            "releases": [],
+            "withdraws": []
+          }
+        ],
+        "next_undo": [
+          "own",
+          "B:2"
+        ],
+        "restoration_choices": [],
+        "visible": [
+          "[\"B\",1,0]"
+        ]
+      }
+    ],
+    "returned": null,
+    "status": "completed"
+  },
+  "expected": {
+    "after": [
+      {
+        "facts": [
+          {
+            "after": [],
+            "author": "A",
+            "cancels": [],
+            "creates": [
+              "[\"A\",1,0]"
+            ],
+            "deletes": [],
+            "id": "A:1",
+            "payloads": [
+              [
+                "[\"A\",1,0]",
+                "b"
+              ]
+            ],
+            "reactivates": [],
+            "releases": [],
+            "withdraws": []
+          },
+          {
+            "after": [],
+            "author": "B",
+            "cancels": [],
+            "creates": [
+              "[\"B\",1,0]"
+            ],
+            "deletes": [],
+            "id": "B:1",
+            "payloads": [
+              [
+                "[\"B\",1,0]",
+                "z"
+              ]
+            ],
+            "reactivates": [],
+            "releases": [],
+            "withdraws": []
+          },
+          {
+            "after": [
+              "A:1",
+              "B:1"
+            ],
+            "author": "B",
+            "cancels": [],
+            "creates": [],
+            "deletes": [
+              "[\"A\",1,0]"
+            ],
+            "id": "B:2",
+            "payloads": [],
+            "reactivates": [],
+            "releases": [],
+            "withdraws": []
+          }
+        ],
+        "next_undo": null,
+        "restoration_choices": [],
+        "visible": [
+          "[\"B\",1,0]"
+        ]
+      },
+      {
+        "facts": [
+          {
+            "after": [],
+            "author": "A",
+            "cancels": [],
+            "creates": [
+              "[\"A\",1,0]"
+            ],
+            "deletes": [],
+            "id": "A:1",
+            "payloads": [
+              [
+                "[\"A\",1,0]",
+                "b"
+              ]
+            ],
+            "reactivates": [],
+            "releases": [],
+            "withdraws": []
+          },
+          {
+            "after": [],
+            "author": "B",
+            "cancels": [],
+            "creates": [
+              "[\"B\",1,0]"
+            ],
+            "deletes": [],
+            "id": "B:1",
+            "payloads": [
+              [
+                "[\"B\",1,0]",
+                "z"
+              ]
+            ],
+            "reactivates": [],
+            "releases": [],
+            "withdraws": []
+          },
+          {
+            "after": [
+              "A:1",
+              "B:1"
+            ],
+            "author": "B",
+            "cancels": [],
+            "creates": [],
+            "deletes": [
+              "[\"A\",1,0]"
+            ],
+            "id": "B:2",
+            "payloads": [],
+            "reactivates": [],
+            "releases": [],
+            "withdraws": []
+          }
+        ],
+        "next_undo": [
+          "own",
+          "B:2"
+        ],
+        "restoration_choices": [],
+        "visible": [
+          "[\"B\",1,0]"
+        ]
+      }
+    ],
+    "returned": null,
+    "status": "completed"
+  },
+  "mutation": "drop-ignored",
+  "prefix": [
+    {
+      "op": "clear",
+      "peer": 0
+    }
+  ],
+  "resumed": [
+    0
+  ],
+  "seed": "synced-victim-and-older-item",
+  "status": "cold continuation mismatch"
+}
