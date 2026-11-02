@@ -127,9 +127,9 @@ undo the delete:  a X b         visible "aXb"   ← q31, earlier candidate outco
 ```
 
 Both histories show the same text, "Xb", in the middle. They only differ
-*after* the undo. q30 and q31 ask whether the library should remember that
-difference (so the results differ: "Xab" vs "aXb"), or treat both gaps the same
-once `a` is hidden (option 3 in each question).
+*after* the undo. q30 and q31 ask which result each history should give, with
+option 3 allowing the two histories to be treated the same once `a` is
+hidden.
 
 Two separate things are involved here:
 
