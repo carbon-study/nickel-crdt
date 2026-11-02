@@ -34,7 +34,9 @@ Registers and keyed collections come later. Their semantics can be researched
 in parallel, but they must not postpone the first sequence release. Rich text,
 general remote selective undo, permissions, distributed identity allocation,
 automatic history GC and server/storage/UI implementations are outside this cut.
-This does not reopen Dark or the Loro fork.
+This does not reopen Dark or the Loro fork. Sequence text and anchors alone do
+not deliver Carbon highlights: shared highlight records need a separately chosen
+collection model and a consumer integration, both outside this release.
 
 ### an earlier experimental delivery
 
@@ -64,8 +66,9 @@ they are not an implemented interface. All V1–V9 are still unfulfilled.
 
 ## 1. finish the first profile's behavioral contract
 
-**Next deliverable:** a short decision sheet for skipped Undo history, followed
-by an ordered reference interpretation and the corresponding API reconciliation.
+**Next decision:** consume versus retain for skipped own actions. A directed
+comparison is available; neither a recommendation nor a passing candidate
+adopts the policy. Then close the ordered interpretation and API reconciliation.
 The source of each expected result must be a stated decision or argument, not
 whatever today's implementation happens to return.
 
@@ -86,6 +89,11 @@ Close these dependencies before committing the corresponding engine behavior:
    affinity and restoration. Ren wants Xab in both q30/q31 histories, keeping
    restored a beside b. Longer runs and Friday/Monday replacement order are
    still open. Retaining gap information does not force the old placement rule.
+   q32's edge affinity and Ren's additional per-insertion span-membership choice
+   need separate contracts; an insertion flag, endpoint replacement and explicit
+   range adjustment remain alternatives. q34 also needs a decision: same logical
+   element, or an implementation whose every future anchor/edit observation is
+   equivalent. The identity-set model's reused IDs do not prove anchor behavior.
 4. **Atomic membership.** Specify primary continuation, derived children,
    closure, inactive-trigger rejection and cancellation/redo of outstanding
    derived work. The engine has no clock or job scheduler. Do not silently drop
@@ -95,6 +103,25 @@ Close these dependencies before committing the corresponding engine behavior:
    document facts from device-local history and writer fencing. Use both the
    Carbon many-document and prospective Dark sustained-editor workloads as
    motivations, not integrated product requirements.
+
+### owners and current decisions
+
+Ren approves intended behavior and scope; Lynn supplies candidate constructions,
+arguments, measurements and proposed contracts. Reviews test those artifacts;
+they do not select product semantics by vote.
+
+| edge | state | next owner/action | needed for milestone 2? |
+| --- | --- | --- | --- |
+| own Undo / explicit Restore | approved; restricted experiment runs | Lynn extends the argument to the ordered cut | yes |
+| skipped own items | consume current; retain recommended, not adopted | Ren chooses after the continuation comparison; Lynn revises the contract/oracles openly | yes |
+| observed/unseen restoration masks | observed frozen masks run; unseen effects unapproved | Lynn states press-time/later-event consequences; Ren selects the cut's rule | yes |
+| new work with redo | explicit keep/clear runs; stacking provisional | Ren approves continuation outcomes; Lynn gives their construction | yes |
+| hidden placement | Xab/Xab settled only for q30/q31; longer runs and Friday/Monday open | Lynn supplies minimal distinguishing histories and candidate rule; Ren approves outcomes | the cut's placement domain must close |
+| q34 identity after return | reference reuses IDs; general anchor/edit equivalence unresolved | Ren approves observable contract; Lynn proves the representation realizes it | exact-ID reuse is proposed for the cut; approval still needed |
+| q32 boundary membership | caller choice motivated; mechanism open | Lynn separates gap affinity from per-insertion span membership; Ren confirms intended behavior | span membership is absent from the cut |
+| grouping / derived children | required eventual scope; lifecycle incomplete | Lynn specifies membership and outstanding-job cases; Ren resolves behavior conflicts | no; one call is one primary item in the cut |
+| budgets and q37 | numeric targets and limit response open; no GC selected | Ren supplies intended workloads/acceptable limit response; Lynn proposes measured bounds and admission behavior | cut-specific bounds/response must close |
+| algorithm, abstraction and proofs | no ordered construction or CRDT theorem | Lynn constructs and reviews the cut's algorithm, abstraction and source-linked obligations | yes; no product answer substitutes for this |
 
 **Exit:** one internally consistent contract for the selected profile, an
 executable ordered reference, and a constructive algorithm/correctness argument
@@ -110,11 +137,36 @@ detail; independent unresolved features stay outside that slice's claim.
 
 ## 2. cross the first real Rust replication boundary
 
-Build the smallest **ordered** two-writer vertical slice of the agreed profile.
-Use actual Rust state and operations for creation, editing, delivery and the
-selected Undo/Restore continuation. Include independent peer text, duplicate
-imports and invisible effects from the start, rather than finishing an engine
-whose Undo is deferred as an unspecified extension.
+### proposed cut: two-writer in-memory sequence / Undo / Restore
+
+This is a proposed **functional cut**, not an approved algorithm or substitute
+append-only log. One document supports two fenced writers, arbitrary scalar
+insertion/deletion/replacement, stable historical-gap insertion, and own-action
+Undo/Redo plus explicit foreign Restore. One edit call is one atomic primary
+item. The caller sees current text, stable element IDs, proposed Restore effects
+and structured causal updates that another instance can admit, with duplicate
+and rejection behavior specified. It can run many histories within declared
+budgets, not only a canned example.
+
+For this cut, propose preserving exact element IDs across Undo/Redo/Restore,
+using the running experiment as the candidate effect semantics; this is still
+a decision gate, not adoption by naming it here. New-work redo and skipped-item
+rules must also be selected explicitly. No arbitrary selective redo is added.
+
+Excluded at this stage: primary coalescing and children, general annotation/
+selection-anchor resolution or span membership, portable byte encoding,
+checkpoint persistence/recovery, incremental change receipts, Wasm and more than
+two writers. The eventual v0.1 still requires its larger stated profile; these
+are early-artifact omissions, not permanent removals. The consumer must be told
+this is not yet a Carbon notes/highlights backend or a general editor library.
+
+The dependency is now explicit: close §1 history/effect choices, the ordered
+construction for **these supported operations**, the proposed exact-ID contract
+and cut-specific budgets/admission first. General range membership, child
+lifecycles and portable recovery need not block it. Ordered construction is
+still the critical research dependency: “earlier” means before the full release,
+not before solving ordering for the operations the crate exposes. If that
+construction fails, report its blocker rather than shipping an unrelated toy.
 
 Define the slice's reference state and an explicit Rust-to-reference abstraction
 before using a differential check as evidence. For each transition, add its hax
@@ -143,6 +195,14 @@ hardcoded replay. Publish the experimental artifact and its limitations at
 this point. Full portable codecs, checkpoint recovery and other features may
 still be unavailable as explicitly declared; a structured-operation harness
 must not be described as encoded-wire or persistence acceptance.
+
+### the proof cost is part of the proposed cut
+
+Discharging the slice's source-linked obligations can delay this experimental
+artifact even after its examples run. That is an intentional cost proposal for
+Ren to confirm, not free tooling or a forecast. An earlier explicitly unverified
+development build, or a smaller functional domain, would be a separate scope
+choice; neither may retain the stronger proof label with a weakened theorem.
 
 ## 3. complete the profile, continuation and recovery
 
