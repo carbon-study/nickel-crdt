@@ -5,7 +5,7 @@ worked examples for the anchor questions before any identity or restoration law
 is adopted. Ren answered q33, q34 and q37 "unsure", noting that he didn't
 understand the question. That records an explanation failure, not a rejection. This document
 explains q30–q34 and q37, plus the q39 boundary Ren has already settled. It
-doesn't pick a policy. Where it says "the library could…", read "this is one
+doesn't pick a policy; §3 records the one scenario Ren has since decided. Where it says "the library could…", read "this is one
 of the options".
 
 Notation: `|` is a cursor or gap, `[` `]` mark a highlight, and a struck-out
@@ -133,20 +133,19 @@ once `a` is hidden (option 3 in each question).
 
 Remembering it is what the API draft's `Gap` and `Anchor` types promise
 ("retain historical identity/order and affinity", in
-[api-verification.md](api-verification.md)). Not remembering it is simpler, but
-then a restored character can land on the "wrong" side of text typed while it
-was gone.
+[api-verification.md](api-verification.md)). Not remembering it means a restored character can land on a different side
+of text typed while it was gone.
 
-**This needs a decision.** Ren answered "Xab" for *both* q30 and q31. Witness 7
-("historical side") in [carbon-contract.md](carbon-contract.md) currently
-requires "Xab" for the first history and "aXb" for the second. One of them has
-to change. If "Xab" in both of these histories is intended, it conflicts with the
-current witness. It doesn't by itself define the broader rule: it doesn't say
-that X must precede every restored neighbour, or that all historical-side
-information can be discarded. That ordering rule would still need to be
-written down. If
-the q31 answer came from an unclear question, the pictures above are meant to
-fix that.
+**Decided for this scenario (Ren, 2026-11-02): "Xab" in both histories.**
+Ren's reason: "I kind of want a to stick with b." So in the after-a history, the
+restored a comes back beside b, and X stays in front of it, even though X was
+typed on a's right side. This revises witness 7 in
+[carbon-contract.md](carbon-contract.md), which used to require "aXb" there.
+
+The decision covers this scenario only. It doesn't yet define a general rule
+for longer runs or concurrent insertions, and it makes no claim about how
+expensive any rule is to implement. Retaining historical identity is still
+useful even though this placement doesn't keep the old side.
 
 The same "where was it?" question comes up in the UI. To mark deleted text
 inline before offering Restore, an editor resolves an anchor on the hidden
