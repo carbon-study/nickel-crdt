@@ -171,6 +171,26 @@ The scope, creator-withdrawal, later-deletion and q07 oracles remain intact. The
 new selected-author reactivation is explicit and separately controlled; it does
 not reinterpret peer restoration as permission to revive another author’s text.
 
+## creator-withdrawal admission repair
+
+Raw `Doc.put` now checks the trusted author of **every** withdrawn occurrence's
+ancestral birth, not just that the birth exists in the past. Previously a named
+peer could submit a foreign creation withdrawal even though session methods
+only generate their own. Foreign-only and both own/foreign target orders now
+reject without changing the event dictionary or visible IDs, live and after
+cold reconstruction. Six named-author cases run with normal and optimized
+Python. Positive cases retain own scoped withdrawal, duplicate import, owner
+cancellation and ordinary session Undo/Redo. The earlier admission fixture now
+labels its birth with the same author as its legitimate withdrawal.
+
+`nix run . -- peer-withdrawal` removes the new guard and must fail the foreign
+rejection oracle. `nix run . -- first-withdrawal-only` checks just the first
+target and must fail the own-first mixed-target oracle. Existing session,
+selection, continuation and preview receipts are unchanged. This enforces
+consistency of supplied author tags, not authentication, a general authority
+proof or hostile-input admission. Observed masks and consumed-bypass selection
+are not changed by this repair.
+
 ## cancellation-authority review repair
 
 The review of `8b0bc38` found that a peer could bypass the reactivation guard by
