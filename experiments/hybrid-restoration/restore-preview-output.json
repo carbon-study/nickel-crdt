@@ -1,0 +1,59 @@
+{
+  "scope": "in-process full-checkpoint-bound Restore proposals; identity sets, no text ordering",
+  "whole_scope": {
+    "restored": [
+      {
+        "identity": "[\"A\",1,0]",
+        "scalar": "F",
+        "creator": "A"
+      },
+      {
+        "identity": "[\"C\",1,0]",
+        "scalar": "c",
+        "creator": "C"
+      }
+    ],
+    "retained": [
+      {
+        "identity": "[\"B\",1,0]",
+        "scalar": "M",
+        "creator": "B"
+      }
+    ],
+    "predicted_and_published": "A:2",
+    "warm_cold_equal": true
+  },
+  "stale": {
+    "hidden_fact_rejected": true,
+    "new_restored": [
+      "F"
+    ],
+    "still_hidden": [
+      "c"
+    ],
+    "unrelated_edit_rejected": true,
+    "semantic_noop_fact_rejected": true
+  },
+  "rejected": {
+    "foreign_writer": true,
+    "display_tamper": true,
+    "event_tamper": true,
+    "source_tamper": true,
+    "untyped_value": true,
+    "clear_history": true
+  },
+  "own_scope": {
+    "restored": [
+      "p"
+    ],
+    "grouped_q_retained_hidden": true,
+    "policy_rejection_unchanged": true
+  },
+  "blocked": {
+    "reason": "unchanged-visible-identities",
+    "still_hidden": [
+      "x"
+    ],
+    "unchanged": true
+  }
+}

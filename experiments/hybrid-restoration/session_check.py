@@ -409,12 +409,13 @@ if __name__ == '__main__':
             exec(source, namespace)
             Doc.put = namespace['put']
         else:
-            source = textwrap.dedent(inspect.getsource(Session.restore)).replace(
+            source = textwrap.dedent(inspect.getsource(Session.inspect_restore)).replace(
                 'if elem in scope & mine and', 'if elem in mine and')
             from dataclasses import replace
-            namespace = dict(Blocked=Blocked,ModelError=ModelError,replace=replace)
+            from sessions import RestorePreview
+            namespace = dict(RestorePreview=RestorePreview,ModelError=ModelError,replace=replace)
             exec(source, namespace)
-            Session.restore = namespace['restore']
+            Session.inspect_restore = namespace['inspect_restore']
         from selection_review import scoped_author_reactivation
         scoped_author_reactivation()
     elif mode == 'drop-restore-reactivation':

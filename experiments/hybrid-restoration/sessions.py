@@ -23,6 +23,26 @@ class Blocked:
     token: str = ''
 
 
+@dataclass(frozen=True)
+class Occurrence:
+    identity: str
+    scalar: str | None
+    creator: str
+
+
+@dataclass(frozen=True)
+class RestorePreview:
+    writer: str
+    source: str
+    basis: str
+    event: Event
+    before: tuple
+    after: tuple
+    restored: tuple
+    retained: tuple
+    still_hidden: tuple
+
+
 class Session:
     def __init__(self, writer, document=None, skip_policy='consume'):
         if skip_policy not in ('retain', 'consume'):
@@ -106,30 +126,64 @@ class Session:
                           after=tuple(sorted(self.doc.events))))
         return trial.visible() != self.doc.visible()
 
-    def restore(self, source, redo_policy=None):
-        if redo_policy not in (None, 'keep', 'clear'):
-            raise ModelError('unknown redo policy')
+    def _occurrences(self, identities):
+        births = {identity: event for event in self.doc.events.values() for identity in event.creates}
+        values = {identity: scalar for event in self.doc.events.values() for identity, scalar in event.payloads}
+        # Legacy hand-authored fixtures can lack scalar payloads; never invent one.
+        return tuple(Occurrence(identity, values.get(identity), births[identity].author)
+                     for identity in sorted(identities))
+
+    def inspect_restore(self, source):
         if source not in {key for key, _ in self.restoration_choices()}:
             raise ModelError('restore needs a known offered foreign deletion')
         effect = self.doc.restore('', source)
-        # Explicit Restore may re-enable ONLY this author's own occurrences in
-        # the selected deletion's scope, not the rest of a withdrawn paste.
         scope = set(self.doc.events[source].deletes)
         mine = {elem for event in self.doc.events.values() if event.author == self.writer
                 for elem in event.creates}
         reactivates = tuple(sorted((token, elem) for token, elem in self.doc.live_withdrawals()
                                    if elem in scope & mine and self.doc.events[token].author == self.writer))
-        effect = replace(effect, reactivates=reactivates)
-        if not self._preview_changes(effect):
-            return Blocked('restore', 'unchanged-visible-identities', source)
+        # Predict, but do not reserve, the event identity or advance the allocator.
+        event = replace(effect, reactivates=reactivates,
+                        id=f'{self.writer}:{self.counter}', author=self.writer,
+                        after=tuple(sorted(self.doc.events)))
+        trial = self.doc.copy()
+        trial.put(event)
+        before, after = self.doc.visible(), trial.visible()
+        return RestorePreview(self.writer, source, self.checkpoint(), event,
+            self._occurrences(before), self._occurrences(after),
+            self._occurrences(after-before), self._occurrences(before & after),
+            self._occurrences(scope-after))
+
+    def confirm_restore(self, preview, redo_policy=None):
+        if type(preview) is not RestorePreview:
+            raise ModelError('expected a Restore preview')
+        # Bind hidden shared facts AND private continuation, even for no-op UI.
+        if preview.writer != self.writer or preview.basis != self.checkpoint():
+            raise ModelError('stale or foreign Restore preview')
+        # This is a trusted in-process value, not an authenticated capability.
+        # Still reject altered display fields, target or masks rather than accept
+        # an event supplied by the caller. Validation never crosses a changed basis.
+        if preview != self.inspect_restore(preview.source):
+            raise ModelError('altered Restore preview')
+        if redo_policy not in (None, 'keep', 'clear'):
+            raise ModelError('unknown redo policy')
+        if preview.before == preview.after:
+            return Blocked('restore', 'unchanged-visible-identities', preview.source)
         if self.redos and redo_policy is None:
             raise ModelError('new work with pending redo requires keep or clear')
-        out = self._publish(effect)
+        out = self._publish(preview.event)
         self.items.append(out.id)
         self.restore_tokens[out.id] = out.id
         if redo_policy == 'clear':
             self.redos.clear()
         return out
+
+    def restore(self, source, redo_policy=None):
+        # Immediate convenience call; the explicit two-step path lets a consumer
+        # inspect effects before deciding whether to confirm.
+        if redo_policy not in (None, 'keep', 'clear'):
+            raise ModelError('unknown redo policy')
+        return self.confirm_restore(self.inspect_restore(source), redo_policy)
 
     def _selection(self):
         candidates = [key for key in self.items if key not in self.undone]
