@@ -35,7 +35,7 @@ The five policy negative controls fail at their intended unchanged assertions:
 - dropping the target-set filter fails **overlap restoration stays in selected scope**;
 - splitting the compound undo into two events fails the **half-published compound undo** prefix assertion, even though its final p-only result is correct.
 
-Passing the first check on the observed-concurrent law shows compatibility with this q07 fixture, not acceptance of its behavior for unseen concurrent deletions. The retained unseen-concurrent fixture instead leaves b hidden. That is a proposed boundary, not an answer Ren has supplied.
+Passing the first check on the observed-concurrent law shows compatibility with this q07 fixture, not acceptance of its behavior for unseen concurrent deletions. The retained unseen-concurrent fixture instead leaves b hidden. Ren has now approved that first-cut boundary separately from q07; see [the decision record](../../docs/first-cut-decisions.md).
 
 The log decoder assumes this model's JSON structure. `put` uses explicit `ModelError` exceptions for missing prerequisites, conflicting duplicates, non-ancestral/invalid deletion releases, unknown/non-ancestral/non-token cancellations and unknown/non-ancestral creator withdrawals. All these checks precede publication. Fourteen invalid-reference cases check unchanged event dictionaries, including under `python -O`; optimization does not disable these guards. This is still not full semantic admission: no general malformed-shape input suite, authority proof, parser/resource bound, independent reference oracle, compact checkpoint or disk failure acceptance is claimed. The fixed-event-set calculation is delivery independent by construction; the schedule count is a regression receipt, not the main argument for a general CRDT.
 
@@ -64,7 +64,7 @@ nix run .#selection-review
 ```
 
 `selection-review.json` and `session-review-trace.json` are generated directed
-observations; `session-trace.json` shows explicit Restore and consumed bypass
+observations; `session-trace.json` shows explicit Restore and retained bypass
 through actual calls. The locked check regenerates and compares each receipt.
 The old implicit-victim selector/receipts remain at `c475d6d`. Passing those older
 checks was not a complete undo contract; changed outcomes here are policy
@@ -99,7 +99,12 @@ including under Python optimization.
 
 Empty Undo leaves all history unchanged. An eligible but invisible own Undo
 still records that action. Actual bypasses before a selected eligible action are
-consumed; inspection/import and unvisited older items are not consumed.
+retained. When a skipped deletion becomes effective again, Undo can select it;
+skipping itself mints no redo entry. Inspection/import and unvisited older
+items are unchanged. New sessions default to retain. Explicit consume remains
+a historical comparison profile, and saved format-3 sessions resume their
+recorded policy without migration. [Historical consume evidence](historical/consume-default/README.md)
+keeps the old trace, output and rejected-retain control.
 
 Empty Redo returns `None`. An ineffective top Redo returns a `Blocked` result
 with `unchanged-visible-identities`, without consuming that entry or selecting an
@@ -152,7 +157,8 @@ requires these variants to fail at their named assertions:
 
 | mode (`nix run .#sessions -- MODE`) | deliberately wrong behavior |
 | --- | --- |
-| retain | bypassed deletion returns after peer retracts Restore |
+| consume | bypassed deletion is forgotten after peer retracts Restore |
+| resume-consumes | reload changes the saved retained-selection policy |
 | unbound-save | cleared history bypasses saved basis |
 | presence-only-basis | same IDs conceal changed scalar content |
 | caller-ids | equal values alias occurrence IDs |
@@ -188,7 +194,7 @@ rejection oracle. `nix run . -- first-withdrawal-only` checks just the first
 target and must fail the own-first mixed-target oracle. Existing session,
 selection, continuation and preview receipts are unchanged. This enforces
 consistency of supplied author tags, not authentication, a general authority
-proof or hostile-input admission. Observed masks and consumed-bypass selection
+proof or hostile-input admission. Frozen observed masks and retained-bypass selection
 are not changed by this repair.
 
 ## cancellation-authority review repair
@@ -238,3 +244,11 @@ The weak-key registry releases records when the last proposal copy drops its
 handle. This is not a serialized capability or authentication against arbitrary
 in-process code. Full-basis invalidation remains conservative: the five-unrelated-
 keystroke scenario is retained, not a material-change reconfirmation policy.
+
+The retained-default revision adds four real-call warm/cold continuations with
+and without a redo before revisiting the deletion, plus explicit history-clear
+and legacy-consume continuation checks. The bounded continuation receipt now
+names the actual constructor policy; its depth-3 counts are unchanged and do
+not establish coverage of arbitrary retained-history lengths. Preview and
+selection-review receipts remain byte-identical. No Rust transition or proof
+is added by this reference-policy revision.

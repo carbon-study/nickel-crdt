@@ -32,10 +32,11 @@ comparing them. A third receiving test replica can observe those two writers;
 it need not acquire a third author identity. Tags are consistency inputs, not
 authentication. No local type can prove the caller prevented a split writer.
 
-The bridge explicitly constructs `Session(..., skip_policy='retain')`. The
-Session default remains consume, with retained superseded evidence. A Rust test
-must select the proposed retained profile by name; importing the default would
-silently implement the wrong approved skipped-item behavior.
+The bridge explicitly constructs `Session(..., skip_policy='retain')`. New
+Session construction now also defaults to the approved retain behavior; explicit
+consume and prior evidence remain historical comparisons. Saved sessions retain
+their recorded policy. A Rust test must name the selected profile rather than
+infer product semantics from whichever comparison interpreter it imports.
 
 ## 2. one owner for the commit
 
@@ -210,7 +211,7 @@ this machinery to answer them.
 
 | dependency | what is still required |
 | --- | --- |
-| retain | approved behavior; explicitly select it and revise the default/oracles openly, preserving consume evidence |
+| retain | approved and now default in the reference/oracles, with consume evidence preserved; carry it into the Rust selection proof |
 | frozen observed masks | approved for the first cut after conditional yes and completed peer confirmation; preserve the original masks and later deletion behavior |
 | new-work redo | adopt explicit keep/clear continuation or select a narrower alternative; no silent default |
 | exact returning IDs | adopt the observable contract before claiming old handles target returned occurrences |

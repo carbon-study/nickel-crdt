@@ -27,7 +27,7 @@ The visibility rows are executed by the raw event model. The session columns ret
 
 ### an important knowledge boundary
 
-If Alice issues RA before receiving DB, its mask contains only `(DA,b)`. Receiving the previously unseen DB subsequently hides b. All delivery schedules still agree because RA's mask is immutable. The candidate therefore satisfies q07 under its stated “then sync, then undo” premise, but makes a distinct, unapproved choice for the unseen-concurrent case. Do not expand q07 into a rule about unseen deletion effects without checking that new premise.
+If Alice issues RA before receiving DB, its mask contains only `(DA,b)`. Receiving the previously unseen DB subsequently hides b. All delivery schedules still agree because RA's mask is immutable. The candidate therefore satisfies q07 under its stated “then sync, then undo” premise, and the first-cut unseen-concurrent outcome is now separately approved: the later arrival hides b. That approval does not follow from q07 alone; Ren ratified the additional premise as recorded in first-cut-decisions.md.
 
 ## 3. replacement restoration and a durable author undo
 
@@ -76,13 +76,14 @@ Creator slots organize offered choices, not the Undo walk. The
 restricted implementation, including scoped author reactivation and blocked
 Redo. The old implicit-victim profile remains at `c475d6d`.
 
-The consumed-bypass choice remains: Bo deletes Alice's b and has an older own
-insertion z. Alice explicitly restores b. Bo's Undo skips his ineffective
-delete and withdraws z, consuming the bypassed item. Alice then **undoes her
-Restore**, hiding b; Bo's skipped deletion does not return. Empty Undo, unlike a
-press that reaches z, consumes nothing. No remote message directly mutates the
-private item list. The earlier reversible-skip and implicit-victim candidates
-remain historical evidence, not current required outcomes.
+The earlier consumed-bypass choice is superseded by Ren's retain decision.
+Bo deletes Alice's b and has an older own insertion z. Alice explicitly Restores
+b. Bo's Undo skips his ineffective deletion and withdraws z, retaining that
+deletion item. Alice then **undoes her Restore**, hiding b; Bo's next Undo can
+select his retained deletion and restore b. Skipping creates no redo item.
+Empty Undo preserves all history; a redone z takes priority over the retained
+deletion. No remote message directly mutates private lists. Explicit consume
+and the earlier implicit-victim candidate remain historical evidence.
 
 The remaining gate is a complete selection/effect/replication/continuation
 contract, including grouping/children, registers and historical text order.

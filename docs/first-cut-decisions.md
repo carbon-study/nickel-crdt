@@ -18,8 +18,9 @@ disappears again.
 
 **Recommendation: retain.** Bo's next Undo may now select his own deletion,
 bringing b back. Skipping an action should not permanently discard access to
-it. The running default instead consumes that skipped item, leaving Bo no
-ordinary Undo for it. This recommendation changes that existing rule.
+it. The superseded default consumed that skipped item, leaving Bo no ordinary
+Undo for it. The running default now retains it; explicit consume remains
+historical comparison evidence.
 
 Cost: an old skipped action can become eligible after a remote change. This
 does not make Undo independent of delivery timing. It also does not authorize
@@ -30,8 +31,9 @@ Retaining the deletion does not put it above a just-redone action. Explicitly
 clearing private history still removes local access without erasing shared facts.
 
 **Decision: retain, approved by Ren in Discord.** Skipped actions stay available;
-the running experiment still needs an explicit contract/oracle revision from
-its current consume rule. This does not authorize selective Redo.
+the running experiment and continuation assertions now select retain by
+default. Saved sessions preserve their recorded policy; no old private history
+is reconstructed or migrated. This does not authorize selective Redo.
 
 ## 2. Undo only the concurrent deletions the author had received
 

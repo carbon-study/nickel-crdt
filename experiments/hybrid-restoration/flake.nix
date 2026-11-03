@@ -50,10 +50,15 @@
         echo 'split undo unexpectedly passed'; exit 1
       fi
       grep -q 'AssertionError: half-published compound undo' split-undo.log
-      if python ${source}/session_check.py retain > consumed-skip.log 2>&1; then
-        echo 'retained-skip alternative unexpectedly passed'; exit 1
+      if python ${source}/session_check.py consume > consumed-skip.log 2>&1; then
+        echo 'consumed-skip alternative unexpectedly passed'; exit 1
       fi
-      grep -q 'AssertionError: bypassed deletion must stay consumed after peer redo' consumed-skip.log
+      grep -q 'AssertionError: skipped deletion must remain available after Restore retraction' consumed-skip.log
+      python ${source}/session_check.py legacy-consume
+      if python ${source}/session_check.py resume-consumes > resume-consumes.log 2>&1; then
+        echo 'cold skip-policy mutation unexpectedly passed'; exit 1
+      fi
+      grep -q 'AssertionError: cold resume must preserve selected skip policy' resume-consumes.log
       for mode in unbound-save caller-ids old-redo-order eager-consume presence-only-basis empty-consumes ineffective-redo-advances receipt-ranking refreeze-restore-redo drop-restore-reactivation peer-reactivation scope-reactivation-spill skip-blocked-redo; do
         if python ${source}/session_check.py "$mode" > "$mode.log" 2>&1; then
           echo "review repair control unexpectedly passed: $mode"; exit 1

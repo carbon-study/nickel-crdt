@@ -75,7 +75,8 @@ silently counted as a successful alternative.
 ## Deliberate limits
 
 This opts into `skip_policy='retain'` explicitly. It does not change the existing
-reference's consume default or old consume oracle. New work with pending redo
+reference's historical consume path. The subsequent Session-default revision
+now selects retain too; this bridge keeps its explicit profile binding. New work with pending redo
 uses explicit `keep` where needed; no keep/clear product choice is adopted.
 
 The order and effect records are still separate trusted research records. The

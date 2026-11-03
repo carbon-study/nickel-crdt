@@ -84,7 +84,8 @@ includes concurrent deletions that a receiver already knows about but the author
 did not: validating deletion against receiver visibility would reject valid work.
 It also includes inspect/confirm Restore, Undo/Redo, supplementary/combining
 scalars, independent insertions and the explicitly opted-in retain witness.
-The older Python consume default and its controls remain unchanged.
+The bridge retains its explicit retain profile. The subsequent Session-default
+revision selects that same policy; historical consume evidence remains separate.
 
 A separate last-gap witness has Alice insert X after ab while Bo concurrently
 deletes b. Cam receives the insertion before or after that deletion. Both legal

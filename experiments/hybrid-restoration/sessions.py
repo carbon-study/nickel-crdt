@@ -66,7 +66,7 @@ class RestorePreview:
 
 
 class Session:
-    def __init__(self, writer, document=None, skip_policy='consume'):
+    def __init__(self, writer, document=None, skip_policy='retain'):
         if skip_policy not in ('retain', 'consume'):
             raise ModelError('unknown skip policy')
         self.doc = document if document is not None else Doc()

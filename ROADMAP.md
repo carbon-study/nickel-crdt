@@ -69,7 +69,8 @@ they are not an implemented interface. All V1–V9 are still unfulfilled.
 ## 1. finish the first profile's behavioral contract
 
 Ren has approved retaining skipped own actions in the directed continuation.
-The running consume implementation/oracles still need an explicit revision.
+The running reference and its continuation assertions now default to retain;
+explicit consume and its earlier failed retain control remain historical evidence.
 Frozen observed masks are also approved for the first cut. New-work redo and
 exact public IDs remain first-cut choices;
 the ordered construction is Lynn’s parallel research responsibility.
@@ -121,7 +122,7 @@ they do not select product semantics by vote.
 | edge | state | next owner/action | needed for milestone 2? |
 | --- | --- | --- | --- |
 | own Undo / explicit Restore | approved; restricted experiment runs | Lynn extends the argument to the ordered cut | yes |
-| skipped own items | retain approved; consume still runs | Lynn revises contract/oracles openly and preserves the superseded controls as evidence | yes |
+| skipped own items | retain approved and default in the reference; explicit consume preserved as history | Lynn carries that selection into the joint Rust transition and proofs | yes |
 | observed/unseen restoration masks | frozen observed masks approved for this cut, including later-arriving unseen deletion | Lynn carries the approved effects into the joint transition and proofs | yes |
 | new work with redo | explicit keep/clear runs; stacking provisional | Ren approves continuation outcomes; Lynn gives their construction | yes |
 | hidden placement | Xab/Xab settled only for q30/q31; longer runs and Friday/Monday open | Lynn supplies minimal distinguishing histories and candidate rule; Ren approves outcomes | the cut's placement domain must close |
