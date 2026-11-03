@@ -13,7 +13,8 @@ nix develop --command bash experiments/pending-recovery/check.sh
 
 Only the recovery checks run. The source uses the existing actual-session traces,
 combined admission and Node order interpreter. The runner checks the committed
-receipt and a scratch mutation that falsely reports pending without storing it.
+receipt and scratch mutations that drop pending facts, acknowledge a merely
+pending fact, or skip the checkpoint retention bound.
 Use `--record` to regenerate the receipt. No services, browsers or full matrix.
 
 ## What the caller can do
@@ -78,8 +79,8 @@ liveness or arbitrary-schedule theorem.
 
 All46 recorded views of the eight actual Session histories are delivered in
 reverse order under a one-event capacity, with checkpoint/resume after each
-offer. After promotion their original texts return. The receipt records201
-checkpoint comparisons, not201 independent histories. A separate save/resume
+offer. After promotion their original texts return. The receipt records202
+checkpoint comparisons, not202 independent histories. A separate save/resume
 probe runs in two distinct Python processes and fresh Node interpreters, using
 a temporary file between them. It reproduces a → ab after the original Python
 process has exited; this is not fsync/power-loss or private-session recovery.
@@ -97,6 +98,20 @@ Additional directed cases cover:
   checkpoint and retry keep its exact original frozen mask. The receiver does
   not extend it to cover the later deletion;
 - rejection of capacity decreases without changing the inbox.
+
+Acknowledgement is explicitly refused for missing/resource/oracle-pending facts,
+both before and after checkpoint/resume, with exact snapshot preservation. Valid
+pending facts still admit after their prerequisite or resource/interpreter
+condition is resolved. Separate trusted-shape checkpoint tests lower the saved
+slot or byte cap below its retained content and require resume to reject without
+changing the original inbox. Both guard-removal mutants survived the old checks;
+the new directed cases catch them. No inbox admission or discard rule changed.
+
+The current oracle's `ok:false` means validation failure and is treated as
+invalid. Its subprocess/unavailability failures use Deferred instead. If the
+oracle ever reports environment or resource failures through `ok:false`, that
+classification must change before those outcomes can safely become permanent
+invalid entries. This experiment does not establish that future error contract.
 
 The unchanged combined-admission receipt and controls also still pass. This
 extends error disposition, not its accepted event language or the Python Session
