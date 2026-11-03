@@ -66,14 +66,16 @@ they are not an implemented interface. All V1–V9 are still unfulfilled.
 
 ## 1. finish the first profile's behavioral contract
 
-**Next decision:** consume versus retain for skipped own actions. A directed
-comparison is available; neither a recommendation nor a passing candidate
-adopts the policy. Then close the ordered interpretation and API reconciliation.
+Ren has approved retaining skipped own actions in the directed continuation.
+The running consume implementation/oracles still need an explicit revision.
+Observed masks, new-work redo and exact public IDs remain first-cut choices;
+the ordered construction is Lynn’s parallel research responsibility.
 The source of each expected result must be a stated decision or argument, not
 whatever today's implementation happens to return.
 
 [Four concrete decision scenarios](docs/first-cut-decisions.md) collect the
-proposed answers and their costs. They are pending choices, not adopted policy.
+answers, remaining proposals and their costs. Retain is approved; the other
+choices remain pending.
 
 Close these dependencies before committing the corresponding engine behavior:
 
@@ -116,7 +118,7 @@ they do not select product semantics by vote.
 | edge | state | next owner/action | needed for milestone 2? |
 | --- | --- | --- | --- |
 | own Undo / explicit Restore | approved; restricted experiment runs | Lynn extends the argument to the ordered cut | yes |
-| skipped own items | consume current; retain recommended, not adopted | Ren chooses after the continuation comparison; Lynn revises the contract/oracles openly | yes |
+| skipped own items | retain approved; consume still runs | Lynn revises contract/oracles openly and preserves the superseded controls as evidence | yes |
 | observed/unseen restoration masks | observed frozen masks run; unseen effects unapproved | Lynn states press-time/later-event consequences; Ren selects the cut's rule | yes |
 | new work with redo | explicit keep/clear runs; stacking provisional | Ren approves continuation outcomes; Lynn gives their construction | yes |
 | hidden placement | Xab/Xab settled only for q30/q31; longer runs and Friday/Monday open | Lynn supplies minimal distinguishing histories and candidate rule; Ren approves outcomes | the cut's placement domain must close |
