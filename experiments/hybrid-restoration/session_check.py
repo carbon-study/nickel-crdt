@@ -208,6 +208,28 @@ def remote_edit_keeps_redo():
 
 def compatible_saves():
     import json
+    for policy in ('consume', 'retain'):
+        owner = Session('policy-save', skip_policy=policy)
+        owner.edit(creates=('x',)); owner.undo()
+        saved, before = owner.checkpoint(), owner.doc.copy()
+        assert Session.resume(saved, before.copy()).checkpoint() == saved
+        for bad_policy in ('Consume', 'retian', None, 42):
+            record = json.loads(saved); record['skip_policy'] = bad_policy
+            document = before.copy(); events_before = dict(document.events)
+            try:
+                Session.resume(json.dumps(record), document)
+            except ModelError:
+                pass
+            else:
+                raise AssertionError('invalid saved skip policy must reject')
+            assert document.events == events_before and owner.checkpoint() == saved, 'policy rejection must preserve document and original session'
+        missing = json.loads(saved); del missing['skip_policy']
+        try:
+            Session.resume(json.dumps(missing), before.copy())
+        except ModelError:
+            pass
+        else:
+            raise AssertionError('missing saved skip policy must reject')
     empty = Session('A'); old = json.loads(empty.checkpoint()); old['format']='hybrid-private-session-2'
     try: Session.resume(json.dumps(old), empty.doc.copy())
     except ModelError: pass

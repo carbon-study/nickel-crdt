@@ -103,7 +103,8 @@ retained. When a skipped deletion becomes effective again, Undo can select it;
 skipping itself mints no redo entry. Inspection/import and unvisited older
 items are unchanged. New sessions default to retain. Explicit consume remains
 a historical comparison profile, and saved format-3 sessions resume their
-recorded policy without migration. [Historical consume evidence](historical/consume-default/README.md)
+recorded policy without migration. Resume rejects missing or unknown policy
+values instead of interpreting every non-consume value as retain. [Historical consume evidence](historical/consume-default/README.md)
 keeps the old trace, output and rejected-retain control.
 
 Empty Redo returns `None`. An ineffective top Redo returns a `Blocked` result

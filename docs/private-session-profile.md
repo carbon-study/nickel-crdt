@@ -46,7 +46,8 @@ Ordinary Undo never selects a foreign deletion.
 
 New sessions default to `retain`. Explicit `consume` remains a historical
 comparison profile; saved format-3 checkpoints resume their recorded policy,
-not the new constructor default. No migration of already-consumed private
+not the new constructor default. Missing or unknown saved policies reject
+before a resumed session is returned. No migration of already-consumed private
 items is supplied. See the retained [consume-default evidence](../experiments/hybrid-restoration/historical/consume-default/README.md).
 
 A successful Undo returns the event, including its effect facets. Empty Undo

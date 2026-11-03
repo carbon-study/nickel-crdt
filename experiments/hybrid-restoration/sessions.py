@@ -299,6 +299,8 @@ class Session:
         x = json.loads(raw)
         if x['format'] != 'hybrid-private-session-3' or x['counter'] < 1:
             raise ModelError('unsupported checkpoint')
+        if x.get('skip_policy') not in ('retain', 'consume'):
+            raise ModelError('unknown saved skip policy')
         for key, encoded in x['basis'].items():
             if key not in document.events or cls._event_encoding(document.events[key]) != encoded:
                 raise ModelError('incompatible document/history basis')
