@@ -1,7 +1,8 @@
 # four choices before the first Rust cut
 
-**Proposals for Ren, not adopted rules.** These close the history/effect/identity
-choices in the [roadmap](../ROADMAP.md). They do not choose a text-ordering
+**Decision record and remaining proposals for Ren.** Item 1 is approved; items
+2–4 remain pending. These close the history/effect/identity choices in the
+[roadmap](../ROADMAP.md). They do not choose a text-ordering
 algorithm, approve the cut's budgets or authorize engine implementation.
 
 The examples below concern which occurrences are visible and which action is
@@ -28,7 +29,9 @@ If Bo redoes z before revisiting the deletion, his next Undo removes z first.
 Retaining the deletion does not put it above a just-redone action. Explicitly
 clearing private history still removes local access without erasing shared facts.
 
-**Decision:** adopt retain, or keep consume?
+**Decision: retain, approved by Ren in Discord.** Skipped actions stay available;
+the running experiment still needs an explicit contract/oracle revision from
+its current consume rule. This does not authorize selective Redo.
 
 ## 2. Undo only the concurrent deletions the author had received
 
