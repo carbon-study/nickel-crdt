@@ -70,14 +70,15 @@ they are not an implemented interface. All V1–V9 are still unfulfilled.
 
 Ren has approved retaining skipped own actions in the directed continuation.
 The running consume implementation/oracles still need an explicit revision.
-Observed masks, new-work redo and exact public IDs remain first-cut choices;
+Frozen observed masks are also approved for the first cut. New-work redo and
+exact public IDs remain first-cut choices;
 the ordered construction is Lynn’s parallel research responsibility.
 The source of each expected result must be a stated decision or argument, not
 whatever today's implementation happens to return.
 
 [Four concrete decision scenarios](docs/first-cut-decisions.md) collect the
-answers, remaining proposals and their costs. Retain is approved; the other
-choices remain pending.
+answers, remaining proposals and their costs. Retain and frozen observed masks
+are approved; new-work redo and exact public IDs remain pending.
 
 Close these dependencies before committing the corresponding engine behavior:
 
@@ -86,10 +87,10 @@ Close these dependencies before committing the corresponding engine behavior:
    Keep-redo stacking is provisional. Distinguish an empty Undo, an invisible
    applied Undo, a blocked Redo and a rejected call. No automatic selective redo
    follows from retaining skipped items.
-2. **Restoration effects.** State whether frozen observed masks remain the
-   first profile's rule, including the different outcomes when a concurrent
-   deletion arrives before/after the press. Unseen concurrent deletion behavior
-   is unapproved. Include peers' undo/redo and later causal deletions. Do not
+2. **Restoration effects.** Carry forward the approved frozen observed masks,
+   including the different outcomes when a concurrent deletion arrives
+   before/after the press. An unseen concurrent deletion can hide the text
+   when it arrives. Include peers' undo/redo and later causal deletions. Do not
    quietly turn frozen masks into predicates over future arrivals.
 3. **Ordered construction and anchors.** Supply a complete finite-history
    interpretation of gap integration, concurrent runs, ties, hidden endpoints,
@@ -121,7 +122,7 @@ they do not select product semantics by vote.
 | --- | --- | --- | --- |
 | own Undo / explicit Restore | approved; restricted experiment runs | Lynn extends the argument to the ordered cut | yes |
 | skipped own items | retain approved; consume still runs | Lynn revises contract/oracles openly and preserves the superseded controls as evidence | yes |
-| observed/unseen restoration masks | observed frozen masks run; unseen effects unapproved | Lynn states press-time/later-event consequences; Ren selects the cut's rule | yes |
+| observed/unseen restoration masks | frozen observed masks approved for this cut, including later-arriving unseen deletion | Lynn carries the approved effects into the joint transition and proofs | yes |
 | new work with redo | explicit keep/clear runs; stacking provisional | Ren approves continuation outcomes; Lynn gives their construction | yes |
 | hidden placement | Xab/Xab settled only for q30/q31; longer runs and Friday/Monday open | Lynn supplies minimal distinguishing histories and candidate rule; Ren approves outcomes | the cut's placement domain must close |
 | q34 identity after return | reference reuses IDs; general anchor/edit equivalence unresolved | Ren approves observable contract; Lynn proves the representation realizes it | exact-ID reuse is proposed for the cut; approval still needed |

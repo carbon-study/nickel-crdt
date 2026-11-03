@@ -9,6 +9,6 @@ The generic loop library and prelude were extracted, with Ren's explicit authori
 
 The loop source was renamed from `Light` to `Nickel`. The proof-cache/bootstrap helpers and smoke proof also adapt Lynn's existing harness and loop-shape work. This extraction does not redistribute the Dark application or the Latte compiler. The scaffold's authored code is offered under MIT; upstream toolchains retain their own licenses.
 
-All three committed views were freshly emitted with local `carbon-study/latte-nursery` revision `0729bf34e2a7d9538604d951edc44d376d1b8ced`, using its locked `.#cli` package and `latte emit-fstar /absolute/path/to/proofs/<Name>.lt`. That repository is private and has no selected license. Publishing or vendoring its compiler requires a separate decision.
+All three committed views were freshly emitted with local `carbon-study/latte-nursery` revision `0729bf34e2a7d9538604d951edc44d376d1b8ced`, using its locked `.#cli` package and `latte emit-fstar /absolute/path/to/proofs/<Name>.lt`. That repository is private and has no selected license. Ren directed Latte to remain private; publishing or vendoring its compiler is outside the current cut. Public verification of generated F* is unchanged.
 
 Public verification uses hax revision `f33e5c844497c057450ebf56828cbb191223e93a` and its pinned F* (2025.10.06), not normal Latte's newer F*. `flake.lock` records the complete public dependency graph. `proofs/generated/*.sha256` binds each local source/view pair; it is a drift check, not a compiler certificate.

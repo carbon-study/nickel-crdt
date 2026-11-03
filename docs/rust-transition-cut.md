@@ -211,24 +211,24 @@ this machinery to answer them.
 | dependency | what is still required |
 | --- | --- |
 | retain | approved behavior; explicitly select it and revise the default/oracles openly, preserving consume evidence |
-| frozen observed masks | Ren gave a conditional yes, subject to peer confirmation; that confirmation is complete; record final cut ratification explicitly |
+| frozen observed masks | approved for the first cut after conditional yes and completed peer confirmation; preserve the original masks and later deletion behavior |
 | new-work redo | adopt explicit keep/clear continuation or select a narrower alternative; no silent default |
 | exact returning IDs | adopt the observable contract before claiming old handles target returned occurrences |
 | candidate ordering | review/adopt the cut's longer-run/replacement domain and explain per-event-only cohesion; `a2413b` remains a limitation, not a broader typing-run promise |
 | budgets | choose supported workloads/limit response; current 128 events/512 births/etc. are experiment ceilings, not release targets; measure candidate costs before proposing numeric release bounds; prove prefix-admissibility before inferring it from final-fit |
-| Latte regeneration | explicitly accept continued private authoring/public F* checking for this cut, or decide compiler publication/licensing separately; validate locked emitter access before beginning proof slices, without assuming anonymous regeneration |
+| Latte regeneration | Ren directed the compiler to stay private; continue private authoring/public F* checking, and validate locked emitter access before proof slices without assuming anonymous regeneration |
 | reference proof | connect effect/admission invariants with the finite-history ordering argument, and formalize the needed laws without assuming them |
 | implementation start | approve the concrete slice/profile after the semantic, abstraction and error contracts are reviewed |
 
 The tooling row is an existing dependency made explicit, not a new claim that
 Latte must be published before work can proceed. PROVENANCE.md records the
-private emitter revision used for the scaffold. The proposed continuation is
-to use that locked authoring route, publish the authored Latte and generated F*
+private emitter revision used for the scaffold. Ren directed Latte to remain private in Discord message1567303368131608637.
+The selected tooling arrangement is to use that locked authoring route, publish the authored Latte and generated F*
 with provenance/drift checks, and let public checks verify the committed F*.
 Anonymous users still cannot regenerate emission. Regeneration availability on
 Lynn's machine is not inferred from old receipts: check it when a proof slice
 starts and report a concrete blocker if unavailable. Publishing or vendoring
-the unlicensed compiler requires Ren's separate decision; silently replacing
+the unlicensed compiler is outside this cut and contrary to the current direction; silently replacing
 Latte or relaxing a failed theorem is not an alternative.
 
 PR12 closes a useful reference retention question, not the last line of this
