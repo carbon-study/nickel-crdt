@@ -39,6 +39,12 @@
     }
   ],
   "histories": 8,
+  "max_discriminator": {
+    "authors": 3,
+    "orders": 16,
+    "same_state": true,
+    "text": "AXYBC"
+  },
   "ordering": "FugueMax",
   "ordering_metric": "three derived node link slots per retained birth",
   "prepends": [

@@ -21,7 +21,7 @@ fi
 nix develop "$root/experiments/hybrid-restoration" --command python "$here/check.py" "$work/trace.json" "${mode[@]}" > "$work/receipt.json"
 if "$record"; then cp "$work/receipt.json" "$receipt"; else cmp "$work/receipt.json" "$receipt"; fi
 controls=(receiver-visible-delete early-publish receiver-visible-gap duplicate-delete-target)
-if ((${#mode[@]})); then controls+=(fugue-link-budget order-backend order-birth-count); fi
+if ((${#mode[@]})); then controls+=(fugue-plain fugue-link-budget order-backend order-birth-count); fi
 for control in "${controls[@]}"; do
   nix develop "$root/experiments/hybrid-restoration" --command python "$here/controls.py" "$work/trace.json" "$control" "${mode[@]}"
 done

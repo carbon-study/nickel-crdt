@@ -158,7 +158,10 @@ duplicates and cold-state comparison. Warm/cold Session trace production is
 also compared byte for byte in this mode. Two added **actual two-writer Session**
 histories supply the rejected separate-keystroke prepend witness, with IDs
 exchanged: six legal delivery schedules each, yielding a2143b or a4321b and
-identical joint snapshots. The Session authors already mutated their private
+identical joint snapshots. The paper's three-author Figure 7 is also produced
+by actual Sessions: all 16 causal schedules give AXYBC, distinguishing plain
+Fugue's AYXBC. That fixture belongs to this three-tag reference domain, not
+the proposed two-writer Rust profile. The Session authors already mutated their private
 stacks before these packets enter admission: this is **not** the Rust whole-
 instance local-call transaction, nor an incremental native sequence engine.
 
@@ -167,8 +170,8 @@ after effect and placement trial work. It returns resource deferral, leaves
 Friday! visible and the whole accepted tuple unchanged, and preserves the
 caller's exact compound packet. Backend-label and birth-count mismatches return oracle deferral
 without publication; they do not establish that the packet is invalid. All four old mutation controls run in the new mode too;
-three additional controls remove its ordering ceiling, backend binding or
-birth-count guard. These must fail their intended unchanged assertions.
+four additional controls substitute plain Fugue or remove the ordering ceiling,
+backend binding or birth-count guard. These must fail their intended unchanged assertions.
 
 The old pending-recovery checkpoint/profile is not extended by this change.
 There is no Fugue checkpoint/inbox claim; Inbox explicitly rejects a Fugue

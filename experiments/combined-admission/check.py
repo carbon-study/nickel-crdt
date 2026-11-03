@@ -101,6 +101,26 @@ with Oracle(backend) as oracle:
             assert cold.snapshot()==snapshots[0],'cold joint prepend state'
             prepend_receipts.append(dict(text=expected,orders=len(snapshots),same_state=True))
 
+        # Actual three-writer Figure 7 facts distinguish Max from plain at the
+        # joint boundary too; this is outside the proposed two-writer Rust cut.
+        a,b,c=Session('Alice'),Session('Bo'),Session('Cam')
+        A=a.edit(('A',));B=b.edit(('B',));C=c.edit(('C',))
+        b.receive(A);c.receive(A)
+        X=c.edit(('X',));Y=b.edit(('Y',))
+        max_events=[asdict(e) for e in (A,B,C,X,Y)]
+        max_gaps={e.id:0 if e in (A,B,C) else 1 for e in (A,B,C,X,Y)}
+        max_snapshots=[]
+        for schedule in permutations(max_events):
+            seen=set()
+            for e in schedule:
+                if not set(e['after']) <= seen:break
+                seen.add(e['id'])
+            else:
+                receiver=replay(oracle,schedule,max_gaps)
+                assert receiver.text()=='AXYBC','joint Max discriminator'
+                max_snapshots.append(receiver.snapshot())
+        assert len(max_snapshots)==16 and len(set(max_snapshots))==1,'joint Max arrival dependence'
+
         # Final metric rejection cannot publish either half of a replacement.
         replacement=traces[2]
         rgaps={i['event']:i['gap'] for i in replacement['insertions']}
@@ -217,6 +237,7 @@ extra = {}
 if backend == 'fugue':
     extra = dict(ordering='FugueMax',ordering_metric='three derived node link slots per retained birth',
         profile_mismatch_rejected=True,unversioned_inbox_rejected=True,prepends=prepend_receipts,
+        max_discriminator=dict(text='AXYBC',orders=len(max_snapshots),same_state=True,authors=3),
         compound_deferral=dict(original='Friday!',retained_exact_packet=True,unchanged_joint_state=True))
 print(json.dumps(dict(**extra,histories=len(traces),views=sum(len(s['views']) for t in traces for s in t['steps']),
     rejections=rejections,finals=finals,
