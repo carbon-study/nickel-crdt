@@ -127,7 +127,11 @@ only final strings:
    authored fact. All successful branches preserve well-formedness.
 2. **Admission refinement:** for every well-formed `S` and in-domain structured
    fact `f`, admit, duplicate, invalid and deferred branches match the declared
-   reference disposition. Trial publication updates all derived planes together.
+   reference disposition. Admission leaves `H` unchanged: importing facts never
+   adds/prunes items, redo or allocator state. It creates no capability in `P`;
+   a changed document basis can only make an existing inspection stale. An exact
+   duplicate leaves that basis unchanged. Trial publication updates the shared
+   derived planes together.
 3. **Rejection neutrality:** ordinary rejection, deferral and blocked results
    leave all specified instance components unchanged and return no new fact.
    A successful read/inspection has its separately specified permitted change.
@@ -144,6 +148,25 @@ limit. A caller holding a deferred fact has not synchronized that fact. It also
 does not identify two presses authored with different knowledge: the frozen
 masks can differ. Scope the quantifiers to arbitrary finite valid histories in
 the chosen profile, not only the generated test depth.
+
+**Budget-prefix obligation (separate from convergence).** To infer that *every*
+causal replay of a fitting final fact set can admit without resource deferral,
+prove that every causally closed prefix fits the same profile limits and numeric
+representation. A sufficient condition is prefix-monotone aggregate measures
+plus state-independent per-fact checks. Events, births and the sum of stored
+expanded key digits have that candidate monotonicity because hidden history
+remains and an insertion's keys come from its fixed author basis. Packet size,
+scalar/dependency counts and counter validity are checks on the original fact;
+retry must not rewrite it. This is an obligation to prove for the selected Rust
+representation, not a machine-checked property of today's reference.
+
+A limit on current visible size is not prefix-monotone: insertion can exceed it
+before a later deletion shrinks the final text. Final-fit alone then proves
+neither immediate admissibility of every schedule nor eventual progress. Such a
+profile needs a separate prefix-admissibility/deferral argument. This document
+does not prohibit all non-monotone release budgets. Conditional agreement after
+all fixed facts are admitted (obligation 5) and a claim that every schedule will
+get there are different claims; the former does not itself require monotonicity.
 
 These are obligations to discharge against actual extracted Rust functions.
 The present Python/Node programs are executable comparison oracles, not foreign
@@ -188,13 +211,25 @@ this machinery to answer them.
 | dependency | what is still required |
 | --- | --- |
 | retain | approved behavior; explicitly select it and revise the default/oracles openly, preserving consume evidence |
-| frozen observed masks | cut adoption remains pending in the decision record; peer confirmation of a trace is not approval |
+| frozen observed masks | Ren gave a conditional yes, subject to peer confirmation; that confirmation is complete; record final cut ratification explicitly |
 | new-work redo | adopt explicit keep/clear continuation or select a narrower alternative; no silent default |
 | exact returning IDs | adopt the observable contract before claiming old handles target returned occurrences |
 | candidate ordering | review/adopt the cut's longer-run/replacement domain and explain per-event-only cohesion; `a2413b` remains a limitation, not a broader typing-run promise |
-| budgets | choose supported workloads/limit response; current 128 events/512 births/etc. are experiment ceilings, not release targets; measure candidate costs before proposing numeric release bounds |
+| budgets | choose supported workloads/limit response; current 128 events/512 births/etc. are experiment ceilings, not release targets; measure candidate costs before proposing numeric release bounds; prove prefix-admissibility before inferring it from final-fit |
+| Latte regeneration | explicitly accept continued private authoring/public F* checking for this cut, or decide compiler publication/licensing separately; validate locked emitter access before beginning proof slices, without assuming anonymous regeneration |
 | reference proof | connect effect/admission invariants with the finite-history ordering argument, and formalize the needed laws without assuming them |
 | implementation start | approve the concrete slice/profile after the semantic, abstraction and error contracts are reviewed |
+
+The tooling row is an existing dependency made explicit, not a new claim that
+Latte must be published before work can proceed. PROVENANCE.md records the
+private emitter revision used for the scaffold. The proposed continuation is
+to use that locked authoring route, publish the authored Latte and generated F*
+with provenance/drift checks, and let public checks verify the committed F*.
+Anonymous users still cannot regenerate emission. Regeneration availability on
+Lynn's machine is not inferred from old receipts: check it when a proof slice
+starts and report a concrete blocker if unavailable. Publishing or vendoring
+the unlicensed compiler requires Ren's separate decision; silently replacing
+Latte or relaxing a failed theorem is not an alternative.
 
 PR12 closes a useful reference retention question, not the last line of this
 table. Its checkpoint, canonical JSON byte count, Python allocator behavior and

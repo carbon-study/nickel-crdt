@@ -51,7 +51,14 @@ A later deletion made after seeing the restoration remains effective. Redo of
 an explicit Restore uses its original masks in a fresh token; it does not grow
 them to include deletions received since inspection.
 
-**Decision:** accept these before/after outcomes for the cut, or require an
+**Response received:** Ren said “I think yes, but have rotbot confirm” in
+Discord message1567021321953742910. Rotbot's confirmation in
+message1567022067889475617 reproduced the observed-before, unseen-after and
+later-causal deletion cases. The requested check is complete; the decision
+record awaits explicit final ratification of these first-cut outcomes, rather
+than treating it as an unanswered question or peer-selected policy.
+
+**Decision to ratify:** accept these before/after outcomes for the cut, or require an
 alternative covering a deletion Alice had not received? The alternative needs
 a new specified effect rule; it is not an existing switch or a minor mask fix.
 
