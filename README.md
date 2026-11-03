@@ -13,6 +13,11 @@ semantics, an integrated undo algorithm or a Rust implementation. The
 [reference command](experiments/ordered-gap-reference/README.md) runs separately
 from the existing proof/toolchain checks.
 
+[Order/effect bridge](experiments/order-effect-bridge/README.md) renders actual
+Python session Undo/Restore transitions through that candidate order, with warm
+and cold continuations. This is a finite research integration, not combined
+wire admission or a verified engine.
+
 ## Undo questionnaire
 
 [40 scenarios, local progress and JSON answer export](https://nickel-undo.shit.yachts/) support the design discussion. The standalone [questionnaire](questionnaire/README.md) has its own locked flake and is not a CRDT implementation or verifier.

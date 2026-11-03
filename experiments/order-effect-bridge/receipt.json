@@ -1,0 +1,213 @@
+{
+  "traces": [
+    {
+      "name": "Xab with real explicit Restore",
+      "steps": [
+        {
+          "label": "hidden a",
+          "texts": {
+            "Alice": "Xb",
+            "Bo": "Xb"
+          }
+        },
+        {
+          "label": "confirm Restore",
+          "texts": {
+            "Alice": "Xab",
+            "Bo": "Xab"
+          }
+        },
+        {
+          "label": "Undo Restore",
+          "texts": {
+            "Alice": "Xb",
+            "Bo": "Xb"
+          }
+        },
+        {
+          "label": "fresh-token Redo Restore",
+          "texts": {
+            "Alice": "Xab",
+            "Bo": "Xab"
+          }
+        }
+      ]
+    },
+    {
+      "name": "hidden X through creator Undo and Redo",
+      "steps": [
+        {
+          "label": "withdraw X",
+          "texts": {
+            "Alice": "ab",
+            "Bo": "ab"
+          }
+        },
+        {
+          "label": "Y before hidden X",
+          "texts": {
+            "Alice": "aYb",
+            "Bo": "aYb"
+          }
+        },
+        {
+          "label": "reactivate original X",
+          "texts": {
+            "Alice": "aYXb",
+            "Bo": "aYXb"
+          }
+        }
+      ]
+    },
+    {
+      "name": "replacement and frozen Restore continuation",
+      "steps": [
+        {
+          "label": "compound replacement",
+          "texts": {
+            "Alice": "Monday!",
+            "Bo": "Monday!"
+          }
+        },
+        {
+          "label": "Restore leaves replacement",
+          "texts": {
+            "Alice": "MondayFriday!",
+            "Bo": "MondayFriday!"
+          }
+        },
+        {
+          "label": "Undo Restore",
+          "texts": {
+            "Alice": "Monday!",
+            "Bo": "Monday!"
+          }
+        },
+        {
+          "label": "Redo Restore",
+          "texts": {
+            "Alice": "MondayFriday!",
+            "Bo": "MondayFriday!"
+          }
+        }
+      ]
+    },
+    {
+      "name": "peer insertion survives creator withdrawal",
+      "steps": [
+        {
+          "label": "withdraw neighbours",
+          "texts": {
+            "Alice": "X",
+            "Bo": "X"
+          }
+        },
+        {
+          "label": "same neighbours return",
+          "texts": {
+            "Alice": "aXb",
+            "Bo": "aXb"
+          }
+        }
+      ]
+    },
+    {
+      "name": "concurrent scalar runs and personal withdrawal",
+      "steps": [
+        {
+          "label": "both concurrent runs",
+          "texts": {
+            "Alice": "aX🦊Péb",
+            "Bo": "aX🦊Péb"
+          }
+        },
+        {
+          "label": "only Alice withdraws",
+          "texts": {
+            "Alice": "aPéb",
+            "Bo": "aPéb"
+          }
+        },
+        {
+          "label": "exact scalar identities return",
+          "texts": {
+            "Alice": "aX🦊Péb",
+            "Bo": "aX🦊Péb"
+          }
+        }
+      ]
+    },
+    {
+      "name": "concurrent deletion, peer unseen",
+      "steps": [
+        {
+          "label": "author press",
+          "texts": {
+            "Alice": "b"
+          }
+        },
+        {
+          "label": "both facts delivered",
+          "texts": {
+            "Alice": "",
+            "Bo": ""
+          }
+        },
+        {
+          "label": "explicit Restore after unseen arrival",
+          "texts": {
+            "Alice": "b",
+            "Bo": "b"
+          }
+        }
+      ]
+    },
+    {
+      "name": "concurrent deletion, peer observed",
+      "steps": [
+        {
+          "label": "author press",
+          "texts": {
+            "Alice": "b"
+          }
+        },
+        {
+          "label": "both facts delivered",
+          "texts": {
+            "Alice": "b",
+            "Bo": "b"
+          }
+        }
+      ]
+    },
+    {
+      "name": "retained skipped deletion becomes eligible again",
+      "steps": [
+        {
+          "label": "skip deletion and undo z",
+          "texts": {
+            "Alice": "b",
+            "Bo": "b"
+          }
+        },
+        {
+          "label": "Undo Restore",
+          "texts": {
+            "Alice": "",
+            "Bo": ""
+          }
+        },
+        {
+          "label": "retained deletion Undo",
+          "texts": {
+            "Alice": "b",
+            "Bo": "b"
+          }
+        }
+      ]
+    }
+  ],
+  "views": 46,
+  "effectControls": 24,
+  "wholeGapControls": 2
+}
