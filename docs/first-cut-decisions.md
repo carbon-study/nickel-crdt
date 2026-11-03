@@ -52,12 +52,12 @@ an explicit Restore uses its original masks in a fresh token; it does not grow
 them to include deletions received since inspection.
 
 **Response received:** Ren said “I think yes, but have rotbot confirm” in
-Discord message1567021321953742910. Rotbot's confirmation in
-message1567022067889475617 reproduced the observed-before, unseen-after and
+Discord message 1567021321953742910. Rotbot's confirmation in
+message 1567022067889475617 reproduced the observed-before, unseen-after and
 later-causal deletion cases.
 
 **Decision: frozen observed masks approved for the first cut.** Ren ratified
-these outcomes in Discord message1567303368131608637. An unseen concurrent
+these outcomes in Discord message 1567303368131608637. An unseen concurrent
 deletion can hide the text when it later arrives; a later causal deletion stays
 effective. Neither Undo nor Restore reaches forward to cancel unseen deletion
 atoms. This approves these effect outcomes, not a general placement rule or

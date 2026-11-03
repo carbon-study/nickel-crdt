@@ -222,7 +222,7 @@ this machinery to answer them.
 
 The tooling row is an existing dependency made explicit, not a new claim that
 Latte must be published before work can proceed. PROVENANCE.md records the
-private emitter revision used for the scaffold. Ren directed Latte to remain private in Discord message1567303368131608637.
+private emitter revision used for the scaffold. Ren directed Latte to remain private in Discord message 1567303368131608637.
 The selected tooling arrangement is to use that locked authoring route, publish the authored Latte and generated F*
 with provenance/drift checks, and let public checks verify the committed F*.
 Anonymous users still cannot regenerate emission. Regeneration availability on
