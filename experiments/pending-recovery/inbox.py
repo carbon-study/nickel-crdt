@@ -11,6 +11,8 @@ class Backpressure(Rejected):
 
 class Inbox:
     def __init__(self, oracle, limits=Limits(), slots=16, staged_bytes=65536):
+        if getattr(oracle, 'backend', 'dense') != 'dense':
+            raise Rejected('pending checkpoint profile supports dense ordering only')
         self.store=Combined(oracle,limits)
         self.slots,self.staged_bytes=slots,staged_bytes
         self.held={}

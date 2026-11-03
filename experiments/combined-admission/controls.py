@@ -21,11 +21,21 @@ elif mode=='receiver-visible-gap':
 elif mode=='duplicate-delete-target':
     text=text.replace('if len(set(event.deletes)) != len(event.deletes):', 'if False:')
     expected='invalid packet accepted: duplicate deletion target'
+elif mode=='fugue-link-budget':
+    text=text.replace("elif result['links'] > self.limits.ordering_links:", 'elif False:')
+    expected='compound metric overflow accepted'
+elif mode=='order-backend':
+    text=text.replace("if result.get('backend') != self.backend:", 'if False:')
+    expected='invalid packet accepted: order backend mismatch'
+elif mode=='order-birth-count':
+    text=text.replace("if len(result['ids']) != sum(len(e.creates) for e in trial.events.values()):", 'if False:')
+    expected='invalid packet accepted: order/effect birth count mismatch'
 else:
     raise ValueError(mode)
 module=types.ModuleType('admission'); module.__file__=str(source)
 sys.modules['admission']=module
 exec(compile(text,str(source),'exec'),module.__dict__)
+sys.argv = [str(source.with_name('check.py')), sys.argv[1]] + (['--fugue'] if '--fugue' in sys.argv[3:] else [])
 try:
     with contextlib.redirect_stdout(io.StringIO()):
         runpy.run_path(str(source.with_name('check.py')),run_name='__main__')
