@@ -89,3 +89,21 @@ birth IDs, omitted dependencies and resource rejection without partial state.
 This is finite end-to-end reference evidence, not a Rust implementation, a
 machine-checked transition proof, arbitrary delivery exploration or an MVP.
 The PR9 order/tree scope and separate-prepend limitation remain unchanged.
+
+## FugueMax candidate adapter
+
+`bash experiments/order-effect-bridge/check.sh --fugue` uses the same trace
+producer and expected texts with the stronger `fugue.mjs` interpreter. Its
+receipt is `fugue-receipt.json`; the default command and old receipt remain
+unchanged. This mode checks the same identity/payload bijection and effect
+filtering, plus every causal insertion-event order at each supplied view:
+52 deliveries for the existing 46 views. The histories are unchanged, so this
+is not exhaustive effect-delivery coverage or additional product approval.
+Warm/cold Python inputs remain byte-identical; reverse/cold ordering inputs
+preserve all exposed FugueMax metadata. The old dense tree/key equivalence
+check only applies to the default interpreter.
+
+See [the conditional retained-node argument](../../docs/fugue-ordering.md) for
+what the paper's insertion laws might transfer through hide/reveal. No order
+adoption, shared-format change, combined-admission replacement or Rust engine
+is performed by this adapter.

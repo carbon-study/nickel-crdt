@@ -72,3 +72,59 @@ rebuilt. No resource-budget, efficient-update or useful-scale claim. Output is
 committed as `receipt.json` for inspection; regenerate with the command above.
 The written finite-history argument is not a machine proof. This is research,
 not adoption of the candidate, a public Rust API or a verified CRDT engine.
+
+## stronger FugueMax candidate
+
+Ren has rejected the baseline's multi-event prepend interleaving. It remains
+unchanged above; `fugue.mjs` supplies the stronger, unadopted candidate beside it.
+Read [the operation, abstraction and hide/reveal premises](../../docs/fugue-ordering.md).
+It derives origins in each author's causal insertion basis, using a whole-order
+successor including hidden births. It accepts the same trusted research event
+shape, not a new public packet format. Parent/side/origin records replace dense
+keys; the old tree-to-key abstraction and digit bounds do not apply to it.
+
+Run only its focused check:
+
+```sh
+node experiments/ordered-gap-reference/fugue-check.mjs
+```
+
+The committed `fugue-receipt.json` records 96 common-gap run histories, 6,400
+causal schedules and 672 author-gap checks. All runs use separate events; both
+append/prepend directions, two/three writers and exchanged IDs are included.
+The hidden-middle profile retains the hidden births in the tree. Same-history
+exact duplicate/cold input checks preserve all exposed metadata. Directed
+controls distinguish visible-right authoring, plain sibling ordering (paper
+Figure 7), and receiver-basis authoring. Invalid gaps, dependencies, scalar
+strings, visible sets and conflicting retries reject. These are not hostile
+input validation or exhaustive non-interleaving proofs. A later explicit edit
+inside a run is allowed and checked.
+
+The real Python Session bridge can also use this candidate, without a new Undo
+model: `bash experiments/order-effect-bridge/check.sh --fugue`.
+
+### comparator oracle and hidden-inside-run recheck
+
+The original common-gap family does **not** distinguish plain/reversed Max
+comparators once directed strings are removed. The repair adds two independent
+checks to `fugue-check.mjs` and its receipt:
+
+- `fugue-max-oracle.mjs`: enumerate total orders and all causally closed states
+  in 194 small histories; require the finite author-sequence constraints and
+  Definition 4 order conditions to select exactly one order, then compare all
+  3,032 causal schedules. No physical tree traversal defines that expected order.
+- `fugue-hidden-runs.mjs`: eight empirical supplied-visibility histories and
+  92 schedules, with hidden nodes interrupting whole-order runs. The resulting
+  visible contiguity is not a consequence of the insertion-only argument.
+
+Run the generated oracle alone, or its seven actual source-mutation controls:
+
+```sh
+node experiments/ordered-gap-reference/fugue-max-oracle.mjs
+node experiments/ordered-gap-reference/fugue-oracle-controls.mjs
+```
+
+`fugue-oracle-controls.json` records rejection at the intended assertions. The
+controls run the standalone oracle in temporary copies; no directed witness or
+common-gap run check is imported. Timeouts and spawn failures are not accepted
+as successful controls. See [the detailed scope](../../docs/fugue-ordering.md).

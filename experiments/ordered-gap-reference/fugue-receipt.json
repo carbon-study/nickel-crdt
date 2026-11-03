@@ -1,0 +1,51 @@
+{
+  "witnesses": {
+    "prepend": {
+      "old": "a2413b",
+      "candidate": "a2143b"
+    },
+    "hiddenReturn": "Xab",
+    "figure7": {
+      "max": "AXYBC",
+      "plain": "AYXBC",
+      "causalSchedules": 16
+    },
+    "explicitInteriorEdit": "aPZ🦊éb"
+  },
+  "runFamily": {
+    "histories": 96,
+    "causalSchedules": 6400,
+    "authorGapChecks": 672
+  },
+  "controls": {
+    "oldAllocation": "run oracle rejects retained a2413b baseline",
+    "visibleRight": "caught by hidden return",
+    "plainComparator": "caught by Figure 7",
+    "receiverBasis": "caught by arrival-order disagreement",
+    "inputRejections": 8
+  },
+  "maxOracle": {
+    "histories": 194,
+    "totalOrders": 20208,
+    "causalStates": 2464,
+    "causalSchedules": 3032,
+    "plainDisagreements": 4,
+    "limits": "2 or 3 concurrent roots; two independent singleton insertions observing all but one root; all gaps; exchanged insert IDs"
+  },
+  "hiddenInsideRuns": {
+    "histories": 8,
+    "causalSchedules": 92,
+    "wholeOrderSplitHistories": 6,
+    "examples": [
+      {
+        "whole": "a2h14k3b",
+        "visible": "a2143b"
+      },
+      {
+        "whole": "a4k32h1b",
+        "visible": "a4321b"
+      }
+    ],
+    "scope": "supplied visibility; no real Undo/Restore transitions or general visible-run theorem"
+  }
+}

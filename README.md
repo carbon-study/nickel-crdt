@@ -4,9 +4,12 @@ An application-independent sequence CRDT library, intended for Carbon and potent
 
 This repository currently contains the toolchain scaffold and restricted executable reference experiments. It has **no CRDT implementation or public API yet**. Sequence ordering, identity, undo, replication and the first release boundary still need an agreed contract.
 
-## Ordering research candidate
+## Ordering research candidates
 
-[Historical-gap ordering construction](docs/ordering-construction.md) supplies
+[FugueMax candidate](docs/fugue-ordering.md) is the current stronger-ordering
+experiment: separate-event common-gap runs, retained-node hide/reveal fit and
+the existing actual Session bridge. It is not adopted or machine-verified.
+The earlier [historical-gap ordering construction](docs/ordering-construction.md) supplies
 one authored order-only interpretation, directed restoration/concurrent-run
 witnesses and its explicit quadratic key-growth limit. It is not adopted
 semantics, an integrated undo algorithm or a Rust implementation. The

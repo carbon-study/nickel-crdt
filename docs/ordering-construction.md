@@ -1,6 +1,9 @@
 # candidate order: insert before the hidden interval
 
-**Authored research candidate, not an adopted Nickel policy or Rust engine.**
+**Retained baseline, not an adopted Nickel policy or Rust engine.**
+Ren rejected its separate-keystroke prepend interleaving. The
+[stronger FugueMax candidate](fugue-ordering.md) is checked beside it; this
+construction and its failed witness remain unchanged as comparison evidence.
 This supplies one finite-history ordering construction and its consequences.
 It leaves Undo selection and restoration masks separate: they determine a set
 of visible occurrence IDs; this construction orders those IDs. The reference
