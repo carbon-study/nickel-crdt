@@ -57,6 +57,8 @@ earlier delivery does not quietly remove anchors, children or recovery from it.
 | in-process Restore inspection/confirmation bound to issued selection and full document/private basis | no wire proposal format; restart requires fresh inspection; unrelated changes expire a preview |
 | named-author cancellation/reactivation/withdrawal admission checks and semantic mutation tests | consistency of supplied tags, not authentication or complete hostile-input admission |
 | anchor explainer and Ren's Xab/Xab clarification | one placement witness, not a general run or replacement rule |
+| candidate ordering, actual-session order/effect bridge and joint parsed-value admission | written finite-history order argument and finite checks; no adopted engine algorithm or implementation-linked CRDT proof |
+| bounded pending-fact retention and separate-process reference resume | no selected transport, Rust checkpoint format, release budgets or general liveness guarantee |
 
 The [private-session profile](docs/private-session-profile.md) and
 [preview contract](docs/restore-preview.md) own the running experiment.
@@ -68,14 +70,15 @@ they are not an implemented interface. All V1–V9 are still unfulfilled.
 
 Ren has approved retaining skipped own actions in the directed continuation.
 The running consume implementation/oracles still need an explicit revision.
-Observed masks, new-work redo and exact public IDs remain first-cut choices;
+Frozen observed masks are also approved for the first cut. New-work redo and
+exact public IDs remain first-cut choices;
 the ordered construction is Lynn’s parallel research responsibility.
 The source of each expected result must be a stated decision or argument, not
 whatever today's implementation happens to return.
 
 [Four concrete decision scenarios](docs/first-cut-decisions.md) collect the
-answers, remaining proposals and their costs. Retain is approved; the other
-choices remain pending.
+answers, remaining proposals and their costs. Retain and frozen observed masks
+are approved; new-work redo and exact public IDs remain pending.
 
 Close these dependencies before committing the corresponding engine behavior:
 
@@ -84,10 +87,10 @@ Close these dependencies before committing the corresponding engine behavior:
    Keep-redo stacking is provisional. Distinguish an empty Undo, an invisible
    applied Undo, a blocked Redo and a rejected call. No automatic selective redo
    follows from retaining skipped items.
-2. **Restoration effects.** State whether frozen observed masks remain the
-   first profile's rule, including the different outcomes when a concurrent
-   deletion arrives before/after the press. Unseen concurrent deletion behavior
-   is unapproved. Include peers' undo/redo and later causal deletions. Do not
+2. **Restoration effects.** Carry forward the approved frozen observed masks,
+   including the different outcomes when a concurrent deletion arrives
+   before/after the press. An unseen concurrent deletion can hide the text
+   when it arrives. Include peers' undo/redo and later causal deletions. Do not
    quietly turn frozen masks into predicates over future arrivals.
 3. **Ordered construction and anchors.** Supply a complete finite-history
    interpretation of gap integration, concurrent runs, ties, hidden endpoints,
@@ -119,14 +122,14 @@ they do not select product semantics by vote.
 | --- | --- | --- | --- |
 | own Undo / explicit Restore | approved; restricted experiment runs | Lynn extends the argument to the ordered cut | yes |
 | skipped own items | retain approved; consume still runs | Lynn revises contract/oracles openly and preserves the superseded controls as evidence | yes |
-| observed/unseen restoration masks | observed frozen masks run; unseen effects unapproved | Lynn states press-time/later-event consequences; Ren selects the cut's rule | yes |
+| observed/unseen restoration masks | frozen observed masks approved for this cut, including later-arriving unseen deletion | Lynn carries the approved effects into the joint transition and proofs | yes |
 | new work with redo | explicit keep/clear runs; stacking provisional | Ren approves continuation outcomes; Lynn gives their construction | yes |
 | hidden placement | Xab/Xab settled only for q30/q31; longer runs and Friday/Monday open | Lynn supplies minimal distinguishing histories and candidate rule; Ren approves outcomes | the cut's placement domain must close |
 | q34 identity after return | reference reuses IDs; general anchor/edit equivalence unresolved | Ren approves observable contract; Lynn proves the representation realizes it | exact-ID reuse is proposed for the cut; approval still needed |
 | q32 boundary membership | caller choice motivated; mechanism open | Lynn separates gap affinity from per-insertion span membership; Ren confirms intended behavior | span membership is absent from the cut |
 | grouping / derived children | required eventual scope; lifecycle incomplete | Lynn specifies membership and outstanding-job cases; Ren resolves behavior conflicts | no; one call is one primary item in the cut |
 | budgets and q37 | numeric targets and limit response open; no GC selected | Ren supplies intended workloads/acceptable limit response; Lynn proposes measured bounds and admission behavior | cut-specific bounds/response must close |
-| algorithm, abstraction and proofs | no ordered construction or CRDT theorem | Lynn constructs and reviews the cut's algorithm, abstraction and source-linked obligations | yes; no product answer substitutes for this |
+| algorithm, abstraction and proofs | candidate order and joint admission references reviewed; no CRDT theorem or Rust transition | Lynn constructs and reviews the cut's algorithm, abstraction and source-linked obligations | yes; no product answer substitutes for this |
 
 **Exit:** one internally consistent contract for the selected profile, an
 executable ordered reference, and a constructive algorithm/correctness argument
@@ -141,6 +144,11 @@ and reviewed. A choice it depends on cannot be hidden as an implementation
 detail; independent unresolved features stay outside that slice's claim.
 
 ## 2. cross the first real Rust replication boundary
+
+The [Rust transition/proof reconciliation](docs/rust-transition-cut.md) maps the
+merged references to one joint author/admit boundary, an explicit whole-instance
+abstraction and the source-linked obligations. It is planning, not permission
+to start code or adoption of the pending profile choices.
 
 ### proposed cut: two-writer in-memory sequence / Undo / Restore
 
