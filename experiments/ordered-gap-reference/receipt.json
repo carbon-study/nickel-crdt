@@ -23,21 +23,25 @@
     {
       "scalars": 1,
       "totalKeyDigits": 1,
+      "storedTreeDigits": 1,
       "maxKeyDepth": 1
     },
     {
       "scalars": 8,
       "totalKeyDigits": 36,
+      "storedTreeDigits": 8,
       "maxKeyDepth": 8
     },
     {
       "scalars": 16,
       "totalKeyDigits": 136,
+      "storedTreeDigits": 16,
       "maxKeyDepth": 16
     },
     {
       "scalars": 32,
       "totalKeyDigits": 528,
+      "storedTreeDigits": 32,
       "maxKeyDepth": 32
     }
   ]

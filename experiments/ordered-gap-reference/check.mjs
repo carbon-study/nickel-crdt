@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import {author,interpret,ids,render,keys,eventId} from './order.mjs';
+import {treeInterpret,expandTree} from './tree.mjs';
+function refinement(events){assert.deepEqual(expandTree(treeInterpret(events)),keys(events),'tree-to-key abstraction');}
 const receipt={witnesses:{},deliveryOrders:0,generatedSnapshots:0,controls:{}};
-function expect(name,events,visible,text){assert.equal(render(events,visible),text,name);receipt.witnesses[name]=text;}
+function expect(name,events,visible,text){refinement(events);assert.equal(render(events,visible),text,name);receipt.witnesses[name]=text;}
 const root=author([],0,1,'ab',[],0),ab=[root],base=ids(ab),[a,b]=base;
 const x=author(ab,1,1,'X',[b],0);
 expect('q30-after-return',[root,x],null,'Xab');
@@ -32,7 +34,7 @@ for(const swap of [false,true]) {
   expect(`later-internal-insertion-${swap}`,history,null,swap?'aPZQXYb':'aXZYPQb');
   const canonical=keys(history);
   for(const order of permutations(history))if(legal(order)){
-    assert.deepEqual(keys(order),canonical);
+    assert.deepEqual(keys(order),canonical);refinement(order);refinement([...order,order[0]]);refinement(JSON.parse(JSON.stringify(order)));
     assert.deepEqual(keys([...order,order[0]]),canonical,'duplicate');
     assert.deepEqual(keys(JSON.parse(JSON.stringify(order))),canonical,'cold');
     receipt.deliveryOrders++;
@@ -55,7 +57,7 @@ for(let depth=0;depth<3;depth++) {
         const displayed=render(result,[...visible,...after.filter(r=>r.event===eventId(event)).map(r=>r.id)]);
         const oldView=before.filter(r=>visible.includes(r.id)).map(r=>r.scalar);
         assert.equal(displayed,[...oldView.slice(0,gap),event.text,...oldView.slice(gap)].join(''),'visible gap');
-        assert.deepEqual(keys(JSON.parse(JSON.stringify(result))),keys(result));receipt.generatedSnapshots++;
+        assert.deepEqual(keys(JSON.parse(JSON.stringify(result))),keys(result));refinement(result);refinement(JSON.parse(JSON.stringify(result)));receipt.generatedSnapshots++;
         // Keep all depth-one cases, then a deterministic bounded cross-section.
         if(depth===0 || (mask===0&&gap===0) || (mask===2**n-1&&gap===visible.length))next.push(result);
       }
@@ -64,6 +66,6 @@ for(let depth=0;depth<3;depth++) {
   frontier=next;
 }
 const growth=[];let sequential=[];
-for(let i=0;i<32;i++){sequential.push(author(sequential,0,i+1,'x',ids(sequential),i));if([0,7,15,31].includes(i)){const r=interpret(sequential);growth.push({scalars:r.length,totalKeyDigits:r.reduce((n,x)=>n+x.key.length,0),maxKeyDepth:Math.max(...r.map(x=>x.key.length))});}}
-assert.deepEqual(growth.map(x=>x.totalKeyDigits),[1,36,136,528]);receipt.appendGrowth=growth;
+for(let i=0;i<32;i++){sequential.push(author(sequential,0,i+1,'x',ids(sequential),i));if([0,7,15,31].includes(i)){const r=interpret(sequential);growth.push({scalars:r.length,totalKeyDigits:r.reduce((n,x)=>n+x.key.length,0),storedTreeDigits:treeInterpret(sequential).length,maxKeyDepth:Math.max(...r.map(x=>x.key.length))});}}
+assert.deepEqual(growth.map(x=>x.totalKeyDigits),[1,36,136,528]);assert.deepEqual(growth.map(x=>x.storedTreeDigits),[1,8,16,32]);receipt.appendGrowth=growth;
 console.log(JSON.stringify(receipt,null,2));

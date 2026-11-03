@@ -55,12 +55,47 @@ last new scalar as L and the same R for the rest. This makes every later scalar
 key an extension of the run's first key. There is no per-character choice by
 receivers and no ordering based on visibility at import time.
 
-The simple allocation is intentionally not a storage recommendation. Even
-ordinary append grows keys: n single-scalar appends use depths 1 through n,
-so there are n(n+1)/2 stored digits. The executable receipt measures 528 digits
-for just 32 scalars. No bounded-memory, logarithmic-operation or usable-size
-performance claim follows. A compact representation or different allocation
-needs its own refinement argument; replacing keys cannot silently change order.
+### store the common prefixes once
+
+Expanding every key would be a bad representation. Even ordinary append gives
+key depths 1 through n and n(n+1)/2 stored digits: 528 digits at 32 scalars.
+The baseline preserves this failure; it is not a recommended engine layout.
+
+The second interpreter stores the same paths as an ordered tree. An occurrence
+stores just its parent occurrence ID (or root) and its one final digit. Its
+semantic position is the path of digits from root to that node. Sort each
+node's children by digit, then traverse parent before children. This preorder
+is exactly the lexicographic order of the expanded paths. Hidden occurrences
+stay in the tree; visibility only filters the traversal.
+
+The allocation can also run directly on that representation:
+
+1. In the author's basis tree, find the visible predecessor L and its next
+   whole-order node R, exactly as above.
+2. Make the first new scalar a child of L, or of root if L is start.
+3. If R is already L's child (root's child at start), choose height R.height−1.
+   Otherwise choose zero. Use the fresh occurrence identity in either case.
+4. Each further scalar is a child of the previous new scalar, with height zero.
+
+Why does this refine the key rule? A node's immediate preorder successor is its
+first child, if it has one; otherwise the successor is outside its subtree or
+is end. Thus L is a proper prefix of finite R exactly when R is L's first
+immediate child. The two height choices match the two key-allocation cases.
+New nodes have no existing children, so each later scalar uses the zero case.
+By induction the stored parent plus digit expands to the exact baseline key,
+and preorder emits the exact baseline sequence. This is a written abstraction
+argument, not a machine-checked implementation refinement.
+
+At 32 appends the tree stores 32 digits and 32 parent fields instead of 528
+copied digits. More generally there is one order node per occurrence, even
+though path depth still reaches n. This counts fields, not encoded bytes or
+whole document memory. Identity/height bit widths, retained event bases,
+visibility snapshots and Undo facts remain separate costs. The research input
+format deliberately copies full author bases and visible sets, so it can still
+be quadratic. The interpreter rebuilds basis traversals and sorts children;
+no fast incremental edit, serialization budget or usable-scale claim follows.
+The test-only abstraction expands paths to compare the two interpreters; it is
+not how an engine should store them.
 
 ## finite-history argument and its conditions
 
@@ -142,9 +177,9 @@ small branching fixture, duplicate/cold reconstruction checks and 1,960 bounded
 author snapshots. Two wrong variants exhibit the hidden-right and receiver-
 reselection failures. Passing these tests is not the finite-history argument.
 
-Next reconcile this explicit rule with the intended longer-run/replacement
-outcomes, assess a representation that avoids quadratic append keys, and connect
-visibility to the existing reference's actual transitions. Then define the
+Next review this rule and its tree-to-key abstraction against the intended
+longer-run/replacement outcomes, then connect visibility to the existing
+reference's actual transitions and choose bounded metadata/admission. Then define the
 Rust-to-reference abstraction and prove the transitions that actually ship.
 General saved anchors, affinity, grouping, private history and budgets remain
 outside this order-only artifact; their absence is not delivery of the proposed

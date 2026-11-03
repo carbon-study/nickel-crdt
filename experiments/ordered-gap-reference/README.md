@@ -38,9 +38,16 @@ Negative variants preserve evidence of two concrete failures:
 - choosing bounds from the receiver's current set reverses concurrent runs
   according to arrival order.
 
-Finally the append control exposes the candidate's bad key growth: total digit
-count is triangular (528 at 32 characters), before counting event bases and
-visibility snapshots. No resource-budget or useful-scale claim. Output is
+Finally the append control preserves the baseline's bad expanded-key growth:
+total digit count is triangular (528 at 32 characters). `tree.mjs` supplies a
+prefix-sharing representation, storing a parent ID and one digit per occurrence.
+Its independently traversed tree is checked against the full-key interpretation
+on every directed/generated snapshot, every legal delivery schedule and their
+duplicate/cold continuations. At 32 appends it stores 32 digits and 32 parent
+fields. The expansion function is a test diagnostic, not stored engine state.
+This does not make the whole reference linear-memory: author bases and visibility
+snapshots still copy history, fields have numeric widths, and traversals are
+rebuilt. No resource-budget, efficient-update or useful-scale claim. Output is
 committed as `receipt.json` for inspection; regenerate with the command above.
 The written finite-history argument is not a machine proof. This is research,
 not adoption of the candidate, a public Rust API or a verified CRDT engine.
