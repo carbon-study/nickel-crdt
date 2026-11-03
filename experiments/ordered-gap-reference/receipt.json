@@ -15,9 +15,19 @@
   },
   "deliveryOrders": 4,
   "generatedSnapshots": 1960,
+  "wholeGapChecks": 1960,
+  "visibleRightPropertyFailures": 399,
   "controls": {
     "visibleRightOnly": "rejects required aYXb: produces aXYb",
+    "cohesionOracle": "rejects aXPYQb for mutually concurrent XY/PQ insertion events",
     "receiverRechoosesBounds": "rejects convergence: second arrival goes first"
+  },
+  "limitations": {
+    "separatePrependKeystrokes": {
+      "left": "a21b",
+      "right": "a43b",
+      "merged": "a2413b"
+    }
   },
   "appendGrowth": [
     {
@@ -44,5 +54,16 @@
       "storedTreeDigits": 32,
       "maxKeyDepth": 32
     }
-  ]
+  ],
+  "concurrentFamily": {
+    "histories": 144,
+    "legalSchedules": 792,
+    "authorGapChecks": 720,
+    "modes": [
+      "append",
+      "prepend",
+      "hide-own-first-run",
+      "see-peer-first-run"
+    ]
+  }
 }

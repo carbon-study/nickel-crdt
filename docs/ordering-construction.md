@@ -136,7 +136,10 @@ is at or before the visible successor. All new scalars therefore appear at
 the requested gap in the author's current display. Earlier keys and their
 relative comparisons never change. Later visibility changes only filter them.
 
-**Mutually concurrent runs do not interleave.** A run's scalar keys share its
+**Mutually concurrent insertion events do not interleave.** Here a run means
+the text supplied in one insertion event, not a sequence of keystrokes or an
+Undo group. This does not settle the broader intended typing-run contract.
+A single event's scalar keys share its
 first key as a prefix. Two mutually concurrent first keys cannot be prefixes
 of one another: generating such an extension would require knowing the other's
 fresh digit. Their first differing digit consequently orders every scalar of
@@ -144,6 +147,14 @@ one run before every scalar of the other. This says nothing against a later
 edit deliberately inserting inside a run; that edit can and should split it.
 This argument requires the fresh-name/known-prefix generation rules above, not
 merely arbitrary caller-provided keys with a plausible sort order.
+
+Separate backwards-typing events expose the limit: from ab, one writer first
+types 1 and then prepends 2 at that spot (a21b); another independently types 3
+and prepends 4 (a43b). The merged result is **a2413b**. Every single-event run
+still satisfies the argument, but those multi-event typing sequences interleave.
+The reference retains this as a limitation, not a passing broader UX guarantee.
+Grouping cannot be assumed to fix it after the fact: changing which occurrences
+share an Undo item does not change their already-authored positions.
 
 These are written arguments, not machine-checked theorems. There are no new
 hax/Latte proofs or Rust transitions in this artifact.
@@ -160,8 +171,9 @@ convention, not approval of the still-pending exact-public-ID release contract.
 | hide bcd in abcdef, type XY after a | aXYbcdef (new proposed extension) |
 | change Friday to Monday before `!`, then reveal original Friday without hiding Monday | MondayFriday! (new proposed extension; no automatic separator) |
 | insert peer X between visible a and b, hide/reveal a and b | X while hidden, then aXb |
-| concurrent XY and PQ at the same visible gap in ab | aXYPQb or aPQXYb, by insertion identity order |
+| concurrent single-event XY and PQ at the same visible gap in ab | aXYPQb or aPQXYb, by insertion identity order |
 | later insert Z inside XY | XY may become XZY; independent concurrent PQ stays a run |
+| two independent backwards-typing sequences, each split over two events | a21b and a43b merge to a2413b; broader typing cohesion is not provided |
 
 Friday/Monday is particularly important: restoring the original text does not
 mean undoing the replacement. If the candidate is unsuitable here, this is an
@@ -171,11 +183,21 @@ all original words remain adjacent despite edits intentionally made inside them.
 
 ## runnable evidence and next boundary
 
-[The reference](../experiments/ordered-gap-reference/README.md) runs the directed
-cases, both relative writer orderings, four legal delivery schedules for the
-small branching fixture, duplicate/cold reconstruction checks and 1,960 bounded
-author snapshots. Two wrong variants exhibit the hidden-right and receiver-
-reselection failures. Passing these tests is not the finite-history argument.
+[The reference](../experiments/ordered-gap-reference/README.md) checks twelve
+directed outputs and retains the separate prepend limitation. The original
+exploration is single-writer: 1,960 author visibility/gap snapshots, not concurrent
+histories. It now asserts that a new event immediately follows its visible
+predecessor in the whole known order. The visible-right-only variant fails that
+assertion in 399 snapshots, rather than merely failing the directed aYXb case.
+
+A separate deterministic family covers 144 histories with two active writers
+above an initial writer's ab: all three first gaps, then append, prepend, hide
+the own first run or observe the peer's first run. All 792 legal schedules check
+key convergence, tree expansion, duplicates and cold reconstruction. All 720
+author snapshots check the whole-order gap property; every history checks
+per-event cohesion. This remains bounded coverage, not arbitrary concurrency
+or a general proof. Two wrong allocation variants and an interleaved-record
+oracle control retain concrete failures. Tests do not replace the argument.
 
 Next review this rule and its tree-to-key abstraction against the intended
 longer-run/replacement outcomes, then connect visibility to the existing

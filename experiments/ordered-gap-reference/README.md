@@ -32,11 +32,32 @@ extension levels. All first-level masks/gaps are explored; later levels keep
 the documented deterministic frontier in source. This is not exhaustive over
 all histories, and supplying arbitrary visibility sets is not an undo oracle.
 
+Those 1,960 snapshots are single-writer. They now check the stronger whole-order
+gap property in `properties.mjs`: each new insertion immediately follows its
+visible predecessor, before any known hidden successors. The visible-right-only
+variant fails that property on 399 snapshots. The original visible-text-only
+assertion did not distinguish it; that earlier coverage gap is preserved here.
+
+`concurrent.mjs` separately enumerates 144 finite histories: two active writers
+above an initial writer's ab, each selecting one of three initial gaps and then
+append, prepend, hide-own-first-run or see-peer-first-run. All 792 legal causal
+schedules check convergence, tree expansion, duplicates and cold reconstruction.
+There are 720 whole-order author-gap checks and a per-insertion-event cohesion
+check for every history. This small family is not arbitrary concurrency coverage.
+
+Cohesion means one insertion event's text, not a multi-event typing sequence or
+Undo item. The retained backwards-typing limitation is a21b and a43b merging
+to a2413b. This is not silently accepted as satisfying a broader typing contract.
+
 Negative variants preserve evidence of two concrete failures:
 
 - selecting only the visible right bound misplaces Y relative to hidden X;
 - choosing bounds from the receiver's current set reverses concurrent runs
   according to arrival order.
+
+An intentionally interleaved aXPYQb record ordering also fails the unchanged
+per-event cohesion assertion for concurrent XY and PQ. That checks the oracle;
+it is not an additional allocation algorithm or a general proof.
 
 Finally the append control preserves the baseline's bad expanded-key growth:
 total digit count is triangular (528 at 32 characters). `tree.mjs` supplies a
