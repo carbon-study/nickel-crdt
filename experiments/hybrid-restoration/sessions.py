@@ -66,7 +66,7 @@ class RestorePreview:
 
 
 class Session:
-    def __init__(self, writer, document=None, skip_policy='consume'):
+    def __init__(self, writer, document=None, skip_policy='retain'):
         if skip_policy not in ('retain', 'consume'):
             raise ModelError('unknown skip policy')
         self.doc = document if document is not None else Doc()
@@ -299,6 +299,8 @@ class Session:
         x = json.loads(raw)
         if x['format'] != 'hybrid-private-session-3' or x['counter'] < 1:
             raise ModelError('unsupported checkpoint')
+        if x.get('skip_policy') not in ('retain', 'consume'):
+            raise ModelError('unknown saved skip policy')
         for key, encoded in x['basis'].items():
             if key not in document.events or cls._event_encoding(document.events[key]) != encoded:
                 raise ModelError('incompatible document/history basis')

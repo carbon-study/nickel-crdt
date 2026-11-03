@@ -36,11 +36,19 @@ replacement restores its deletion effects and withdraws its creations in one
 event. Frozen observed-concurrent restoration masks still give q07 its b result.
 Selecting an own action does not imply author-exclusive effects.
 
-An actual undo permanently consumes ineffective own items it bypassed before
-the selected action. Inspection, import, and **empty undo consume nothing**.
-An older item below the selected item was not bypassed. No skipped item gains a
-redo entry. This preserves the earlier consumed-bypass choice, while ordinary
-Undo no longer selects a foreign deletion.
+An actual Undo retains ineffective own items it bypassed before the selected
+action, as Ren approved. They may become eligible after another writer retracts
+a Restore. Inspection, import, and **empty Undo preserve history**. An older
+item below the selected item was not bypassed; no skipped item gains a redo
+entry. A successful redo has priority above a retained skipped item. Explicit
+`clear_history` still discards local access without deleting shared facts.
+Ordinary Undo never selects a foreign deletion.
+
+New sessions default to `retain`. Explicit `consume` remains a historical
+comparison profile; saved format-3 checkpoints resume their recorded policy,
+not the new constructor default. Missing or unknown saved policies reject
+before a resumed session is returned. No migration of already-consumed private
+items is supplied. See the retained [consume-default evidence](../experiments/hybrid-restoration/historical/consume-default/README.md).
 
 A successful Undo returns the event, including its effect facets. Empty Undo
 returns `None`. An invisible eligible Undo still emits an event and advances
@@ -142,7 +150,7 @@ calls cover the appendix press-time arrivals warm/cold, immediate Undo after
 Redo, highest-current creator display slots, full-scope Restore, selected own
 reactivation, peer reactivation/cancellation rejection, fresh-token restore redo, unchanged
 masks after late concurrent deletion, equal-looking occurrences, empty presses,
-consumed bypasses, and compatible reload.
+retained bypasses, explicit legacy consume, and compatible reload.
 
 The bounded explorer compares uninterrupted and reloaded executions of the same
 candidate. It is not an independent intended-undo oracle or an unbounded proof.

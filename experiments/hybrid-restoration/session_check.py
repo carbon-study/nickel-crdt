@@ -14,8 +14,9 @@ def shown(s):
     return sorted(values[k] for k in s.doc.visible())
 
 
-def pair(skip='consume'):
-    a, b = Session('A'), Session('B', skip_policy=skip)
+def pair(skip=None):
+    a = Session('A') if skip is None else Session('A', skip_policy=skip)
+    b = Session('B') if skip is None else Session('B', skip_policy=skip)
     z = b.edit(creates=('z',)); deliver(z, a)
     birth = a.edit(creates=('b',)); deliver(birth, b)
     deletion = b.edit(deletes=birth.creates); deliver(deletion, a)
@@ -24,6 +25,7 @@ def pair(skip='consume'):
 
 def same_after_resume(s):
     resumed = Session.resume(s.checkpoint(), s.doc.copy())
+    assert resumed.skip_policy == s.skip_policy, 'cold resume must preserve selected skip policy'
     assert resumed.checkpoint() == s.checkpoint()
     assert resumed.next_undo() == s.next_undo()
     assert resumed.doc.visible() == s.doc.visible()
@@ -48,6 +50,48 @@ def consumed_skip(skip):
     deliver(b.redo(), a)
     assert shown(a) == ['z']
     return len(b.doc.events)
+
+
+def retained_skip(skip=None):
+    # Same real calls in warm and resumed sessions; default construction is
+    # intentional so an opt-in retain test cannot mask a consume default.
+    counts = []
+    for cold in (False, True):
+        for redo_before_revisit in (False, True):
+            a, b, z, birth, deletion = pair(skip)
+            def resume():
+                nonlocal a, b
+                if cold:
+                    a, b = same_after_resume(a), same_after_resume(b)
+            deliver(a.restore(deletion.id), b); resume()
+            assert b.next_undo() == ('own', z.id)
+            counter, facts = b.counter, set(b.doc.events)
+            deliver(b.undo(), a); resume()
+            assert b.counter == counter + 1 and len(set(b.doc.events)-facts) == 1
+            assert [e.source for e in b.redos] == [z.id], 'skipping must not mint a redo entry'
+            if redo_before_revisit:
+                deliver(b.redo(), a); resume()
+            deliver(a.undo(), b); resume()
+            if redo_before_revisit:
+                assert b.next_undo() == ('own', z.id), 'redone item must stay above retained skip'
+                deliver(b.undo(), a); resume()
+            assert b.next_undo() == ('own', deletion.id), 'skipped deletion must remain available after Restore retraction'
+            deliver(b.undo(), a); resume()
+            assert shown(a) == shown(b) == ['b']
+            assert [e.source for e in b.redos] == [z.id, deletion.id]
+            deliver(b.redo(), a); resume()
+            assert shown(a) == shown(b) == []
+            deliver(b.redo(), a); resume()
+            assert shown(a) == shown(b) == ['z']
+            counts.append(len(b.doc.events))
+    # A deliberate clear still discards local access, without changing facts.
+    a, b, _, _, deletion = pair(skip)
+    deliver(a.restore(deletion.id), b); deliver(b.undo(), a)
+    before = dict(b.doc.events); b.clear_history(); b = same_after_resume(b)
+    assert b.doc.events == before
+    deliver(a.undo(), b)
+    assert b.next_undo() is None and b.undo() is None
+    return counts
 
 
 def frozen_vs_observed():
@@ -164,6 +208,28 @@ def remote_edit_keeps_redo():
 
 def compatible_saves():
     import json
+    for policy in ('consume', 'retain'):
+        owner = Session('policy-save', skip_policy=policy)
+        owner.edit(creates=('x',)); owner.undo()
+        saved, before = owner.checkpoint(), owner.doc.copy()
+        assert Session.resume(saved, before.copy()).checkpoint() == saved
+        for bad_policy in ('Consume', 'retian', None, 42):
+            record = json.loads(saved); record['skip_policy'] = bad_policy
+            document = before.copy(); events_before = dict(document.events)
+            try:
+                Session.resume(json.dumps(record), document)
+            except ModelError:
+                pass
+            else:
+                raise AssertionError('invalid saved skip policy must reject')
+            assert document.events == events_before and owner.checkpoint() == saved, 'policy rejection must preserve document and original session'
+        missing = json.loads(saved); del missing['skip_policy']
+        try:
+            Session.resume(json.dumps(missing), before.copy())
+        except ModelError:
+            pass
+        else:
+            raise AssertionError('missing saved skip policy must reject')
     empty = Session('A'); old = json.loads(empty.checkpoint()); old['format']='hybrid-private-session-2'
     try: Session.resume(json.dumps(old), empty.doc.copy())
     except ModelError: pass
@@ -254,7 +320,7 @@ def equal_occurrences_and_victim_scope():
 
 
 def bypass_boundaries():
-    # Inspection and receipt do not consume an item; pressing undo does.
+    # Inspection, receipt and retained skips never consume an item.
     a, b, z, birth, d = pair()
     deliver(a.restore(d.id), b)
     private = b.private_state()
@@ -325,10 +391,14 @@ def trace():
             redoA=[e.source for e in a.redos], redoB=[e.source for e in b.redos]))
     row('ordinary undo targets own creation, not foreign deletion')
     deliver(a.restore(deletion.id), b); row('Alice explicitly restores; Restore becomes own item')
-    deliver(b.undo(), a); row('Bo consumes bypassed deletion and undoes older z')
+    deliver(b.undo(), a); row('Bo retains skipped deletion and undoes older z')
     b = same_after_resume(b); row('Bo reloads matched private/shared checkpoint')
-    deliver(a.undo(), b); row('Alice undoes her Restore; b hides; Bo item stays consumed')
-    assert b.undo() is None; row('Bo empty undo changes nothing')
+    deliver(a.undo(), b); row('Alice undoes her Restore; b hides; Bo deletion becomes eligible again')
+    deliver(b.undo(), a); row('Bo undoes retained deletion and restores b')
+    before = a.checkpoint()
+    assert isinstance(a.redo(), Blocked) and a.checkpoint() == before
+    row('Alice Restore redo is blocked while Bo restoration already reveals b')
+    deliver(b.redo(), a); row('Bo redoes deletion; b hides again')
     deliver(a.redo(), b); row('Alice redoes Restore with fresh original-mask token')
     return dict(profile='explicit Restore; own-action undo; identity sets only', rows=rows)
 
@@ -338,9 +408,10 @@ def review_trace():
     return report()
 
 
-def main(skip='consume'):
-    n = consumed_skip(skip)
-    print(f'consumed bypass: generated {n} events; cold resume preserves consumed history')
+def main(skip=None):
+    counts = retained_skip(skip)
+    legacy = consumed_skip('consume')
+    print(f'retained bypass: warm/cold and redo-priority counts {counts}; explicit legacy consume {legacy} events')
     total = frozen_vs_observed() + q07() + creator_withdrawal()
     replacement(); redo_policy_and_clear(); remote_edit_keeps_redo()
     compatible_saves(); equal_occurrences_and_victim_scope(); bypass_boundaries(); no_op_history()
@@ -350,13 +421,21 @@ def main(skip='consume'):
 
 if __name__ == '__main__':
     import sys
-    mode = sys.argv[1] if len(sys.argv) > 1 else 'consume'
+    mode = sys.argv[1] if len(sys.argv) > 1 else 'retain'
     if mode == 'trace':
         import json
         print(json.dumps(trace(), indent=2))
     elif mode == 'review-trace':
         import json
         print(json.dumps(review_trace(), indent=2))
+    elif mode == 'resume-consumes':
+        original = Session.resume.__func__
+        def resume_consumes(cls, raw, document):
+            result = original(cls, raw, document)
+            result.skip_policy = 'consume'
+            return result
+        Session.resume = classmethod(resume_consumes)
+        retained_skip()
     elif mode == 'eager-consume':
         original = Session.undo
         def eager(self):
@@ -467,7 +546,9 @@ if __name__ == '__main__':
             return event
         Session.redo = old_redo
         redo_policy_and_clear()
+    elif mode == 'legacy-consume':
+        print(f'legacy consumed bypass: {consumed_skip("consume")} events')
     elif mode in ('retain', 'consume'):
-        main(mode)
+        main(None if mode == 'retain' else 'consume')
     else:
         raise SystemExit('expected retain, consume or trace')

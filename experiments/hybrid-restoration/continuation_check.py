@@ -186,7 +186,7 @@ def explore(depth=3, mutation=None):
         by_seed[name] = dict(states=local_states, edges=local_edges)
     if covered != {'undo', 'redo', 'clear', 'edit', 'restore', 'receive', 'duplicate'}:
         raise AssertionError('action vocabulary not covered')
-    return dict(status='bounded comparisons passed', depth=depth, seeds=by_seed,
+    return dict(status='bounded comparisons passed', session_skip_policy=Session('profile-probe').skip_policy, depth=depth, seeds=by_seed,
         creation_events_per_writer=2, state_budget=10000,
         restart_prefix_depth_max=depth-1, transport_sync_depth_max=depth, **counts,
         boundary='one-step warm/cold observable comparisons at generated reachable prefixes; not an independent undo oracle')

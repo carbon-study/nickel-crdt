@@ -28,6 +28,7 @@
       "states": 519
     }
   },
+  "session_skip_policy": "retain",
   "state_budget": 10000,
   "states": 2292,
   "status": "bounded comparisons passed",
