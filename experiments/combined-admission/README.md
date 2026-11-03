@@ -86,19 +86,34 @@ It also includes inspect/confirm Restore, Undo/Redo, supplementary/combining
 scalars, independent insertions and the explicitly opted-in retain witness.
 The older Python consume default and its controls remain unchanged.
 
-Twenty-one directed rejection checks preserve exact serialized combined state:
-missing prerequisites; omitted birth dependencies; unknown deletion targets;
+A separate last-gap witness has Alice insert X after ab while Bo concurrently
+deletes b. Cam receives the insertion before or after that deletion. Both legal
+orders must admit the original gap2 packet and produce aX with identical full
+combined state. Counting Cam's current visible births would reject one order.
+
+Twenty-two directed rejection checks preserve exact serialized combined state:
+missing prerequisites; omitted birth dependencies; duplicate deletion targets;
+unknown deletion targets;
 placement without birth; writer/ID mismatch; birth/payload mismatch; omitted
 writer predecessor; invalid/boolean gaps; a compound valid birth plus foreign
 withdrawal; malformed pairs; attempted caller visibility; changed duplicate;
 each of the six resource ceilings; an injected order failure; and an actually terminated order subprocess.
 
-Two scratch mutations run against the unchanged checks:
+Four scratch mutations run against the unchanged checks:
 
 - validating deletions against the receiver's current view rejects a valid
   concurrent deletion in the retained positive histories;
 - publishing the trial before checking the order/digit budget fails the exact
-  state-preservation assertion.
+  state-preservation assertion;
+- bounding a gap by receiver visibility rejects the valid last-gap packet;
+- removing the duplicate deletion-target guard accepts the directed invalid
+  packet and fails its unchanged rejection assertion.
+
+The writer-counter-order guard is defense in depth, not separately exercised.
+For a fresh ID, an ancestral same-writer counter at or above it would require
+the candidate's own predecessor-chain entry already to exist; exact/conflicting
+duplicate handling occurs earlier. This is a written reachability argument under
+this profile's ID and predecessor rules, not another mutation-coverage result.
 
 No mutation switch enters the implementation. The receipt is finite evidence,
 not a machine-checked atomicity/convergence theorem. This still does not establish

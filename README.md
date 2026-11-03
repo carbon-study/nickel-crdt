@@ -2,7 +2,7 @@
 
 An application-independent sequence CRDT library, intended for Carbon and potentially Dark, with proofs tied to its Rust implementation through hax and Latte. Lynn owns and maintains it.
 
-This repository currently contains the toolchain scaffold. It has **no CRDT implementation or public API yet**. Sequence ordering, identity, undo, replication and the first release boundary still need an agreed contract.
+This repository currently contains the toolchain scaffold and restricted executable reference experiments. It has **no CRDT implementation or public API yet**. Sequence ordering, identity, undo, replication and the first release boundary still need an agreed contract.
 
 ## Ordering research candidate
 
@@ -56,10 +56,18 @@ No sequence/undo verifier obligation is currently discharged. The proved Boolean
 
 [Own-action Undo and explicit Restore](docs/private-session-profile.md): running edit/restore/undo/redo selection over two independent identity-set documents, with private checkpoint continuations. This is a restricted research model, not the Rust core or an adopted complete undo API. The [Restore preview follow-up](docs/restore-preview.md) adds inspect/confirm calls bound to the exact document/private basis.
 
-## Next decision
+## Roadmap and next decision
 
-[The response-led PR plan](docs/response-plan.md) takes priority: specify Ren’s hybrid undo behavior and both writers’ continuations before adopting the earlier local-only activity proposal.
+[The implementation roadmap](ROADMAP.md) proposes the first usable native
+release, an earlier experimental crate, and Rust/proof/consumer acceptance gates. We are
+still closing the reference profile, not implementing a CRDT engine. The
+[four decision scenarios](docs/first-cut-decisions.md) collect the pending
+history/effect/identity choices before ordered-reference/API reconciliation;
+no ordering algorithm is adopted by the roadmap.
 
-The [proposed Nickel contract and consumer profiles](docs/carbon-contract.md) remains a working comparison: primitives, API shapes, undo/activity semantics, acceptance witnesses and construction order. Carbon and possible Dark integrations are separate usage sketches, not part of the library’s API or release definition. It is not adopted. Settle the sequence/undo contract with concrete two-peer and cold-recovery examples before implementing the engine. In particular, decide what an invisible undo publishes, how independent peer edits survive, and which identities and ordering survive restoration. A matching method signature alone does not establish backend substitutability.
+The [response-led plan](docs/response-plan.md) preserves why Ren's questionnaire
+answers displaced the earlier writer-exclusive activity recommendation.
+The [consumer contract](docs/carbon-contract.md) retains motivation and witnesses,
+not an adopted complete API. Carbon and possible Dark adapters remain separate.
 
 The scaffold does not reopen the parked Dark or Loro projects. Copying their reusable loop reasoning is a scoped extraction.

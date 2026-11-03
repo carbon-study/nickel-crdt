@@ -1,4 +1,10 @@
-# PR1 plan based on ren's responses
+# response-led research plan (PR1 context)
+
+The current route to a usable crate is the proposed [implementation
+roadmap](../ROADMAP.md). This document retains the PR1 research agenda and its
+motivating traces; some “next PR1” tasks below now have restricted experimental
+answers. They are not claims of remaining implementation work or a complete
+sequence algorithm. The private-session profile owns those running answers.
 
 **Current clarification:** after the appendix review, Ren approved ordinary
 Undo selecting own actions and victim Restore as a separate, explicit own
