@@ -8,6 +8,12 @@ trap 'rm -rf "$work"' EXIT
 nix develop "$root/experiments/hybrid-restoration" --command python "$here/trace.py" > "$work/warm.json"
 BRIDGE_COLD=1 nix develop "$root/experiments/hybrid-restoration" --command python "$here/trace.py" > "$work/cold.json"
 cmp "$work/warm.json" "$work/cold.json"
-node "$here/check.mjs" "$work/warm.json" > "$work/receipt.json"
-cmp "$work/receipt.json" "$here/receipt.json"
+mode=()
+receipt="$here/receipt.json"
+if [[ ${1:-} == --fugue ]]; then
+  mode=(--fugue)
+  receipt="$here/fugue-receipt.json"
+fi
+node "$here/check.mjs" "$work/warm.json" "${mode[@]}" > "$work/receipt.json"
+cmp "$work/receipt.json" "$receipt"
 cat "$work/receipt.json"

@@ -1,7 +1,12 @@
 // This adapter consumes real Python effect facts. It does not implement Undo.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {interpret, keys} from '../ordered-gap-reference/order.mjs';
+import {interpret as denseInterpret, keys as denseKeys} from '../ordered-gap-reference/order.mjs';
+import {fugueInterpret,causalSchedules} from '../ordered-gap-reference/fugue.mjs';
+const useFugue=process.argv[3]==='--fugue';
+const interpret=useFugue?fugueInterpret:denseInterpret;
+const keys=useFugue?events=>fugueInterpret(events):denseKeys;
+let insertionDeliveries=0;
 import {treeInterpret, expandTree} from '../ordered-gap-reference/tree.mjs';
 assert(process.argv[2], 'supply the actual trace.py output file');
 const input=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
@@ -44,7 +49,11 @@ for(const trace of input.traces) {
       assert.equal(selected.length,visible.size,'effect names unplaced birth');
       const text=selected.map(r=>r.scalar).join('');
       assert.equal(text,view.expected,`${trace.name}: ${step.label}: ${writer}`);
-      assert.deepEqual(expandTree(treeInterpret(events)),keys(events),'tree bridge');
+      if(!useFugue)assert.deepEqual(expandTree(treeInterpret(events)),keys(events),'tree bridge');
+      else for(const schedule of causalSchedules(events)){
+        assert.deepEqual(interpret(schedule),order,'FugueMax whole-order delivery agreement');
+        insertionDeliveries++;
+      }
       // Cold order reconstruction and a different insertion delivery order.
       assert.deepEqual(keys(JSON.parse(JSON.stringify(events)).reverse()),keys(events));
       const allText=order.map(r=>r.scalar).join('');
@@ -59,4 +68,5 @@ for(const trace of input.traces) {
 }
 assert(effectControls>0,'dropping real effect filtering must fail');
 assert(wholeGapControls>0,'visible-right mutation must fail after real withdrawal/redo');
-console.log(JSON.stringify({traces:receipts,views,effectControls,wholeGapControls},null,2));
+console.log(JSON.stringify({traces:receipts,views,effectControls,wholeGapControls,
+  ...(useFugue?{candidate:'FugueMax',insertionDeliveries}:{})},null,2));

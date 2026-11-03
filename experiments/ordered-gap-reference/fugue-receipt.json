@@ -1,0 +1,27 @@
+{
+  "witnesses": {
+    "prepend": {
+      "old": "a2413b",
+      "candidate": "a2143b"
+    },
+    "hiddenReturn": "Xab",
+    "figure7": {
+      "max": "AXYBC",
+      "plain": "AYXBC",
+      "causalSchedules": 16
+    },
+    "explicitInteriorEdit": "aPZ🦊éb"
+  },
+  "runFamily": {
+    "histories": 96,
+    "causalSchedules": 6400,
+    "authorGapChecks": 672
+  },
+  "controls": {
+    "oldAllocation": "run oracle rejects retained a2413b baseline",
+    "visibleRight": "caught by hidden return",
+    "plainComparator": "caught by Figure 7",
+    "receiverBasis": "caught by arrival-order disagreement",
+    "inputRejections": 8
+  }
+}
