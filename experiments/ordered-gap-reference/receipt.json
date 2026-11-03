@@ -1,0 +1,69 @@
+{
+  "witnesses": {
+    "q30-after-return": "Xab",
+    "q31-after-return": "Xab",
+    "peer-insertion-survives-withdrawal": "X",
+    "peer-insertion-after-return": "aXb",
+    "longer-hidden-middle": "aXYbcdef",
+    "replacement-before-return": "Monday!",
+    "replacement-after-return": "MondayFriday!",
+    "previously-inserted-hidden-run": "aYXb",
+    "concurrent-runs-false": "aXYPQb",
+    "later-internal-insertion-false": "aXZYPQb",
+    "concurrent-runs-true": "aPQXYb",
+    "later-internal-insertion-true": "aPZQXYb"
+  },
+  "deliveryOrders": 4,
+  "generatedSnapshots": 1960,
+  "wholeGapChecks": 1960,
+  "visibleRightPropertyFailures": 399,
+  "controls": {
+    "visibleRightOnly": "rejects required aYXb: produces aXYb",
+    "cohesionOracle": "rejects aXPYQb for mutually concurrent XY/PQ insertion events",
+    "receiverRechoosesBounds": "rejects convergence: second arrival goes first"
+  },
+  "limitations": {
+    "separatePrependKeystrokes": {
+      "left": "a21b",
+      "right": "a43b",
+      "merged": "a2413b"
+    }
+  },
+  "appendGrowth": [
+    {
+      "scalars": 1,
+      "totalKeyDigits": 1,
+      "storedTreeDigits": 1,
+      "maxKeyDepth": 1
+    },
+    {
+      "scalars": 8,
+      "totalKeyDigits": 36,
+      "storedTreeDigits": 8,
+      "maxKeyDepth": 8
+    },
+    {
+      "scalars": 16,
+      "totalKeyDigits": 136,
+      "storedTreeDigits": 16,
+      "maxKeyDepth": 16
+    },
+    {
+      "scalars": 32,
+      "totalKeyDigits": 528,
+      "storedTreeDigits": 32,
+      "maxKeyDepth": 32
+    }
+  ],
+  "concurrentFamily": {
+    "histories": 144,
+    "legalSchedules": 792,
+    "authorGapChecks": 720,
+    "modes": [
+      "append",
+      "prepend",
+      "hide-own-first-run",
+      "see-peer-first-run"
+    ]
+  }
+}

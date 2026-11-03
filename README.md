@@ -4,6 +4,15 @@ An application-independent sequence CRDT library, intended for Carbon and potent
 
 This repository currently contains the toolchain scaffold and restricted executable reference experiments. It has **no CRDT implementation or public API yet**. Sequence ordering, identity, undo, replication and the first release boundary still need an agreed contract.
 
+## Ordering research candidate
+
+[Historical-gap ordering construction](docs/ordering-construction.md) supplies
+one authored order-only interpretation, directed restoration/concurrent-run
+witnesses and its explicit quadratic key-growth limit. It is not adopted
+semantics, an integrated undo algorithm or a Rust implementation. The
+[reference command](experiments/ordered-gap-reference/README.md) runs separately
+from the existing proof/toolchain checks.
+
 ## Undo questionnaire
 
 [40 scenarios, local progress and JSON answer export](https://nickel-undo.shit.yachts/) support the design discussion. The standalone [questionnaire](questionnaire/README.md) has its own locked flake and is not a CRDT implementation or verifier.
