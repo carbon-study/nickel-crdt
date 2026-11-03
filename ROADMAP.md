@@ -57,6 +57,8 @@ earlier delivery does not quietly remove anchors, children or recovery from it.
 | in-process Restore inspection/confirmation bound to issued selection and full document/private basis | no wire proposal format; restart requires fresh inspection; unrelated changes expire a preview |
 | named-author cancellation/reactivation/withdrawal admission checks and semantic mutation tests | consistency of supplied tags, not authentication or complete hostile-input admission |
 | anchor explainer and Ren's Xab/Xab clarification | one placement witness, not a general run or replacement rule |
+| candidate ordering, actual-session order/effect bridge and joint parsed-value admission | written finite-history order argument and finite checks; no adopted engine algorithm or implementation-linked CRDT proof |
+| bounded pending-fact retention and separate-process reference resume | no selected transport, Rust checkpoint format, release budgets or general liveness guarantee |
 
 The [private-session profile](docs/private-session-profile.md) and
 [preview contract](docs/restore-preview.md) own the running experiment.
@@ -126,7 +128,7 @@ they do not select product semantics by vote.
 | q32 boundary membership | caller choice motivated; mechanism open | Lynn separates gap affinity from per-insertion span membership; Ren confirms intended behavior | span membership is absent from the cut |
 | grouping / derived children | required eventual scope; lifecycle incomplete | Lynn specifies membership and outstanding-job cases; Ren resolves behavior conflicts | no; one call is one primary item in the cut |
 | budgets and q37 | numeric targets and limit response open; no GC selected | Ren supplies intended workloads/acceptable limit response; Lynn proposes measured bounds and admission behavior | cut-specific bounds/response must close |
-| algorithm, abstraction and proofs | no ordered construction or CRDT theorem | Lynn constructs and reviews the cut's algorithm, abstraction and source-linked obligations | yes; no product answer substitutes for this |
+| algorithm, abstraction and proofs | candidate order and joint admission references reviewed; no CRDT theorem or Rust transition | Lynn constructs and reviews the cut's algorithm, abstraction and source-linked obligations | yes; no product answer substitutes for this |
 
 **Exit:** one internally consistent contract for the selected profile, an
 executable ordered reference, and a constructive algorithm/correctness argument
@@ -141,6 +143,11 @@ and reviewed. A choice it depends on cannot be hidden as an implementation
 detail; independent unresolved features stay outside that slice's claim.
 
 ## 2. cross the first real Rust replication boundary
+
+The [Rust transition/proof reconciliation](docs/rust-transition-cut.md) maps the
+merged references to one joint author/admit boundary, an explicit whole-instance
+abstraction and the source-linked obligations. It is planning, not permission
+to start code or adoption of the pending profile choices.
 
 ### proposed cut: two-writer in-memory sequence / Undo / Restore
 

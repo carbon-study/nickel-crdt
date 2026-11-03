@@ -71,3 +71,5 @@ The [consumer contract](docs/carbon-contract.md) retains motivation and witnesse
 not an adopted complete API. Carbon and possible Dark adapters remain separate.
 
 The scaffold does not reopen the parked Dark or Loro projects. Copying their reusable loop reasoning is a scoped extraction.
+
+The proposed [Rust transition/proof cut](docs/rust-transition-cut.md) reconciles the merged references; no engine implementation is authorized by it.
