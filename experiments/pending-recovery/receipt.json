@@ -1,0 +1,25 @@
+{
+  "backpressure": "caller retains; later re-offer accepted",
+  "capacity_after": [
+    "ab",
+    "ab"
+  ],
+  "capacity_before": [
+    "a",
+    "b"
+  ],
+  "checkpoints": 202,
+  "invalid_deferred": "retained until explicit acknowledgement",
+  "pending_ack_refused": [
+    "missing",
+    "oracle",
+    "resource"
+  ],
+  "resume_bounds": [
+    "slots",
+    "staged_bytes"
+  ],
+  "stopped_oracle": "retained then admitted through fresh oracle",
+  "unseen_mask": "unchanged after checkpoint and capacity promotion",
+  "views": 46
+}

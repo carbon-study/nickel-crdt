@@ -120,3 +120,9 @@ not a machine-checked atomicity/convergence theorem. This still does not establi
 authentication, general authorization, public IDs, all Session-reachable effect
 semantics, ordering-policy adoption or a usable Rust engine. PR9's separate-
 prepend interleaving limitation and unadopted replacement order remain intact.
+
+The [pending recovery experiment](../pending-recovery/README.md) adds a bounded
+holder for missing/resource/oracle-deferred values. `Deferred` remains a subclass
+of `Rejected`; accepted facts and the existing receipt are unchanged. Its caller
+must distinguish that disposition from invalidity and from inbox Backpressure.
+It is not a selected transport or durable recovery contract.

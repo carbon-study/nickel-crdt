@@ -13,6 +13,11 @@ from model import Doc, Event, ModelError
 class Rejected(ValueError):
     pass
 
+class Deferred(Rejected):
+    def __init__(self, kind, reason):
+        super().__init__(reason)
+        self.kind = kind
+
 @dataclass(frozen=True)
 class Limits:
     events: int = 128
@@ -33,7 +38,7 @@ class Oracle:
             self.process.stdin.write((json.dumps(dict(events=events, visible=visible))+'\n').encode())
             self.process.stdin.flush()
         except BrokenPipeError as error:
-            raise Rejected('order oracle stopped') from error
+            raise Deferred('oracle', 'order oracle stopped') from error
         deadline=time.monotonic()+5
         line=b''
         with selectors.DefaultSelector() as ready:
@@ -42,15 +47,15 @@ class Oracle:
                 if not ready.select(timeout=max(0,deadline-time.monotonic())):
                     self.process.kill()
                     self.process.wait()
-                    raise Rejected('order oracle deadline')
+                    raise Deferred('oracle', 'order oracle deadline')
                 chunk=os.read(self.process.stdout.fileno(),4096)
                 if not chunk:
-                    raise Rejected('order oracle stopped')
+                    raise Deferred('oracle', 'order oracle stopped')
                 line+=chunk
                 if len(line)>65536:
                     self.process.kill()
                     self.process.wait()
-                    raise Rejected('order oracle response budget')
+                    raise Deferred('oracle', 'order oracle response budget')
         result = json.loads(line)
         if not result['ok']:
             raise Rejected('order: '+result['error'])
@@ -105,7 +110,7 @@ class Combined:
         if type(packet) is not dict or set(packet) != {'event','gap'}:
             raise Rejected('packet fields')
         if len(encode(packet).encode()) > self.limits.packet_bytes:
-            raise Rejected('packet byte budget')
+            raise Deferred('resource', 'packet byte budget')
         event = unpack(packet['event'])
         doc, order, packets = self.state
         if type(event.id) is not str or type(event.author) is not str or event.author not in WRITERS:
@@ -124,20 +129,22 @@ class Combined:
                 raise Rejected('conflicting combined duplicate')
             return False
         if len(doc.events) >= self.limits.events:
-            raise Rejected('event budget')
-        if len(event.after) > self.limits.dependencies or len(set(event.after)) != len(event.after):
-            raise Rejected('dependency budget/duplicate')
+            raise Deferred('resource', 'event budget')
+        if len(event.after) > self.limits.dependencies:
+            raise Deferred('resource', 'dependency budget')
+        if len(set(event.after)) != len(event.after):
+            raise Rejected('duplicate dependency')
         if not set(event.after) <= doc.events.keys():
-            raise Rejected('missing prerequisite')
+            raise Deferred('missing', 'missing prerequisite')
         past = doc.ancestors(event.after)
         if counter > 1 and f'{event.author}:{counter-1}' not in past:
             raise Rejected('missing writer predecessor')
         if any(e.author == event.author and int(e.id.rsplit(':',1)[1]) >= counter for e in (doc.events[k] for k in past)):
             raise Rejected('writer counter order')
         if len(event.creates) > self.limits.scalars_per_edit:
-            raise Rejected('scalar budget')
+            raise Deferred('resource', 'scalar budget')
         if sum(len(e.creates) for e in doc.events.values())+len(event.creates) > self.limits.births:
-            raise Rejected('birth budget')
+            raise Deferred('resource', 'birth budget')
         canonical = tuple(json.dumps([event.author,counter,i],separators=(',',':')) for i in range(len(event.creates)))
         if event.creates != canonical or tuple(k for k,_ in event.payloads) != canonical:
             raise Rejected('birth/payload identity mismatch')
@@ -174,7 +181,7 @@ class Combined:
             visible.append(f'{WRITERS[writer]}:{n}/{index}')
         result=self.oracle.ask(list(candidate.values()), sorted(visible))
         if result['digits'] > self.limits.expanded_digits:
-            raise Rejected('expanded digit budget')
+            raise Deferred('resource', 'expanded digit budget')
         new_packets=dict(packets)
         new_packets[event.id]=json.loads(encode(packet))
         self.state=(trial,candidate,new_packets)
