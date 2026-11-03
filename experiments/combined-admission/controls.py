@@ -15,6 +15,12 @@ elif mode=='early-publish':
     text=text.replace('result=self.oracle.ask(list(candidate.values()), sorted(visible))',
         'self.state=(trial,candidate,packets)\n        result=self.oracle.ask(list(candidate.values()), sorted(visible))')
     expected='rejection partially published'
+elif mode=='receiver-visible-gap':
+    text=text.replace("packet['gap'] <= len(basis.visible())", "packet['gap'] <= len(doc.visible())")
+    expected='author gap'
+elif mode=='duplicate-delete-target':
+    text=text.replace('if len(set(event.deletes)) != len(event.deletes):', 'if False:')
+    expected='invalid packet accepted: duplicate deletion target'
 else:
     raise ValueError(mode)
 module=types.ModuleType('admission'); module.__file__=str(source)

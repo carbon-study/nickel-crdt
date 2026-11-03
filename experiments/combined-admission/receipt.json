@@ -34,7 +34,13 @@
     }
   ],
   "histories": 8,
+  "receiver_last_gap": {
+    "orders": 2,
+    "same_state": true,
+    "text": "aX"
+  },
   "rejections": [
+    "duplicate deletion target",
     "missing prerequisite",
     "delete outside author-visible births",
     "placement without birth",

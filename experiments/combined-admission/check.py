@@ -3,6 +3,7 @@ import json
 import sys
 from dataclasses import asdict
 from admission import Combined, Limits, Oracle, Rejected
+from sessions import Session
 
 traces=json.load(open(sys.argv[1]))['traces']
 
@@ -49,6 +50,25 @@ with Oracle() as oracle:
                 assert cold.snapshot()==store.snapshot(), 'cold combined state mismatch'
         finals.append(dict(name=trace['name'],text=store.text()))
 
+    # Alice chooses her last visible gap before seeing Bo's concurrent deletion.
+    # Cam must admit it even if that deletion has already reduced Cam's view.
+    alice,bo=Session('Alice'),Session('Bo')
+    ab=alice.edit(tuple('ab')); bo.receive(ab)
+    x=alice.edit(('X',))
+    remove_b=bo.edit(deletes=(ab.creates[1],))
+    gap_packets={ab.id:dict(event=asdict(ab),gap=0),
+        x.id:dict(event=asdict(x),gap=2),
+        remove_b.id:dict(event=asdict(remove_b),gap=None)}
+    receivers=[]
+    for schedule in [(ab,x,remove_b),(ab,remove_b,x)]:
+        cam=Combined(oracle)
+        for event in schedule:
+            cam.put(gap_packets[event.id])
+        assert cam.text()=='aX','receiver last-gap render mismatch'
+        receivers.append(cam)
+    assert receivers[0].snapshot()==receivers[1].snapshot(),'receiver gap arrival dependence'
+    last_gap_text=receivers[0].text()
+
     first=traces[0]
     gaps={i['event']:i['gap'] for i in first['insertions']}
     facts=first['steps'][-1]['views']['Alice']['facts']
@@ -56,6 +76,8 @@ with Oracle() as oracle:
     deletion=next(e for e in facts if e['id']=='Bo:1')
     insertion=next(e for e in facts if e['id']=='Alice:2')
     base=Combined(oracle); base.put(packet(root,gaps))
+    p=copy.deepcopy(packet(deletion,gaps)); p['event']['deletes']=[deletion['deletes'][0]]*2
+    reject(base,p,'duplicate deletion target')
     p=packet(insertion,gaps); reject(base,p,'missing prerequisite')
     p=copy.deepcopy(packet(deletion,gaps)); p['event']['after']=[]; reject(base,p,'delete outside author-visible births')
     p=packet(deletion,gaps); p['gap']=0; reject(base,p,'placement without birth')
@@ -110,4 +132,5 @@ with Oracle() as oracle:
         reject(Combined(stopped),packet(root,gaps),'order oracle stopped')
 
 print(json.dumps(dict(histories=len(traces),views=sum(len(s['views']) for t in traces for s in t['steps']),
-    rejections=rejections,finals=finals),indent=2,sort_keys=True))
+    rejections=rejections,finals=finals,
+    receiver_last_gap=dict(orders=len(receivers),text=last_gap_text,same_state=True)),indent=2,sort_keys=True))
