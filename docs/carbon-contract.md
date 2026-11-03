@@ -183,11 +183,11 @@ These are required tests to implement, not results of the current scaffold. Run 
 
 ## 8. construction and proof order
 
-1. **Settle the reference semantics.** Specify complete ordering, activity authority, child membership and version/admission rules. Turn the witnesses into a small executable specification. Agree the counterfactual redo examples, not just the function list.
-2. **Build the pure sequence/activity slice and its proofs together.** Prove identifier uniqueness under the writer contract, deterministic interpretation, delivery/idempotence laws, visibility/activity laws and implementation-linked transition preservation. Cross the original two-peer and cold-reader witnesses with actual encoded operations. A model's convergence theorem does not automatically prove the Rust receiver.
-3. **Close admission and local history.** Prove rejection neutrality and one-item stack transitions; test fault/limit paths, conflicting duplicates and checkpoint continuation. Extraction and bindings remain named trust boundaries.
-4. **Close the portable library boundary.** Test actual encoding/decoding and, if shipped, checked Wasm bindings. Measure Unicode edits, long inactive history, cold import, memory and update growth under explicit supported budgets. Keep host integrations separate; use the Carbon and possible Dark profiles as external consumer tests, as described in appendices A and B.
-5. **Then add registers and keyed collections.** Specify registers before implementation: does a concurrent location choose one deterministic winner, or expose alternatives? A font setting and reading location need not have the same product policy. For keyed highlights, observed removal should not erase a concurrently added independent record; editing an already removed record needs an explicit policy. Reuse the engine's causal/activity machinery only after these meanings are fixed.
+The proposed [implementation roadmap](../ROADMAP.md) now owns the sequence of
+behavioral gates, Rust/proof slices and usable-release acceptance. This document
+keeps the consumer motivation and witnesses. Its older activity/API proposal
+must be reconciled with the chosen profile before implementation relies on it;
+the roadmap does not silently adopt it.
 
 **Proposed Nickel v0.1 exit:** an application-independent sequence/undo/anchor API and portable update/checkpoint format pass the listed two-writer, duplicate-delivery and cold-recovery laws; shipped Rust transitions have source-linked proofs with explicit external assumptions; admission failure paths and resource limits are checked. The examples and tests run without Carbon or Dark. Rich text, general containers, arbitrary selective remote undo, permissions and GC remain later work.
 
