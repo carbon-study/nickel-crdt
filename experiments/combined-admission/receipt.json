@@ -1,0 +1,67 @@
+{
+  "finals": [
+    {
+      "name": "Xab with real explicit Restore",
+      "text": "Xab"
+    },
+    {
+      "name": "hidden X through creator Undo and Redo",
+      "text": "aYXb"
+    },
+    {
+      "name": "replacement and frozen Restore continuation",
+      "text": "MondayFriday!"
+    },
+    {
+      "name": "peer insertion survives creator withdrawal",
+      "text": "aXb"
+    },
+    {
+      "name": "concurrent scalar runs and personal withdrawal",
+      "text": "aX\ud83e\udd8aPe\u0301b"
+    },
+    {
+      "name": "concurrent deletion, peer unseen",
+      "text": "b"
+    },
+    {
+      "name": "concurrent deletion, peer observed",
+      "text": "b"
+    },
+    {
+      "name": "retained skipped deletion becomes eligible again",
+      "text": "b"
+    }
+  ],
+  "histories": 8,
+  "receiver_last_gap": {
+    "orders": 2,
+    "same_state": true,
+    "text": "aX"
+  },
+  "rejections": [
+    "duplicate deletion target",
+    "missing prerequisite",
+    "delete outside author-visible births",
+    "placement without birth",
+    "delete outside author-visible births",
+    "event ID/writer mismatch",
+    "birth/payload identity mismatch",
+    "missing writer predecessor",
+    "author gap",
+    "author gap",
+    "only the creator can withdraw",
+    "event pair shape",
+    "packet fields",
+    "conflicting combined duplicate",
+    "event budget",
+    "packet byte budget",
+    "birth budget",
+    "scalar budget",
+    "dependency budget",
+    "expanded digit budget",
+    "injected order failure",
+    "order oracle stopped"
+  ],
+  "views": 46
+}
