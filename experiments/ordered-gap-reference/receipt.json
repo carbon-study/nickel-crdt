@@ -1,0 +1,44 @@
+{
+  "witnesses": {
+    "q30-after-return": "Xab",
+    "q31-after-return": "Xab",
+    "peer-insertion-survives-withdrawal": "X",
+    "peer-insertion-after-return": "aXb",
+    "longer-hidden-middle": "aXYbcdef",
+    "replacement-before-return": "Monday!",
+    "replacement-after-return": "MondayFriday!",
+    "previously-inserted-hidden-run": "aYXb",
+    "concurrent-runs-false": "aXYPQb",
+    "later-internal-insertion-false": "aXZYPQb",
+    "concurrent-runs-true": "aPQXYb",
+    "later-internal-insertion-true": "aPZQXYb"
+  },
+  "deliveryOrders": 4,
+  "generatedSnapshots": 1960,
+  "controls": {
+    "visibleRightOnly": "rejects required aYXb: produces aXYb",
+    "receiverRechoosesBounds": "rejects convergence: second arrival goes first"
+  },
+  "appendGrowth": [
+    {
+      "scalars": 1,
+      "totalKeyDigits": 1,
+      "maxKeyDepth": 1
+    },
+    {
+      "scalars": 8,
+      "totalKeyDigits": 36,
+      "maxKeyDepth": 8
+    },
+    {
+      "scalars": 16,
+      "totalKeyDigits": 136,
+      "maxKeyDepth": 16
+    },
+    {
+      "scalars": 32,
+      "totalKeyDigits": 528,
+      "maxKeyDepth": 32
+    }
+  ]
+}
