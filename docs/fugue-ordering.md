@@ -115,6 +115,8 @@ Each run is required to be contiguous and retain its own order. The family
 excludes seeing a peer's run while continuing, arbitrary edits at different
 gaps, arbitrary visibility changes during the run and general history grouping.
 These finite checks do not establish Definition 4 for all histories.
+They also do not distinguish the Max comparator from plain/reversed variants;
+the separate oracle below addresses that specific review finding.
 
 The [actual Session bridge](../experiments/order-effect-bridge/README.md) also
 runs this interpreter without changing the Python effect transitions. Its eight
@@ -125,3 +127,48 @@ from Ren's single-character answer. The new order is not integrated into the
 combined-admission or inbox interpreter, whose old key-digit limits would need
 a new representation-specific contract. No byte decoder or hostile wire input
 is handled here. All CRDT verification obligations remain unfulfilled.
+
+### independent finite Max oracle
+
+`fugue-max-oracle.mjs` enumerates candidate total orders, without constructing
+a Fugue tree or using its sibling comparator to choose an expected order. The
+generated histories have two or three concurrent root insertions and two
+independent singleton insertions, each knowing all but one root. Every possible
+known-root omission and gap is chosen for each insertion, with exchanged
+insertion IDs. Origins come directly from those independently specified author
+sequences. All generated histories are deletion-free.
+
+For each history, it considers every total order and every causally closed
+subset. A surviving order must preserve each author insertion sequence and
+satisfy Definition 4's forward adjacency, backward adjacency with the explicit
+Lemma 5 exception, and equal-origin ID ordering in every subset. Descendance
+is computed in the **left-origin tree**, not the candidate's physical tree.
+Start/end are sentinels, not additional list elements for adjacency clauses.
+This is a finite strong-list/projection check and the three order constraints,
+not a general mechanization of the paper.
+
+There are 194 histories, 20,208 candidate total orders, 2,464 causally closed
+subsets counted across histories, and 3,032 causal delivery schedules. Exactly
+one total order survives per history; the implementation must match it on
+every schedule. Plain Fugue disagrees on four histories. Removing the forward, backward
+or tie clause makes the specification underdetermine an order and fails the
+uniqueness check. Reversing right-origin rank, reversing right ID ties, replacing
+Max with plain, or reversing left ID ties fails the generated oracle alone.
+No directed strings or the common-gap run family participate in those controls.
+
+### hidden nodes inside a run: empirical evidence only
+
+`fugue-hidden-runs.mjs` supplies eight additional visibility histories. A
+helper inserts h between a and Alice's first 1; Alice hides h, then prepends 2
+while knowing h. Carol independently prepends 3 then 4, optionally inserting
+and hiding k between them. Both hidden-node options and exchanged writer IDs
+are checked, across 92 causal schedules and cold reconstruction. Six histories
+have a hidden interruption in the whole order. An example is retained order
+**a2h14k3b**, visible **a2143b**; exchanging the run writers gives
+**a4k32h1b**, visible **a4321b**.
+
+The deletion-free simulation places 2 before h, not immediately before 1.
+Consequently that simulation does **not** make the visible 21 sequence a
+backward-origin run, and the paper's corresponding run guarantee is not
+transferred to it. These tests are expressly empirical, with supplied visibility
+rather than real effect transitions, and supply no general visible-run theorem.

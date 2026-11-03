@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {author,eventId,render as oldRender,ids as oldIds} from './order.mjs';
 import {fugueInterpret as interpret,fugueIds as ids,fugueRender as render,ROOT,causalSchedules} from './fugue.mjs';
+import {maxOracleFamily} from './fugue-max-oracle.mjs';
+import {hiddenInsideRuns} from './fugue-hidden-runs.mjs';
 const receipt={witnesses:{},runFamily:{histories:0,causalSchedules:0,authorGapChecks:0},controls:{}};
 function wholeGap(history,e) {
   const basis=history.filter(x=>e.basis.includes(eventId(x))),before=interpret(basis);
@@ -75,4 +77,6 @@ assert.throws(()=>interpret([root,one,{...one,text:'different'}]),/conflicting d
 assert.throws(()=>interpret([root,one,{...two,basis:['1:1']}]),/downward closed/);
 assert.throws(()=>interpret([{...one,basis:['1:1']}]),/missing dependency or cycle/);
 receipt.controls.inputRejections=8;
+receipt.maxOracle=maxOracleFamily();
+receipt.hiddenInsideRuns=hiddenInsideRuns();
 console.log(JSON.stringify(receipt,null,2));

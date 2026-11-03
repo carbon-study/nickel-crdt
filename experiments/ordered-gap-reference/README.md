@@ -102,3 +102,29 @@ inside a run is allowed and checked.
 
 The real Python Session bridge can also use this candidate, without a new Undo
 model: `bash experiments/order-effect-bridge/check.sh --fugue`.
+
+### comparator oracle and hidden-inside-run recheck
+
+The original common-gap family does **not** distinguish plain/reversed Max
+comparators once directed strings are removed. The repair adds two independent
+checks to `fugue-check.mjs` and its receipt:
+
+- `fugue-max-oracle.mjs`: enumerate total orders and all causally closed states
+  in 194 small histories; require the finite author-sequence constraints and
+  Definition 4 order conditions to select exactly one order, then compare all
+  3,032 causal schedules. No physical tree traversal defines that expected order.
+- `fugue-hidden-runs.mjs`: eight empirical supplied-visibility histories and
+  92 schedules, with hidden nodes interrupting whole-order runs. The resulting
+  visible contiguity is not a consequence of the insertion-only argument.
+
+Run the generated oracle alone, or its seven actual source-mutation controls:
+
+```sh
+node experiments/ordered-gap-reference/fugue-max-oracle.mjs
+node experiments/ordered-gap-reference/fugue-oracle-controls.mjs
+```
+
+`fugue-oracle-controls.json` records rejection at the intended assertions. The
+controls run the standalone oracle in temporary copies; no directed witness or
+common-gap run check is imported. Timeouts and spawn failures are not accepted
+as successful controls. See [the detailed scope](../../docs/fugue-ordering.md).

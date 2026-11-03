@@ -1,0 +1,9 @@
+{
+  "reverseRightRank": "generated Definition 4 order",
+  "reverseRightTie": "generated Definition 4 order",
+  "plain": "generated Definition 4 order",
+  "reverseLeftTie": "generated Definition 4 order",
+  "oracleNoForward": "finite specification must determine one order",
+  "oracleNoBackward": "finite specification must determine one order",
+  "oracleNoTie": "finite specification must determine one order"
+}
