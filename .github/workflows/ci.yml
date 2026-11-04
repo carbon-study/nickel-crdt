@@ -3,10 +3,9 @@
 # Each check runs through .github/scripts/check.sh: it has a time limit, and on
 # failure (a hang included) the last lines of output become an annotation.
 #
-# The pinned toolchain (z3, F*, hax, Rust nightly) is not on cache.nixos.org, so
-# a cold store builds it from source (z3 alone took 37 minutes). Magic Nix Cache
-# keeps built paths in the GitHub Actions cache; the research job waits for the
-# scaffold job so it reuses the toolchain instead of building it in parallel.
+# Budgets: in each job the wrapper limits sum to less than the job deadline,
+# with room left for setup and the cache save, so every timeout is reported
+# by the wrapper before GitHub cancels the job.
 name: ci
 
 on:
@@ -20,42 +19,46 @@ concurrency:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
+  # The pinned proof toolchain (z3, F*, hax, Rust nightly) is not on
+  # cache.nixos.org; cold, z3 alone builds for ~37 minutes. The store is cached
+  # between runs, keyed on the Nix files. Budget: 150 min check + 30 s
+  # self-test, under 210 min; setup, restore and save use the remainder.
   scaffold:
     name: native crate and proofs
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 210
     steps:
       - uses: actions/checkout@v6
       - uses: cachix/install-nix-action@v31
-      - uses: DeterminateSystems/magic-nix-cache-action@v15
+      - uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-scaffold-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
+          restore-prefixes-first-match: nix-scaffold-${{ runner.os }}-
       - name: wrapper self-test
         run: .github/scripts/check.test.sh
       # checks.native and checks.proofs. Public checks verify the committed F*
       # views; Latte emission is private and not regenerated here (proofs/README.md).
       - name: flake check
         run: .github/scripts/check.sh flake-check 9000 nix flake check -L
-      # Realise the dev shell here too, so the research job finds it cached.
-      - name: dev shell
-        run: .github/scripts/check.sh dev-shell 3600 nix develop --command true
 
+  # The reference gates use the light `.#references` shell (node and the
+  # nested Python shell, no proof toolchain). Budget: 10 + 5 x 5 = 35 min of
+  # wrapper limits, under 45.
   research:
     name: reference experiments
-    needs: scaffold
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
       - uses: cachix/install-nix-action@v31
-      - uses: DeterminateSystems/magic-nix-cache-action@v15
       - name: hybrid restoration
-        run: .github/scripts/check.sh hybrid-restoration 900 nix flake check -L ./experiments/hybrid-restoration
+        run: .github/scripts/check.sh hybrid-restoration 600 nix flake check -L ./experiments/hybrid-restoration
       # The ordering checks print their receipts; the committed receipts must match.
       - name: ordering (dense-key and FugueMax)
         run: |
-          .github/scripts/check.sh ordering 1200 nix develop --command bash -c '
+          .github/scripts/check.sh ordering 300 nix develop .#references --command bash -c '
             set -euo pipefail
             node experiments/ordered-gap-reference/check.mjs > /tmp/receipt.json
             node experiments/ordered-gap-reference/fugue-check.mjs > /tmp/fugue-receipt.json
@@ -64,12 +67,15 @@ jobs:
             diff <(jq -S . /tmp/receipt.json) <(jq -S . experiments/ordered-gap-reference/receipt.json)
             diff <(jq -S . /tmp/fugue-receipt.json) <(jq -S . experiments/ordered-gap-reference/fugue-receipt.json)'
       - name: combined admission
-        run: .github/scripts/check.sh combined-admission 600 nix develop --command bash experiments/combined-admission/check.sh
-      - name: order/effect bridge
-        run: .github/scripts/check.sh order-effect-bridge 600 nix develop --command bash experiments/order-effect-bridge/check.sh
+        run: .github/scripts/check.sh combined-admission 300 nix develop .#references --command bash experiments/combined-admission/check.sh
+      - name: order/effect bridge (dense)
+        run: .github/scripts/check.sh order-effect-bridge 300 nix develop .#references --command bash experiments/order-effect-bridge/check.sh
+      - name: order/effect bridge (FugueMax)
+        run: .github/scripts/check.sh order-effect-bridge-fugue 300 nix develop .#references --command bash experiments/order-effect-bridge/check.sh --fugue
       - name: pending recovery
-        run: .github/scripts/check.sh pending-recovery 600 nix develop --command bash experiments/pending-recovery/check.sh
+        run: .github/scripts/check.sh pending-recovery 300 nix develop .#references --command bash experiments/pending-recovery/check.sh
 
+  # Budget: 15 min check, under 20.
   questionnaire:
     name: questionnaire model
     runs-on: ubuntu-latest
