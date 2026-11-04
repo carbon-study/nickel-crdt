@@ -6,6 +6,8 @@
 # Budgets: in each job the wrapper limits sum to less than the job deadline,
 # with room left for setup and the cache save, so every timeout is reported
 # by the wrapper before GitHub cancels the job.
+# Runners are ARM64 (ubuntu-24.04-arm): ren measured them faster for large
+# builds, and every flake now exposes aarch64-linux.
 name: ci
 
 on:
@@ -27,7 +29,7 @@ jobs:
   # self-test, under 210 min; setup, restore and save use the remainder.
   scaffold:
     name: native crate and proofs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 210
     steps:
       - uses: actions/checkout@v6
@@ -38,8 +40,8 @@ jobs:
         id: restore
         uses: nix-community/cache-nix-action/restore@v7
         with:
-          primary-key: nix-scaffold-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
-          restore-prefixes-first-match: nix-scaffold-${{ runner.os }}-
+          primary-key: nix-scaffold-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
+          restore-prefixes-first-match: nix-scaffold-${{ runner.os }}-${{ runner.arch }}-
       - name: wrapper self-test
         run: .github/scripts/check.test.sh
       # checks.native and checks.proofs. Public checks verify the committed F*
@@ -52,14 +54,14 @@ jobs:
         if: always() && steps.restore.outputs.hit-primary-key != 'true'
         uses: nix-community/cache-nix-action/save@v7
         with:
-          primary-key: nix-scaffold-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
+          primary-key: nix-scaffold-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
 
   # The reference gates use the light `.#references` shell (node and the
   # nested Python shell, no proof toolchain). Budget: 10 + 5 x 5 = 35 min of
   # wrapper limits, under 45.
   research:
     name: reference experiments
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
@@ -91,7 +93,7 @@ jobs:
   # Budget: 15 min check, under 20.
   questionnaire:
     name: questionnaire model
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
