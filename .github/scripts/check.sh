@@ -41,7 +41,7 @@ fi
 # like errors first, then as much of the tail as fits, each line cut to 300.
 awk -v name="$name" '
   function cut(s) { return length(s) > 300 ? substr(s, 1, 297) "..." : s }
-  { line[NR] = cut($0); if (tolower($0) ~ /error|fail|assert|panic|fatal|exception/) hit[++h] = NR }
+  { line[NR] = cut($0); if (tolower($0) ~ /(^|[^a-z_])(error|fail|assert|panic|fatal|exception)/) hit[++h] = NR }
   END {
     errs = ""
     for (i = (h > 8 ? h - 7 : 1); i <= h; i++) errs = errs line[hit[i]] "\n"
