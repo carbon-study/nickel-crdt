@@ -1,0 +1,45 @@
+import Rust_primitives
+import Core_models
+import FStar.Pervasives
+import FStar.NormSteps
+import Native = Nickel_crdt.Edit
+import Result = Core_models.Result
+
+function receive_neutral(before: Native.t_Replica, outcome: (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error))): Type0 {
+  match outcome {
+    (next, Result.Result_Err(_)) => next == before,
+    (next, Result.Result_Ok(Native.Admission_Duplicate)) => next == before,
+    _ => Prims.l_True
+  }
+}
+proof receive_rejection_unchanged(before: Native.t_Replica, fact: Native.t_Fact): unit
+  gives receive_neutral(before, Native.impl_Replica__receive(before, fact))
+{
+  norm_spec([delta_only(["Nickel_crdt.Edit.impl_Replica__receive", "Nickel.EditAtomic.receive_neutral"]), iota, zeta_full, primops, unmeta, unascribe], receive_neutral(before, Native.impl_Replica__receive(before, fact)))
+}
+
+function edit_neutral(before: Native.t_Replica, outcome: (Native.t_Replica, Result.t_Result(Native.t_Local, Native.t_Error))): Type0 {
+  match outcome {
+    (_, Result.Result_Ok(Native.Local_Authored(_))) => Prims.l_True,
+    (next, _) => next == before
+  }
+}
+proof edit_rejection_or_empty_unchanged(before: Native.t_Replica, gap: usize, insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global)): unit
+  gives edit_neutral(before, Native.impl_Replica__edit(before, gap, insert, delete))
+{
+  norm_spec([delta_only(["Nickel_crdt.Edit.impl_Replica__edit", "Nickel.EditAtomic.edit_neutral"]), iota, zeta_full, primops, unmeta, unascribe], edit_neutral(before, Native.impl_Replica__edit(before, gap, insert, delete)))
+}
+
+function edit_counter_step(before: Native.t_Replica, outcome: (Native.t_Replica, Result.t_Result(Native.t_Local, Native.t_Error))): Type0 {
+  match outcome {
+    (next, Result.Result_Ok(Native.Local_Authored(fact))) =>
+      v(next.f_next_counter) == v(before.f_next_counter) + 1 and
+      fact.f_id.f_counter == before.f_next_counter,
+    _ => Prims.l_True
+  }
+}
+proof authored_edit_advances_once(before: Native.t_Replica, gap: usize, insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global)): unit
+  gives edit_counter_step(before, Native.impl_Replica__edit(before, gap, insert, delete))
+{
+  norm_spec([delta_only(["Nickel_crdt.Edit.impl_Replica__edit", "Nickel.EditAtomic.edit_counter_step"]), iota, zeta_full, primops, unmeta, unascribe], edit_counter_step(before, Native.impl_Replica__edit(before, gap, insert, delete)))
+}

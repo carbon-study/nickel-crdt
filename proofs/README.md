@@ -11,3 +11,15 @@ Trusted dependencies include Rust compilation, hax translation, Latte emission, 
 The smoke fixture establishes no CRDT convergence, ordering, undo, codec, Wasm or browser property.
 
 The [prospective API/verification contract](../docs/api-verification.md) lists the proposed V1–V9 obligations. None is currently discharged. The [undo analysis](../docs/undo-semantics.md) records the semantic/algorithmic stop gate; the loop proof does not bypass it.
+
+## actual edit/admit return paths
+
+`EditAtomic.lt` proves complete-instance neutrality on admission errors/duplicates
+and local errors/empty results, plus the successful local counter step, against
+freshly extracted `src/edit.rs`. Three wrong native bodies must fail their
+unchanged lemmas and native tests. `scripts/check-edit-proofs.mjs` runs inside
+the existing `.#proofs` gate, using the same immutable models and limits. These
+are universal return-path results, not local/admission semantic refinement,
+FugueMax representation, freshness or convergence. See the
+[candidate contract](../docs/rust-edit-admit.md) for the precise domain and
+remaining joint exit. No full V1–V9 obligation is thereby closed.

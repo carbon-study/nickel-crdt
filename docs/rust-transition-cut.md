@@ -1,9 +1,11 @@
 # the first Rust boundary: author and admit the same edit
 
-**Proposed implementation/proof cut, not implementation authorization.** This
-reconciles the merged references with milestone 2 of the [roadmap](../ROADMAP.md).
-No Rust document transition exists yet; `src/lib.rs` is still a scaffold. The
-Boolean-loop proof does not discharge any obligation below.
+**Implementation/proof cut.** Ren has authorized the first Rust edit/admit
+slice with FugueMax for the experimental cut. The [candidate contract](rust-edit-admit.md)
+names its implemented two-writer domain, native checks and source-linked return-path
+lemmas. Semantic refinement, ordering and convergence remain unproved; this is
+not the verified slice or milestone-2 exit. The Boolean-loop proof does not
+discharge these obligations.
 
 The first boundary to cross is a local atomic replacement becoming one immutable
 fact, then being admitted by a second Rust instance. The insertion must get the
