@@ -108,7 +108,10 @@ Four scratch mutations run against the unchanged checks:
   state-preservation assertion;
 - bounding a gap by receiver visibility rejects the valid last-gap packet;
 - removing the duplicate deletion-target guard accepts the directed invalid
-  packet and fails its unchanged rejection assertion.
+  packet and fails its unchanged rejection assertion;
+- removing the full birth-ID multiset guard permits same-count duplicated or
+  foreign IDs in either backend. Both faults must defer as oracle failures,
+  preserving the complete joint snapshot.
 
 The writer-counter-order guard is defense in depth, not separately exercised.
 For a fresh ID, an ancestral same-writer counter at or above it would require
@@ -127,3 +130,62 @@ holder for missing/resource/oracle-deferred values. `Deferred` remains a subclas
 of `Rejected`; accepted facts and the existing receipt are unchanged. Its caller
 must distinguish that disposition from invalidity and from inbox Backpressure.
 It is not a selected transport or durable recovery contract.
+
+## explicit FugueMax joint-admission mode
+
+`bash experiments/combined-admission/check.sh --fugue` uses the reviewed
+`fugue.mjs` candidate at this existing joint boundary. Default invocation and
+`receipt.json` retain the earlier dense-key comparison. The opt-in mode has
+its own `fugue-receipt.json`; `--record` regenerates only the selected mode.
+No caller-supplied parent/origin fields or new packet language is introduced.
+The author basis and visibility are derived from the actual causal effect
+facts exactly as above; Node derives and freezes FugueMax placement there.
+
+`Oracle('fugue')` selects the Node backend. `Combined` chooses a matching
+`FugueLimits` profile if none is supplied; supplying legacy `Limits` to that
+backend rejects instead of silently ignoring its digit ceiling. Shared fact
+ceilings remain events128 / births512 / packet8192 bytes / scalars64 / deps64.
+The ordering ceiling is **1,536 derived-node parent/origin slots**, exactly three fields per
+retained birth (parent, left origin, right origin), including sentinel values.
+The nodes are materialized by the order oracle; Combined retains author records
+and regenerates the nodes, rather than persisting a Fugue tree. This is a
+logical representation metric, redundant with the
+current birth ceiling at its default. Its work is to pin final ordering-budget
+failure to the same joint commit, not to claim efficient storage. It is not a
+byte, heap, stack, CPU, author-snapshot or transient-oracle memory bound, and
+the numbers remain unadopted experiment parameters. Legacy key expansion and
+its 4,096-digit metric do not describe this representation.
+
+The 46 actual Session views pass in both causal replay orders, with exact
+duplicates and cold-state comparison. Warm/cold Session trace production is
+also compared byte for byte in this mode. Two added **actual two-writer Session**
+histories supply the rejected separate-keystroke prepend witness, with IDs
+exchanged: six legal delivery schedules each, yielding a2143b or a4321b and
+identical joint snapshots. The paper's three-author Figure 7 is also produced
+by actual Sessions: all 16 causal schedules give AXYBC, distinguishing plain
+Fugue's AYXBC. That fixture belongs to this three-tag reference domain, not
+the proposed two-writer Rust profile. The Session authors already mutated their private
+stacks before these packets enter admission: this is **not** the Rust whole-
+instance local-call transaction, nor an incremental native sequence engine.
+
+A real Friday→Monday replacement exceeds a reduced ordering-slot ceiling only
+after effect and placement trial work. It returns resource deferral, leaves
+Friday! visible and the whole accepted tuple unchanged, and preserves the
+caller's exact compound packet. Backend-label, birth-count and complete birth-ID
+multiset mismatches return oracle deferral without publication; they do not
+establish that the packet is invalid. Expected IDs come from the trial's admitted
+canonical births, not from a second oracle reply. The five common mutation controls
+run in both modes; four additional Fugue controls substitute plain Fugue or remove
+the ordering ceiling, backend binding or both birth guards. Each must fail its
+intended assertion. A source mutation interrupted before Python's atexit cleanup
+may leave a scratch Node module; its exact filename pattern is ignored so ordinary
+Git staging cannot accidentally publish that mutant.
+
+The old pending-recovery checkpoint/profile is not extended by this change.
+There is no Fugue checkpoint/inbox claim; Inbox explicitly rejects a Fugue
+oracle, even if matching FugueLimits are supplied, rather than emitting an
+unversioned checkpoint. No ordering policy, public IDs, new-work redo behavior or
+release budget is adopted. The [Rust cut](../../docs/rust-transition-cut.md)
+now distinguishes the candidate's origin/traversal obligations from the old
+key-expansion theorem rather than requiring an equivalence between two orders
+that intentionally differ.

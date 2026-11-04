@@ -1,4 +1,6 @@
 """Scratch source mutations; no variant flag enters the admission implementation."""
+import atexit
+import tempfile
 import contextlib
 import io
 import runpy
@@ -21,11 +23,37 @@ elif mode=='receiver-visible-gap':
 elif mode=='duplicate-delete-target':
     text=text.replace('if len(set(event.deletes)) != len(event.deletes):', 'if False:')
     expected='invalid packet accepted: duplicate deletion target'
+elif mode=='fugue-plain':
+    # Actual Node-source mutation, no variant flag enters production code.
+    original=source.with_name('oracle.mjs').read_text()
+    changed=original.replace("(backend==='fugue'?fugueInterpret:interpret)(events)",
+        "(backend==='fugue'?(events=>fugueInterpret(events,{plain:true})):interpret)(events)")
+    assert changed!=original,'Node mutation target missing'
+    with tempfile.NamedTemporaryFile(mode='w',suffix='.mjs',prefix='.plain-control-',dir=source.parent,delete=False) as file:
+        file.write(changed)
+        node_path=Path(file.name)
+    atexit.register(lambda:node_path.unlink(missing_ok=True))
+    text=text.replace("with_name('oracle.mjs')",f'with_name({node_path.name!r})')
+    expected='joint Max discriminator'
+elif mode=='fugue-link-budget':
+    text=text.replace("elif result['links'] > self.limits.ordering_links:", 'elif False:')
+    expected='compound metric overflow accepted'
+elif mode=='order-backend':
+    text=text.replace("if result.get('backend') != self.backend:", 'if False:')
+    expected='invalid packet accepted: order backend mismatch'
+elif mode=='order-birth-identity':
+    text=text.replace("if sorted(result['ids']) != sorted(birth_ids):", 'if False:')
+    expected='same-count wrong identity accepted'
+elif mode=='order-birth-count':
+    text=text.replace("if len(result['ids']) != sum(len(e.creates) for e in trial.events.values()):", 'if False:')
+    text=text.replace("if sorted(result['ids']) != sorted(birth_ids):", 'if False:')
+    expected='invalid packet accepted: order/effect birth count mismatch'
 else:
     raise ValueError(mode)
 module=types.ModuleType('admission'); module.__file__=str(source)
 sys.modules['admission']=module
 exec(compile(text,str(source),'exec'),module.__dict__)
+sys.argv = [str(source.with_name('check.py')), sys.argv[1]] + (['--fugue'] if '--fugue' in sys.argv[3:] else [])
 try:
     with contextlib.redirect_stdout(io.StringIO()):
         runpy.run_path(str(source.with_name('check.py')),run_name='__main__')

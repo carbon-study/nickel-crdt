@@ -2,9 +2,11 @@ import copy
 import json
 import sys
 from dataclasses import asdict
-from admission import Combined, Limits, Oracle, Rejected
+from admission import Combined, Limits as DenseLimits, FugueLimits, Oracle, Rejected, Deferred, WRITERS
 from sessions import Session
 
+backend = 'fugue' if '--fugue' in sys.argv[2:] else 'dense'
+Limits = FugueLimits if backend == 'fugue' else DenseLimits
 traces=json.load(open(sys.argv[1]))['traces']
 
 def packet(event, gaps):
@@ -25,18 +27,20 @@ def replay(oracle, events, gaps, reverse=False):
     return store
 
 rejections=[]
-def reject(store, p, reason):
+def reject(store, p, reason, kind=None):
     before=store.snapshot()
     try:
         store.put(p)
     except Rejected as error:
         assert reason in str(error), (reason,str(error))
+        if kind is not None:
+            assert isinstance(error,Deferred) and error.kind==kind,'oracle fault misclassified as invalid'
         assert store.snapshot()==before, 'rejection partially published'
         rejections.append(reason)
     else:
         raise AssertionError('invalid packet accepted: '+reason)
 
-with Oracle() as oracle:
+with Oracle(backend) as oracle:
     finals=[]
     for trace in traces:
         gaps={i['event']:i['gap'] for i in trace['insertions']}
@@ -68,6 +72,102 @@ with Oracle() as oracle:
         receivers.append(cam)
     assert receivers[0].snapshot()==receivers[1].snapshot(),'receiver gap arrival dependence'
     last_gap_text=receivers[0].text()
+
+    prepend_receipts=[]
+    if backend == 'fugue':
+        # Actual two-writer Session facts, not caller-supplied visibility/bases.
+        from itertools import permutations
+        for swapped in (False, True):
+            alice,bo=Session('Alice'),Session('Bo')
+            root_event=alice.edit(tuple('ab'));bo.receive(root_event)
+            left,right=(bo,alice) if swapped else (alice,bo)
+            one=left.edit(('1',));two=left.edit(('2',))
+            three=right.edit(('3',));four=right.edit(('4',))
+            events=[asdict(e) for e in (root_event,one,two,three,four)]
+            pgaps={e['id']:0 if e['id']==root_event.id else 1 for e in events}
+            expected='a4321b' if swapped else 'a2143b'
+            snapshots=[]
+            for schedule in permutations(events):
+                seen=set()
+                for e in schedule:
+                    if not set(e['after']) <= seen:break
+                    seen.add(e['id'])
+                else:
+                    receiver=replay(oracle,schedule,pgaps)
+                    assert receiver.text()==expected,'joint prepend order'
+                    snapshots.append(receiver.snapshot())
+            assert len(snapshots)==6 and len(set(snapshots))==1,'joint prepend delivery dependence'
+            cold=replay(oracle,json.loads(json.dumps(events)),pgaps,True)
+            assert cold.snapshot()==snapshots[0],'cold joint prepend state'
+            prepend_receipts.append(dict(text=expected,orders=len(snapshots),same_state=True))
+
+        # Actual three-writer Figure 7 facts distinguish Max from plain at the
+        # joint boundary too; this is outside the proposed two-writer Rust cut.
+        a,b,c=Session('Alice'),Session('Bo'),Session('Cam')
+        A=a.edit(('A',));B=b.edit(('B',));C=c.edit(('C',))
+        b.receive(A);c.receive(A)
+        X=c.edit(('X',));Y=b.edit(('Y',))
+        max_events=[asdict(e) for e in (A,B,C,X,Y)]
+        max_gaps={e.id:0 if e in (A,B,C) else 1 for e in (A,B,C,X,Y)}
+        max_snapshots=[]
+        for schedule in permutations(max_events):
+            seen=set()
+            for e in schedule:
+                if not set(e['after']) <= seen:break
+                seen.add(e['id'])
+            else:
+                receiver=replay(oracle,schedule,max_gaps)
+                assert receiver.text()=='AXYBC','joint Max discriminator'
+                max_snapshots.append(receiver.snapshot())
+        assert len(max_snapshots)==16 and len(set(max_snapshots))==1,'joint Max arrival dependence'
+
+        # Final metric rejection cannot publish either half of a replacement.
+        replacement=traces[2]
+        rgaps={i['event']:i['gap'] for i in replacement['insertions']}
+        rfacts=replacement['steps'][0]['views']['Alice']['facts']
+        original=next(e for e in rfacts if e['creates'] and not e['deletes'])
+        compound=next(e for e in rfacts if e['creates'] and e['deletes'])
+        original_packet=packet(original,rgaps);compound_packet=packet(compound,rgaps)
+        limited=Combined(oracle,FugueLimits(ordering_links=3*len(original['creates'])))
+        limited.put(original_packet);saved=limited.snapshot();retained=copy.deepcopy(compound_packet)
+        try:
+            limited.put(compound_packet)
+        except Deferred as error:
+            assert error.kind=='resource' and str(error)=='ordering link budget'
+        else:
+            raise AssertionError('compound metric overflow accepted')
+        assert limited.snapshot()==saved and compound_packet==retained,'rejection partially published'
+        assert limited.text()=='Friday!','failed replacement deletion escaped'
+
+        class WrongBackend:
+            backend=backend
+            def ask(self,*args):
+                result=oracle.ask(*args);result['backend']='dense';return result
+        reject(Combined(WrongBackend()),original_packet,'order backend mismatch','oracle')
+        class WrongBirthCount:
+            backend=backend
+            def ask(self,*args):
+                result=oracle.ask(*args);result['ids']=result['ids'][:-1];return result
+        reject(Combined(WrongBirthCount()),original_packet,'order/effect birth count mismatch','oracle')
+
+    # Same cardinality is not the same birth multiset, in either backend.
+    identity_event=Session('Alice').edit(tuple('ab'))
+    identity_packet=dict(event=asdict(identity_event),gap=0)
+    for fault in ('duplicate', 'foreign'):
+        class WrongBirthIdentity:
+            backend=backend
+            def ask(self,*args):
+                result=oracle.ask(*args)
+                result['ids'][-1]=result['ids'][0] if fault=='duplicate' else '999:1/0'
+                return result
+        store=Combined(WrongBirthIdentity());before=store.snapshot()
+        try:
+            store.put(identity_packet)
+        except Deferred as error:
+            assert error.kind=='oracle' and str(error)=='order/effect birth identity mismatch'
+            assert store.snapshot()==before,'rejection partially published'
+        else:
+            raise AssertionError('same-count wrong identity accepted')
 
     first=traces[0]
     gaps={i['event']:i['gap'] for i in first['insertions']}
@@ -109,7 +209,7 @@ with Oracle() as oracle:
         (Limits(births=1),'birth budget'),
         (Limits(scalars_per_edit=1),'scalar budget'),
         (Limits(dependencies=0),'dependency budget'),
-        (Limits(expanded_digits=1),'expanded digit budget'),
+        ((Limits(ordering_links=1),'ordering link budget') if backend == 'fugue' else (Limits(expanded_digits=1),'expanded digit budget')),
     ]:
         limited=Combined(oracle,limits)
         if reason in ('event budget','dependency budget'):
@@ -121,16 +221,43 @@ with Oracle() as oracle:
         else:
             reject(limited,packet(root,gaps),reason)
 
+    # An explicit representation-specific profile cannot be silently reused.
+    if backend == 'fugue':
+        try:
+            Combined(oracle,DenseLimits())
+        except Rejected as error:
+            assert str(error) == 'ordering/profile mismatch'
+        else:
+            raise AssertionError('legacy digit profile accepted as Fugue profile')
+
+    if backend == 'fugue':
+        from pathlib import Path
+        sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'pending-recovery'))
+        from inbox import Inbox
+        try:
+            Inbox(oracle,FugueLimits())
+        except Rejected as error:
+            assert str(error)=='pending checkpoint profile supports dense ordering only'
+        else:
+            raise AssertionError('unversioned Fugue inbox profile accepted')
+
     # Publication happens after the external ordering boundary too.
     class BrokenOracle:
+        backend = backend
         def ask(self,*args): raise Rejected('injected order failure')
     broken=Combined(BrokenOracle())
     reject(broken,packet(root,gaps),'injected order failure')
-    with Oracle() as stopped:
+    with Oracle(backend) as stopped:
         stopped.process.kill()
         stopped.process.wait()
         reject(Combined(stopped),packet(root,gaps),'order oracle stopped')
 
-print(json.dumps(dict(histories=len(traces),views=sum(len(s['views']) for t in traces for s in t['steps']),
+extra = {}
+if backend == 'fugue':
+    extra = dict(ordering='FugueMax',ordering_metric='three derived node link slots per retained birth',
+        profile_mismatch_rejected=True,unversioned_inbox_rejected=True,prepends=prepend_receipts,
+        max_discriminator=dict(text='AXYBC',orders=len(max_snapshots),same_state=True,authors=3),
+        compound_deferral=dict(original='Friday!',retained_exact_packet=True,unchanged_joint_state=True))
+print(json.dumps(dict(**extra,histories=len(traces),views=sum(len(s['views']) for t in traces for s in t['steps']),
     rejections=rejections,finals=finals,
     receiver_last_gap=dict(orders=len(receivers),text=last_gap_text,same_state=True)),indent=2,sort_keys=True))

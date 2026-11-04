@@ -11,6 +11,8 @@ class Backpressure(Rejected):
 
 class Inbox:
     def __init__(self, oracle, limits=Limits(), slots=16, staged_bytes=65536):
+        if getattr(oracle, 'backend', 'dense') != 'dense':
+            raise Rejected('pending checkpoint profile supports dense ordering only')
         self.store=Combined(oracle,limits)
         self.slots,self.staged_bytes=slots,staged_bytes
         self.held={}
@@ -74,6 +76,8 @@ class Inbox:
         return self.held.pop(key)['packet']
 
     def promote(self, limits):
+        if type(limits) is not Limits:
+            raise Rejected('pending promotion supports dense Limits only')
         old=asdict(self.store.limits)
         if any(value<old[key] for key,value in asdict(limits).items()):
             raise Rejected('reference promotion cannot lower a limit')

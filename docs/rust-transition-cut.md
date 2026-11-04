@@ -21,10 +21,21 @@ refinement theorem.
 | --- | --- | --- |
 | `hybrid-restoration/model.py`: `Event`, `Doc.put`, `visible` | deletion atoms, releases, creator withdrawals, reactivation and token cancellation | typed Rust facts, extracted admission/effect interpretation and their laws |
 | `hybrid-restoration/sessions.py`: `edit`, `undo`, `redo`, `inspect_restore`, `confirm_restore` | own-action selection, private continuation, frozen masks and issued-selection binding | jointly transactional session/document/placement state; adopted first-cut choices |
-| `ordered-gap-reference/order.mjs`: `interpret`, `between` | mathematical expanded-key interpretation on the author's causal insertion basis | machine proof of the written construction and representable-integer conditions |
-| `ordered-gap-reference/tree.mjs`: `treeInterpret`, `expandTree` | proposed prefix-sharing representation and diagnostic key expansion | Rust tree-to-key simulation; incremental operations are not supplied by this replay interpreter |
-| `combined-admission/admission.py`: `Combined.put` | reconstruct author basis, validate birth/scalar linkage, jointly publish effects/placement/exact packet | actual Rust authoring plus admission; no Python/Node subprocess in the shipped transition |
+| `ordered-gap-reference/fugue.mjs`: `fugueInterpret` | stronger unadopted ordering candidate: author-derived origins and retained-node traversal | source-linked tree/order laws and selected numeric/resource profile |
+| `ordered-gap-reference/order.mjs`: `interpret`, `between` (retained baseline) | mathematical expanded-key interpretation on the author's causal insertion basis | machine proof of the written construction and representable-integer conditions |
+| `ordered-gap-reference/tree.mjs`: `treeInterpret`, `expandTree` (dense baseline only) | proposed prefix-sharing representation and diagnostic key expansion | Rust tree-to-key simulation; incremental operations are not supplied by this replay interpreter |
+| `combined-admission/admission.py`: `Combined.put` | reconstruct author basis, validate birth/scalar linkage, jointly publish effects/placement/exact packet | actual Rust authoring plus admission; no Python/Node subprocess in the shipped transition; explicit `Oracle('fugue')` now checks this joint boundary against FugueMax, while the default preserves dense comparison |
 | `pending-recovery/inbox.py`: `offer`, `drain` | evidence for distinguishing resource deferral, invalidity and caller-owned overflow | not a dependency on adopting its inbox or checkpoint format for milestone 2 |
+
+The combined-admission reference now offers **explicitly selected** dense and
+FugueMax backends on the same parsed fact/gap packets. The latter runs actual
+Session facts, duplicate/cold replay and compound rejection through the same
+trial publication boundary. Its separate FugueLimits counts three derived-node parent/origin slots per
+retained birth, not expanded key digits; the oracle rebuilds these nodes rather
+than persisting a Fugue tree in Combined. The old inbox/checkpoint
+profile remains dense-only. This closes an executable reference mismatch, not
+ordering adoption or a jointly transactional local Session: Python authoring
+still updates its own private state before the admission experiment begins.
 
 The references currently use three trusted writer tags; the proposed Rust cut
 has two externally fenced writers. Restrict the writer domain explicitly when
@@ -98,16 +109,18 @@ Let `abs(S) = (F, H, C, P)` for the specified slice:
 
 - `F`: the accepted map of exact structured facts, modulo map storage order;
 - `H`: this local session's selected private continuation, including counter;
-- `C`: profile limits and writer assignment;
+- `C`: profile limits, writer assignment and the explicitly selected ordering contract;
 - `P`: live inspection capabilities and the bases/selected sources they bind.
 
 The semantic reference derives deletion/withdrawal visibility from `F` using
 `Doc`; it derives insertion bases/visibility from each birth fact's causal past
-using the combined-admission rule. The candidate expanded-key interpreter gives
-the whole historical order; filtering that order by current visible identities
-gives the scalar sequence. Rust's proposed tree is an implementation of that
-interpretation, not an additional caller-supplied order or a second visibility
-policy. Exact duplicates compare the retained fact **including gap**, not just
+using the combined-admission rule. The explicitly selected order interpreter gives the whole historical order;
+filtering by current visible identities gives the scalar sequence. If FugueMax
+is adopted for this cut, Rust's retained-node parent/side/origin representation
+must refine that interpreter, not the rejected dense-key allocation. The old
+tree-to-key theorem is a baseline-specific obligation, not a theorem that these
+two different orders are equivalent. Neither interpretation introduces an
+additional caller-supplied order or a second visibility policy. Exact duplicates compare the retained fact **including gap**, not just
 the current visible effect.
 
 `H` is not replicated. Different writers need not have equal stacks after sync.
@@ -136,9 +149,14 @@ only final strings:
 3. **Rejection neutrality:** ordinary rejection, deferral and blocked results
    leave all specified instance components unchanged and return no new fact.
    A successful read/inspection has its separately specified permitted change.
-4. **Representation:** expanding Rust tree nodes equals the reference key map;
-   visible traversal yields the same ordered `(identity, scalar)` pairs. Fresh
-   allocation cannot collide under the external single-writer premise.
+4. **Representation:** Rust's selected order representation refines its named
+   reference. For the FugueMax candidate this means matching frozen origins and
+   whole retained-node traversal, plus ordering stability and its stated
+   non-interleaving laws. Only the dense baseline uses key expansion equality.
+   Visible traversal yields the same ordered `(identity, scalar)` pairs. Fresh
+   allocation cannot collide under the external single-writer premise. Changing
+   the selected order changes these obligations; no existing proof is reused
+   by relabelling its theorem.
 5. **Fixed-fact delivery independence:** any legal causal schedules of the same
    valid finite fact set produce the same shared interpretation, provided those
    facts fit the declared domain and are eventually admitted. Derive effect and
@@ -156,7 +174,9 @@ prove that every causally closed prefix fits the same profile limits and numeric
 representation. A sufficient condition is prefix-monotone aggregate measures
 plus state-independent per-fact checks. Events, births and the sum of stored
 expanded key digits have that candidate monotonicity because hidden history
-remains and an insertion's keys come from its fixed author basis. Packet size,
+remains and an insertion's keys come from its fixed author basis. The Fugue reference's parent/origin slot count is exactly three times retained
+births; those fields are fixed at authoring, including sentinel slots. This is
+not a whole-memory or replay-cost bound. Packet size,
 scalar/dependency counts and counter validity are checks on the original fact;
 retry must not rewrite it. This is an obligation to prove for the selected Rust
 representation, not a machine-checked property of today's reference.
@@ -172,9 +192,10 @@ get there are different claims; the former does not itself require monotonicity.
 These are obligations to discharge against actual extracted Rust functions.
 The present Python/Node programs are executable comparison oracles, not foreign
 functions trusted to compute the shipped result. Their finite receipts do not
-prove the reference laws. The written order argument is over mathematical
-integers: Rust overflow/height exhaustion must reject before mutation, or be
-excluded by a proved profile bound. No wraparound or unproved “large enough”
+prove the reference laws. The dense baseline's written argument uses mathematical integers; FugueMax
+instead requires representable occurrence identities and node references. Rust
+overflow or representation exhaustion must reject before mutation, or be
+excluded by a proved profile bound for the chosen representation. No wraparound or unproved “large enough”
 integer premise is allowed. Supporting reference theorems remain work too.
 
 ## 4. implementation order after adoption
@@ -186,7 +207,7 @@ or a one-writer demo is not the exit.
 | slice | concrete boundary | proof and distinguishing control |
 | --- | --- | --- |
 | joint local edit / remote admit | two Rust instances author, send and admit insertion, deletion and replacement; exact duplicate and changed-gap conflict; limits fail without partial state | local/admission refinement plus whole-instance rejection; publish trial too early must fail the unchanged theorem/check |
-| ordered observation | hidden-gap and concurrent insertions on those facts; scalar payload and identity agreement | tree/key simulation and author-basis independence; receiver-visible gap or receiver basis mutation must fail |
+| ordered observation | hidden-gap and concurrent insertions on those facts; scalar payload and identity agreement | selected tree/order refinement and author-basis independence (key expansion only for the dense baseline); receiver-visible gap or receiver basis mutation must fail |
 | history continuation | the same two instances run own Undo/Redo and explicit Restore; retain skips, blocked top redo, identity-ineffective cases | selection/effect refinement and unchanged allocator on blocked/rejected calls; consume-skips and blocked-redo-pop controls must fail |
 | inspect / confirm | replacement Restore lists what returns and remains; equivalent-effect source substitution rejects; intervening basis expires inspection | issued-selection binding and trial commit; swapping to a second valid source or accepting stale private basis must fail |
 | external caller | a separate native consumer uses the crate calls above under delayed/duplicate structured delivery, including caller-retained deferrals | no model-internal access; source-linked obligations plus directed cases and a declared bounded history/schedule generator |
@@ -215,7 +236,7 @@ this machinery to answer them.
 | frozen observed masks | approved for the first cut after conditional yes and completed peer confirmation; preserve the original masks and later deletion behavior |
 | new-work redo | adopt explicit keep/clear continuation or select a narrower alternative; no silent default |
 | exact returning IDs | adopt the observable contract before claiming old handles target returned occurrences |
-| candidate ordering | review/adopt the cut's longer-run/replacement domain and explain per-event-only cohesion; `a2413b` remains a limitation, not a broader typing-run promise |
+| candidate ordering | FugueMax candidate has a closed scoped review and fixes the rejected multi-event prepend witness; adopt the chosen order/domain before Rust. Hidden-inside-run contiguity remains labelled empirical evidence, not an unconditional theorem. The dense baseline and its `a2413b` failure remain comparison only |
 | budgets | choose supported workloads/limit response; current 128 events/512 births/etc. are experiment ceilings, not release targets; measure candidate costs before proposing numeric release bounds; prove prefix-admissibility before inferring it from final-fit |
 | Latte regeneration | Ren directed the compiler to stay private; continue private authoring/public F* checking, and validate locked emitter access before proof slices without assuming anonymous regeneration |
 | reference proof | connect effect/admission invariants with the finite-history ordering argument, and formalize the needed laws without assuming them |

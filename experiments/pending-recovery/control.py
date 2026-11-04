@@ -13,6 +13,9 @@ if mode=='drop-pending':
 elif mode=='ack-pending':
     text=text.replace("if key not in self.held or self.held[key]['kind']!='invalid':", 'if key not in self.held:')
     expected='pending acknowledgement accepted'
+elif mode=='promote-profile':
+    text=text.replace('if type(limits) is not Limits:', 'if False:')
+    expected='non-dense promotion accepted'
 elif mode=='resume-bound':
     text=text.replace("if len(out.held)>out.slots or sum(len(encode(e['packet']).encode()) for e in out.held.values())>out.staged_bytes:", 'if False:')
     expected='over-bound resume accepted'

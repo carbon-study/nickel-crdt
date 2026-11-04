@@ -1,0 +1,96 @@
+{
+  "compound_deferral": {
+    "original": "Friday!",
+    "retained_exact_packet": true,
+    "unchanged_joint_state": true
+  },
+  "finals": [
+    {
+      "name": "Xab with real explicit Restore",
+      "text": "Xab"
+    },
+    {
+      "name": "hidden X through creator Undo and Redo",
+      "text": "aYXb"
+    },
+    {
+      "name": "replacement and frozen Restore continuation",
+      "text": "MondayFriday!"
+    },
+    {
+      "name": "peer insertion survives creator withdrawal",
+      "text": "aXb"
+    },
+    {
+      "name": "concurrent scalar runs and personal withdrawal",
+      "text": "aX\ud83e\udd8aPe\u0301b"
+    },
+    {
+      "name": "concurrent deletion, peer unseen",
+      "text": "b"
+    },
+    {
+      "name": "concurrent deletion, peer observed",
+      "text": "b"
+    },
+    {
+      "name": "retained skipped deletion becomes eligible again",
+      "text": "b"
+    }
+  ],
+  "histories": 8,
+  "max_discriminator": {
+    "authors": 3,
+    "orders": 16,
+    "same_state": true,
+    "text": "AXYBC"
+  },
+  "ordering": "FugueMax",
+  "ordering_metric": "three derived node link slots per retained birth",
+  "prepends": [
+    {
+      "orders": 6,
+      "same_state": true,
+      "text": "a2143b"
+    },
+    {
+      "orders": 6,
+      "same_state": true,
+      "text": "a4321b"
+    }
+  ],
+  "profile_mismatch_rejected": true,
+  "receiver_last_gap": {
+    "orders": 2,
+    "same_state": true,
+    "text": "aX"
+  },
+  "rejections": [
+    "order backend mismatch",
+    "order/effect birth count mismatch",
+    "duplicate deletion target",
+    "missing prerequisite",
+    "delete outside author-visible births",
+    "placement without birth",
+    "delete outside author-visible births",
+    "event ID/writer mismatch",
+    "birth/payload identity mismatch",
+    "missing writer predecessor",
+    "author gap",
+    "author gap",
+    "only the creator can withdraw",
+    "event pair shape",
+    "packet fields",
+    "conflicting combined duplicate",
+    "event budget",
+    "packet byte budget",
+    "birth budget",
+    "scalar budget",
+    "dependency budget",
+    "ordering link budget",
+    "injected order failure",
+    "order oracle stopped"
+  ],
+  "unversioned_inbox_rejected": true,
+  "views": 46
+}

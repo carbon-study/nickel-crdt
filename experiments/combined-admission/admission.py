@@ -19,17 +19,29 @@ class Deferred(Rejected):
         self.kind = kind
 
 @dataclass(frozen=True)
-class Limits:
+class FactLimits:
     events: int = 128
     births: int = 512
     packet_bytes: int = 8192
     scalars_per_edit: int = 64
     dependencies: int = 64
+
+@dataclass(frozen=True)
+class Limits(FactLimits):
     expanded_digits: int = 4096
 
+@dataclass(frozen=True)
+class FugueLimits(FactLimits):
+    ordering_links: int = 1536
+
 class Oracle:
+    def __init__(self, backend='dense'):
+        if backend not in ('dense', 'fugue'):
+            raise Rejected('unknown ordering backend')
+        self.backend = backend
+
     def __enter__(self):
-        self.process = subprocess.Popen([os.environ['NODE'], str(Path(__file__).with_name('oracle.mjs'))],
+        self.process = subprocess.Popen([os.environ['NODE'], str(Path(__file__).with_name('oracle.mjs'))]+(['--fugue'] if self.backend == 'fugue' else []),
             stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         return self
 
@@ -97,7 +109,14 @@ def unpack(raw):
     return Event(**fields)
 
 class Combined:
-    def __init__(self, oracle, limits=Limits()):
+    def __init__(self, oracle, limits=None):
+        self.backend = getattr(oracle, 'backend', 'dense')
+        profile = FugueLimits if self.backend == 'fugue' else Limits
+        if self.backend not in ('dense', 'fugue'):
+            raise Rejected('unknown ordering backend')
+        limits = profile() if limits is None else limits
+        if type(limits) is not profile:
+            raise Rejected('ordering/profile mismatch')
         self.oracle, self.limits = oracle, limits
         # One state pointer: neither plane is published before every check passes.
         self.state = (Doc(), {}, {})  # effect document, placement records, exact packets
@@ -180,8 +199,19 @@ class Combined:
             writer,n,index=json.loads(identity)
             visible.append(f'{WRITERS[writer]}:{n}/{index}')
         result=self.oracle.ask(list(candidate.values()), sorted(visible))
-        if result['digits'] > self.limits.expanded_digits:
-            raise Deferred('resource', 'expanded digit budget')
+        if result.get('backend') != self.backend:
+            raise Deferred('oracle', 'order backend mismatch')
+        if len(result['ids']) != sum(len(e.creates) for e in trial.events.values()):
+            raise Deferred('oracle', 'order/effect birth count mismatch')
+        birth_ids=[f'{WRITERS[e.author]}:{int(e.id.rsplit(":",1)[1])}/{index}'
+            for e in trial.events.values() for index in range(len(e.creates))]
+        if sorted(result['ids']) != sorted(birth_ids):
+            raise Deferred('oracle', 'order/effect birth identity mismatch')
+        if self.backend == 'dense':
+            if result['digits'] > self.limits.expanded_digits:
+                raise Deferred('resource', 'expanded digit budget')
+        elif result['links'] > self.limits.ordering_links:
+            raise Deferred('resource', 'ordering link budget')
         new_packets=dict(packets)
         new_packets[event.id]=json.loads(encode(packet))
         self.state=(trial,candidate,new_packets)
