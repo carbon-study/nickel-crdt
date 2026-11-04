@@ -2,7 +2,7 @@
 
 An application-independent sequence CRDT library, intended for Carbon and potentially Dark, with proofs tied to its Rust implementation through hax and Latte. Lynn owns and maintains it.
 
-This repository contains an [experimental Rust edit/admit candidate](docs/rust-edit-admit.md), the toolchain scaffold and restricted executable references. Two Rust producers can exchange insert/delete/replace facts using FugueMax ordering. Transactional return paths and same-history two-instance commit coherence have implementation-linked proofs; general semantic refinement, convergence and ordering proofs remain open. **There is no verified CRDT release or stable public API.**
+This repository contains an [experimental Rust edit/admit candidate](docs/rust-edit-admit.md), the toolchain scaffold and restricted executable references. Two Rust producers can exchange insert/delete/replace facts using FugueMax ordering. Transactional return paths, same-history two-instance commit coherence and accepted event-ID uniqueness have implementation-linked proofs; general semantic refinement, convergence and ordering proofs remain open. **There is no verified CRDT release or stable public API.**
 
 ## Ordering research candidates
 

@@ -160,8 +160,9 @@ lookup to the public calls:
   same-commit theorem and actual receiving call.
 
 The lookup theorem itself permits arbitrary duplicate IDs and specifies the
-first matching entry. The indexed-member theorem requires unique IDs; their
-preservation by canonicalization is **not yet proved**. Freshness here means
+first matching entry. The indexed-member theorem requires unique IDs. The accepted-ID invariant below
+now establishes that premise for states built through the public constructor
+and retained through public calls. Freshness here means
 absence from this instance's accepted event IDs. It does not prove global
 producer fencing, allocator progress, birth/scalar correspondence, or that a
 valid request succeeds. The freshness theorems need no well-formedness premise.
@@ -180,7 +181,7 @@ lemmas check the handwritten writer/event/birth equality bodies; the gate also
 requires the ordinary fact call to remain present in the extraction. This
 repairs that proof blind spot; it is not an audit of all hax translations.
 
-Sixteen independently extracted wrong Rust bodies must fail native tests and the
+Nineteen independently extracted wrong Rust bodies must fail native tests and the
 unchanged relevant lemma. Three corrupt/reuse the counter on earlier return
 paths. Five challenge the positive boundary: alter the returned fact's gap,
 commit a stale tree, change the receiver's counter on success, ignore the caller's
@@ -193,6 +194,50 @@ required to fail its own named theorem, not merely another module.
 The check rejects timeouts/extraction errors as control results. Extracted project
 code and authored views contain no own admissions. Trust remains with Rust,
 hax, the external Rust models, private Latte emission, F* and its solver.
+
+### accepted event-ID invariant
+
+`proofs/EditAccepted.lt` closes one component of well-formedness through the
+actual constructor, canonicalizer and public calls:
+
+- the native membership scan agrees with the independent recursive first-ID
+  lookup, so a negative result really means absence at every bounded index;
+- the actual selection scan chooses only an in-range input fact whose ID is
+  absent from its output accumulator;
+- appending that fact preserves unique IDs, and the actual canonicalization
+  loop therefore returns unique IDs whenever it succeeds, for any input slice;
+- successful trial publication retains exactly the canonicalizer's accepted facts;
+  the final tree-installation function cannot replace them;
+- every public `receive` that returns `Added` has unique accepted IDs;
+- `Replica::new` establishes unique IDs; both `receive` and `edit` preserve
+  them on **all ordinary return paths**, assuming them before the call.
+
+The all-path theorems combine the positive canonicalization result with the
+existing full-instance error/duplicate/empty neutrality lemmas. The local case
+uses the actual author/receive same-commit theorem. This supplies the unique-ID
+premise required by known-member classification without trusting a caller's
+claim about the rebuilt tree. It is an event-ID invariant, **not full edit WF**:
+causal closure, accepted-fact content/permutation, scalar/birth/tree
+correspondence, allocator progress and semantic refinement remain open. It does
+not establish that a valid fitting request succeeds, or justify an Internal
+result as invalidity.
+
+To expose the checked loops, the membership helper now scans an indexed range,
+and the unchanged canonicalization selection and append bodies are factored
+into private functions. Final tree installation is also factored so its
+fact-set preservation is a separate source-linked obligation. No guard,
+comparator or successful publication rule
+was added or removed. These implementation refactors retain the byte-identical
+finite reference output; that comparison is not a general equivalence proof
+between the old and factored programs. LoopUtil's generic preservation adapter
+requires actual semantic preservation premises, separately discharged here;
+hax's default loop annotation is not treated as proof of the invariant.
+
+Three additional controls break this boundary: allow a previously selected ID,
+append input element zero instead of the selected element, or duplicate a fact during
+final tree installation before joint publication. Each must
+fail native tests and its unchanged named selection/append/tree-installation theorem.
+The last control tests the real public commit, not just a standalone helper.
 
 ## native latency diagnostic
 
@@ -240,7 +285,8 @@ semantic/WF obligations are discharged. It is not a performance-ready engine.
 
 ## remaining exit
 
-Define the edit-only whole-instance abstraction and well-formedness predicate,
+Extend the accepted-ID component to the edit-only whole-instance abstraction
+and full well-formedness predicate,
 then prove local/admission semantic refinement and preservation, including every
 error category. Prove the frozen-origin FugueMax representation relation,
 ID/scalar correspondence, causal schedule independence and prefix-budget

@@ -234,3 +234,22 @@ proof break_interpret_any<state: Type0, result: Type0>(start: usize, finish: usi
     hint fold_range_cf(start, finish, inv, value, f)
   { break_interpret(start, finish, inv, value, f, next, stop, done) }
 }
+
+// Universal adapter for the implementation callback, with explicit semantic premises.
+proof preserve_any<state: Type0, result: Type0>(start: usize, finish: usize where v(start) <= v(finish),
+  p: nat => state => Type0, post: state => Type0, returned: result => Type0): unit
+  gives forall(inv: invariant(state, start, finish), value: state, f: callback(state, result, start, finish))
+    hint fold_range_return(start, finish, inv, value, f) .
+    (p(v(start), value) and
+     (forall(s: state, i: position(start, finish)) . p(v(i), s) ==> step_safe(p, post, returned, v(i), f(s, i))) and
+     (forall(s: state) . p(v(finish), s) ==> post(s))) ==>
+      output_safe(post, returned, fold_range_return(start, finish, inv, value, f))
+{
+  proof each(inv: invariant(state, start, finish), value: state, f: callback(state, result, start, finish)): unit
+    takes p(v(start), value)
+    takes forall(s: state, i: position(start, finish)) . p(v(i), s) ==> step_safe(p, post, returned, v(i), f(s, i))
+    takes forall(s: state) . p(v(finish), s) ==> post(s)
+    gives output_safe(post, returned, fold_range_return(start, finish, inv, value, f))
+    hint fold_range_return(start, finish, inv, value, f)
+  { preserve(start, finish, inv, value, f, p, post, returned) }
+}

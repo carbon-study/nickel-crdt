@@ -13,7 +13,7 @@ await fs.mkdir(output,{recursive:true});
 const identity=JSON.parse(await fs.readFile(path.join(modelCache,'identity.json'),'utf8'));
 assert.equal(identity.models,models);assert.equal(identity.fstar,fstar);
 const views=new Map();
-for(const name of ['Prelude','LoopUtil','EditAtomic','EditCommit','EditIdentity']) {
+for(const name of ['Prelude','LoopUtil','EditAtomic','EditCommit','EditIdentity','EditAccepted']) {
   const source=`proofs/${name}.lt`,view=`proofs/generated/Nickel.${name}.fst`;
   const code=await fs.readFile(path.join(root,view),'utf8');
   const receipt=(await fs.readFile(path.join(root,`proofs/generated/${name}.sha256`),'utf8')).trim().split('\n');
@@ -25,7 +25,8 @@ const original=await fs.readFile(path.join(root,'src/edit.rs'),'utf8');
 const modes=['positive','receive-error-corrupts-counter','edit-error-corrupts-counter','edit-success-reuses-counter',
   'local-return-gap','local-stale-tree','receive-success-counter','author-forgets-gap','receive-private-gate',
   'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality',
-  'identity-scan-key','identity-birth-equality','identity-writer-equality'];
+  'identity-scan-key','identity-birth-equality','identity-writer-equality',
+  'accepted-reuses-member','accepted-wrong-canonical-push','accepted-publication-duplicates'];
 const selected=process.argv.slice(3);for(const mode of selected)assert(modes.includes(mode),'unknown mode '+mode);
 let positive;
 for(const mode of selected.length?selected:modes) {
@@ -33,8 +34,12 @@ for(const mode of selected.length?selected:modes) {
   await fs.mkdir(crate,{recursive:true});await fs.mkdir(proof,{recursive:true});
   for(const name of ['Cargo.toml','Cargo.lock','src','tests','proof-smoke'])await fs.cp(path.join(root,name),path.join(crate,name),{recursive:true});
   if(mode!=='positive') {
-    const start=original.indexOf(mode==='identity-writer-equality'?'impl PartialEq for Writer':mode==='identity-birth-equality'?'impl PartialEq for BirthId':mode==='identity-event-equality'?'impl PartialEq for EventId':mode==='identity-forgets-gap'?'fn fact_equal(':mode.startsWith('identity-')?'fn duplicate(':mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit(');assert(start>=0);
+    const scopes={'accepted-reuses-member':'fn choose_unseen(', 'accepted-wrong-canonical-push':'fn canonical_step(', 'accepted-publication-duplicates':'fn with_tree('};
+    const start=original.indexOf(scopes[mode]??(mode==='identity-writer-equality'?'impl PartialEq for Writer':mode==='identity-birth-equality'?'impl PartialEq for BirthId':mode==='identity-event-equality'?'impl PartialEq for EventId':mode==='identity-forgets-gap'?'fn fact_equal(':mode.startsWith('identity-')?'fn duplicate(':mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit('));assert(start>=0);
     const edits={
+      'accepted-reuses-member':['if !has_fact(out, facts[j].id) {','if true {'],
+      'accepted-wrong-canonical-push':['push(&mut out, facts[i].clone())?;','push(&mut out, facts[0].clone())?;'],
+      'accepted-publication-duplicates':['self.tree = tree;','self.tree = tree; if !self.facts.is_empty() && self.facts.len() < usize::MAX { let copy = self.facts[0].clone(); self.facts.push(copy); }'],
       'identity-writer-equality':['writer_index(*self) == writer_index(*other)','writer_index(*self) == writer_index(*self)'],
       'identity-birth-equality':['self.event == other.event && self.index == other.index','self.event == other.event'],
       'identity-scan-key':['if old.id == fact.id {','if old.id.counter == fact.id.counter {'],
@@ -61,11 +66,11 @@ for(const mode of selected.length?selected:modes) {
   await fs.writeFile(path.join(output,mode+'.native.log'),native.log);
   if(mode==='positive')assert.equal(native.status,0,native.log);
   else {assert.equal(native.status,101,native.log);assert.match(native.log,/test result: FAILED/);}
-  const extracted=run('edit hax '+mode,hax,['-C','--offline','--locked','-p','nickel-crdt',';','into','--output-dir',proof,'-i','-** +nickel_crdt::edit::**::receive +nickel_crdt::edit::**::edit','fstar'],crate,{env});
+  const extracted=run('edit hax '+mode,hax,['-C','--offline','--locked','-p','nickel-crdt',';','into','--output-dir',proof,'-i','-** +nickel_crdt::edit::**::receive +nickel_crdt::edit::**::edit +nickel_crdt::edit::**::new','fstar'],crate,{env});
   await fs.writeFile(path.join(output,mode+'.hax.log'),extracted.log);
   assert.equal(extracted.status,0,extracted.log);
   const code=await fs.readFile(path.join(proof,'Nickel_crdt.Edit.fst'),'utf8');
-  assert.match(code,/let impl_Replica__receive /);assert.match(code,/let impl_Replica__edit/);
+  assert.match(code,/let impl_Replica__receive /);assert.match(code,/let impl_Replica__edit/);assert.match(code,/let impl_Replica__new/);
   // Preserve an ordinary call at the identity boundary: PartialEq operators
   // are structurally lowered by the pinned backend, ignoring custom bodies.
   const scan=code.slice(code.indexOf('let impl_Replica__duplicate '),code.indexOf('let impl_Replica__validate_new '));
@@ -73,7 +78,7 @@ for(const mode of selected.length?selected:modes) {
   assert(!/\b(?:admit|assume|admit_smt_queries)\b/.test(code),'no assumptions in extracted project code');
   if(mode==='positive')positive=code;else assert.notEqual(code,positive);
   for(const [name,code] of views)await put(path.join(proof,name),code);
-  const checked=await verify({dir:proof,roots:[path.join(proof,'Nickel.EditIdentity.fst')],fstar,models,modelCache});
+  const checked=await verify({dir:proof,roots:[path.join(proof,'Nickel.EditAccepted.fst')],fstar,models,modelCache});
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {
     assert.equal(checked.status,0,checked.log);
@@ -81,6 +86,9 @@ for(const mode of selected.length?selected:modes) {
   } else {
     assert.equal(checked.status,2,'require ordinary proof rejection, not extraction failure/timeout');
     const theorems={
+      'accepted-reuses-member':'EditAccepted.selected_id_is_unseen',
+      'accepted-wrong-canonical-push':'EditAccepted.canonical_step_preserves_unique',
+      'accepted-publication-duplicates':'EditAccepted.tree_installation_preserves_facts',
       'identity-writer-equality':'EditIdentity.writer_equality_exact',
       'identity-birth-equality':'EditIdentity.birth_equality_exact',
       'identity-scan-key':'EditIdentity.duplicate_matches_lookup',

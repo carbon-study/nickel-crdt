@@ -43,11 +43,25 @@ refinement to the independent reference, WF preservation, ordering or convergenc
 lookup, and carries it through public `receive` and successful local `edit`:
 known IDs classify by exact fact equality; invalid counters reject; Added and
 Authored event IDs are absent from the before-facts. Known-member classification
-requires unique before-IDs; freshness does not. This is not WF preservation,
+requires unique before-IDs; freshness does not. This is not full WF preservation,
 whole refinement, global writer fencing or ordering.
 
 The pinned backend structurally lowers `PartialEq` operator calls. An ordinary
 `fact_equal` call plus its exactness lemma preserves source sensitivity at the
-identity guard; separate lemmas check handwritten ID equality. Five native and
+identity guard; separate lemmas check handwritten ID equality. Eight native and
 F* mutation controls cover these laws. The candidate contract records the
 reproduced erased-comparison blind spot and the remaining trust boundary.
+
+## accepted event IDs
+
+`EditAccepted.lt` proves the actual native membership/selection/append/
+canonicalization chain, then constructor establishment and all-return-path
+preservation of accepted event-ID uniqueness by public receive/edit. Successful
+admission gets unique IDs from the real canonicalizer; errors, duplicates and
+empty local work use the already checked whole-instance neutrality laws. This
+discharges the unique-ID premise of indexed known-member classification for
+publicly constructed/preserved states. It is one WF component, not causal/scalar/
+ordering refinement or a verified engine. The LoopUtil preservation adapter
+requires explicitly proved semantic premises rather than hax annotations.
+Three additional wrong Rust bodies must reject their unchanged named lemmas,
+including a duplicate injected into the actual joint publication.

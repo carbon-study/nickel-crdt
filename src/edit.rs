@@ -402,37 +402,46 @@ fn has_birth(ids: &[BirthId], id: BirthId) -> bool {
     false
 }
 fn has_fact(facts: &[Fact], id: EventId) -> bool {
-    for f in facts {
-        if f.id == id {
+    for i in 0..facts.len() {
+        if facts[i].id == id {
             return true;
         }
     }
     false
 }
-fn canonical(facts: &[Fact]) -> Result<Vec<Fact>, Error> {
-    let mut out = Vec::new();
-    for _ in 0..facts.len() {
-        let mut chosen = None;
-        for j in 0..facts.len() {
-            if !has_fact(&out, facts[j].id) {
-                match chosen {
-                    None => chosen = Some(j),
-                    Some(k) => {
-                        if k >= facts.len() {
-                            return Err(Error::Internal);
-                        }
-                        if event_lt(facts[j].id, facts[k].id) {
-                            chosen = Some(j);
-                        }
+// Same selection scan, separated so its fresh-choice invariant can be checked.
+fn choose_unseen(facts: &[Fact], out: &[Fact]) -> Result<Option<usize>, Error> {
+    let mut chosen = None;
+    for j in 0..facts.len() {
+        if !has_fact(out, facts[j].id) {
+            match chosen {
+                None => chosen = Some(j),
+                Some(k) => {
+                    if k >= facts.len() {
+                        return Err(Error::Internal);
+                    }
+                    if event_lt(facts[j].id, facts[k].id) {
+                        chosen = Some(j);
                     }
                 }
             }
         }
-        let i = chosen.ok_or(Error::Internal)?;
-        if i >= facts.len() {
-            return Err(Error::Internal);
-        }
-        push(&mut out, facts[i].clone())?;
+    }
+    Ok(chosen)
+}
+fn canonical_step(facts: &[Fact], mut out: Vec<Fact>) -> Result<Vec<Fact>, Error> {
+    let chosen = choose_unseen(facts, &out)?;
+    let i = chosen.ok_or(Error::Internal)?;
+    if i >= facts.len() {
+        return Err(Error::Internal);
+    }
+    push(&mut out, facts[i].clone())?;
+    Ok(out)
+}
+fn canonical(facts: &[Fact]) -> Result<Vec<Fact>, Error> {
+    let mut out = Vec::new();
+    for _ in 0..facts.len() {
+        out = canonical_step(facts, out)?;
     }
     Ok(out)
 }
@@ -692,6 +701,11 @@ impl Replica {
         }
         Ok(())
     }
+    // Final tree installation cannot replace the accepted fact set.
+    fn with_tree(mut self, tree: Tree) -> Self {
+        self.tree = tree;
+        self
+    }
     fn plan(&self, fact: &Fact) -> Result<Option<Self>, Error> {
         if Self::duplicate(&self.facts, fact)? {
             return Ok(None);
@@ -707,8 +721,7 @@ impl Replica {
         if tree.nodes.len() * 3 > self.limits.ordering_links {
             return Err(Error::Capacity(Capacity::OrderingLinks));
         }
-        next.tree = tree;
-        Ok(Some(next))
+        Ok(Some(next.with_tree(tree)))
     }
     /// Consumes and returns the complete instance even on error. The borrowed
     /// input remains the caller's responsibility until Added/Duplicate succeeds.

@@ -1,6 +1,16 @@
 use nickel_crdt::edit::*;
 fn new(writer: Option<Writer>) -> Replica {
-    Replica::new(writer, Limits::default()).unwrap()
+    let r = Replica::new(writer, Limits::default()).unwrap();
+    assert_unique(&r);
+    r
+}
+// Public-state witness for the proved accepted-ID invariant.
+fn assert_unique(r: &Replica) {
+    for (i, fact) in r.facts().iter().enumerate() {
+        for old in &r.facts()[..i] {
+            assert_ne!(fact.id, old.id, "duplicate accepted event ID");
+        }
+    }
 }
 fn scalars(s: &str) -> Vec<u32> {
     s.chars().map(u32::from).collect()
@@ -14,6 +24,7 @@ fn text(r: &Replica) -> String {
 }
 fn edit(r: Replica, gap: usize, s: &str, delete: Vec<BirthId>) -> (Replica, Fact) {
     let (r, result) = r.edit(gap, scalars(s), delete);
+    assert_unique(&r);
     let Local::Authored(f) = result.unwrap() else {
         panic!("unexpected empty")
     };
@@ -21,6 +32,7 @@ fn edit(r: Replica, gap: usize, s: &str, delete: Vec<BirthId>) -> (Replica, Fact
 }
 fn receive(r: Replica, f: &Fact) -> Replica {
     let (r, result) = r.receive(f);
+    assert_unique(&r);
     assert_eq!(result, Ok(Admission::Added));
     r
 }
