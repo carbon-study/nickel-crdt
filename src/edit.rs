@@ -385,6 +385,14 @@ impl Tree {
         Ok(node)
     }
 }
+// Pure allocation calculation; the instance commits it only after plan succeeds.
+fn next_counter_after(counter: u64) -> Result<u64, Error> {
+    if counter > MAX_COUNTER {
+        Err(Error::Capacity(Capacity::Counter))
+    } else {
+        Ok(counter + 1)
+    }
+}
 fn has_event(ids: &[EventId], id: EventId) -> bool {
     for old in ids {
         if *old == id {
@@ -751,9 +759,10 @@ impl Replica {
         if insert.is_empty() && delete.is_empty() {
             return (self, Ok(Local::Empty));
         }
-        if self.next_counter > MAX_COUNTER {
-            return (self, Err(Error::Capacity(Capacity::Counter)));
-        }
+        let next_counter = match next_counter_after(self.next_counter) {
+            Ok(counter) => counter,
+            Err(error) => return (self, Err(error)),
+        };
         let after = match frontier(&self.facts) {
             Ok(ids) => ids,
             Err(error) => return (self, Err(error)),
@@ -772,7 +781,7 @@ impl Replica {
             Err(error) => (self, Err(error)),
             Ok(None) => (self, Err(invalid(Invalid::Conflict))),
             Ok(Some(mut next)) => {
-                next.next_counter = self.next_counter + 1;
+                next.next_counter = next_counter;
                 (next, Ok(Local::Authored(fact)))
             }
         }

@@ -27,7 +27,7 @@ function edit_neutral(before: Native.t_Replica, outcome: (Native.t_Replica, Resu
 proof edit_rejection_or_empty_unchanged(before: Native.t_Replica, gap: usize, insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global)): unit
   gives edit_neutral(before, Native.impl_Replica__edit(before, gap, insert, delete))
 {
-  norm_spec([delta_only(["Nickel_crdt.Edit.impl_Replica__edit", "Nickel.EditAtomic.edit_neutral"]), iota, zeta_full, primops, unmeta, unascribe], edit_neutral(before, Native.impl_Replica__edit(before, gap, insert, delete)))
+  norm_spec([delta_only(["Nickel_crdt.Edit.impl_Replica__edit", "Nickel_crdt.Edit.next_counter_after", "Nickel.EditAtomic.edit_neutral"]), iota, zeta_full, primops, unmeta, unascribe], edit_neutral(before, Native.impl_Replica__edit(before, gap, insert, delete)))
 }
 
 function edit_counter_step(before: Native.t_Replica, outcome: (Native.t_Replica, Result.t_Result(Native.t_Local, Native.t_Error))): Type0 {
@@ -38,8 +38,22 @@ function edit_counter_step(before: Native.t_Replica, outcome: (Native.t_Replica,
     _ => Prims.l_True
   }
 }
+// Check the actual pure allocation step without replay/admission in its context.
+// The public theorem below still covers the complete edit call.
+function counter_result_step(counter: u64, result: Result.t_Result(u64, Native.t_Error)): Type0 {
+  match result {
+    Result.Result_Ok(next) => v(counter) <= v(Native.v_MAX_COUNTER) and v(next) == v(counter) + 1,
+    Result.Result_Err(error) => v(counter) > v(Native.v_MAX_COUNTER) and error == Native.Error_Capacity(Native.Capacity_Counter)
+  }
+}
+proof counter_result_advances_once(counter: u64): unit
+  gives counter_result_step(counter, Native.next_counter_after(counter))
+  hint Native.next_counter_after(counter)
+{
+  norm_spec([delta_only(["Nickel_crdt.Edit.next_counter_after", "Nickel.EditAtomic.counter_result_step"]), iota, zeta_full, primops, unmeta, unascribe], counter_result_step(counter, Native.next_counter_after(counter)))
+}
 proof authored_edit_advances_once(before: Native.t_Replica, gap: usize, insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global)): unit
   gives edit_counter_step(before, Native.impl_Replica__edit(before, gap, insert, delete))
 {
-  norm_spec([delta_only(["Nickel_crdt.Edit.impl_Replica__edit", "Nickel.EditAtomic.edit_counter_step"]), iota, zeta_full, primops, unmeta, unascribe], edit_counter_step(before, Native.impl_Replica__edit(before, gap, insert, delete)))
+  norm_spec([delta_only(["Nickel_crdt.Edit.impl_Replica__edit", "Nickel_crdt.Edit.next_counter_after", "Nickel.EditAtomic.edit_counter_step"]), iota, zeta_full, primops, unmeta, unascribe], edit_counter_step(before, Native.impl_Replica__edit(before, gap, insert, delete)))
 }

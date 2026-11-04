@@ -89,3 +89,17 @@ fitting-input progress or convergence. The existing all-return neutrality laws
 still cover errors, duplicates and empty edits. Two further wrong Rust bodies
 must fail native tests and their unchanged named content lemmas: altering a
 selected fact's gap and omitting the canonical iterations.
+
+## counter-control isolation
+
+The counter guard and successor calculation are a pure native helper; no
+instance counter is changed until the existing successful commit. Its lemma
+checks the returned successor and the exact over-limit error. The public
+`authored_edit_advances_once` statement is unchanged and remains part of the
+full positive proof chain.
+
+The reused-counter mutation changes that actual helper's successful result from
+`counter + 1` to `counter`. It must still fail native public tests and now reject
+`counter_result_advances_once` ordinarily. This one negative check stops at its
+owning `EditAtomic` module; positive verification still reaches `EditAccepted`.
+Neither timeouts nor solely resource-exhausted failures count as detection.

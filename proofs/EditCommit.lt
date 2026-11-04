@@ -26,7 +26,7 @@ function same_commit(before: Native.t_Replica, outcome: (Native.t_Replica, Resul
 proof authored_fact_replays_same_commit(before: Native.t_Replica, gap: usize, insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global)): unit
   gives same_commit(before, Native.impl_Replica__edit(before, gap, insert, delete))
 {
-  norm_spec([delta_only(["Nickel_crdt.Edit.impl_Replica__edit", "Nickel_crdt.Edit.impl_Replica__receive", "Nickel.EditCommit.same_commit"]), iota, zeta_full, primops, unmeta, unascribe], same_commit(before, Native.impl_Replica__edit(before, gap, insert, delete)))
+  norm_spec([delta_only(["Nickel_crdt.Edit.impl_Replica__edit", "Nickel_crdt.Edit.next_counter_after", "Nickel_crdt.Edit.impl_Replica__receive", "Nickel.EditCommit.same_commit"]), iota, zeta_full, primops, unmeta, unascribe], same_commit(before, Native.impl_Replica__edit(before, gap, insert, delete)))
 }
 
 function private_unchanged(before: Native.t_Replica, outcome: (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error))): Type0 {
@@ -58,7 +58,7 @@ function request_bound(before: Native.t_Replica, gap: usize, insert: Alloc.Vec.t
 proof authored_fact_binds_request(before: Native.t_Replica, gap: usize, insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global)): unit
   gives request_bound(before, gap, insert, delete, Native.impl_Replica__edit(before, gap, insert, delete))
 {
-  norm_spec([delta_only(["Nickel_crdt.Edit.impl_Replica__edit", "Nickel.EditCommit.request_bound", "Nickel.EditCommit.requested_gap"]), iota, zeta_full, primops, unmeta, unascribe], request_bound(before, gap, insert, delete, Native.impl_Replica__edit(before, gap, insert, delete)))
+  norm_spec([delta_only(["Nickel_crdt.Edit.impl_Replica__edit", "Nickel_crdt.Edit.next_counter_after", "Nickel.EditCommit.request_bound", "Nickel.EditCommit.requested_gap"]), iota, zeta_full, primops, unmeta, unascribe], request_bound(before, gap, insert, delete, Native.impl_Replica__edit(before, gap, insert, delete)))
 }
 
 function same_shared(left: Native.t_Replica, right: Native.t_Replica): Type0 {

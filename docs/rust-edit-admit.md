@@ -377,3 +377,19 @@ Undo/Redo/Restore, private history/checkpoints, inspection capabilities, groupin
 anchors, registers, incremental receipts, byte codecs, persistence, authentication,
 bindings and consumer UI are absent. Pending new-work redo and exact returning-ID
 choices remain open; implementing this cut does not silently settle them.
+
+## counter-control gate follow-through
+
+The ARM gate at `bf611c8` failed because the reused-counter negative check did
+not finish within the verifier driver's 60-second budget. That was correctly
+rejected, not accepted as mutation detection. It is not evidence that the
+positive content theorem is false.
+
+The existing guard/successor calculation is now a pure native helper, with a
+source-linked result/error lemma. The instance still installs the calculated
+counter only after plan success. The public whole-edit counter theorem is
+unchanged. The reused-counter control checks the actual helper through
+`EditAtomic`; the full positive still checks all the public proofs through
+`EditAccepted`. Budgets and proof-integrity requirements are unchanged. This
+primitive counter calculation is not global writer fencing or a proof of valid
+fitting edit/admission progress.

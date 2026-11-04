@@ -35,7 +35,7 @@ for(const mode of selected.length?selected:modes) {
   await fs.mkdir(crate,{recursive:true});await fs.mkdir(proof,{recursive:true});
   for(const name of ['Cargo.toml','Cargo.lock','src','tests','proof-smoke'])await fs.cp(path.join(root,name),path.join(crate,name),{recursive:true});
   if(mode!=='positive') {
-    const scopes={'content-changes-whole-fact':'fn clone_selected_fact(', 'content-omits-facts':'fn canonical(', 'accepted-reuses-member':'fn choose_unseen(', 'accepted-wrong-canonical-push':'fn canonical_step(', 'accepted-publication-duplicates':'fn with_tree('};
+    const scopes={'edit-success-reuses-counter':'fn next_counter_after(', 'content-changes-whole-fact':'fn clone_selected_fact(', 'content-omits-facts':'fn canonical(', 'accepted-reuses-member':'fn choose_unseen(', 'accepted-wrong-canonical-push':'fn canonical_step(', 'accepted-publication-duplicates':'fn with_tree('};
     const start=original.indexOf(scopes[mode]??(mode==='identity-writer-equality'?'impl PartialEq for Writer':mode==='identity-birth-equality'?'impl PartialEq for BirthId':mode==='identity-event-equality'?'impl PartialEq for EventId':mode==='identity-forgets-gap'?'fn fact_equal(':mode.startsWith('identity-')?'fn duplicate(':mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit('));assert(start>=0);
     const edits={
       'content-changes-whole-fact':['fact.clone()', 'let mut changed = fact.clone(); changed.gap = None; changed'],
@@ -53,9 +53,9 @@ for(const mode of selected.length?selected:modes) {
       'identity-counter-range':['if fact.id.counter == 0 || fact.id.counter > MAX_COUNTER {','if false {'],
       'receive-error-corrupts-counter':['Err(error) => (self, Err(error)),','Err(error) => { let mut damaged = self; damaged.next_counter = 0; (damaged, Err(error)) },'],
       'edit-error-corrupts-counter':['Err(error) => (self, Err(error)),','Err(error) => { let mut damaged = self; damaged.next_counter = 0; (damaged, Err(error)) },'],
-      'edit-success-reuses-counter':['next.next_counter = self.next_counter + 1;','next.next_counter = self.next_counter;'],
+      'edit-success-reuses-counter':['Ok(counter + 1)','Ok(counter)'],
       'local-return-gap':['(next, Ok(Local::Authored(fact)))','{ let mut changed = fact; changed.gap = Some(0); (next, Ok(Local::Authored(changed))) }'],
-      'local-stale-tree':['next.next_counter = self.next_counter + 1;','next.next_counter = self.next_counter + 1; next.tree = self.tree.clone();'],
+      'local-stale-tree':['next.next_counter = next_counter;','next.next_counter = next_counter; next.tree = self.tree.clone();'],
       'receive-success-counter':['Ok(Some(next)) => (next, Ok(Admission::Added)),','Ok(Some(mut next)) => { next.next_counter = 0; (next, Ok(Admission::Added)) },'],
       'author-forgets-gap':['Some(gap)','Some(0)'],
       'receive-private-gate':['Self::validate_new(&self.facts, self.limits, fact)?;', 'Self::validate_new(&self.facts, self.limits, fact)?; if self.writer.is_none() { return Err(Error::Missing); }'],
@@ -81,7 +81,10 @@ for(const mode of selected.length?selected:modes) {
   assert(!/\b(?:admit|assume|admit_smt_queries)\b/.test(code),'no assumptions in extracted project code');
   if(mode==='positive')positive=code;else assert.notEqual(code,positive);
   for(const [name,code] of views)await put(path.join(proof,name),code);
-  const checked=await verify({dir:proof,roots:[path.join(proof,'Nickel.EditAccepted.fst')],fstar,models,modelCache});
+  // Counter falsification needs only its owning module. The positive path still
+  // checks the complete public proof chain through EditAccepted.
+  const proofRoot=mode==='edit-success-reuses-counter'?'Nickel.EditAtomic.fst':'Nickel.EditAccepted.fst';
+  const checked=await verify({dir:proof,roots:[path.join(proof,proofRoot)],fstar,models,modelCache});
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {
     assert.equal(checked.status,0,checked.log);
@@ -104,7 +107,7 @@ for(const mode of selected.length?selected:modes) {
       'identity-counter-range':'EditIdentity.duplicate_matches_lookup',
       'receive-error-corrupts-counter':'EditAtomic.receive_rejection_unchanged',
       'edit-error-corrupts-counter':'EditAtomic.edit_rejection_or_empty_unchanged',
-      'edit-success-reuses-counter':'EditAtomic.authored_edit_advances_once',
+      'edit-success-reuses-counter':'EditAtomic.counter_result_advances_once',
       'local-return-gap':'EditCommit.authored_fact_replays_same_commit',
       'local-stale-tree':'EditCommit.authored_fact_replays_same_commit',
       'receive-success-counter':'EditCommit.receive_preserves_private_state',
