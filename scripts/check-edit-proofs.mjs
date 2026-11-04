@@ -22,7 +22,7 @@ for(const name of ['Prelude','LoopUtil','EditAtomic','EditCommit','EditIdentity'
   views.set(`Nickel.${name}.fst`,code);
 }
 const original=await fs.readFile(path.join(root,'src/edit.rs'),'utf8');
-const modes=['positive','edit-commit-ignores-counter','receive-error-corrupts-counter','edit-error-corrupts-counter','edit-success-reuses-counter',
+const modes=['positive','edit-call-passes-old-counter','edit-commit-ignores-counter','receive-error-corrupts-counter','edit-error-corrupts-counter','edit-success-reuses-counter',
   'local-return-gap','local-stale-tree','receive-success-counter','author-forgets-gap','receive-private-gate',
   'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality',
   'identity-scan-key','identity-birth-equality','identity-writer-equality',
@@ -38,6 +38,7 @@ for(const mode of selected.length?selected:modes) {
     const scopes={'edit-commit-ignores-counter':'fn with_counter(', 'edit-success-reuses-counter':'fn next_counter_after(', 'content-changes-whole-fact':'fn clone_selected_fact(', 'content-omits-facts':'fn canonical(', 'accepted-reuses-member':'fn choose_unseen(', 'accepted-wrong-canonical-push':'fn canonical_step(', 'accepted-publication-duplicates':'fn with_tree('};
     const start=original.indexOf(scopes[mode]??(mode==='identity-writer-equality'?'impl PartialEq for Writer':mode==='identity-birth-equality'?'impl PartialEq for BirthId':mode==='identity-event-equality'?'impl PartialEq for EventId':mode==='identity-forgets-gap'?'fn fact_equal(':mode.startsWith('identity-')?'fn duplicate(':mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit('));assert(start>=0);
     const edits={
+      'edit-call-passes-old-counter':['next = next.with_counter(next_counter);', 'next = next.with_counter(self.next_counter);'],
       'edit-commit-ignores-counter':['self.next_counter = counter;', 'self.next_counter = self.next_counter;'],
       'content-changes-whole-fact':['fact.clone()', 'let mut changed = fact.clone(); changed.gap = None; changed'],
       'content-omits-facts':['for _ in 0..facts.len() {', 'for _ in 0..0 {'],
@@ -86,9 +87,9 @@ for(const mode of selected.length?selected:modes) {
     positive=code;
   } else assert.notEqual(code,positive);
   for(const [name,code] of views)await put(path.join(proof,name),code);
-  // Counter calculation/installation controls need only their owning module. The positive path still
+  // Counter calculation/installation/wiring controls need only their owning module. The positive path still
   // checks the complete public proof chain through EditAccepted.
-  const proofRoot=['edit-success-reuses-counter','edit-commit-ignores-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditAccepted.fst';
+  const proofRoot=['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditAccepted.fst';
   const checked=await verify({dir:proof,roots:[path.join(proof,proofRoot)],fstar,models,modelCache});
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {
@@ -97,6 +98,7 @@ for(const mode of selected.length?selected:modes) {
   } else {
     assert.equal(checked.status,2,'require ordinary proof rejection, not extraction failure/timeout');
     const theorems={
+      'edit-call-passes-old-counter':'EditAtomic.authored_edit_advances_once',
       'edit-commit-ignores-counter':'EditAtomic.counter_installation_is_exact',
       'content-changes-whole-fact':'EditAccepted.selected_fact_is_exact',
       'content-omits-facts':'EditAccepted.canonical_selects_whole_facts',
@@ -114,7 +116,7 @@ for(const mode of selected.length?selected:modes) {
       'receive-error-corrupts-counter':'EditAtomic.receive_rejection_unchanged',
       'edit-error-corrupts-counter':'EditAtomic.edit_rejection_or_empty_unchanged',
       'edit-success-reuses-counter':'EditAtomic.counter_result_advances_once',
-      'local-return-gap':'EditCommit.authored_fact_replays_same_commit',
+      'local-return-gap':'EditCommit.authored_fact_binds_request',
       'local-stale-tree':'EditCommit.authored_fact_replays_same_commit',
       'receive-success-counter':'EditCommit.receive_preserves_private_state',
       'author-forgets-gap':'EditCommit.authored_fact_binds_request',

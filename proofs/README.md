@@ -110,18 +110,29 @@ that function after successful planning, and its unchanged counter theorem
 unfolds the actual call. This controls the installation body, not its argument
 wiring inside `edit`.
 
-**Known control gap:** changing that call from
-`next.with_counter(next_counter)` to
-`next.with_counter(self.next_counter)` fails the native public tests, but the
-public `authored_edit_advances_once` negative has only produced solver-resource
-exhaustion, not an accepted ordinary semantic rejection. The setter lemma still
-passes: it correctly installs the wrong value supplied by the caller. Thus the
-positive universal theorem covers the actual wiring, but non-resource proof
-sensitivity to this wrong argument is unwitnessed. Only the native control has
-witnessed the error ordinarily; do not count the two helper controls as closing
-this call-site gap. Helper-law composition and explicit result/writer case splits
-also left the negative resource-only under the unchanged limits; neither
-experiment is adopted or counted as detection.
+The separate `edit-call-passes-old-counter` control mutates that actual call to
+`next.with_counter(self.next_counter)`. It must fail native tests and the
+unchanged public `authored_edit_advances_once` theorem ordinarily. Calculation,
+setter-body and call-site controls therefore exercise distinct source boundaries.
+Earlier resource-only wiring attempts are retained as failed experiments, not
+counted as proof detections.
+
+The public counter, request binding, same-commit and private-state proofs now
+explicitly normalize their actual native call boundaries, then run the standard
+F* synchronous SMT tactic with fuel/ifuel 1/1. The counter proof uses the checked
+calculation law; private-state proofs expose the existing native clone and tree
+setter. This limits automatic unfolding into replay while preserving the exact
+universal theorem statements. Default module settings, rlimit100 and all wall
+time limits are unchanged; these query-local unfolding depths are lower, not
+larger proof budgets. Positive and mutated programs use identical proof views
+and settings.
+
+The wrong-returned-gap control now names the existing public
+`authored_fact_binds_request` theorem, placed before same-commit coherence.
+The same-commit theorem remains required in the full positive chain and is
+still exercised by the separate stale-tree control. The negative classifier
+still requires clean extraction, native failure, ordinary proof failure and a
+named non-resource query below its rlimit; no failure class was broadened.
 Neither timeouts nor solely resource-exhausted failures count as detection.
 
 The pinned hax translations are also committed under

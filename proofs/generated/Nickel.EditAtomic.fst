@@ -11,6 +11,8 @@ open FStar.Pervasives
 
 open FStar.NormSteps
 
+module Tactics = FStar.Tactics.V2
+
 module Native = Nickel_crdt.Edit
 
 module Result = Core_models.Result
@@ -40,4 +42,8 @@ let counter_installation_is_exact (state: Native.t_Replica) (counter: u64) : Lem
   norm_spec [delta_only ["Nickel_crdt.Edit.impl_Replica__with_counter"]; iota; zeta_full; primops] (Native.impl_Replica__with_counter state counter)
 
 let authored_edit_advances_once (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) (delete: Alloc.Vec.t_Vec Native.t_BirthId Alloc.Alloc.t_Global) : Lemma (ensures edit_counter_step before (Native.impl_Replica__edit before gap insert delete)) =
-  norm_spec [delta_only ["Nickel_crdt.Edit.impl_Replica__edit"; "Nickel_crdt.Edit.next_counter_after"; "Nickel_crdt.Edit.impl_Replica__with_counter"; "Nickel.EditAtomic.edit_counter_step"]; iota; zeta_full; primops; unmeta; unascribe] (edit_counter_step before (Native.impl_Replica__edit before gap insert delete))
+  counter_result_advances_once before.f_next_counter;
+  assert (edit_counter_step before (Native.impl_Replica__edit before gap insert delete)) by (
+    Tactics.norm [delta_only ["Nickel_crdt.Edit.impl_Replica__edit"; "Nickel_crdt.Edit.impl_Replica__with_counter"; "Nickel.EditAtomic.edit_counter_step"]; iota; zeta_full; primops; simplify; unmeta; unascribe];
+    Tactics.smt_sync' 1 1
+  )
