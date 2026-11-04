@@ -3,6 +3,9 @@
 # right status and annotation. Runs in a few seconds; CI runs it first.
 set -u
 here=$(dirname "$0"); fails=0
+# Every long sleep below uses this run-unique duration, so the leftover check
+# matches only processes this self-test started, never another job's sleep.
+export nap="30.$$"
 run() { # NAME LIMIT BOUND EXPECT_STATUS EXPECT_TEXT COMMAND...
   local name=$1 limit=$2 bound=$3 want=$4 text=$5; shift 5
   local start=$SECONDS out status
@@ -16,13 +19,13 @@ run() { # NAME LIMIT BOUND EXPECT_STATUS EXPECT_TEXT COMMAND...
 }
 run pass      5  4 0   ""                              sh -c 'echo fine'
 run fail      5  4 3   "::error title=selftest-fail::a%25b" sh -c 'echo a%b; exit 3'
-run hang      1  4 124 "timed out after 1s"            sleep 30
+run hang      1  4 124 "timed out after 1s"            sh -c 'exec sleep "$nap"'
 # A child that ignores TERM: only the KILL 10s later ends it.
-run ignore    1 14 124 "timed out after 1s"            bash -c 'trap "" TERM; sleep 30 & wait'
+run ignore    1 14 124 "timed out after 1s"            bash -c 'trap "" TERM; sleep $nap & wait'
 # Lynn's shape on #38: the command exits on TERM but leaves a TERM-ignoring
 # descendant holding stdout open.
-run orphan    1 14 124 "timed out after 1s"            bash -c 'bash -c "trap \"\" TERM; exec sleep 30" & sleep 30'
+run orphan    1 14 124 "timed out after 1s"            bash -c 'bash -c "trap \"\" TERM; exec sleep $nap" & sleep $nap'
 # The command finishes in time but leaves a descendant behind.
-run leftover  5  4 0   ""                              bash -c 'sleep 30 & echo done'
-pgrep -f "^sleep 30$" > /dev/null && { echo "FAIL leftover processes:"; pgrep -af "^sleep 30$"; fails=$((fails+1)); }
+run leftover  5  4 0   ""                              bash -c 'sleep $nap & echo done'
+pgrep -f "^sleep $nap$" > /dev/null && { echo "FAIL leftover processes:"; pgrep -af "^sleep $nap$"; fails=$((fails+1)); }
 exit $((fails > 0))
