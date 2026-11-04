@@ -4,8 +4,7 @@
   inputs.hax.url = "github:cryspen/hax/f33e5c844497c057450ebf56828cbb191223e93a";
 
   outputs = { self, nixpkgs, hax }:
-    let
-      system = "x86_64-linux";
+    nixpkgs.lib.foldl' nixpkgs.lib.recursiveUpdate { } (map (system: let
       pkgs = import nixpkgs { inherit system; };
       rust = hax.packages.${system}.rustc;
       haxBin = hax.packages.${system}.default;
@@ -78,5 +77,5 @@
           packages = [ pkgs.nodejs_22 pkgs.jq pkgs.coreutils pkgs.util-linux ];
         };
       };
-    };
+    }) [ "x86_64-linux" "aarch64-linux" ]);
 }
