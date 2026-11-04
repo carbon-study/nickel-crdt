@@ -1,0 +1,117 @@
+# One regression gate for the repository: the native/proof scaffold, the
+# questionnaire model, and every research experiment's own documented check.
+# Each check runs through .github/scripts/check.sh: it has a time limit, and on
+# failure (a hang included) the last lines of output become an annotation.
+#
+# Budgets: in each job the wrapper limits sum to less than the job deadline,
+# with room left for setup and the cache save, so every timeout is reported
+# by the wrapper before GitHub cancels the job.
+# Runners are ARM64 (ubuntu-24.04-arm): ren measured them faster for large
+# builds, and every flake now exposes aarch64-linux.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # The pinned proof toolchain (z3, F*, hax, Rust nightly) is not on
+  # cache.nixos.org; cold, z3 alone builds for ~37 minutes. The store is cached
+  # between runs, keyed on the Nix files. Budget: 150 min check + 30 s
+  # self-test, under 210 min; setup, restore and save use the remainder.
+  scaffold:
+    name: native crate and proofs
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 210
+    # Each run saves its own cache generation and restores the newest one for
+    # the same Nix files (else the newest for this OS/arch), so builds finished
+    # after a failed or partial run are kept by the next save. A fixed key could
+    # not do that: the action never overwrites an existing key. GitHub evicts
+    # old generations itself (no purge, so no actions: write permission).
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      # cache-nix-action documents this installer. With cachix/install-nix-action
+      # its save failed ("tar" exit 2) in our first ARM run, matching
+      # nix-community/cache-nix-action#48, where switching installers fixed it.
+      - uses: nixbuild/nix-quick-install-action@v35
+      - name: cache key
+        id: key
+        run: echo "prefix=nix-scaffold-$RUNNER_OS-$RUNNER_ARCH-${{ hashFiles('**/*.nix', '**/flake.lock') }}" >> "$GITHUB_OUTPUT"
+      - name: restore Nix store
+        id: restore
+        uses: nix-community/cache-nix-action/restore@v7
+        with:
+          primary-key: ${{ steps.key.outputs.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-prefixes-first-match: |
+            ${{ steps.key.outputs.prefix }}-
+            nix-scaffold-${{ runner.os }}-${{ runner.arch }}-
+      - name: wrapper self-test
+        run: .github/scripts/check.test.sh
+      # checks.native and checks.proofs. Public checks verify the committed F*
+      # views; Latte emission is private and not regenerated here (proofs/README.md).
+      - name: flake check
+        run: .github/scripts/check.sh flake-check 9000 nix flake check -L
+      # Save even when the check failed or timed out, so finished toolchain
+      # paths are not rebuilt next time. The key is new for every run.
+      - name: save Nix store
+        if: always()
+        uses: nix-community/cache-nix-action/save@v7
+        with:
+          primary-key: ${{ steps.key.outputs.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+  # The reference gates use the light `.#references` shell (node and the
+  # nested Python shell, no proof toolchain). Budget: 10 + 5 x 5 = 35 min of
+  # wrapper limits, under 45.
+  research:
+    name: reference experiments
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+      - name: hybrid restoration
+        run: .github/scripts/check.sh hybrid-restoration 600 nix flake check -L ./experiments/hybrid-restoration
+      # The ordering checks print their receipts; the committed receipts must match.
+      - name: ordering (dense-key and FugueMax)
+        run: |
+          .github/scripts/check.sh ordering 300 nix develop .#references --command bash -c '
+            set -euo pipefail
+            node experiments/ordered-gap-reference/check.mjs > /tmp/receipt.json
+            node experiments/ordered-gap-reference/fugue-check.mjs > /tmp/fugue-receipt.json
+            node experiments/ordered-gap-reference/fugue-max-oracle.mjs
+            node experiments/ordered-gap-reference/fugue-oracle-controls.mjs
+            diff <(jq -S . /tmp/receipt.json) <(jq -S . experiments/ordered-gap-reference/receipt.json)
+            diff <(jq -S . /tmp/fugue-receipt.json) <(jq -S . experiments/ordered-gap-reference/fugue-receipt.json)'
+      - name: combined admission
+        run: .github/scripts/check.sh combined-admission 300 nix develop .#references --command bash experiments/combined-admission/check.sh
+      - name: order/effect bridge (dense)
+        run: .github/scripts/check.sh order-effect-bridge 300 nix develop .#references --command bash experiments/order-effect-bridge/check.sh
+      - name: order/effect bridge (FugueMax)
+        run: .github/scripts/check.sh order-effect-bridge-fugue 300 nix develop .#references --command bash experiments/order-effect-bridge/check.sh --fugue
+      - name: pending recovery
+        run: .github/scripts/check.sh pending-recovery 300 nix develop .#references --command bash experiments/pending-recovery/check.sh
+
+  # Budget: 15 min check, under 20.
+  questionnaire:
+    name: questionnaire model
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+      - name: flake check
+        run: .github/scripts/check.sh questionnaire 900 nix flake check -L ./questionnaire

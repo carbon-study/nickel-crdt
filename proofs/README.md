@@ -6,7 +6,14 @@ The check freshly extracts Rust in isolated positive and mutation workspaces. Bo
 
 The locked public flake checks committed F* views directly. It checks source/view receipts for accidental drift, but a hash receipt does not prove compiler correctness or that a view was emitted from its source. Latte is currently a private, unlicensed regeneration dependency; its compiler is not bundled or fetched by this public flake. See the exact local regeneration provenance in ../PROVENANCE.md. Until that dependency can be published, anonymous users can reproduce F* verification and Rust extraction, not Latte emission.
 
-Trusted dependencies include Rust compilation, hax translation, Latte emission, F*, its solver and external Rust models. The external models are checked once in an immutable Nix output; each proof workspace uses that exact cache. No own admissions, hint replay or stale hash bypass is used. Ordinary proof commands have a 60-second wall limit; external-model bootstrap has a separate 180-second allowance.
+Trusted dependencies include Rust compilation, hax translation, Latte emission, F*, its solver and external Rust models. The external models are checked once in an immutable Nix output; each proof workspace uses that exact cache. No own admissions, hint replay or stale hash bypass is used. Project modules retain a 60-second per-compiler limit. Cold imported-model
+bootstrap allows 180 seconds per compiler under a 600-second make-driver guard;
+dependency discovery has its own 60-second guard. These are distinct command
+budgets, not a claim about termination of every detached descendant. Solver
+settings and proof obligations are unchanged. Successful model outputs retain
+`bootstrap.log` and `bootstrap.stats.json`, including per-module F* wall times.
+`check-proof-timeouts.mjs` exercises the actual make/timeout wiring using an
+explicitly simulated compiler; those fixtures never enter the real model cache.
 
 The smoke fixture establishes no CRDT convergence, ordering, undo, codec, Wasm or browser property.
 

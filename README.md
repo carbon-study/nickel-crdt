@@ -27,7 +27,7 @@ wire admission or a verified engine.
 
 ## Run the checks
 
-On x86_64 Linux with Nix:
+On x86_64 or aarch64 Linux with Nix:
 
 ```sh
 nix flake check -L
@@ -35,6 +35,17 @@ nix build --no-link .#native .#proofs
 nix develop
 cargo test --workspace --offline --locked
 ```
+
+The `references` shell runs the executable research gates without realizing
+the native/proof toolchain:
+
+```sh
+nix develop .#references --command bash experiments/order-effect-bridge/check.sh --fugue
+```
+
+It contains locked Node, jq and shell utilities. Python remains owned by the
+hybrid reference's nested flake. This changes no gate's semantics, receipts or
+proof dependencies; CI must still run the native/proof check separately.
 
 The workspace has the experimental `edit` module and a separate `proof-smoke` crate. Its `flip` function toggles a Boolean in a Rust range loop. The proof check extracts that actual function with the locked hax compiler, connects it to the imported `LoopUtil` interpreter, and proves parity and involution for every representable loop bound. It also changes the Rust loop to leave the Boolean unchanged and requires the unchanged bridge theorem to reject it.
 

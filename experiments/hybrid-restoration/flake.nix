@@ -1,8 +1,7 @@
 {
   description = "Directed observed-concurrent restoration reference candidate";
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/7d1a7c21a4c00ea653fc7ed5c083d261340f185f";
-  outputs = {self, nixpkgs}: let
-    system = "x86_64-linux";
+  outputs = {self, nixpkgs}: nixpkgs.lib.foldl' nixpkgs.lib.recursiveUpdate { } (map (system: let
     pkgs = import nixpkgs {inherit system;};
     source = pkgs.lib.fileset.toSource { root = ./.; fileset = pkgs.lib.fileset.unions [./model.py ./check.py ./sessions.py ./session_check.py ./continuation_check.py ./selection_review.py ./preview_check.py]; };
     check = pkgs.runCommand "hybrid-restoration-directed-check" {nativeBuildInputs=[pkgs.python3];} ''
@@ -128,5 +127,5 @@
     default = {type="app"; program="${run}/bin/hybrid-restoration"; meta.description="Replay directed restoration candidate fixtures";};
     };
     devShells.${system}.default=pkgs.mkShell {packages=[pkgs.python3];};
-  };
+  }) [ "x86_64-linux" "aarch64-linux" ]);
 }
