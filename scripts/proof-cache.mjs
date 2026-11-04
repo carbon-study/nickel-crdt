@@ -39,9 +39,11 @@ export function run(label,bin,args,cwd,{env=process.env,seconds=60}={}) {
 }
 // Workspace source hashes, not source mtimes, invalidate direct cache entries.
 // Make/F* then propagate invalidation through the actual dependency graph.
-export async function verify({dir,roots,fstar,models,modelCache,seconds=60,rlimit=100}) {
+export async function verify({dir,roots,fstar,models,modelCache,seconds=60,moduleSeconds=60,rlimit=100}) {
+  if(!Number.isInteger(moduleSeconds)||moduleSeconds<1||moduleSeconds>180)throw Error('moduleSeconds must be an integer from 1 to 180');
+  if(modelCache&&moduleSeconds>60)throw Error('project module budget cannot exceed 60 seconds');
   await mkdir(join(dir,'checked'),{recursive:true});
-  const options=JSON.stringify({fstar,models,modelCache,flags:flagsAt(rlimit)});
+  const options=JSON.stringify({fstar,models,modelCache,moduleSeconds,flags:flagsAt(rlimit)});
   let oldOptions;try {oldOptions=await readFile(join(dir,'options.json'),'utf8');}catch(e){if(e.code!=='ENOENT')throw e;}
   if(options!==oldOptions)for(const name of await readdir(join(dir,'checked')))
     if(name.endsWith('.checked')||name.endsWith('.checked.lax'))await rm(join(dir,'checked',name));
@@ -68,7 +70,7 @@ export async function verify({dir,roots,fstar,models,modelCache,seconds=60,rlimi
   }
   await put(join(dir,'depend.mk'),dep.stdout);
   const quote=s=>`'${s.replaceAll("'",`'\\''`)}'`;
-  const command=['timeout','--kill-after=2s','60s',fstar,...flags].map(quote).join(' ');
+  const command=['timeout','--kill-after=2s',`${moduleSeconds}s`,fstar,...flags].map(quote).join(' ');
   const targets=roots.map(p=>join(dir,'checked',basename(p)+'.checked'));
   // Paths with make metacharacters would need a different escaping protocol.
   for(const p of [dir,...roots])if(/[\s#$:%\\]/.test(p))throw Error('unsupported proof workspace path: '+p);
@@ -78,7 +80,7 @@ export async function verify({dir,roots,fstar,models,modelCache,seconds=60,rlimi
   result.modules=[...result.log.matchAll(/^\[CHECK\] (.+)$/gm)].map(m=>m[1]);
   await put(join(dir,'last-check.log'),result.log);
   result.stats=proofStats(result.log);
-  await put(join(dir,'last-check.stats.json'),JSON.stringify({rlimit,status:result.status,modules:result.modules,declarations:result.stats},null,2)+'\n');
+  await put(join(dir,'last-check.stats.json'),JSON.stringify({rlimit,moduleSeconds,seconds,status:result.status,modules:result.modules,declarations:result.stats},null,2)+'\n');
   for(const row of result.stats)if(/^(Nickel\.)/.test(row.name)) {
     if(!row.queries.length) {console.log(`[theorem] ${row.name}: declaration ${row.declarationMs??'unmeasured'}ms; no SMT query`);continue;}
     const peak=row.queries.reduce((a,q)=>q.used/q.limit>a.used/a.limit?q:a);

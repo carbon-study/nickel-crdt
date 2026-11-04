@@ -29,7 +29,7 @@
       '';
       proofTools = pkgs.lib.fileset.toSource {
         root = ./scripts;
-        fileset = pkgs.lib.fileset.unions [ ./scripts/build-proof-models.mjs ./scripts/proof-cache.mjs ];
+        fileset = pkgs.lib.fileset.unions [ ./scripts/build-proof-models.mjs ./scripts/proof-cache.mjs ./scripts/check-proof-timeouts.mjs ];
       };
       models = pkgs.runCommand "nickel-checked-hax-models" {
         nativeBuildInputs = tools;
