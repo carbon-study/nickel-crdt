@@ -38,3 +38,10 @@ The exact-content extension in `EditAccepted` uses the pinned F* standard
 library's `FStar.Fin.pigeonhole` for finite coverage. It adds no project axiom or
 admission; the ordinary upstream F*/model trust boundary remains in force.
 Its updated view is emitted by the same private CLI revision recorded above.
+
+The pinned hax translations are also committed under
+[`proofs/generated/hax`](proofs/generated/hax/README.md). Its README gives the exact extraction scope and refresh commands.
+The existing fresh-extraction proof gate requires byte-identical positive output;
+mutant extractions still use their unchanged semantic proof obligations.
+This makes translation changes reviewable, without proving Rust/F* semantic
+equivalence or removing hax from the trusted boundary.

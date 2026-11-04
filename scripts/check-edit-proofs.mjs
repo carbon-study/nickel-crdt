@@ -79,7 +79,11 @@ for(const mode of selected.length?selected:modes) {
   const scan=code.slice(code.indexOf('let impl_Replica__duplicate '),code.indexOf('let impl_Replica__validate_new '));
   assert.match(scan,/fact_equal old fact/);
   assert(!/\b(?:admit|assume|admit_smt_queries)\b/.test(code),'no assumptions in extracted project code');
-  if(mode==='positive')positive=code;else assert.notEqual(code,positive);
+  if(mode==='positive') {
+    const committed=await fs.readFile(path.join(root,'proofs/generated/hax/Nickel_crdt.Edit.fst'),'utf8');
+    assert(code===committed,'fresh hax edit extraction differs from proofs/generated/hax/Nickel_crdt.Edit.fst; review and refresh the committed translation');
+    positive=code;
+  } else assert.notEqual(code,positive);
   for(const [name,code] of views)await put(path.join(proof,name),code);
   // Counter falsification needs only its owning module. The positive path still
   // checks the complete public proof chain through EditAccepted.

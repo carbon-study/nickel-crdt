@@ -103,3 +103,10 @@ The reused-counter mutation changes that actual helper's successful result from
 `counter_result_advances_once` ordinarily. This one negative check stops at its
 owning `EditAtomic` module; positive verification still reaches `EditAccepted`.
 Neither timeouts nor solely resource-exhausted failures count as detection.
+
+The pinned hax translations are also committed under
+[`proofs/generated/hax`](generated/hax/README.md). Its README gives the exact extraction scope and refresh commands.
+The existing fresh-extraction proof gate requires byte-identical positive output;
+mutant extractions still use their unchanged semantic proof obligations.
+This makes translation changes reviewable, without proving Rust/F* semantic
+equivalence or removing hax from the trusted boundary.
