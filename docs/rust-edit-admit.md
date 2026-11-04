@@ -223,10 +223,10 @@ lemmas check the handwritten writer/event/birth equality bodies; the gate also
 requires the ordinary fact call to remain present in the extraction. This
 repairs that proof blind spot; it is not an audit of all hax translations.
 
-Nineteen independently extracted wrong Rust bodies must fail native tests and the
+Independently extracted wrong Rust bodies must fail native tests and the
 unchanged relevant lemma. Three corrupt/reuse the counter on earlier return
-paths. Five challenge the positive boundary: alter the returned fact's gap,
-commit a stale tree, change the receiver's counter on success, ignore the caller's
+paths. Six challenge the positive boundary: alter the returned fact's gap or its
+`after` list, commit a stale tree, change the receiver's counter on success, ignore the caller's
 gap before validation, or gate admission on the receiver's private writer.
 Eight identity controls ignore the gap, accept conflicts, skip the scan, ignore
 the counter range, compare only counters in the scan key, or corrupt custom

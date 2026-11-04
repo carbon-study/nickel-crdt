@@ -130,7 +130,10 @@ and settings.
 The wrong-returned-gap control now names the existing public
 `authored_fact_binds_request` theorem, placed before same-commit coherence.
 The same-commit theorem remains required in the full positive chain and is
-still exercised by the separate stale-tree control. The negative classifier
+exercised separately by `local-stale-tree` (committed tree mismatch) and
+`local-return-after` (returned fact mismatch). The latter empties only the
+returned fact’s `after` list, leaving the committed fact intact; request binding
+does not constrain that field. It must fail `authored_fact_replays_same_commit`. The negative classifier
 still requires clean extraction, native failure, ordinary proof failure and a
 named non-resource query below its rlimit; no failure class was broadened.
 Neither timeouts nor solely resource-exhausted failures count as detection.
