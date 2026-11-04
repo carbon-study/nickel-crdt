@@ -27,5 +27,13 @@ run ignore    1 14 124 "timed out after 1s"            bash -c 'trap "" TERM; sl
 run orphan    1 14 124 "timed out after 1s"            bash -c 'bash -c "trap \"\" TERM; exec sleep $nap" & sleep $nap'
 # The command finishes in time but leaves a descendant behind.
 run leftover  5  4 0   ""                              bash -c 'sleep $nap & echo done'
+# F*-shaped failure: very long lines around the error must not push it out of
+# the annotation, which GitHub truncates at 4096 characters.
+export long='x=$(printf "%0900d" 0); for i in $(seq 80); do echo "$x"; done'
+run long      5  4 1   "FATAL real error here"         bash -c 'eval "$long"; echo "FATAL real error here"; for i in 1 2 3; do echo "${x}"; done; exit 1'
+# What survives is the first 4095 characters: the error must be inside them.
+msg=$("$here/check.sh" selftest-size 5 bash -c 'eval "$long"; echo "FATAL real error here"; for i in 1 2 3; do echo "${x}"; done; exit 1' 2>&1 | grep '^::error' | sed 's/^::error title=selftest-size:://; s/%0A/\n/g; s/%25/%/g')
+if [ "${#msg}" -lt 4096 ] && grep -qF "FATAL real error here" <<<"${msg:0:4095}"; then echo "ok   size (${#msg} chars, error kept)"
+else echo "FAIL size: ${#msg} chars; error within first 4095: $(grep -cF "FATAL real error here" <<<"${msg:0:4095}")"; fails=$((fails+1)); fi
 pgrep -f "^sleep $nap$" > /dev/null && { echo "FAIL leftover processes:"; pgrep -af "^sleep $nap$"; fails=$((fails+1)); }
 exit $((fails > 0))
