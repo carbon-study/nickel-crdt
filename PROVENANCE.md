@@ -9,6 +9,27 @@ The generic loop library and prelude were extracted, with Ren's explicit authori
 
 The loop source was renamed from `Light` to `Nickel`. The proof-cache/bootstrap helpers and smoke proof also adapt Lynn's existing harness and loop-shape work. This extraction does not redistribute the Dark application or the Latte compiler. The scaffold's authored code is offered under MIT; upstream toolchains retain their own licenses.
 
-The committed Prelude, LoopUtil, Smoke, EditAtomic and EditCommit views were freshly emitted with local `carbon-study/latte-nursery` revision `0729bf34e2a7d9538604d951edc44d376d1b8ced`, using its locked `.#cli` package and `latte emit-fstar /absolute/path/to/proofs/<Name>.lt`. That repository is private and has no selected license. Ren directed Latte to remain private; publishing or vendoring its compiler is outside the current cut. Public verification of generated F* is unchanged.
+The committed Prelude, LoopUtil, Smoke, EditAtomic, EditCommit, EditIdentity and
+EditAccepted views were re-emitted and compared byte-for-byte using local
+`carbon-study/latte-nursery` revision
+`0729bf34e2a7d9538604d951edc44d376d1b8ced` and its locked `.#cli` package. The
+clean local checkout's CLI output matches the installed emitter used for that
+comparison. An authorized local checkout can repeat the emission check with:
+
+```sh
+emitter=$(nix build --no-link --print-out-paths /path/to/latte-nursery#cli)
+temporary=$(mktemp -d)
+for name in Prelude LoopUtil Smoke EditAtomic EditCommit EditIdentity EditAccepted; do
+  "$emitter/bin/latte" emit-fstar "$PWD/proofs/$name.lt" > "$temporary/Nickel.$name.fst"
+  cmp "$temporary/Nickel.$name.fst" "proofs/generated/Nickel.$name.fst" || exit 1
+done
+rm -r "$temporary"
+```
+
+Run from the Nickel repository with that private checkout pinned to the named
+revision. This confirms reproducibility with the recorded emitter, not compiler
+correctness. That repository is private and has no selected license. Ren
+directed Latte to remain private; publishing or vendoring its compiler is outside
+the current cut. Public verification of generated F* is unchanged.
 
 Public verification uses hax revision `f33e5c844497c057450ebf56828cbb191223e93a` and its pinned F* (2025.10.06), not normal Latte's newer F*. `flake.lock` records the complete public dependency graph. `proofs/generated/*.sha256` binds each local source/view pair; it is a drift check, not a compiler certificate.

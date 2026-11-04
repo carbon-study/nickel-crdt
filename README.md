@@ -4,6 +4,11 @@ An application-independent sequence CRDT library, intended for Carbon and potent
 
 This repository contains an [experimental Rust edit/admit candidate](docs/rust-edit-admit.md), the toolchain scaffold and restricted executable references. Two Rust producers can exchange insert/delete/replace facts using FugueMax ordering. Transactional return paths, same-history two-instance commit coherence and accepted event-ID uniqueness have implementation-linked proofs; general semantic refinement, convergence and ordering proofs remain open. **There is no verified CRDT release or stable public API.**
 
+At the experimental aggregate resource ceilings, different arrival orders can
+accept different concurrent subsets. Retained [native capacity witnesses](docs/rust-edit-admit.md#capacity-is-an-admission-boundary-not-a-synchronization-policy)
+make this limitation explicit; the crate supplies no general over-capacity
+synchronization or retry-progress policy.
+
 ## Ordering research candidates
 
 [FugueMax candidate](docs/fugue-ordering.md) is the current stronger-ordering

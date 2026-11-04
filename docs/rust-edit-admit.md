@@ -72,6 +72,48 @@ are deliberately expensive; no incremental index or useful-scale claim is made.
 The [native latency diagnostic](#native-latency-diagnostic) below makes that
 limitation concrete; the profile ceilings are not interactive-latency budgets.
 
+### capacity is an admission boundary, not a synchronization policy
+
+At an aggregate ceiling, the same **offered** facts can leave different
+**accepted** subsets. This is an executable limitation of the current candidate:
+two observers accept root `x`, then receive concurrent append facts `y` and `z`
+in opposite orders. With room for only one of them, their texts remain `xy` and
+`xz`. This happens independently at the event, retained-birth and ordering-link
+ceilings. Both producers can author their branches under that same small
+profile: local fit does not ensure that their concurrent union fits. The
+second addition returns `Capacity` without changing either
+instance. Repeating the rejected offer against that unchanged full instance
+still returns `Capacity`; retaining a fact is not a progress guarantee.
+
+Run the retained negative boundary witnesses and fitting-history controls with:
+
+```sh
+cargo test --offline --locked -p nickel-crdt --test capacity_boundary -- --nocapture
+```
+
+These tests deliberately demonstrate the limitation; their passing does **not**
+close a convergence obligation. They also reconstruct fresh read-only observers
+from all caller-retained offers under a larger fitting profile and check exact
+agreement. This is a finite control, not an implemented promotion/inbox API,
+producer/allocator recovery, or a solution beyond the hard experimental ceiling.
+Reconstruction from only one observer's accepted facts would omit the other
+branch's failed offer. Deletion does not reclaim these retained resource counts.
+
+The [fixed-fact/prefix-budget obligation](rust-transition-cut.md) already
+requires a valid fitting final fact set and eventual admission; it explicitly
+excludes differing accepted subsets at capacity. For such a fitting set,
+prefix-monotone aggregate measures can support an admission/progress argument.
+That argument, valid-input admissibility and internal-error unreachability still
+need implementation-linked proofs. Equality for the same accepted fact set is
+distinct from convergence after the same offers, including over-budget offers.
+
+No over-capacity synchronization policy is selected. Changing the checks to use
+only a fact's causal past would permit concurrent facts to exceed the present
+aggregate ceiling. Per-writer reservations, coordinated budgets or a different
+retention/retry protocol would each change the resource contract and need their
+own agreement/progress/boundedness account. Merely documenting caller retention
+or proving rejection neutrality does not supply that account.
+
 The Rust profile is an edit-only projection of the two-writer Python/Node
 reference. Its `Fact` is already typed, and its derived birth IDs replace the
 reference's independently supplied birth/payload fields. It has no JSON-byte
