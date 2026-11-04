@@ -107,8 +107,21 @@ installation inside `with_counter` to retain the old value. It must fail native
 public tests and `counter_installation_is_exact`, which checks both the installed
 counter and preservation of every other instance field. Public `edit` uses
 that function after successful planning, and its unchanged counter theorem
-unfolds the actual call. This is a control of the installation body, not a claim
-that every possible bypass of its call has been mutation-tested.
+unfolds the actual call. This controls the installation body, not its argument
+wiring inside `edit`.
+
+**Known control gap:** changing that call from
+`next.with_counter(next_counter)` to
+`next.with_counter(self.next_counter)` fails the native public tests, but the
+public `authored_edit_advances_once` negative has only produced solver-resource
+exhaustion, not an accepted ordinary semantic rejection. The setter lemma still
+passes: it correctly installs the wrong value supplied by the caller. Thus the
+positive universal theorem covers the actual wiring, but non-resource proof
+sensitivity to this wrong argument is unwitnessed. Only the native control has
+witnessed the error ordinarily; do not count the two helper controls as closing
+this call-site gap. Helper-law composition and explicit result/writer case splits
+also left the negative resource-only under the unchanged limits; neither
+experiment is adopted or counted as detection.
 Neither timeouts nor solely resource-exhausted failures count as detection.
 
 The pinned hax translations are also committed under
