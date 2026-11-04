@@ -68,8 +68,15 @@
         hax-fstar = fstar;
       };
       checks.${system} = { inherit native; proofs = proofCheck; };
-      devShells.${system}.default = pkgs.mkShell {
-        packages = tools ++ [ haxBin fstar ];
+      devShells.${system} = {
+        default = pkgs.mkShell {
+          packages = tools ++ [ haxBin fstar ];
+        };
+        # Reference gates use Node; Python stays in its owning nested flake.
+        # Do not realize hax/F*/Rust just to run these scripts or compare JSON.
+        references = pkgs.mkShell {
+          packages = [ pkgs.nodejs_22 pkgs.jq pkgs.coreutils pkgs.util-linux ];
+        };
       };
     };
 }
