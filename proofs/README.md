@@ -72,3 +72,20 @@ ordering refinement or a verified engine. The LoopUtil preservation adapter
 requires explicitly proved semantic premises rather than hax annotations.
 Three additional wrong Rust bodies must reject their unchanged named lemmas,
 including a duplicate injected into the actual joint publication.
+
+## exact successful fact publication
+
+`EditAccepted.lt` also proves that successful `receive` adds exactly the offered
+whole fact while retaining every old whole fact, and that successful `edit`
+does the same for its returned authored fact. It proves this through the actual
+push, selection step, canonical loop and final publication, not a replacement
+sorting algorithm. The native test helpers check the same public fact contents.
+
+The canonical proof establishes whole-input selection and equal length, then
+uses accepted-ID uniqueness and F*'s checked finite pigeonhole lemma to establish
+coverage of every input fact. This is exact fact-content preservation; it is
+not a sorting-order theorem, causal WF, interpretation/FugueMax refinement,
+fitting-input progress or convergence. The existing all-return neutrality laws
+still cover errors, duplicates and empty edits. Two further wrong Rust bodies
+must fail native tests and their unchanged named content lemmas: altering a
+selected fact's gap and omitting the canonical iterations.

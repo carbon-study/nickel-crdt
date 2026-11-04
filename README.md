@@ -2,7 +2,7 @@
 
 An application-independent sequence CRDT library, intended for Carbon and potentially Dark, with proofs tied to its Rust implementation through hax and Latte. Lynn owns and maintains it.
 
-This repository contains an [experimental Rust edit/admit candidate](docs/rust-edit-admit.md), the toolchain scaffold and restricted executable references. Two Rust producers can exchange insert/delete/replace facts using FugueMax ordering. Transactional return paths, same-history two-instance commit coherence and accepted event-ID uniqueness have implementation-linked proofs; general semantic refinement, convergence and ordering proofs remain open. **There is no verified CRDT release or stable public API.**
+This repository contains an [experimental Rust edit/admit candidate](docs/rust-edit-admit.md), the toolchain scaffold and restricted executable references. Two Rust producers can exchange insert/delete/replace facts using FugueMax ordering. Transactional return paths, same-history two-instance commit coherence, accepted event-ID uniqueness and exact successful fact publication have implementation-linked proofs; general semantic refinement, convergence and ordering proofs remain open. **There is no verified CRDT release or stable public API.**
 
 At the experimental aggregate resource ceilings, different arrival orders can
 accept different concurrent subsets. Retained [native capacity witnesses](docs/rust-edit-admit.md#capacity-is-an-admission-boundary-not-a-synchronization-policy)
@@ -54,7 +54,7 @@ proof dependencies; CI must still run the native/proof check separately.
 
 The workspace has the experimental `edit` module and a separate `proof-smoke` crate. Its `flip` function toggles a Boolean in a Rust range loop. The proof check extracts that actual function with the locked hax compiler, connects it to the imported `LoopUtil` interpreter, and proves parity and involution for every representable loop bound. It also changes the Rust loop to leave the Boolean unchanged and requires the unchanged bridge theorem to reject it.
 
-The Boolean fixture is toolchain evidence. The same proof gate also checks the actual edit/admit error/empty return paths, local counter step, same-history author/admit coherence and accepted-ID uniqueness; it does not prove the full edit semantics or convergence. See [proof scope](proofs/README.md) and [provenance](PROVENANCE.md).
+The Boolean fixture is toolchain evidence. The same proof gate also checks the actual edit/admit error/empty return paths, local counter step, same-history author/admit coherence, accepted-ID uniqueness and exact successful fact publication; it does not prove the full edit semantics or convergence. See [proof scope](proofs/README.md) and [provenance](PROVENANCE.md).
 
 ## Layout
 

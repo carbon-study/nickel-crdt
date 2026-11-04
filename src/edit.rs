@@ -429,13 +429,17 @@ fn choose_unseen(facts: &[Fact], out: &[Fact]) -> Result<Option<usize>, Error> {
     }
     Ok(chosen)
 }
+// Copying a selected fact is a whole-fact operation, independently of its ID.
+fn clone_selected_fact(fact: &Fact) -> Fact {
+    fact.clone()
+}
 fn canonical_step(facts: &[Fact], mut out: Vec<Fact>) -> Result<Vec<Fact>, Error> {
     let chosen = choose_unseen(facts, &out)?;
     let i = chosen.ok_or(Error::Internal)?;
     if i >= facts.len() {
         return Err(Error::Internal);
     }
-    push(&mut out, facts[i].clone())?;
+    push(&mut out, clone_selected_fact(&facts[i]))?;
     Ok(out)
 }
 fn canonical(facts: &[Fact]) -> Result<Vec<Fact>, Error> {

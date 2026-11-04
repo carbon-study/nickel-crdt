@@ -26,7 +26,8 @@ const modes=['positive','receive-error-corrupts-counter','edit-error-corrupts-co
   'local-return-gap','local-stale-tree','receive-success-counter','author-forgets-gap','receive-private-gate',
   'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality',
   'identity-scan-key','identity-birth-equality','identity-writer-equality',
-  'accepted-reuses-member','accepted-wrong-canonical-push','accepted-publication-duplicates'];
+  'accepted-reuses-member','accepted-wrong-canonical-push','accepted-publication-duplicates',
+  'content-changes-whole-fact','content-omits-facts'];
 const selected=process.argv.slice(3);for(const mode of selected)assert(modes.includes(mode),'unknown mode '+mode);
 let positive;
 for(const mode of selected.length?selected:modes) {
@@ -34,11 +35,13 @@ for(const mode of selected.length?selected:modes) {
   await fs.mkdir(crate,{recursive:true});await fs.mkdir(proof,{recursive:true});
   for(const name of ['Cargo.toml','Cargo.lock','src','tests','proof-smoke'])await fs.cp(path.join(root,name),path.join(crate,name),{recursive:true});
   if(mode!=='positive') {
-    const scopes={'accepted-reuses-member':'fn choose_unseen(', 'accepted-wrong-canonical-push':'fn canonical_step(', 'accepted-publication-duplicates':'fn with_tree('};
+    const scopes={'content-changes-whole-fact':'fn clone_selected_fact(', 'content-omits-facts':'fn canonical(', 'accepted-reuses-member':'fn choose_unseen(', 'accepted-wrong-canonical-push':'fn canonical_step(', 'accepted-publication-duplicates':'fn with_tree('};
     const start=original.indexOf(scopes[mode]??(mode==='identity-writer-equality'?'impl PartialEq for Writer':mode==='identity-birth-equality'?'impl PartialEq for BirthId':mode==='identity-event-equality'?'impl PartialEq for EventId':mode==='identity-forgets-gap'?'fn fact_equal(':mode.startsWith('identity-')?'fn duplicate(':mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit('));assert(start>=0);
     const edits={
+      'content-changes-whole-fact':['fact.clone()', 'let mut changed = fact.clone(); changed.gap = None; changed'],
+      'content-omits-facts':['for _ in 0..facts.len() {', 'for _ in 0..0 {'],
       'accepted-reuses-member':['if !has_fact(out, facts[j].id) {','if true {'],
-      'accepted-wrong-canonical-push':['push(&mut out, facts[i].clone())?;','push(&mut out, facts[0].clone())?;'],
+      'accepted-wrong-canonical-push':['push(&mut out, clone_selected_fact(&facts[i]))?;','push(&mut out, clone_selected_fact(&facts[0]))?;'],
       'accepted-publication-duplicates':['self.tree = tree;','self.tree = tree; if !self.facts.is_empty() && self.facts.len() < usize::MAX { let copy = self.facts[0].clone(); self.facts.push(copy); }'],
       'identity-writer-equality':['writer_index(*self) == writer_index(*other)','writer_index(*self) == writer_index(*self)'],
       'identity-birth-equality':['self.event == other.event && self.index == other.index','self.event == other.event'],
@@ -86,6 +89,8 @@ for(const mode of selected.length?selected:modes) {
   } else {
     assert.equal(checked.status,2,'require ordinary proof rejection, not extraction failure/timeout');
     const theorems={
+      'content-changes-whole-fact':'EditAccepted.selected_fact_is_exact',
+      'content-omits-facts':'EditAccepted.canonical_selects_whole_facts',
       'accepted-reuses-member':'EditAccepted.selected_id_is_unseen',
       'accepted-wrong-canonical-push':'EditAccepted.canonical_step_preserves_unique',
       'accepted-publication-duplicates':'EditAccepted.tree_installation_preserves_facts',

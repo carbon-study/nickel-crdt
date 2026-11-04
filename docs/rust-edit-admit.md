@@ -259,7 +259,7 @@ existing full-instance error/duplicate/empty neutrality lemmas. The local case
 uses the actual author/receive same-commit theorem. This supplies the unique-ID
 premise required by known-member classification without trusting a caller's
 claim about the rebuilt tree. It is an event-ID invariant, **not full edit WF**:
-causal closure, accepted-fact content/permutation, scalar/birth/tree
+causal closure, canonical ordering, scalar/birth/tree
 correspondence, allocator progress and semantic refinement remain open. It does
 not establish that a valid fitting request succeeds, or justify an Internal
 result as invalidity.
@@ -280,6 +280,25 @@ append input element zero instead of the selected element, or duplicate a fact d
 final tree installation before joint publication. Each must
 fail native tests and its unchanged named selection/append/tree-installation theorem.
 The last control tests the real public commit, not just a standalone helper.
+
+### exact successful fact contents
+
+The same source-linked module now checks the successful publication's content:
+old whole facts remain unchanged, the offered fact (or returned authored fact)
+is present unchanged, no other whole fact is introduced, and accepted length
+increases by exactly one. The actual canonicalizer selects whole input facts;
+its successful result has input length and unique IDs. A finite pigeonhole
+argument, using the pinned F* standard library, establishes coverage of every
+input position. The proof then follows the actual plan/publication and public
+receive/edit calls. It requires no extra before-WF premise for this conditional
+successful-return statement; it does not establish that valid fitting input
+will successfully return.
+
+This does not identify canonical order with the intended order, validate causal
+closure/scalars, relate the tree to semantic interpretation, prove convergence
+or repair the capacity boundary. Those remain separate exit obligations.
+Changing a selected fact's gap or omitting the canonical loop must fail native
+public-state checks and the corresponding unchanged named content theorem.
 
 ## native latency diagnostic
 

@@ -12,6 +12,20 @@ fn assert_unique(r: &Replica) {
         }
     }
 }
+// Exact public publication, independently checking whole facts rather than IDs.
+fn assert_publication(before: &[Fact], fact: &Fact, after: &[Fact]) {
+    assert_eq!(after.len(), before.len() + 1);
+    for old in before {
+        assert!(after.contains(old), "old fact changed or lost");
+    }
+    assert!(after.contains(fact), "incoming fact changed or lost");
+    for accepted in after {
+        assert!(
+            accepted == fact || before.contains(accepted),
+            "invented fact"
+        );
+    }
+}
 fn scalars(s: &str) -> Vec<u32> {
     s.chars().map(u32::from).collect()
 }
@@ -23,17 +37,21 @@ fn text(r: &Replica) -> String {
         .collect()
 }
 fn edit(r: Replica, gap: usize, s: &str, delete: Vec<BirthId>) -> (Replica, Fact) {
+    let before = r.facts().to_vec();
     let (r, result) = r.edit(gap, scalars(s), delete);
     assert_unique(&r);
     let Local::Authored(f) = result.unwrap() else {
         panic!("unexpected empty")
     };
+    assert_publication(&before, &f, r.facts());
     (r, f)
 }
 fn receive(r: Replica, f: &Fact) -> Replica {
+    let before = r.facts().to_vec();
     let (r, result) = r.receive(f);
     assert_unique(&r);
     assert_eq!(result, Ok(Admission::Added));
+    assert_publication(&before, f, r.facts());
     r
 }
 #[test]

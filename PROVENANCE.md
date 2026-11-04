@@ -33,3 +33,8 @@ directed Latte to remain private; publishing or vendoring its compiler is outsid
 the current cut. Public verification of generated F* is unchanged.
 
 Public verification uses hax revision `f33e5c844497c057450ebf56828cbb191223e93a` and its pinned F* (2025.10.06), not normal Latte's newer F*. `flake.lock` records the complete public dependency graph. `proofs/generated/*.sha256` binds each local source/view pair; it is a drift check, not a compiler certificate.
+
+The exact-content extension in `EditAccepted` uses the pinned F* standard
+library's `FStar.Fin.pigeonhole` for finite coverage. It adds no project axiom or
+admission; the ordinary upstream F*/model trust boundary remains in force.
+Its updated view is emitted by the same private CLI revision recorded above.
