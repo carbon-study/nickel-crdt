@@ -718,6 +718,11 @@ impl Replica {
         self.tree = tree;
         self
     }
+    // Commit the calculated counter only after a successful plan.
+    fn with_counter(mut self, counter: u64) -> Self {
+        self.next_counter = counter;
+        self
+    }
     fn plan(&self, fact: &Fact) -> Result<Option<Self>, Error> {
         if Self::duplicate(&self.facts, fact)? {
             return Ok(None);
@@ -781,7 +786,7 @@ impl Replica {
             Err(error) => (self, Err(error)),
             Ok(None) => (self, Err(invalid(Invalid::Conflict))),
             Ok(Some(mut next)) => {
-                next.next_counter = next_counter;
+                next = next.with_counter(next_counter);
                 (next, Ok(Local::Authored(fact)))
             }
         }

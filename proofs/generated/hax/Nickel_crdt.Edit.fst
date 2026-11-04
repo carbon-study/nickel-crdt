@@ -5395,6 +5395,10 @@ let impl_Replica__with_tree (self: t_Replica) (tree: t_Tree) : t_Replica =
   let self:t_Replica = { self with f_tree = tree } <: t_Replica in
   self
 
+let impl_Replica__with_counter (self: t_Replica) (counter: u64) : t_Replica =
+  let self:t_Replica = { self with f_next_counter = counter } <: t_Replica in
+  self
+
 let impl_Replica__plan (self: t_Replica) (fact: t_Fact)
     : Core_models.Result.t_Result (Core_models.Option.t_Option t_Replica) t_Error =
   match
@@ -5590,7 +5594,7 @@ let impl_Replica__edit
                   <:
                   (t_Replica & Core_models.Result.t_Result t_Local t_Error)
                 | Core_models.Result.Result_Ok (Core_models.Option.Option_Some next) ->
-                  let next:t_Replica = { next with f_next_counter = next_counter } <: t_Replica in
+                  let next:t_Replica = impl_Replica__with_counter next next_counter in
                   next,
                   (Core_models.Result.Result_Ok (Local_Authored fact <: t_Local)
                     <:

@@ -21,7 +21,8 @@ let same_commit (before: Native.t_Replica) (outcome: Native.t_Replica & Result.t
   match outcome with | (next, Result.Result_Ok (Native.Local_Authored fact)) -> begin match Native.impl_Replica__receive before fact with | (admitted, Result.Result_Ok Native.Admission_Added) -> begin Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (next.f_facts == admitted.f_facts) (next.f_tree == admitted.f_tree)) (next.f_writer == admitted.f_writer)) (next.f_limits == admitted.f_limits)) (v next.f_next_counter == v before.f_next_counter + 1) end | _ -> begin Prims.l_False end end | _ -> begin Prims.l_True end
 
 let authored_fact_replays_same_commit (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) (delete: Alloc.Vec.t_Vec Native.t_BirthId Alloc.Alloc.t_Global) : Lemma (ensures same_commit before (Native.impl_Replica__edit before gap insert delete)) =
-  norm_spec [delta_only ["Nickel_crdt.Edit.impl_Replica__edit"; "Nickel_crdt.Edit.next_counter_after"; "Nickel_crdt.Edit.impl_Replica__receive"; "Nickel.EditCommit.same_commit"]; iota; zeta_full; primops; unmeta; unascribe] (same_commit before (Native.impl_Replica__edit before gap insert delete))
+  Nickel.EditAtomic.authored_edit_advances_once before gap insert delete;
+  norm_spec [delta_only ["Nickel_crdt.Edit.impl_Replica__edit"; "Nickel_crdt.Edit.next_counter_after"; "Nickel_crdt.Edit.impl_Replica__with_counter"; "Nickel_crdt.Edit.impl_Replica__receive"; "Nickel.EditCommit.same_commit"]; iota; zeta_full; primops; unmeta; unascribe] (same_commit before (Native.impl_Replica__edit before gap insert delete))
 
 let private_unchanged (before: Native.t_Replica) (outcome: Native.t_Replica & Result.t_Result Native.t_Admission Native.t_Error) : Type0 =
   match outcome with | (next, _) -> begin Prims.l_and (Prims.l_and (next.f_writer == before.f_writer) (next.f_next_counter == before.f_next_counter)) (next.f_limits == before.f_limits) end
@@ -39,7 +40,7 @@ let request_bound (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_V
   match outcome with | (_, Result.Result_Ok (Native.Local_Authored fact)) -> begin Prims.l_and (Prims.l_and (Prims.l_and (fact.f_insert == insert) (fact.f_delete == delete)) (Core_models.Option.Option_Some fact.f_id.f_writer == before.f_writer)) (fact.f_gap == requested_gap gap insert) end | _ -> begin Prims.l_True end
 
 let authored_fact_binds_request (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) (delete: Alloc.Vec.t_Vec Native.t_BirthId Alloc.Alloc.t_Global) : Lemma (ensures request_bound before gap insert delete (Native.impl_Replica__edit before gap insert delete)) =
-  norm_spec [delta_only ["Nickel_crdt.Edit.impl_Replica__edit"; "Nickel_crdt.Edit.next_counter_after"; "Nickel.EditCommit.request_bound"; "Nickel.EditCommit.requested_gap"]; iota; zeta_full; primops; unmeta; unascribe] (request_bound before gap insert delete (Native.impl_Replica__edit before gap insert delete))
+  norm_spec [delta_only ["Nickel_crdt.Edit.impl_Replica__edit"; "Nickel_crdt.Edit.next_counter_after"; "Nickel_crdt.Edit.impl_Replica__with_counter"; "Nickel.EditCommit.request_bound"; "Nickel.EditCommit.requested_gap"]; iota; zeta_full; primops; unmeta; unascribe] (request_bound before gap insert delete (Native.impl_Replica__edit before gap insert delete))
 
 let same_shared (left: Native.t_Replica) (right: Native.t_Replica) : Type0 =
   Prims.l_and (Prims.l_and (left.f_facts == right.f_facts) (left.f_tree == right.f_tree)) (left.f_limits == right.f_limits)

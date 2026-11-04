@@ -100,8 +100,15 @@ full positive proof chain.
 
 The reused-counter mutation changes that actual helper's successful result from
 `counter + 1` to `counter`. It must still fail native public tests and now reject
-`counter_result_advances_once` ordinarily. This one negative check stops at its
+`counter_result_advances_once` ordinarily. These counter negative checks stop at their
 owning `EditAtomic` module; positive verification still reaches `EditAccepted`.
+The separate `edit-commit-ignores-counter` control changes the actual counter
+installation inside `with_counter` to retain the old value. It must fail native
+public tests and `counter_installation_is_exact`, which checks both the installed
+counter and preservation of every other instance field. Public `edit` uses
+that function after successful planning, and its unchanged counter theorem
+unfolds the actual call. This is a control of the installation body, not a claim
+that every possible bypass of its call has been mutation-tested.
 Neither timeouts nor solely resource-exhausted failures count as detection.
 
 The pinned hax translations are also committed under
