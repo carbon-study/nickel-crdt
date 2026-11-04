@@ -127,7 +127,7 @@ The last theorem is about **two actual Rust calls**, not a rewritten replay
 algorithm. Its premise requires the same accepted history/tree/limits before the
 edit; it does not cover a receiver with extra concurrent facts. It is conditional
 on authoring succeeding, not a theorem that every valid fitting request succeeds.
-Seven native tests include successful insert/replace/delete continuation with a
+Eight native tests include successful insert/replace/delete continuation with a
 separate receiver whose writer and allocator differ, alongside replay into a
 copy of the author's before-state. These make the exercised success branches
 non-vacuous; finite examples do not establish general admissibility.
@@ -138,13 +138,49 @@ Duplicate classification similarly returns only a disposition. Trial assembly
 still owns the whole publication; no validator can return a replacement instance.
 The checks and their order are unchanged by this Rust refactor.
 
-The lemmas say nothing about which facts the validator
-should accept, whether an `Added` state has the right tree, or whether successful
-allocation is globally fresh. Eight independently extracted wrong Rust bodies must fail native tests and the
+### identity classification and event-ID freshness
+
+`proofs/EditIdentity.lt` relates the actual Rust identity scan to an independent,
+recursive first-ID lookup using structural fact equality. It then connects that
+lookup to the public calls:
+
+- an existing ID in a state with unique accepted IDs returns `Duplicate` for
+  exactly equal facts, and `Invalid(Conflict)` for any different fact; either
+  returns the entire before-instance, without invoking new-fact validation;
+- an out-of-range counter returns `Invalid(Counter)`, even before lookup;
+- every `Added` result has an event ID absent from all before-facts;
+- every successfully authored local fact likewise has a fresh event ID, by the
+  same-commit theorem and actual receiving call.
+
+The lookup theorem itself permits arbitrary duplicate IDs and specifies the
+first matching entry. The indexed-member theorem requires unique IDs; their
+preservation by canonicalization is **not yet proved**. Freshness here means
+absence from this instance's accepted event IDs. It does not prove global
+producer fencing, allocator progress, birth/scalar correspondence, or that a
+valid request succeeds. The freshness theorems need no well-formedness premise.
+
+The scan now uses a range loop so its early returns are interpreted through the
+checked LoopUtil bridge. The previous generic-iterator fold is opaque at the
+pinned model boundary. This is a representation change, with the same scan order.
+
+A source-trust pitfall was reproduced while making this connection: the pinned
+F* backend lowers Rust `PartialEq::eq` operator calls to structural equality,
+without following a custom comparison body. Removing the gap comparison from
+`Fact::eq` changed the native conflict result but left the old extracted scan
+unchanged. The identity-critical comparison is now an ordinary `fact_equal`
+call, whose extracted body is checked against structural equality. Separate
+lemmas check the handwritten writer/event/birth equality bodies; the gate also
+requires the ordinary fact call to remain present in the extraction. This
+repairs that proof blind spot; it is not an audit of all hax translations.
+
+Thirteen independently extracted wrong Rust bodies must fail native tests and the
 unchanged relevant lemma. Three corrupt/reuse the counter on earlier return
 paths. Five challenge the positive boundary: alter the returned fact's gap,
 commit a stale tree, change the receiver's counter on success, ignore the caller's
 gap before validation, or gate admission on the receiver's private writer.
+Five identity controls ignore the gap, accept conflicts, skip the scan, ignore
+the counter range, or erase the event counter from custom equality. Each is
+required to fail its own named theorem, not merely another module.
 The check rejects timeouts/extraction errors as control results. Extracted project
 code and authored views contain no own admissions. Trust remains with Rust,
 hax, the external Rust models, private Latte emission, F* and its solver.

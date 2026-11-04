@@ -36,3 +36,18 @@ request-gap binding and private-state independence. All run in the existing
 proof gate; optional explicit mode names support focused local checks, while
 the default keeps all controls. This is joint commit coherence, not successful
 refinement to the independent reference, WF preservation, ordering or convergence.
+
+## identity classification
+
+`EditIdentity.lt` proves the actual range scan equals a recursive first-ID
+lookup, and carries it through public `receive` and successful local `edit`:
+known IDs classify by exact fact equality; invalid counters reject; Added and
+Authored event IDs are absent from the before-facts. Known-member classification
+requires unique before-IDs; freshness does not. This is not WF preservation,
+whole refinement, global writer fencing or ordering.
+
+The pinned backend structurally lowers `PartialEq` operator calls. An ordinary
+`fact_equal` call plus its exactness lemma preserves source sensitivity at the
+identity guard; separate lemmas check handwritten ID equality. Five native and
+F* mutation controls cover these laws. The candidate contract records the
+reproduced erased-comparison blind spot and the remaining trust boundary.

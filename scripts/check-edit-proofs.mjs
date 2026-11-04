@@ -1,4 +1,4 @@
-// Actual edit/admit extraction and universal error/empty neutrality lemmas.
+// Actual edit/admit extraction: return paths, commit coherence and identity laws.
 // This gate does not prove valid-fact acceptance, convergence or FugueMax.
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -13,7 +13,7 @@ await fs.mkdir(output,{recursive:true});
 const identity=JSON.parse(await fs.readFile(path.join(modelCache,'identity.json'),'utf8'));
 assert.equal(identity.models,models);assert.equal(identity.fstar,fstar);
 const views=new Map();
-for(const name of ['Prelude','EditAtomic','EditCommit']) {
+for(const name of ['Prelude','LoopUtil','EditAtomic','EditCommit','EditIdentity']) {
   const source=`proofs/${name}.lt`,view=`proofs/generated/Nickel.${name}.fst`;
   const code=await fs.readFile(path.join(root,view),'utf8');
   const receipt=(await fs.readFile(path.join(root,`proofs/generated/${name}.sha256`),'utf8')).trim().split('\n');
@@ -23,7 +23,8 @@ for(const name of ['Prelude','EditAtomic','EditCommit']) {
 }
 const original=await fs.readFile(path.join(root,'src/edit.rs'),'utf8');
 const modes=['positive','receive-error-corrupts-counter','edit-error-corrupts-counter','edit-success-reuses-counter',
-  'local-return-gap','local-stale-tree','receive-success-counter','author-forgets-gap','receive-private-gate'];
+  'local-return-gap','local-stale-tree','receive-success-counter','author-forgets-gap','receive-private-gate',
+  'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality'];
 const selected=process.argv.slice(3);for(const mode of selected)assert(modes.includes(mode),'unknown mode '+mode);
 let positive;
 for(const mode of selected.length?selected:modes) {
@@ -31,8 +32,13 @@ for(const mode of selected.length?selected:modes) {
   await fs.mkdir(crate,{recursive:true});await fs.mkdir(proof,{recursive:true});
   for(const name of ['Cargo.toml','Cargo.lock','src','tests','proof-smoke'])await fs.cp(path.join(root,name),path.join(crate,name),{recursive:true});
   if(mode!=='positive') {
-    const start=original.indexOf(mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit(');assert(start>=0);
+    const start=original.indexOf(mode==='identity-event-equality'?'impl PartialEq for EventId':mode==='identity-forgets-gap'?'fn fact_equal(':mode.startsWith('identity-')?'fn duplicate(':mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit(');assert(start>=0);
     const edits={
+      'identity-event-equality':['self.writer == other.writer && self.counter == other.counter','self.writer == other.writer'],
+      'identity-forgets-gap':['&& left.gap == right.gap','&& true'],
+      'identity-accepts-conflict':['return if fact_equal(old, fact) {','return if fact_equal(old, fact) || old.id == fact.id {'],
+      'identity-skips-later':['for i in 0..facts.len() {','for i in 0..0 {'],
+      'identity-counter-range':['if fact.id.counter == 0 || fact.id.counter > MAX_COUNTER {','if false {'],
       'receive-error-corrupts-counter':['Err(error) => (self, Err(error)),','Err(error) => { let mut damaged = self; damaged.next_counter = 0; (damaged, Err(error)) },'],
       'edit-error-corrupts-counter':['Err(error) => (self, Err(error)),','Err(error) => { let mut damaged = self; damaged.next_counter = 0; (damaged, Err(error)) },'],
       'edit-success-reuses-counter':['next.next_counter = self.next_counter + 1;','next.next_counter = self.next_counter;'],
@@ -56,10 +62,14 @@ for(const mode of selected.length?selected:modes) {
   assert.equal(extracted.status,0,extracted.log);
   const code=await fs.readFile(path.join(proof,'Nickel_crdt.Edit.fst'),'utf8');
   assert.match(code,/let impl_Replica__receive /);assert.match(code,/let impl_Replica__edit/);
+  // Preserve an ordinary call at the identity boundary: PartialEq operators
+  // are structurally lowered by the pinned backend, ignoring custom bodies.
+  const scan=code.slice(code.indexOf('let impl_Replica__duplicate '),code.indexOf('let impl_Replica__validate_new '));
+  assert.match(scan,/fact_equal old fact/);
   assert(!/\b(?:admit|assume|admit_smt_queries)\b/.test(code),'no assumptions in extracted project code');
   if(mode==='positive')positive=code;else assert.notEqual(code,positive);
   for(const [name,code] of views)await put(path.join(proof,name),code);
-  const checked=await verify({dir:proof,roots:[path.join(proof,'Nickel.EditCommit.fst')],fstar,models,modelCache});
+  const checked=await verify({dir:proof,roots:[path.join(proof,'Nickel.EditIdentity.fst')],fstar,models,modelCache});
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {
     assert.equal(checked.status,0,checked.log);
@@ -67,6 +77,11 @@ for(const mode of selected.length?selected:modes) {
   } else {
     assert.equal(checked.status,2,'require ordinary proof rejection, not extraction failure/timeout');
     const theorems={
+      'identity-event-equality':'EditIdentity.event_equality_exact',
+      'identity-forgets-gap':'EditIdentity.fact_equality_exact',
+      'identity-accepts-conflict':'EditIdentity.duplicate_matches_lookup',
+      'identity-skips-later':'EditIdentity.duplicate_matches_lookup',
+      'identity-counter-range':'EditIdentity.duplicate_matches_lookup',
       'receive-error-corrupts-counter':'EditAtomic.receive_rejection_unchanged',
       'edit-error-corrupts-counter':'EditAtomic.edit_rejection_or_empty_unchanged',
       'edit-success-reuses-counter':'EditAtomic.authored_edit_advances_once',
@@ -84,5 +99,5 @@ for(const mode of selected.length?selected:modes) {
     }),'require a named non-resource proof rejection, not solely solver exhaustion: '+checked.log);
     assert.match(checked.log,/Could not prove post-condition|Assertion failed/);
   }
-  console.log(`PASS ${mode}: native and unchanged actual-Rust boundary theorem ${mode==='positive'?'verified':'reject the corrupted return'}`);
+  console.log(`PASS ${mode}: native and unchanged actual-Rust theorem ${mode==='positive'?'verified':'reject the mutation'}`);
 }

@@ -130,13 +130,18 @@ impl PartialEq for BirthId {
         self.event == other.event && self.index == other.index
     }
 }
+// Keep identity-critical comparison as an ordinary call: the pinned F* backend
+// lowers PartialEq operator calls directly to structural equality.
+fn fact_equal(left: &Fact, right: &Fact) -> bool {
+    left.id == right.id
+        && left.after == right.after
+        && left.insert == right.insert
+        && left.delete == right.delete
+        && left.gap == right.gap
+}
 impl PartialEq for Fact {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-            && self.after == other.after
-            && self.insert == other.insert
-            && self.delete == other.delete
-            && self.gap == other.gap
+        fact_equal(self, other)
     }
 }
 fn event_lt(a: EventId, b: EventId) -> bool {
@@ -603,9 +608,10 @@ impl Replica {
         if fact.id.counter == 0 || fact.id.counter > MAX_COUNTER {
             return Err(invalid(Invalid::Counter));
         }
-        for old in facts.iter() {
+        for i in 0..facts.len() {
+            let old = &facts[i];
             if old.id == fact.id {
-                return if old == fact {
+                return if fact_equal(old, fact) {
                     Ok(true)
                 } else {
                     Err(invalid(Invalid::Conflict))

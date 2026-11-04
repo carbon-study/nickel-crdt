@@ -42,7 +42,7 @@
         root = ./.;
         fileset = pkgs.lib.fileset.unions [
           ./Cargo.toml ./Cargo.lock ./src ./tests ./proof-smoke
-          ./proofs/generated ./proofs/Prelude.lt ./proofs/LoopUtil.lt ./proofs/Smoke.lt ./proofs/EditAtomic.lt ./proofs/EditCommit.lt ./scripts
+          ./proofs/generated ./proofs/Prelude.lt ./proofs/LoopUtil.lt ./proofs/Smoke.lt ./proofs/EditAtomic.lt ./proofs/EditCommit.lt ./proofs/EditIdentity.lt ./scripts
         ];
       };
       proofCheck = pkgs.runCommand "nickel-proof-smoke" {

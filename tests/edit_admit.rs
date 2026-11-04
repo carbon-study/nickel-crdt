@@ -201,3 +201,49 @@ fn authored_fact_replays_the_same_complete_commit() {
         local = next;
     }
 }
+
+#[test]
+fn identity_gate_checks_every_field_and_later_members() {
+    let limited = Replica::new(
+        Some(Writer::Alice),
+        Limits {
+            events: 2,
+            ..Limits::default()
+        },
+    )
+    .unwrap();
+    let (a, root) = edit(limited, 0, "ab", vec![]);
+    let victim = a.observe().unwrap()[0].0;
+    let (a, later) = edit(a, 1, "X", vec![victim]);
+    // Known facts are checked before capacity or any new-fact validation.
+    for known in [&root, &later] {
+        let (next, result) = a.clone().receive(known);
+        assert_eq!(result, Ok(Admission::Duplicate));
+        assert_eq!(next, a);
+    }
+    let mut variants = Vec::new();
+    let mut changed = later.clone();
+    changed.after.clear();
+    variants.push(changed);
+    let mut changed = later.clone();
+    changed.insert = scalars("Y");
+    variants.push(changed);
+    let mut changed = later.clone();
+    changed.delete.clear();
+    variants.push(changed);
+    let mut changed = later.clone();
+    changed.gap = Some(0);
+    variants.push(changed);
+    for changed in variants {
+        let (next, result) = a.clone().receive(&changed);
+        assert_eq!(result, Err(Error::Invalid(Invalid::Conflict)));
+        assert_eq!(next, a);
+    }
+    for counter in [0, 9_007_199_254_740_992] {
+        let mut bad = later.clone();
+        bad.id.counter = counter;
+        let (next, result) = a.clone().receive(&bad);
+        assert_eq!(result, Err(Error::Invalid(Invalid::Counter)));
+        assert_eq!(next, a);
+    }
+}
