@@ -55,6 +55,10 @@ Here is the source-level argument to machine-check:
   it is the least-ID ready member of S. Deleting the outside steps therefore
   leaves exactly the schedule obtained on S alone. This is a restriction of
   the *causal scheduler*, not a claim that ID order itself is causal order.
+  For the author reconstruction, take S to be `past(e)`. Transitive readiness
+  puts every member of this past in `done` before e is chosen. The actual
+  `operations` vector is in done order, and its `selected` filter therefore
+  replays exactly this projected schedule when rebuilding e's author tree.
 - **The basis is fixed.** Filtering the strictly ID-ordered facts to an exact
   causal closure gives the same ordered fact list in every extension. `visible`
   reads precisely that list, so the author's pre-edit visible-ID vector is
@@ -156,6 +160,16 @@ as an unchanged theorem. A representation-refinement account must establish
 cache validity from construction, preserve it on all public returns, and lift
 the existing observable contracts, with any changed domain/premise explicit.
 
+A proposed new reachable-state theorem would require a semantic `CacheValid`:
+exactly one entry per accepted fact, no extras, exact derived node contents,
+and the specified canonical causal entry order. Merely matching IDs/counts is
+insufficient. Refinement must compare the returned result and projected state
+on **all** returns, including rejection, capacity failure, duplicate and empty
+calls; it cannot introduce extra errors and prove only successful-tree equality.
+Pairing nodes with their fact could rule out orphan/missing entries structurally,
+but would still require the semantic-content law. It would also need an explicit
+account of the current `facts() -> &[Fact]` view before changing storage layout.
+
 Next machine-checked obligations are the exact canonical-content/closure and
 causal-schedule projection needed by the locality argument, node-derivation
 locality, cache establishment/preservation, and assembly agreement with the
@@ -164,3 +178,9 @@ differential tests. It introduces neither version vectors nor a new ordering,
 undo, transport, persistence or resource policy. The ordinary replay candidate
 and its existing proofs remain the library implementation until that boundary
 is closed.
+
+The collected scoped design/argument review of `f7def59` supports the conditional
+schedule-projection reasoning and the explicit theorem-domain concern. The
+source connection to `past(e)`/done order and the all-return refinement obligation
+above make its requested clarifications explicit. That review did not assess
+lemma or control strength and does not close the machine-checked adoption gate.
