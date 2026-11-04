@@ -2,6 +2,11 @@
 # questionnaire model, and every research experiment's own documented check.
 # Each check runs through .github/scripts/check.sh: it has a time limit, and on
 # failure (a hang included) the last lines of output become an annotation.
+#
+# The pinned toolchain (z3, F*, hax, Rust nightly) is not on cache.nixos.org, so
+# a cold store builds it from source (z3 alone took 37 minutes). Magic Nix Cache
+# keeps built paths in the GitHub Actions cache; the research job waits for the
+# scaffold job so it reuses the toolchain instead of building it in parallel.
 name: ci
 
 on:
@@ -13,34 +18,44 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   scaffold:
     name: native crate and proofs
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: cachix/install-nix-action@v31
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
       - name: wrapper self-test
         run: .github/scripts/check.test.sh
       # checks.native and checks.proofs. Public checks verify the committed F*
       # views; Latte emission is private and not regenerated here (proofs/README.md).
       - name: flake check
-        run: .github/scripts/check.sh flake-check 2400 nix flake check -L
+        run: .github/scripts/check.sh flake-check 9000 nix flake check -L
+      # Realise the dev shell here too, so the research job finds it cached.
+      - name: dev shell
+        run: .github/scripts/check.sh dev-shell 3600 nix develop --command true
 
   research:
     name: reference experiments
+    needs: scaffold
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: cachix/install-nix-action@v31
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
       - name: hybrid restoration
         run: .github/scripts/check.sh hybrid-restoration 900 nix flake check -L ./experiments/hybrid-restoration
       # The ordering checks print their receipts; the committed receipts must match.
       - name: ordering (dense-key and FugueMax)
         run: |
-          .github/scripts/check.sh ordering 600 nix develop --command bash -c '
+          .github/scripts/check.sh ordering 1200 nix develop --command bash -c '
             set -euo pipefail
             node experiments/ordered-gap-reference/check.mjs > /tmp/receipt.json
             node experiments/ordered-gap-reference/fugue-check.mjs > /tmp/fugue-receipt.json
@@ -60,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: cachix/install-nix-action@v31
       - name: flake check
         run: .github/scripts/check.sh questionnaire 900 nix flake check -L ./questionnaire
