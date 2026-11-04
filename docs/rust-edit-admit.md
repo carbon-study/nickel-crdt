@@ -284,6 +284,14 @@ measurement does not select an incremental representation or verify one. The
 current reconstruction remains the experimental reference path while its
 semantic/WF obligations are discharged. It is not a performance-ready engine.
 
+The subsequent [source-bound storage comparison](edit-storage-comparison.md)
+tests maintained ID-sorted insertion in isolated crate copies, with separate
+validation/storage/replay timings. It matches the finite native/reference
+fixtures but does not adopt or prove a new library path. On those measured
+histories, replay consumes over 99.8% of the measured plan-phase time; cheaper
+fact storage does not repair interactive latency. The comparison owns commands,
+input hashes, capped failures and the next representation/proof boundary.
+
 ## remaining exit
 
 Extend the accepted-ID component to the edit-only whole-instance abstraction
