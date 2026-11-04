@@ -63,6 +63,8 @@ fn author_last_gap_not_receiver_visibility() {
         assert_eq!(text(&cam), "aX");
         observations.push(cam);
     }
+    // Structural replay agreement: canonicalization chooses one internal order.
+    // The fixed text above discriminates placement; this equality alone does not.
     assert_eq!(observations[0], observations[1]);
 }
 fn schedules(prefix: Vec<Fact>, remaining: Vec<Fact>, out: &mut Vec<Vec<Fact>>) {
@@ -95,6 +97,8 @@ fn multi_event_prepend_runs_all_causal_orders() {
     let mut orders = Vec::new();
     schedules(vec![], vec![root, one, two, three, four], &mut orders);
     assert_eq!(orders.len(), 6);
+    // Arrival permutations all feed the same deterministic canonical replay.
+    // The fixed a2143b assertion is the independent placement expectation here.
     let mut observed = None;
     for schedule in orders {
         let mut r = new(None);
@@ -171,11 +175,11 @@ fn missing_prerequisite_and_capacity_return_unchanged_owned_state() {
 fn authored_fact_replays_the_same_complete_commit() {
     let mut local = new(Some(Writer::Alice));
     let mut remote = new(Some(Writer::Bo));
-    for (gap, inserted, remove_index) in [
-        (0, "abc", None),
-        (2, "X😀", Some(1)),
-        (0, "", Some(0)),
-        (3, "Z", None),
+    for (gap, inserted, remove_index, expected) in [
+        (0, "abc", None, "abc"),
+        (2, "X😀", Some(1), "aX😀c"),
+        (0, "", Some(0), "X😀c"),
+        (3, "Z", None, "X😀cZ"),
     ] {
         let before = local.clone();
         let deleted = remove_index
@@ -191,6 +195,8 @@ fn authored_fact_replays_the_same_complete_commit() {
         assert_eq!(next.facts(), remote.facts());
         assert_eq!(next.whole(), remote.whole());
         assert_eq!(next.observe(), remote.observe());
+        assert_eq!(text(&next), expected);
+        assert_eq!(text(&remote), expected);
         assert_eq!(remote.next_counter(), 1);
         let imported = receive(before.clone(), &fact);
         assert_eq!(next.facts(), imported.facts());

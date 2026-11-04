@@ -69,6 +69,8 @@ slots per retained birth, including sentinels. **They do not bound heap usage,
 child arrays, temporary clones, replay time or input allocation.** Deletions do
 not reclaim retained births. Full reconstruction and repeated author snapshots
 are deliberately expensive; no incremental index or useful-scale claim is made.
+The [native latency diagnostic](#native-latency-diagnostic) below makes that
+limitation concrete; the profile ceilings are not interactive-latency budgets.
 
 The Rust profile is an edit-only projection of the two-writer Python/Node
 reference. Its `Fact` is already typed, and its derived birth IDs replace the
@@ -98,6 +100,11 @@ only public calls, and admits every legal causal delivery order. It supplies
 two insertion gaps per offline writer on `ab`. Python then compares them with
 actual `Combined(Oracle('fugue'))`: retained ID order, visible IDs and exact
 scalar text. The JSON is an internal test artifact, not a serialization API.
+Within Rust, equality across arrival permutations is **structural replay agreement**:
+`canonical` sorts accepted facts and `interpret` picks one deterministic ready-fact
+order. These tests do not vary that internal choice or prove arbitrary topological
+replay equivalence. Fixed expected strings discriminate selected placements; the
+separate Python/Node comparison supplies an independent finite ordering oracle.
 This is finite agreement with a reference, not a convergence or refinement proof.
 
 `proofs/EditAtomic.lt` checks the **actual freshly extracted Rust entry points**:
@@ -173,17 +180,63 @@ lemmas check the handwritten writer/event/birth equality bodies; the gate also
 requires the ordinary fact call to remain present in the extraction. This
 repairs that proof blind spot; it is not an audit of all hax translations.
 
-Thirteen independently extracted wrong Rust bodies must fail native tests and the
+Sixteen independently extracted wrong Rust bodies must fail native tests and the
 unchanged relevant lemma. Three corrupt/reuse the counter on earlier return
 paths. Five challenge the positive boundary: alter the returned fact's gap,
 commit a stale tree, change the receiver's counter on success, ignore the caller's
 gap before validation, or gate admission on the receiver's private writer.
-Five identity controls ignore the gap, accept conflicts, skip the scan, ignore
-the counter range, or erase the event counter from custom equality. Each is
+Eight identity controls ignore the gap, accept conflicts, skip the scan, ignore
+the counter range, compare only counters in the scan key, or corrupt custom
+event/birth/writer equality (erase the counter, erase the index, or compare the
+writer with itself). Each is
 required to fail its own named theorem, not merely another module.
 The check rejects timeouts/extraction errors as control results. Extracted project
 code and authored views contain no own admissions. Trust remains with Rust,
 hax, the external Rust models, private Latte emission, F* and its solver.
+
+## native latency diagnostic
+
+Build the manual public-API diagnostic separately from its timed runs:
+
+```sh
+cargo build --release --offline --locked --example edit-profile
+for shape in append prepend frontloaded-delete; do
+  timeout --kill-after=2s 45s target/release/examples/edit-profile "$shape" > "$shape.jsonl"
+  echo "$shape exit=$?"
+done
+```
+
+Each line is emitted only after both authoring and receiving succeed and both
+instances' exact visible IDs/scalars and retained IDs match a separately
+maintained sequential-list expectation. Append/prepend insert four scalars per
+event. Frontloaded-delete inserts eight 64-scalar batches, then deletes one
+occurrence per event, retaining all 512 births. Completed runs also check that
+event 129 rejects without changing the author. This is a diagnostic, not a
+routine CI timing assertion; every process has a 45-second external cap.
+
+One optimized local run on 2026-11-04, x86_64 Intel i9-12900KF:
+
+| shape | last checked events / retained births | last author / receive | sum of checked author + receive calls | outcome |
+|---|---|---|---|---|
+| append | 128 / 512 | 483 / 482 ms | 28.19 s | completed |
+| prepend | 128 / 512 | 506 / 519 ms | 30.37 s | completed |
+| frontloaded-delete | 63 / 512 | 700 / 694 ms | 43.85 s | external timeout (124), incomplete |
+
+Observation/assertion and build time are excluded from call timers; author time
+includes copying the request vectors. The sums exclude any interrupted call.
+This shared machine was not CPU-isolated, and focused proof checks overlapped
+part of the run. These are observations, not stable benchmark estimates, maxima
+over valid histories, or ARM/phone predictions. No memory measurement is supplied.
+In particular, the third row does **not** establish latency at 128 events.
+
+The candidate is already too slow for interactive editing on these modest
+histories: one author/admit call can take about half a second at the ceiling,
+and keeping births after deletion can be worse before reaching that ceiling.
+The ceilings bound selected counts, not useful latency. A usable implementation
+needs to avoid reconstructing every author's tree on every admission; this
+measurement does not select an incremental representation or verify one. The
+current reconstruction remains the experimental reference path while its
+semantic/WF obligations are discharged. It is not a performance-ready engine.
 
 ## remaining exit
 

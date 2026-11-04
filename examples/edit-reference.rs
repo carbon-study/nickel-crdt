@@ -60,6 +60,8 @@ fn case(name: &str, facts: Vec<Fact>) -> String {
         }
         observations.push((r.whole().unwrap(), r.observe().unwrap()));
     }
+    // This is structural replay agreement, not an alternate internal scheduler.
+    // The external Python/Node comparison supplies the independent order oracle.
     assert!(observations.iter().all(|x| *x == observations[0]));
     let (whole, visible) = &observations[0];
     format!(

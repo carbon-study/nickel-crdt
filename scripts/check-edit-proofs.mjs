@@ -24,7 +24,8 @@ for(const name of ['Prelude','LoopUtil','EditAtomic','EditCommit','EditIdentity'
 const original=await fs.readFile(path.join(root,'src/edit.rs'),'utf8');
 const modes=['positive','receive-error-corrupts-counter','edit-error-corrupts-counter','edit-success-reuses-counter',
   'local-return-gap','local-stale-tree','receive-success-counter','author-forgets-gap','receive-private-gate',
-  'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality'];
+  'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality',
+  'identity-scan-key','identity-birth-equality','identity-writer-equality'];
 const selected=process.argv.slice(3);for(const mode of selected)assert(modes.includes(mode),'unknown mode '+mode);
 let positive;
 for(const mode of selected.length?selected:modes) {
@@ -32,8 +33,11 @@ for(const mode of selected.length?selected:modes) {
   await fs.mkdir(crate,{recursive:true});await fs.mkdir(proof,{recursive:true});
   for(const name of ['Cargo.toml','Cargo.lock','src','tests','proof-smoke'])await fs.cp(path.join(root,name),path.join(crate,name),{recursive:true});
   if(mode!=='positive') {
-    const start=original.indexOf(mode==='identity-event-equality'?'impl PartialEq for EventId':mode==='identity-forgets-gap'?'fn fact_equal(':mode.startsWith('identity-')?'fn duplicate(':mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit(');assert(start>=0);
+    const start=original.indexOf(mode==='identity-writer-equality'?'impl PartialEq for Writer':mode==='identity-birth-equality'?'impl PartialEq for BirthId':mode==='identity-event-equality'?'impl PartialEq for EventId':mode==='identity-forgets-gap'?'fn fact_equal(':mode.startsWith('identity-')?'fn duplicate(':mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit(');assert(start>=0);
     const edits={
+      'identity-writer-equality':['writer_index(*self) == writer_index(*other)','writer_index(*self) == writer_index(*self)'],
+      'identity-birth-equality':['self.event == other.event && self.index == other.index','self.event == other.event'],
+      'identity-scan-key':['if old.id == fact.id {','if old.id.counter == fact.id.counter {'],
       'identity-event-equality':['self.writer == other.writer && self.counter == other.counter','self.writer == other.writer'],
       'identity-forgets-gap':['&& left.gap == right.gap','&& true'],
       'identity-accepts-conflict':['return if fact_equal(old, fact) {','return if fact_equal(old, fact) || old.id == fact.id {'],
@@ -77,6 +81,9 @@ for(const mode of selected.length?selected:modes) {
   } else {
     assert.equal(checked.status,2,'require ordinary proof rejection, not extraction failure/timeout');
     const theorems={
+      'identity-writer-equality':'EditIdentity.writer_equality_exact',
+      'identity-birth-equality':'EditIdentity.birth_equality_exact',
+      'identity-scan-key':'EditIdentity.duplicate_matches_lookup',
       'identity-event-equality':'EditIdentity.event_equality_exact',
       'identity-forgets-gap':'EditIdentity.fact_equality_exact',
       'identity-accepts-conflict':'EditIdentity.duplicate_matches_lookup',
