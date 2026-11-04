@@ -6,3 +6,6 @@
 /LOG.md
 /PROMPT.md
 /notes/
+
+# A killed source-mutation control cannot run atexit cleanup.
+/experiments/combined-admission/.plain-control-*.mjs

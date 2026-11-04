@@ -108,7 +108,10 @@ Four scratch mutations run against the unchanged checks:
   state-preservation assertion;
 - bounding a gap by receiver visibility rejects the valid last-gap packet;
 - removing the duplicate deletion-target guard accepts the directed invalid
-  packet and fails its unchanged rejection assertion.
+  packet and fails its unchanged rejection assertion;
+- removing the full birth-ID multiset guard permits same-count duplicated or
+  foreign IDs in either backend. Both faults must defer as oracle failures,
+  preserving the complete joint snapshot.
 
 The writer-counter-order guard is defense in depth, not separately exercised.
 For a fresh ID, an ancestral same-writer counter at or above it would require
@@ -168,10 +171,15 @@ instance local-call transaction, nor an incremental native sequence engine.
 A real Friday→Monday replacement exceeds a reduced ordering-slot ceiling only
 after effect and placement trial work. It returns resource deferral, leaves
 Friday! visible and the whole accepted tuple unchanged, and preserves the
-caller's exact compound packet. Backend-label and birth-count mismatches return oracle deferral
-without publication; they do not establish that the packet is invalid. All four old mutation controls run in the new mode too;
-four additional controls substitute plain Fugue or remove the ordering ceiling,
-backend binding or birth-count guard. These must fail their intended unchanged assertions.
+caller's exact compound packet. Backend-label, birth-count and complete birth-ID
+multiset mismatches return oracle deferral without publication; they do not
+establish that the packet is invalid. Expected IDs come from the trial's admitted
+canonical births, not from a second oracle reply. The five common mutation controls
+run in both modes; four additional Fugue controls substitute plain Fugue or remove
+the ordering ceiling, backend binding or both birth guards. Each must fail its
+intended assertion. A source mutation interrupted before Python's atexit cleanup
+may leave a scratch Node module; its exact filename pattern is ignored so ordinary
+Git staging cannot accidentally publish that mutant.
 
 The old pending-recovery checkpoint/profile is not extended by this change.
 There is no Fugue checkpoint/inbox claim; Inbox explicitly rejects a Fugue

@@ -41,8 +41,12 @@ elif mode=='fugue-link-budget':
 elif mode=='order-backend':
     text=text.replace("if result.get('backend') != self.backend:", 'if False:')
     expected='invalid packet accepted: order backend mismatch'
+elif mode=='order-birth-identity':
+    text=text.replace("if sorted(result['ids']) != sorted(birth_ids):", 'if False:')
+    expected='same-count wrong identity accepted'
 elif mode=='order-birth-count':
     text=text.replace("if len(result['ids']) != sum(len(e.creates) for e in trial.events.values()):", 'if False:')
+    text=text.replace("if sorted(result['ids']) != sorted(birth_ids):", 'if False:')
     expected='invalid packet accepted: order/effect birth count mismatch'
 else:
     raise ValueError(mode)

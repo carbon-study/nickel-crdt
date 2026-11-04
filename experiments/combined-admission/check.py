@@ -150,6 +150,25 @@ with Oracle(backend) as oracle:
                 result=oracle.ask(*args);result['ids']=result['ids'][:-1];return result
         reject(Combined(WrongBirthCount()),original_packet,'order/effect birth count mismatch','oracle')
 
+    # Same cardinality is not the same birth multiset, in either backend.
+    identity_event=Session('Alice').edit(tuple('ab'))
+    identity_packet=dict(event=asdict(identity_event),gap=0)
+    for fault in ('duplicate', 'foreign'):
+        class WrongBirthIdentity:
+            backend=backend
+            def ask(self,*args):
+                result=oracle.ask(*args)
+                result['ids'][-1]=result['ids'][0] if fault=='duplicate' else '999:1/0'
+                return result
+        store=Combined(WrongBirthIdentity());before=store.snapshot()
+        try:
+            store.put(identity_packet)
+        except Deferred as error:
+            assert error.kind=='oracle' and str(error)=='order/effect birth identity mismatch'
+            assert store.snapshot()==before,'rejection partially published'
+        else:
+            raise AssertionError('same-count wrong identity accepted')
+
     first=traces[0]
     gaps={i['event']:i['gap'] for i in first['insertions']}
     facts=first['steps'][-1]['views']['Alice']['facts']

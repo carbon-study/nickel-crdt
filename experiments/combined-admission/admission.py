@@ -203,6 +203,10 @@ class Combined:
             raise Deferred('oracle', 'order backend mismatch')
         if len(result['ids']) != sum(len(e.creates) for e in trial.events.values()):
             raise Deferred('oracle', 'order/effect birth count mismatch')
+        birth_ids=[f'{WRITERS[e.author]}:{int(e.id.rsplit(":",1)[1])}/{index}'
+            for e in trial.events.values() for index in range(len(e.creates))]
+        if sorted(result['ids']) != sorted(birth_ids):
+            raise Deferred('oracle', 'order/effect birth identity mismatch')
         if self.backend == 'dense':
             if result['digits'] > self.limits.expanded_digits:
                 raise Deferred('resource', 'expanded digit budget')
