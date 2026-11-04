@@ -1,0 +1,84 @@
+{
+  "source_sha256": "cc53b0cdb42e2240ec2553added0117b40526f523ed2a11f8abe34e1b1153c79",
+  "script_sha256": "315120d9dd39553ffc84b121744ad5ed3c8e9204e3da3e1bab2d80ada34defbb",
+  "input_hashes": {
+    "Cargo.toml": "f52881af7be723489ab19f34f22519a313eff95fca8a96389f26627ee0622f86",
+    "Cargo.lock": "0afcd2289ea99f44276847a3e37e889bf6e5fdfbba902e882fb3284dd4ade8b2",
+    "tests/edit_admit.rs": "0b711d7a0c8c885122049824fd9a5cd91f3f77b374942f524145b419d60df90b",
+    "examples/edit-reference.rs": "3a86afa5bfaa4616e4f5a831c40d203d354f3f72d66fab95357d7a048f45cca9",
+    "examples/edit-profile.rs": "5ec4abfd76b30be9e0fb6086b589af499ec19fe5edb2146f87c3aa27e669c35f"
+  },
+  "machine": "shared non-isolated x86_64 Intel i9-12900KF",
+  "ordinary_library_changed": false,
+  "machine_checked_cache_law": false,
+  "finite_reference": {
+    "histories": 150,
+    "causal_orders": 882,
+    "exact_export_equality": true,
+    "independent_python_node_oracle": "passed"
+  },
+  "trace": {
+    "trace_observations": 14942,
+    "event_basis_keys": 39,
+    "varied_context_keys": 37
+  },
+  "runs": [
+    {
+      "shape": "append",
+      "complete": true,
+      "checked_pairs": 128,
+      "last_checked": {
+        "shape": "append",
+        "events": 128,
+        "births": 512,
+        "visible": 512,
+        "author_us": 24226,
+        "receive_us": 24198
+      },
+      "summary": {
+        "complete": true,
+        "shape": "append",
+        "author_total_us": 925891,
+        "receive_total_us": 918911
+      }
+    },
+    {
+      "shape": "prepend",
+      "complete": true,
+      "checked_pairs": 128,
+      "last_checked": {
+        "shape": "prepend",
+        "events": 128,
+        "births": 512,
+        "visible": 512,
+        "author_us": 25598,
+        "receive_us": 25529
+      },
+      "summary": {
+        "complete": true,
+        "shape": "prepend",
+        "author_total_us": 953852,
+        "receive_total_us": 941180
+      }
+    },
+    {
+      "shape": "frontloaded-delete",
+      "complete": true,
+      "checked_pairs": 128,
+      "last_checked": {
+        "shape": "frontloaded-delete",
+        "events": 128,
+        "births": 512,
+        "visible": 392,
+        "author_us": 25604,
+        "receive_us": 26193
+      },
+      "summary": {
+        "complete": true,
+        "shape": "frontloaded-delete",
+        "author_total_us": 3074956,
+        "receive_total_us": 3123548
+      }
+    }
+  ]
+}

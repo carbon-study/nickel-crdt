@@ -292,6 +292,14 @@ histories, replay consumes over 99.8% of the measured plan-phase time; cheaper
 fact storage does not repair interactive latency. The comparison owns commands,
 input hashes, capped failures and the next representation/proof boundary.
 
+The subsequent [derived-node cache experiment](derived-node-cache.md) gives a
+conditional source argument for causal-past locality and tests a per-instance
+cache in isolated copies. Its correctness path compares complete trees to full
+replay; its timing path omits that guard and completes the three bounded shapes.
+The general locality/cache invariant remains unproved, and the ordinary library
+continues to use full replay. The experiment also identifies the explicit
+representation-domain issue for the existing shared-history theorem.
+
 ## remaining exit
 
 Extend the accepted-ID component to the edit-only whole-instance abstraction
