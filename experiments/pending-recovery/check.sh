@@ -8,7 +8,7 @@ export NODE=$(command -v node)
 nix develop "$root/experiments/hybrid-restoration" --command python "$root/experiments/order-effect-bridge/trace.py" > "$work/trace.json"
 nix develop "$root/experiments/hybrid-restoration" --command python "$here/check.py" "$work/trace.json" > "$work/receipt.json"
 if [ "${1:-}" = --record ]; then cp "$work/receipt.json" "$here/receipt.json"; else cmp "$work/receipt.json" "$here/receipt.json"; fi
-for mode in drop-pending ack-pending resume-bound; do
+for mode in drop-pending ack-pending resume-bound promote-profile; do
   nix develop "$root/experiments/hybrid-restoration" --command python "$here/control.py" "$work/trace.json" "$mode"
 done
 nix develop "$root/experiments/hybrid-restoration" --command python "$here/process_probe.py" save "$work/checkpoint.json"

@@ -14,7 +14,8 @@ nix develop --command bash experiments/pending-recovery/check.sh
 Only the recovery checks run. The source uses the existing actual-session traces,
 combined admission and Node order interpreter. The runner checks the committed
 receipt and scratch mutations that drop pending facts, acknowledge a merely
-pending fact, or skip the checkpoint retention bound.
+pending fact, skip the checkpoint retention bound, or accept a non-dense
+promotion profile.
 Use `--record` to regenerate the receipt. No services, browsers or full matrix.
 
 ## What the caller can do
@@ -43,8 +44,10 @@ An accepted duplicate never publishes that fact again, though draining other
 facts can still change the document.
 
 `promote(limits)` is an **explicit test-profile operation**. It may only increase
-or preserve each admission ceiling, then retries. It does not automatically grow
-memory or select Nickel's release budgets. `checkpoint()` contains accepted
+or preserve each admission ceiling, then retries. It accepts the exact dense
+`Limits` profile only; the shared `FactLimits` base and `FugueLimits` reject
+before changing accepted facts, retained packets or limits, warm or resumed. It does not automatically
+grow memory or select Nickel's release budgets. `checkpoint()` contains accepted
 packets, exact retained packets, their dispositions and both sets of limits.
 `resume()` re-admits the accepted prefix and restores pending entries without
 re-authoring them; the caller then drains or promotes. Resume needs a functioning

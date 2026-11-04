@@ -76,6 +76,8 @@ class Inbox:
         return self.held.pop(key)['packet']
 
     def promote(self, limits):
+        if type(limits) is not Limits:
+            raise Rejected('pending promotion supports dense Limits only')
         old=asdict(self.store.limits)
         if any(value<old[key] for key,value in asdict(limits).items()):
             raise Rejected('reference promotion cannot lower a limit')

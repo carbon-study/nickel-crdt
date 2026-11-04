@@ -3,7 +3,7 @@ import json
 import sys
 from dataclasses import asdict
 from inbox import Inbox, Backpressure
-from admission import Oracle, Limits, Rejected, Event, encode
+from admission import Oracle, Limits, FactLimits, FugueLimits, Rejected, Event, encode
 
 traces=json.load(open(sys.argv[1]))['traces']
 counts=dict(views=0,checkpoints=0)
@@ -24,6 +24,11 @@ def raises_unchanged(inbox,action,kind,message=None):
     except kind: assert inbox.snapshot()==before,'failed offer changed state'
     else: raise AssertionError(message or 'expected '+kind.__name__)
 
+def refuse_non_dense_promotion(inbox):
+    for limits in [FactLimits(), FugueLimits()]:
+        raises_unchanged(inbox, lambda:inbox.promote(limits), Rejected,
+            'non-dense promotion accepted')
+
 def refuse_pending_ack(inbox,key):
     disposition=inbox.held[key]['kind']
     assert disposition in {'missing','resource','oracle'}
@@ -32,6 +37,7 @@ def refuse_pending_ack(inbox,key):
     refused_dispositions.add(disposition)
 
 with Oracle() as oracle:
+    refuse_non_dense_promotion(Inbox(oracle))
     for trace in traces:
         gaps={i['event']:i['gap'] for i in trace['insertions']}
         for step in trace['steps']:
@@ -57,6 +63,7 @@ with Oracle() as oracle:
         assert inbox.offer(second)=='pending'
         assert len(inbox.held)==1,'retained facts missing'
         refuse_pending_ack(inbox,second['event']['id'])
+        refuse_non_dense_promotion(inbox)
     initial=[i.store.text() for i in replicas]
     assert initial==['a','b'],'capacity disagreement witness lost'
     # Trusted-shape checkpoints must still respect the declared retention caps.
@@ -67,6 +74,7 @@ with Oracle() as oracle:
             'over-bound resume accepted')
     for n,inbox in enumerate(replicas):
         inbox=roundtrip(inbox,oracle)
+        refuse_non_dense_promotion(inbox)
         for key in inbox.held:
             refuse_pending_ack(inbox,key)
         inbox.promote(Limits())
