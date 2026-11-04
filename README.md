@@ -49,7 +49,7 @@ proof dependencies; CI must still run the native/proof check separately.
 
 The workspace has the experimental `edit` module and a separate `proof-smoke` crate. Its `flip` function toggles a Boolean in a Rust range loop. The proof check extracts that actual function with the locked hax compiler, connects it to the imported `LoopUtil` interpreter, and proves parity and involution for every representable loop bound. It also changes the Rust loop to leave the Boolean unchanged and requires the unchanged bridge theorem to reject it.
 
-The Boolean fixture is toolchain evidence. The same proof gate also checks the actual edit/admit error/empty return paths, local counter step and same-history author/admit coherence; it does not prove the full edit semantics or convergence. See [proof scope](proofs/README.md) and [provenance](PROVENANCE.md).
+The Boolean fixture is toolchain evidence. The same proof gate also checks the actual edit/admit error/empty return paths, local counter step, same-history author/admit coherence and accepted-ID uniqueness; it does not prove the full edit semantics or convergence. See [proof scope](proofs/README.md) and [provenance](PROVENANCE.md).
 
 ## Layout
 

@@ -259,7 +259,8 @@ occurrence per event, retaining all 512 births. Completed runs also check that
 event 129 rejects without changing the author. This is a diagnostic, not a
 routine CI timing assertion; every process has a 45-second external cap.
 
-One optimized local run on 2026-11-04, x86_64 Intel i9-12900KF:
+One optimized local run at `5545111` on 2026-11-04, x86_64 Intel i9-12900KF
+(before the proof-oriented helper factoring above):
 
 | shape | last checked events / retained births | last author / receive | sum of checked author + receive calls | outcome |
 |---|---|---|---|---|
