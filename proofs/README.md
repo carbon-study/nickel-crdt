@@ -23,3 +23,16 @@ are universal return-path results, not local/admission semantic refinement,
 FugueMax representation, freshness or convergence. See the
 [candidate contract](../docs/rust-edit-admit.md) for the precise domain and
 remaining joint exit. No full V1–V9 obligation is thereby closed.
+
+## positive author/admit coherence
+
+`EditCommit.lt` binds an authored fact to its request, proves replay into the
+author's before-state matches its complete facts/tree commit, and proves remote
+admission preserves and is independent of private writer/allocator state. Their
+composition covers an actual second receiver with the same shared before-state
+and limits but different private state. Five additional wrong Rust bodies test
+returned-fact binding, stale-tree publication, receiver allocator preservation,
+request-gap binding and private-state independence. All run in the existing
+proof gate; optional explicit mode names support focused local checks, while
+the default keeps all controls. This is joint commit coherence, not successful
+refinement to the independent reference, WF preservation, ordering or convergence.

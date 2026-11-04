@@ -8,8 +8,7 @@ Node or network call runs inside the Rust library.
 This implements the first edit-only boundary of the
 [Rust transition cut](rust-transition-cut.md), following Ren's implementation
 go-ahead. It is **not the verified slice's exit**: semantic refinement,
-representation and delivery-independence theorems are still missing. The three
-source-linked return-path lemmas below do not prove those properties. This also
+representation and delivery-independence theorems are still missing. The return-path and commit-coherence lemmas below do not prove those properties. This also
 does not complete the roadmap's experimental milestone, which includes history.
 
 ## using the boundary
@@ -109,11 +108,43 @@ This is finite agreement with a reference, not a convergence or refinement proof
   the before-counter.
 
 These quantify over all well-typed extracted input states and arguments, not
-only generated histories. They say nothing about which facts the validator
+only generated histories. `proofs/EditCommit.lt` adds a positive joint boundary:
+
+- a returned authored fact carries the requested scalar list, deletion targets,
+  gap (absent for deletion-only work) and local writer;
+- receiving that exact fact into the same before-instance returns `Added` with
+  exactly the local commit's complete accepted facts and retained tree;
+- admission preserves the receiver's writer, allocator and limits on every
+  disposition, including success;
+- two states with the same complete facts, tree and limits have identical
+  admission dispositions and next shared state, independently of their private
+  writer/allocator values;
+- therefore, if a local edit authors a fact, a second instance starting with that
+  same shared state admits it as `Added` and reaches the same complete shared
+  state, while retaining its own writer and counter.
+
+The last theorem is about **two actual Rust calls**, not a rewritten replay
+algorithm. Its premise requires the same accepted history/tree/limits before the
+edit; it does not cover a receiver with extra concurrent facts. It is conditional
+on authoring succeeding, not a theorem that every valid fitting request succeeds.
+Seven native tests include successful insert/replace/delete continuation with a
+separate receiver whose writer and allocator differ, alongside replay into a
+copy of the author's before-state. These make the exercised success branches
+non-vacuous; finite examples do not establish general admissibility.
+
+The private-state proof is kept structural by making new-fact validation return
+only `Result<(), Error>`, with accepted facts and limits as explicit inputs.
+Duplicate classification similarly returns only a disposition. Trial assembly
+still owns the whole publication; no validator can return a replacement instance.
+The checks and their order are unchanged by this Rust refactor.
+
+The lemmas say nothing about which facts the validator
 should accept, whether an `Added` state has the right tree, or whether successful
-allocation is globally fresh. Three independently extracted wrong Rust bodies
-must fail native tests and the unchanged relevant lemma: corrupting the counter
-on admission error, corrupting it on local error, or reusing it after success.
+allocation is globally fresh. Eight independently extracted wrong Rust bodies must fail native tests and the
+unchanged relevant lemma. Three corrupt/reuse the counter on earlier return
+paths. Five challenge the positive boundary: alter the returned fact's gap,
+commit a stale tree, change the receiver's counter on success, ignore the caller's
+gap before validation, or gate admission on the receiver's private writer.
 The check rejects timeouts/extraction errors as control results. Extracted project
 code and authored views contain no own admissions. Trust remains with Rust,
 hax, the external Rust models, private Latte emission, F* and its solver.

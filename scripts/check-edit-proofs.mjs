@@ -13,7 +13,7 @@ await fs.mkdir(output,{recursive:true});
 const identity=JSON.parse(await fs.readFile(path.join(modelCache,'identity.json'),'utf8'));
 assert.equal(identity.models,models);assert.equal(identity.fstar,fstar);
 const views=new Map();
-for(const name of ['Prelude','EditAtomic']) {
+for(const name of ['Prelude','EditAtomic','EditCommit']) {
   const source=`proofs/${name}.lt`,view=`proofs/generated/Nickel.${name}.fst`;
   const code=await fs.readFile(path.join(root,view),'utf8');
   const receipt=(await fs.readFile(path.join(root,`proofs/generated/${name}.sha256`),'utf8')).trim().split('\n');
@@ -22,17 +22,28 @@ for(const name of ['Prelude','EditAtomic']) {
   views.set(`Nickel.${name}.fst`,code);
 }
 const original=await fs.readFile(path.join(root,'src/edit.rs'),'utf8');
+const modes=['positive','receive-error-corrupts-counter','edit-error-corrupts-counter','edit-success-reuses-counter',
+  'local-return-gap','local-stale-tree','receive-success-counter','author-forgets-gap','receive-private-gate'];
+const selected=process.argv.slice(3);for(const mode of selected)assert(modes.includes(mode),'unknown mode '+mode);
 let positive;
-for(const mode of ['positive','receive-error-corrupts-counter','edit-error-corrupts-counter','edit-success-reuses-counter']) {
+for(const mode of selected.length?selected:modes) {
   const work=path.join(root,'.cache','edit-proofs',mode),crate=path.join(work,'crate'),proof=path.join(work,'proof');
   await fs.mkdir(crate,{recursive:true});await fs.mkdir(proof,{recursive:true});
   for(const name of ['Cargo.toml','Cargo.lock','src','tests','proof-smoke'])await fs.cp(path.join(root,name),path.join(crate,name),{recursive:true});
   if(mode!=='positive') {
-    const start=original.indexOf(mode.startsWith('receive')?'pub fn receive(':'pub fn edit(');assert(start>=0);
-    const success=mode==='edit-success-reuses-counter';
-    const needle=success?'next.next_counter = self.next_counter + 1;':'Err(error) => (self, Err(error)),';
-    const at=original.indexOf(needle,start);assert(at>=start);
-    const mutant=original.slice(0,at)+original.slice(at).replace(needle,success?'next.next_counter = self.next_counter;':'Err(error) => { let mut damaged = self; damaged.next_counter = 0; (damaged, Err(error)) },');
+    const start=original.indexOf(mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit(');assert(start>=0);
+    const edits={
+      'receive-error-corrupts-counter':['Err(error) => (self, Err(error)),','Err(error) => { let mut damaged = self; damaged.next_counter = 0; (damaged, Err(error)) },'],
+      'edit-error-corrupts-counter':['Err(error) => (self, Err(error)),','Err(error) => { let mut damaged = self; damaged.next_counter = 0; (damaged, Err(error)) },'],
+      'edit-success-reuses-counter':['next.next_counter = self.next_counter + 1;','next.next_counter = self.next_counter;'],
+      'local-return-gap':['(next, Ok(Local::Authored(fact)))','{ let mut changed = fact; changed.gap = Some(0); (next, Ok(Local::Authored(changed))) }'],
+      'local-stale-tree':['next.next_counter = self.next_counter + 1;','next.next_counter = self.next_counter + 1; next.tree = self.tree.clone();'],
+      'receive-success-counter':['Ok(Some(next)) => (next, Ok(Admission::Added)),','Ok(Some(mut next)) => { next.next_counter = 0; (next, Ok(Admission::Added)) },'],
+      'author-forgets-gap':['Some(gap)','Some(0)'],
+      'receive-private-gate':['Self::validate_new(&self.facts, self.limits, fact)?;', 'Self::validate_new(&self.facts, self.limits, fact)?; if self.writer.is_none() { return Err(Error::Missing); }'],
+    };
+    const [needle,replacement]=edits[mode];const at=original.indexOf(needle,start);assert(at>=start);
+    const mutant=original.slice(0,at)+original.slice(at).replace(needle,replacement);
     await fs.writeFile(path.join(crate,'src/edit.rs'),mutant);
   }
   const env={...process.env,CARGO_TARGET_DIR:path.join(root,'target','edit-proof-check')};
@@ -48,16 +59,30 @@ for(const mode of ['positive','receive-error-corrupts-counter','edit-error-corru
   assert(!/\b(?:admit|assume|admit_smt_queries)\b/.test(code),'no assumptions in extracted project code');
   if(mode==='positive')positive=code;else assert.notEqual(code,positive);
   for(const [name,code] of views)await put(path.join(proof,name),code);
-  const checked=await verify({dir:proof,roots:[path.join(proof,'Nickel.EditAtomic.fst')],fstar,models,modelCache});
+  const checked=await verify({dir:proof,roots:[path.join(proof,'Nickel.EditCommit.fst')],fstar,models,modelCache});
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {
     assert.equal(checked.status,0,checked.log);
     await fs.copyFile(path.join(proof,'Nickel_crdt.Edit.fst'),path.join(output,'Nickel_crdt.Edit.fst'));
   } else {
     assert.equal(checked.status,2,'require ordinary proof rejection, not extraction failure/timeout');
-    const theorem=mode.startsWith('receive')?'receive_rejection_unchanged':mode==='edit-success-reuses-counter'?'authored_edit_advances_once':'edit_rejection_or_empty_unchanged';
-    assert.match(checked.log,new RegExp(`Query-stats \\(Nickel\\.EditAtomic\\.${theorem},[^\\n]*failed`));
+    const theorems={
+      'receive-error-corrupts-counter':'EditAtomic.receive_rejection_unchanged',
+      'edit-error-corrupts-counter':'EditAtomic.edit_rejection_or_empty_unchanged',
+      'edit-success-reuses-counter':'EditAtomic.authored_edit_advances_once',
+      'local-return-gap':'EditCommit.authored_fact_replays_same_commit',
+      'local-stale-tree':'EditCommit.authored_fact_replays_same_commit',
+      'receive-success-counter':'EditCommit.receive_preserves_private_state',
+      'author-forgets-gap':'EditCommit.authored_fact_binds_request',
+      'receive-private-gate':'EditCommit.admission_ignores_private_state',
+    };
+    assert(checked.log.split('\n').some(line=>{
+      if(!line.includes('Query-stats (Nickel.'+theorems[mode]+',')||!line.includes('failed'))return false;
+      if(/reason-unknown=[^}]*?(?:canceled|resource limits reached|timeout)/i.test(line))return false;
+      const budget=line.match(/and rlimit (\d+) \(used rlimit ([\d.]+)\)/);
+      return budget&&Number(budget[2])<Number(budget[1]);
+    }),'require a named non-resource proof rejection, not solely solver exhaustion: '+checked.log);
     assert.match(checked.log,/Could not prove post-condition|Assertion failed/);
   }
-  console.log(`PASS ${mode}: native and unchanged actual-Rust neutrality theorem ${mode==='positive'?'verified':'reject the corrupted return'}`);
+  console.log(`PASS ${mode}: native and unchanged actual-Rust boundary theorem ${mode==='positive'?'verified':'reject the corrupted return'}`);
 }

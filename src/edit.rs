@@ -599,29 +599,32 @@ impl Replica {
         }
         Ok(out)
     }
-    fn plan(&self, fact: &Fact) -> Result<Option<Self>, Error> {
+    fn duplicate(facts: &[Fact], fact: &Fact) -> Result<bool, Error> {
         if fact.id.counter == 0 || fact.id.counter > MAX_COUNTER {
             return Err(invalid(Invalid::Counter));
         }
-        for old in self.facts.iter() {
+        for old in facts.iter() {
             if old.id == fact.id {
                 return if old == fact {
-                    Ok(None)
+                    Ok(true)
                 } else {
                     Err(invalid(Invalid::Conflict))
                 };
             }
         }
-        if self.facts.len() >= self.limits.events {
+        Ok(false)
+    }
+    fn validate_new(facts: &[Fact], limits: Limits, fact: &Fact) -> Result<(), Error> {
+        if facts.len() >= limits.events {
             return Err(Error::Capacity(Capacity::Events));
         }
-        if fact.after.len() > self.limits.dependencies {
+        if fact.after.len() > limits.dependencies {
             return Err(Error::Capacity(Capacity::Dependencies));
         }
         if duplicate_events(&fact.after) {
             return Err(invalid(Invalid::DependencyDuplicate));
         }
-        let selected = past(&self.facts, &fact.after)?;
+        let selected = past(&facts, &fact.after)?;
         if fact.id.counter > 1
             && !has_event(
                 &selected,
@@ -633,7 +636,7 @@ impl Replica {
         {
             return Err(invalid(Invalid::Predecessor));
         }
-        for e in self.facts.iter() {
+        for e in facts.iter() {
             if has_event(&selected, e.id)
                 && e.id.writer == fact.id.writer
                 && e.id.counter >= fact.id.counter
@@ -641,14 +644,14 @@ impl Replica {
                 return Err(invalid(Invalid::Predecessor));
             }
         }
-        if fact.insert.len() > self.limits.scalars {
+        if fact.insert.len() > limits.scalars {
             return Err(Error::Capacity(Capacity::Scalars));
         }
         let mut births = 0;
-        for f in self.facts.iter() {
+        for f in facts.iter() {
             births = add(births, f.insert.len())?;
         }
-        if add(births, fact.insert.len())? > self.limits.births {
+        if add(births, fact.insert.len())? > limits.births {
             return Err(Error::Capacity(Capacity::Births));
         }
         if fact.delete.len() > 512 {
@@ -660,7 +663,7 @@ impl Replica {
             }
         }
         let mut basis = Vec::new();
-        for f in self.facts.iter() {
+        for f in facts.iter() {
             if has_event(&selected, f.id) {
                 push(&mut basis, f.clone())?;
             }
@@ -681,6 +684,13 @@ impl Replica {
         } else if !matches!(fact.gap,Some(gap) if gap<=seen.len()) {
             return Err(invalid(Invalid::Gap));
         }
+        Ok(())
+    }
+    fn plan(&self, fact: &Fact) -> Result<Option<Self>, Error> {
+        if Self::duplicate(&self.facts, fact)? {
+            return Ok(None);
+        }
+        Self::validate_new(&self.facts, self.limits, fact)?;
         let mut next = self.clone();
         push(&mut next.facts, fact.clone())?;
         next.facts = canonical(&next.facts)?;

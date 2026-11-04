@@ -166,3 +166,38 @@ fn missing_prerequisite_and_capacity_return_unchanged_owned_state() {
     assert_eq!(result, Err(Error::Capacity(Capacity::Events)));
     assert_eq!(low, before);
 }
+
+#[test]
+fn authored_fact_replays_the_same_complete_commit() {
+    let mut local = new(Some(Writer::Alice));
+    let mut remote = new(Some(Writer::Bo));
+    for (gap, inserted, remove_index) in [
+        (0, "abc", None),
+        (2, "X😀", Some(1)),
+        (0, "", Some(0)),
+        (3, "Z", None),
+    ] {
+        let before = local.clone();
+        let deleted = remove_index
+            .map(|i| vec![before.observe().unwrap()[i].0])
+            .unwrap_or_default();
+        let (next, fact) = edit(local, gap, inserted, deleted.clone());
+        assert_eq!(fact.insert, scalars(inserted));
+        assert_eq!(fact.delete, deleted);
+        assert_eq!(fact.gap, if inserted.is_empty() { None } else { Some(gap) });
+        assert_eq!(fact.id.writer, Writer::Alice);
+        assert_eq!(fact.id.counter, before.next_counter());
+        remote = receive(remote, &fact);
+        assert_eq!(next.facts(), remote.facts());
+        assert_eq!(next.whole(), remote.whole());
+        assert_eq!(next.observe(), remote.observe());
+        assert_eq!(remote.next_counter(), 1);
+        let imported = receive(before.clone(), &fact);
+        assert_eq!(next.facts(), imported.facts());
+        assert_eq!(next.whole(), imported.whole());
+        assert_eq!(next.observe(), imported.observe());
+        assert_eq!(imported.next_counter(), before.next_counter());
+        assert_eq!(next.next_counter(), before.next_counter() + 1);
+        local = next;
+    }
+}
