@@ -12,7 +12,7 @@ export async function checkTimeoutBudgets() {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'nickel-timeout-test-'));
   try {
     const fake=path.join(dir,'simulated-fstar.mjs'),control=path.join(dir,'control.json');
-    await fs.writeFile(fake,`#!/usr/bin/env node
+    await fs.writeFile(fake,`#!${process.execPath}
 import fs from 'node:fs';import path from 'node:path';
 const args=process.argv.slice(2),root=args.at(-1),cache=args[args.indexOf('--cache_dir')+1];
 if(args.includes('--dep')) {console.log(cache+'/'+path.basename(root)+'.checked: '+root);}
