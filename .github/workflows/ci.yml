@@ -31,6 +31,11 @@ jobs:
     name: native crate and proofs
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 210
+    # Each run saves its own cache generation and restores the newest one for
+    # the same Nix files (else the newest for this OS/arch), so builds finished
+    # after a failed or partial run are kept by the next save. A fixed key could
+    # not do that: the action never overwrites an existing key. GitHub evicts
+    # old generations itself (no purge, so no actions: write permission).
     steps:
       - uses: actions/checkout@v6
         with:
@@ -39,12 +44,17 @@ jobs:
       # its save failed ("tar" exit 2) in our first ARM run, matching
       # nix-community/cache-nix-action#48, where switching installers fixed it.
       - uses: nixbuild/nix-quick-install-action@v35
+      - name: cache key
+        id: key
+        run: echo "prefix=nix-scaffold-$RUNNER_OS-$RUNNER_ARCH-${{ hashFiles('**/*.nix', '**/flake.lock') }}" >> "$GITHUB_OUTPUT"
       - name: restore Nix store
         id: restore
         uses: nix-community/cache-nix-action/restore@v7
         with:
-          primary-key: nix-scaffold-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
-          restore-prefixes-first-match: nix-scaffold-${{ runner.os }}-${{ runner.arch }}-
+          primary-key: ${{ steps.key.outputs.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-prefixes-first-match: |
+            ${{ steps.key.outputs.prefix }}-
+            nix-scaffold-${{ runner.os }}-${{ runner.arch }}-
       - name: wrapper self-test
         run: .github/scripts/check.test.sh
       # checks.native and checks.proofs. Public checks verify the committed F*
@@ -52,12 +62,12 @@ jobs:
       - name: flake check
         run: .github/scripts/check.sh flake-check 9000 nix flake check -L
       # Save even when the check failed or timed out, so finished toolchain
-      # paths are not rebuilt next time. Skipped if this key already exists.
+      # paths are not rebuilt next time. The key is new for every run.
       - name: save Nix store
-        if: always() && steps.restore.outputs.hit-primary-key != 'true'
+        if: always()
         uses: nix-community/cache-nix-action/save@v7
         with:
-          primary-key: nix-scaffold-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
+          primary-key: ${{ steps.key.outputs.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}
 
   # The reference gates use the light `.#references` shell (node and the
   # nested Python shell, no proof toolchain). Budget: 10 + 5 x 5 = 35 min of
