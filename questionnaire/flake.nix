@@ -2,8 +2,7 @@
   description = "Nickel undo-semantics questionnaire: local answers and portable JSON export";
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/7d1a7c21a4c00ea653fc7ed5c083d261340f185f";
   outputs = { self, nixpkgs }:
-    let
-      system = "x86_64-linux";
+    nixpkgs.lib.foldl' nixpkgs.lib.recursiveUpdate { } (map (system: let
       pkgs = import nixpkgs { inherit system; };
       site = pkgs.runCommand "nickel-undo-questionnaire" {} ''
         mkdir -p $out
@@ -31,5 +30,5 @@
         QUIZ_BROWSER_MODULE = "${pkgs.playwright-driver}/index.mjs";
         PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
       }; };
-    };
+    }) [ "x86_64-linux" "aarch64-linux" ]);
 }

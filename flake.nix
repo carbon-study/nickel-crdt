@@ -4,8 +4,7 @@
   inputs.hax.url = "github:cryspen/hax/f33e5c844497c057450ebf56828cbb191223e93a";
 
   outputs = { self, nixpkgs, hax }:
-    let
-      system = "x86_64-linux";
+    nixpkgs.lib.foldl' nixpkgs.lib.recursiveUpdate { } (map (system: let
       pkgs = import nixpkgs { inherit system; };
       rust = hax.packages.${system}.rustc;
       haxBin = hax.packages.${system}.default;
@@ -30,7 +29,7 @@
       '';
       proofTools = pkgs.lib.fileset.toSource {
         root = ./scripts;
-        fileset = pkgs.lib.fileset.unions [ ./scripts/build-proof-models.mjs ./scripts/proof-cache.mjs ];
+        fileset = pkgs.lib.fileset.unions [ ./scripts/build-proof-models.mjs ./scripts/proof-cache.mjs ./scripts/check-proof-timeouts.mjs ];
       };
       models = pkgs.runCommand "nickel-checked-hax-models" {
         nativeBuildInputs = tools;
@@ -68,8 +67,15 @@
         hax-fstar = fstar;
       };
       checks.${system} = { inherit native; proofs = proofCheck; };
-      devShells.${system}.default = pkgs.mkShell {
-        packages = tools ++ [ haxBin fstar ];
+      devShells.${system} = {
+        default = pkgs.mkShell {
+          packages = tools ++ [ haxBin fstar ];
+        };
+        # Reference gates use Node; Python stays in its owning nested flake.
+        # Do not realize hax/F*/Rust just to run these scripts or compare JSON.
+        references = pkgs.mkShell {
+          packages = [ pkgs.nodejs_22 pkgs.jq pkgs.coreutils pkgs.util-linux ];
+        };
       };
-    };
+    }) [ "x86_64-linux" "aarch64-linux" ]);
 }
