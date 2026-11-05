@@ -164,9 +164,10 @@ theorem retains its exact statement and now uses explicit normalization followed
 by synchronous SMT with fuel/ifuel1/1, preserving rlimit100 and wall budgets.
 As elsewhere, extraction
 errors, timeouts and resource-only proof failures are not accepted detection.
-These laws do not yet prove successful canonicalization on valid input, unique
-canonical output under input permutations, causal replay equivalence, text order,
-full representation validity or convergence.
+The order component alone does not prove successful canonicalization or unique
+canonical output. The separate agreement/success components below address those
+storage obligations, not causal replay equivalence, text order, full
+representation validity or whole-engine convergence.
 
 `event_key_identifies_event` proves injectivity of the arithmetic key, including
 its writer component. `ordered_unique_is_strict` therefore turns the separately
@@ -174,8 +175,8 @@ checked uniqueness and nondecreasing-order components into strict native
 `event_lt` order; `canonical_facts_are_strictly_ordered` applies it to the actual
 successful canonical result. The default `order-key-ignores-writer` control
 changes the real comparator body to counter-only comparison and must fail the
-independent key-order bridge. This still does not prove equal sets give equal
-vectors; it supplies the strict-order premise for that next argument.
+independent key-order bridge. This supplies the strict-order premise for the
+separate vector-agreement argument below.
 
 ## conditional canonical and public shared-state agreement
 
@@ -199,3 +200,25 @@ finite native witness uses all three causal schedules of a two-event Alice run
 and concurrent Bo event, checks a nonempty result, and compares public facts,
 whole birth IDs and observations. Existing trust and failure-classification
 boundaries are unchanged.
+
+## non-vacuous canonical storage success
+
+`canonical_succeeds_for_unique_ids` proves that actual native canonicalization
+returns `Ok` for every unique-event-ID input slice. The proof connects totality
+of the actual choice scan, finite cardinality of input/output IDs, successful
+append below the vector-length guard, exact step length and the actual
+LoopUtil-linked outer loop. It does not assume the result is successful.
+
+`unique_inputs_canonicalize_identically` combines this with exact-content and
+strict-order agreement: equal whole-fact support/length and unique input IDs
+imply two successful equal canonical vectors. Neither theorem states that the
+validator or interpreter succeeds. Full valid-fitting public admission progress
+and independent causal/Fugue refinement remain open.
+
+The default `canonical-step-refuses` and `canonical-refuses` modes change only
+the respective native successful return into `Err(Internal)`. They require a
+native failure and an ordinary rejection at `canonical_step_succeeds` and
+`canonical_succeeds_for_unique_ids`, respectively. Extraction failures,
+timeouts and solely resource-exhausted queries do not count. Query-local shallow
+SMT for the final step/loop assertions preserves the existing rlimit and wall
+budgets; no driver-policy change is made here.

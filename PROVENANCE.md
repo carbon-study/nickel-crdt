@@ -57,3 +57,10 @@ The conditional canonical/publication agreement extension also remains in
 standard `FStar.Seq` extensional-equality lemmas to pass from pointwise sequence
 agreement to equality of the native fact vectors. The interpretation-publication
 law targets the existing native interpreter, not an independently specified one.
+
+The canonical storage-success extension is also emitted by the same private CLI
+into `EditAccepted`. Its cardinality argument uses the already-pinned standard
+`FStar.Fin.pigeonhole` and `FStar.Classical.move_requires`; it introduces no
+project axiom or admission. It changes neither native Rust nor the committed
+hax snapshot. The result concerns the extracted storage algorithm, not runtime
+allocation guarantees or independent semantic refinement.

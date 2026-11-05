@@ -578,3 +578,80 @@ let receive_added_shared_state_agrees (left: Native.t_Replica) (left_fact: Nativ
   plan_publishes_interpretation right right_fact;
   canonical_is_permutation_independent (Alloc.Vec.impl_1__as_slice (candidate_facts left left_fact)) (Alloc.Vec.impl_1__as_slice (candidate_facts right right_fact));
   norm_spec [delta_only ["Nickel_crdt.Edit.impl_Replica__receive"; "Nickel.EditAccepted.added_shared_agreement"; "Nickel.EditAccepted.canonical_publication"; "Nickel.EditAccepted.canonical_agreement"; "Nickel.EditAccepted.plan_interpretation"]; iota; zeta_full; primops; unmeta; unascribe] (added_shared_agreement (Native.impl_Replica__receive left left_fact) (Native.impl_Replica__receive right right_fact))
+
+let choice_total (result: Result.t_Result (Option.t_Option usize) Native.t_Error) : Type0 =
+  match result with | Result.Result_Ok _ -> begin Prims.l_True end | _ -> begin Prims.l_False end
+
+let choice_bounds (input: t_Slice Native.t_Fact) (at: nat) (choice: Option.t_Option usize) : Type0 =
+  match choice with | Option.Option_None -> begin Prims.l_True end | Option.Option_Some k -> begin Prims.l_and (v k < at) (v k < Seq.length input) end
+
+let choice_always_returns (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) : Lemma (ensures choice_total (Native.choose_unseen input out)) =
+  Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (choice_bounds input) (choice_bounds input (Seq.length input)) choice_total;
+  norm_spec [delta_only ["Nickel_crdt.Edit.choose_unseen"; "Nickel.EditAccepted.choice_total"; "Nickel.EditAccepted.choice_bounds"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"; "Nickel.LoopUtil.step_safe"; "Nickel.LoopUtil.output_safe"]; iota; zeta_full; primops; unmeta; unascribe] (choice_total (Native.choose_unseen input out))
+
+let find_id_position (input: t_Slice Native.t_Fact) (id: Native.t_EventId{Native.has_fact input id}) : i: nat{Prims.l_and (i < Seq.length input) ((Seq.index input i).f_id == id)} =
+  membership_absence_exact input id;
+  match FStar.Fin.find input (fun old -> old.f_id ==? id) 0 with | Some i -> begin i end | None -> begin norm_spec [delta_only ["Nickel.EditIdentity.prefix_absent"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"; "Rust_primitives.Slice.slice_index"]; iota; zeta_full; primops] (Nickel.EditIdentity.prefix_absent input id (mk_usize 0) (Nickel.EditIdentity.length input));
+  0 end
+
+let unique_slice_nat_positions (input: t_Slice Native.t_Fact) (i: nat{i < Seq.length input}) (j: nat{j < Seq.length input}) : Lemma (requires (Nickel.EditIdentity.unique_ids input /\ (Seq.index input i).f_id == (Seq.index input j).f_id)) (ensures i == j) =
+  norm_spec [delta_only ["Nickel.EditIdentity.unique_ids"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"]; iota; zeta_full; primops] (Nickel.EditIdentity.unique_ids input);
+  assert ((Rust_primitives.Slice.slice_index input (mk_usize i)).f_id == (Rust_primitives.Slice.slice_index input (mk_usize j)).f_id);
+  assert (mk_usize i == mk_usize j)
+
+let mapped_id_position (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact{Prims.l_and (Prims.l_and (Seq.length out > 0) (Seq.length out < Seq.length input)) (forall(i: nat{i < Seq.length input}). Native.has_fact out (Seq.index input i).f_id)}) (i: nat{i < Seq.length out + 1}) : FStar.Fin.under (Seq.length out) =
+  find_id_position out (Seq.index input i).f_id
+
+let shorter_output_has_unseen (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) : Lemma (requires (Nickel.EditIdentity.unique_ids input /\ Seq.length out < Seq.length input)) (ensures Prims.l_not (forall(i: nat{i < Seq.length input}). Native.has_fact out (Seq.index input i).f_id)) =
+  let impossible () : Lemma (requires forall(i: nat{i < Seq.length input}). Native.has_fact out (Seq.index input i).f_id) (ensures Prims.l_False) = if Seq.length out ==? 0 then
+    begin membership_absence_exact out (Seq.index input 0).f_id;
+    norm_spec [delta_only ["Nickel.EditIdentity.prefix_absent"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"]; iota; zeta_full; primops] (Nickel.EditIdentity.prefix_absent out (Seq.index input 0).f_id (mk_usize 0) (Nickel.EditIdentity.length out)) end
+  else
+    begin let position = mapped_id_position input out in
+    let positions = Seq.init (Seq.length out + 1) position in
+    Seq.lemma_init_len (Seq.length out + 1) position;
+    Seq.init_index (Seq.length out + 1) position;
+    match FStar.Fin.pigeonhole positions with | (i, j) -> begin assert (i < j);
+    assert (position i == position j);
+    unique_slice_nat_positions input i j end end in
+  FStar.Classical.move_requires impossible ()
+
+let canonical_total (result: Result.t_Result facts_vec Native.t_Error) : Type0 =
+  match result with | Result.Result_Ok _ -> begin Prims.l_True end | _ -> begin Prims.l_False end
+
+let canonical_step_succeeds (input: t_Slice Native.t_Fact) (out: facts_vec) : Lemma (requires (Nickel.EditIdentity.unique_ids input /\ Seq.length (Alloc.Vec.impl_1__as_slice out) < Seq.length input)) (ensures canonical_total (Native.canonical_step input out)) =
+  choice_always_returns input (Alloc.Vec.impl_1__as_slice out);
+  selected_id_is_least input (Alloc.Vec.impl_1__as_slice out);
+  shorter_output_has_unseen input (Alloc.Vec.impl_1__as_slice out);
+  norm_spec [delta_only ["Nickel.EditAccepted.choice_total"]; iota; zeta_full] (choice_total (Native.choose_unseen input (Alloc.Vec.impl_1__as_slice out)));
+  norm_spec [delta_only ["Nickel.EditAccepted.least_result"; "Nickel.EditAccepted.least_choice"]; iota; zeta_full; primops] (least_result input (Alloc.Vec.impl_1__as_slice out) (Native.choose_unseen input (Alloc.Vec.impl_1__as_slice out)));
+  match Native.choose_unseen input (Alloc.Vec.impl_1__as_slice out) with | Result.Result_Ok (Option.Option_Some k) -> begin assert (v k < Seq.length input);
+  assert (canonical_total (Native.canonical_step input out)) by (
+    Tactics.norm [delta_only ["Nickel_crdt.Edit.canonical_step"; "Nickel_crdt.Edit.push"; "Alloc.Vec.impl_1__len"; "Alloc.Vec.impl_1__as_slice"; "Core_models.Bundle.impl__ok_or"; "Core_models.Option.impl__ok_or"; "Nickel.EditAccepted.canonical_total"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"; "Rust_primitives.Sequence.seq_len"; "Rust_primitives.Sequence.seq_to_slice"]; iota; zeta_full; primops; unmeta; unascribe];
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok Option.Option_None -> begin let all_seen (i: nat{i < Seq.length input}) : Lemma (ensures Native.has_fact (Alloc.Vec.impl_1__as_slice out) (Seq.index input i).f_id) [SMTPat (Native.has_fact (Alloc.Vec.impl_1__as_slice out) (Seq.index input i).f_id)] =
+    assert (Native.has_fact (Alloc.Vec.impl_1__as_slice out) (Rust_primitives.Slice.slice_index input (mk_usize i)).f_id);
+    norm_spec [delta_only ["Rust_primitives.Slice.slice_index"]; iota; zeta_full; primops] (Rust_primitives.Slice.slice_index input (mk_usize i)) in
+  assert Prims.l_False end | _ -> begin () end
+
+let progress_invariant (input: t_Slice Native.t_Fact) (at: nat) (out: facts_vec) : Type0 =
+  content_invariant input at out
+
+let canonical_succeeds_for_unique_ids (input: t_Slice Native.t_Fact) : Lemma (requires Nickel.EditIdentity.unique_ids input) (ensures canonical_total (Native.canonical input)) =
+  let each_step (out: facts_vec) : Lemma (requires (Seq.length (Alloc.Vec.impl_1__as_slice out) < Seq.length input /\ selected_whole_facts input out)) (ensures Prims.l_and (canonical_total (Native.canonical_step input out)) (match Native.canonical_step input out with | Result.Result_Ok next -> begin progress_invariant input (Seq.length (Alloc.Vec.impl_1__as_slice out) + 1) next end | _ -> begin Prims.l_False end)) [SMTPat (Native.canonical_step input out)] =
+    canonical_step_succeeds input out;
+    canonical_step_selects_whole_facts input out (v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice out))) in
+  Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (progress_invariant input) (fun out -> Prims.l_True) (fun (result: Result.t_Result facts_vec Native.t_Error) -> Prims.l_False);
+  assert (canonical_total (Native.canonical input)) by (
+    Tactics.norm [delta_only ["Nickel_crdt.Edit.canonical"; "Nickel.EditAccepted.canonical_total"; "Nickel.EditAccepted.progress_invariant"; "Nickel.EditAccepted.content_step_result"; "Nickel.EditAccepted.content_invariant"; "Nickel.LoopUtil.step_safe"; "Nickel.LoopUtil.output_safe"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"; "Alloc.Vec.impl__new"; "Alloc.Vec.impl_1__as_slice"; "Rust_primitives.Sequence.seq_empty"; "Rust_primitives.Sequence.seq_to_slice"]; iota; zeta_full; primops; unmeta; unascribe];
+    Tactics.smt_sync' 1 1
+  )
+
+let total_canonical_agreement (left: Result.t_Result facts_vec Native.t_Error) (right: Result.t_Result facts_vec Native.t_Error) : Type0 =
+  match left with | Result.Result_Ok a -> begin match right with | Result.Result_Ok b -> begin a == b end | _ -> begin Prims.l_False end end | _ -> begin Prims.l_False end
+
+let unique_inputs_canonicalize_identically (left: t_Slice Native.t_Fact) (right: t_Slice Native.t_Fact) : Lemma (requires (Nickel.EditIdentity.unique_ids left /\ Nickel.EditIdentity.unique_ids right /\ same_input_contents_and_length left right)) (ensures total_canonical_agreement (Native.canonical left) (Native.canonical right)) =
+  canonical_succeeds_for_unique_ids left;
+  canonical_succeeds_for_unique_ids right;
+  canonical_is_permutation_independent left right;
+  norm_spec [delta_only ["Nickel.EditAccepted.canonical_total"; "Nickel.EditAccepted.canonical_agreement"; "Nickel.EditAccepted.total_canonical_agreement"]; iota; zeta_full; primops] (total_canonical_agreement (Native.canonical left) (Native.canonical right))

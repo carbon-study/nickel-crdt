@@ -407,8 +407,8 @@ replay schedule or the visible text; in particular, event-ID order is not causal
 order. It does not prove canonicalization progress or delivery independence.
 The key encoding is also proved injective. A named corollary combines this order
 component with accepted-ID uniqueness to give strict native event-ID order for
-successful canonical results. Equality of canonical vectors across input
-permutations remains a separate obligation.
+successful canonical results. The separate storage agreement and success laws
+below connect this order to canonical-vector equality under input permutations.
 
 ## agreement after two successful commits
 
@@ -433,3 +433,29 @@ success. It proves neither that a valid fitting input is admitted nor that the
 two calls return the same disposition. Capacity-dependent accepted subsets,
 retry progress, whole-engine convergence and independent semantic refinement
 remain open. No clock, wire, undo or budget policy is adopted here.
+
+## canonical storage progress
+
+The actual `canonical` computation now has a non-vacuous success theorem:
+any input slice with unique event IDs returns `Ok`. This storage-only result
+does not require a valid causal graph or valid edit payloads; it does not run
+validation or interpretation. It therefore does not establish admission of
+valid fitting facts, causal replay progress or internal-error unreachability in
+the rest of the pipeline.
+
+The source-linked scan is total. A shorter output cannot contain every ID of a
+unique-ID input: mapping input positions into output positions would contradict
+the finite pigeonhole principle. Thus each iteration has an unseen fact to
+select. Its output is shorter than the input and so has room under the native
+vector-length guard. The existing exact-content step law advances its length;
+the actual outer loop cannot take an error return. This is a proof about the
+extracted native computation under the existing model/toolchain trust boundary,
+not a runtime allocation-success or latency guarantee.
+
+Combining success with the earlier storage agreement gives a stronger result:
+two unique-ID inputs with equal whole-fact support and length both canonicalize
+successfully to the same complete fact vector. It removes the two-success
+premise for storage canonicalization, **not** for public receive/admission or
+tree replay. Two default controls make the actual selection step, or the final
+canonical return, refuse with `Internal`. Native tests fail and the respective
+unchanged success theorem must reject ordinarily below the query limit.
