@@ -393,3 +393,15 @@ unchanged. The reused-counter control checks the actual helper through
 `EditAccepted`. Budgets and proof-integrity requirements are unchanged. This
 primitive counter calculation is not global writer fencing or a proof of valid
 fitting edit/admission progress.
+
+## canonical fact storage order
+
+The source-linked order component follows the existing implementation, without
+changing its representation: successful canonicalization returns facts in
+nondecreasing event-ID key order (Alice before Bo, then each writer's counter).
+The proof follows the actual least-unseen selection scan, append and outer loop,
+then the actual public receive/edit publication. Construction establishes this
+component, and all return paths preserve it from an ordered before-state.
+Accepted-ID uniqueness is proved separately. This does not order the causal
+replay schedule or the visible text; in particular, event-ID order is not causal
+order. It does not prove canonicalization progress or delivery independence.

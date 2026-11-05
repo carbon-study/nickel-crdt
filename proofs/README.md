@@ -144,3 +144,26 @@ The existing fresh-extraction proof gate requires byte-identical positive output
 mutant extractions still use their unchanged semantic proof obligations.
 This makes translation changes reviewable, without proving Rust/F* semantic
 equivalence or removing hax from the trusted boundary.
+
+## canonical fact-order component
+
+`EditAccepted` now relates the actual `event_lt` to a mathematical event key:
+Alice counters precede Bo counters, and counters order each writer's events.
+This is accepted-fact storage order, not causal scheduling or Fugue text order.
+The actual selection scan chooses a least unseen key; the checked append/loop
+argument proves nondecreasing keys in every successful canonical result. Actual
+`receive`/`edit` publish that result, and constructor establishment plus neutrality
+on other returns give all-return preservation from an ordered before-state.
+Accepted-ID uniqueness remains a separate established component.
+
+The native public-state checks require strict event-ID order. The two focused
+controls reverse only the selection comparison, or compute canonicalization but
+discard its result at publication. They target the least-selection theorem and
+the actual canonical-publication theorem respectively. That existing publication
+theorem retains its exact statement and now uses explicit normalization followed
+by synchronous SMT with fuel/ifuel1/1, preserving rlimit100 and wall budgets.
+As elsewhere, extraction
+errors, timeouts and resource-only proof failures are not accepted detection.
+These laws do not yet prove successful canonicalization on valid input, unique
+canonical output under input permutations, causal replay equivalence, text order,
+full representation validity or convergence.

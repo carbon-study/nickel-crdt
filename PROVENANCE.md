@@ -45,3 +45,9 @@ The existing fresh-extraction proof gate requires byte-identical positive output
 mutant extractions still use their unchanged semantic proof obligations.
 This makes translation changes reviewable, without proving Rust/F* semantic
 equivalence or removing hax from the trusted boundary.
+
+The canonical fact-order extension remains in `EditAccepted`, emitted by the
+same pinned private CLI above. Its logical precondition conversion uses the
+pinned standard `FStar.Classical.move_requires`/`move_requires_2` and
+`forall_intro_2`; no project axiom is added.
+The native Rust/hax snapshots are unchanged by this proof extension.

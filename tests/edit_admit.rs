@@ -6,6 +6,10 @@ fn new(writer: Option<Writer>) -> Replica {
 }
 // Public-state witness for the proved accepted-ID invariant.
 fn assert_unique(r: &Replica) {
+    assert!(
+        r.facts().windows(2).all(|pair| pair[0].id < pair[1].id),
+        "accepted facts must be in strict event-ID order"
+    );
     for (i, fact) in r.facts().iter().enumerate() {
         for old in &r.facts()[..i] {
             assert_ne!(fact.id, old.id, "duplicate accepted event ID");
