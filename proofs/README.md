@@ -15,6 +15,23 @@ settings and proof obligations are unchanged. Successful model outputs retain
 `check-proof-timeouts.mjs` exercises the actual make/timeout wiring using an
 explicitly simulated compiler; those fixtures never enter the real model cache.
 
+The project make driver has a separate graph-derived bound:
+`N * (moduleSeconds + 2) + 10` seconds, where `N` is the number of distinct
+project compiler targets reachable from the requested roots in F*'s actual
+dependency graph. Interfaces and implementations count separately. Unrelated
+workspace files, extraction targets and immutable imported models do not count;
+checked project targets still count on warm runs. The serial sum is not divided
+by make's job count. The two seconds per target cover compiler timeout kill
+grace; ten seconds cover make overhead. For the current seven-module edit chain
+this is 444 seconds, while every F* process remains capped at 60 seconds and
+every solver query at rlimit100. Dependency discovery remains independently
+capped at 60 seconds; model bootstrap keeps its explicit 600-second driver.
+Project callers cannot enlarge the derived bound through an explicit override.
+The selected target list, policy and bounds are printed and retained in
+`last-check.stats.json`. The simulated-compiler gate tests a serial chain,
+separate compiler/aggregate timeouts, SIGTERM-resistant compiler kill grace,
+and normal rejection; none is a proof-success substitute.
+
 The smoke fixture establishes no CRDT convergence, ordering, undo, codec, Wasm or browser property.
 
 The [prospective API/verification contract](../docs/api-verification.md) lists the proposed V1–V9 obligations. None is currently discharged. The [undo analysis](../docs/undo-semantics.md) records the semantic/algorithmic stop gate; the loop proof does not bypass it.
