@@ -328,11 +328,48 @@ neutral-return proofs. The setter has a deliberate pattern on the actual
 calculation law and uses that setter contract, retaining its previous shallow
 SMT request. All parameters and postconditions remain unchanged. No wrapper
 hides a reduction list; a scoped entry-gate recurrence guard rejects known
-normalization forms in this family. Other proof families and the simple/fallible
-for-loop interface still need migration; the whole reform is not complete.
+normalization forms in this family. LoopUtil and Smoke are migrated below.
+Other proof families and the simplified fallible/break interface still need
+migration; the whole reform is not complete.
 
 The three counter controls still cover arithmetic, setter implementation and
 the real argument separately. Both public neutral-return controls remain too.
 They require the same native failures, fresh extraction and ordinary named
 source-bound rejections. No Rust/hax/model change, axiom, compiler/query cap or
 graph-budget change accompanies this refactor.
+
+
+## ordinary for-loop invariant rule
+
+For a plain range loop, supply the invariant before the first iteration, show
+that the body preserves it at each executed index, and use it at the end.
+`plain_preserve` proves this rule for the actual pinned hax `fold_range`.
+`plain_preserve_any` provides the same rule with a pattern matching the
+anonymous callback emitted by hax, so a caller need not copy that callback or
+encode it as an Option/ControlFlow interpreter. Its semantic invariant has a
+bounded index (zero through the final index); preservation is required only
+for indices where the body executes. Hax's own annotation remains separate
+and is not treated as a proof of preservation.
+
+The actual parity caller in Smoke is:
+
+```text
+plain_preserve_any(0, n,
+  (at, s) => parity(s, n - at) == parity(value, n),
+  (s) => s == parity(value, n))
+```
+
+Here the invariant says that the remaining toggles finish at the desired
+answer. The elementary one-toggle preservation condition checks automatically;
+the rule handles loop induction. No auxiliary parity-step wrapper is needed. The source uses the native usize constructors/projections at that
+boundary. This is applied to the actual extracted Rust loop, not a second
+implementation accepted in its place.
+
+All existing LoopUtil/Smoke universal statements remain intact, including the
+legacy reference-interpreter bridge and its wrong-native-body control. Their
+proof bodies now use ordinary induction, contracts and automatic checking
+without explicit normalization. The shared entry fence covers Atomic,
+LoopUtil and Smoke in both proof gates; it catches known normalization forms,
+not arbitrary aliases. Existing fallible/break adapters remain available with
+their exact statements, but a simpler fallible invariant interface and migration
+of the remaining application proof families are still separate reform work.

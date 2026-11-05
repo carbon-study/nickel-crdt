@@ -91,3 +91,13 @@ above. All five universally quantified lemma statements and parameters are
 unchanged, with setter pattern metadata added. Automatic checking replaces the
 manual normalization bodies; the actual public counter call retains its prior
 shallow SMT request. Rust and the committed hax translation remain unchanged.
+
+The LoopUtil/Smoke proof reform uses the same pinned private emitter. Every
+existing universal lemma signature is unchanged. All explicit normalization is
+removed from those two authored modules, including the interpreter boundary
+laws. The new plain-for invariant rule is derived recursively over the pinned
+`Rust_primitives.Hax.Folds.fold_range`; its caller supplies initialization,
+step preservation and the final condition. It does not trust hax's annotation
+as an invariant. Smoke's existing exact-parity theorem now uses that rule on
+the actual extracted Rust loop. No native source, hax snapshot, imported model,
+axiom, compiler/query limit or driver-budget formula changes accompany this cut.
