@@ -222,3 +222,32 @@ native failure and an ordinary rejection at `canonical_step_succeeds` and
 timeouts and solely resource-exhausted queries do not count. Query-local shallow
 SMT for the final step/loop assertions preserves the existing rlimit and wall
 budgets; no driver-policy change is made here.
+
+## accepted Unicode scalar domain
+
+The independent `unicode_scalar` predicate excludes surrogate code points and
+words above `0x10ffff`. `scalar_validation_is_sound` follows the actual indexed
+native helper; `valid_scalar_input_succeeds` separately proves that valid input
+passes that helper. `successful_validation_has_valid_scalars` checks its actual
+call in `validate_new`, including the error-only early returns of the two prior
+range loops. `receive_added_fact_has_valid_scalars` and
+`edit_authors_only_valid_scalars` connect the result to successful public calls.
+Constructor establishment plus exact-content publication and neutral returns
+prove all-return preservation of `facts_scalars_valid` for both public calls.
+
+The scalar loop is factored into a helper and the two preceding iterator loops
+become indexed loops because the pinned generic `fold_return` supplies no
+semantic body/postcondition for the needed early-return law. The existing
+LoopUtil range theorem proves it without a project axiom. The updated committed
+native hax snapshot must match fresh extraction as usual.
+
+Default `scalar-accepts-invalid`, `scalar-call-passes-empty` and
+`scalar-refuses-valid` controls target helper soundness, actual call-site
+validation soundness, and helper completeness, respectively. Native failures,
+fresh extraction and ordinary named proof rejections are all required. No
+resource-only failure counts. `scalar-count-loop-bypasses-check` additionally
+returns success early from the preceding counting loop; it must fail actual
+validator soundness, witnessing the range-loop control-flow obligation.
+This component does not establish node/scalar
+correspondence, complete tree validity, independent replay refinement or public
+valid-fitting-input success.

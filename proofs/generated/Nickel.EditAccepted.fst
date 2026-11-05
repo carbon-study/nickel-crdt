@@ -655,3 +655,91 @@ let unique_inputs_canonicalize_identically (left: t_Slice Native.t_Fact) (right:
   canonical_succeeds_for_unique_ids right;
   canonical_is_permutation_independent left right;
   norm_spec [delta_only ["Nickel.EditAccepted.canonical_total"; "Nickel.EditAccepted.canonical_agreement"; "Nickel.EditAccepted.total_canonical_agreement"]; iota; zeta_full; primops] (total_canonical_agreement (Native.canonical left) (Native.canonical right))
+
+let unicode_scalar (scalar: u32) : Type0 =
+  Prims.l_and (v scalar <= 1114111) (Prims.l_or (v scalar < 55296) (v scalar > 57343))
+
+let scalar_prefix (scalars: t_Slice u32) (finish: nat) : Type0 =
+  forall(i: usize{v i < v (Core_models.Slice.impl__len scalars)}). v i < finish ==> unicode_scalar (Rust_primitives.Slice.slice_index scalars i)
+
+let scalars_valid (scalars: t_Slice u32) : Type0 =
+  scalar_prefix scalars (v (Core_models.Slice.impl__len scalars))
+
+let scalar_check_result (scalars: t_Slice u32) (result: Result.t_Result unit Native.t_Error) : Type0 =
+  match result with | Result.Result_Ok _ -> begin scalars_valid scalars end | _ -> begin Prims.l_True end
+
+let scalar_check_invariant (scalars: t_Slice u32) (at: nat) (state: unit) : Type0 =
+  scalar_prefix scalars at
+
+let scalar_validation_is_sound (scalars: t_Slice u32) : Lemma (ensures scalar_check_result scalars (Native.validate_scalars scalars)) =
+  Nickel.LoopUtil.preserve_any (mk_usize 0) (Core_models.Slice.impl__len scalars) (scalar_check_invariant scalars) (fun (_: unit) -> scalars_valid scalars) (scalar_check_result scalars);
+  norm_spec [delta_only ["Nickel_crdt.Edit.validate_scalars"; "Nickel_crdt.Edit.invalid"; "Nickel.EditAccepted.scalar_check_result"; "Nickel.EditAccepted.scalar_check_invariant"; "Nickel.EditAccepted.scalars_valid"; "Nickel.EditAccepted.scalar_prefix"; "Nickel.EditAccepted.unicode_scalar"; "Nickel.LoopUtil.step_safe"; "Nickel.LoopUtil.output_safe"]; iota; zeta_full; primops; unmeta; unascribe] (scalar_check_result scalars (Native.validate_scalars scalars))
+
+let valid_scalar_input_succeeds (scalars: t_Slice u32) : Lemma (requires scalars_valid scalars) (ensures Native.validate_scalars scalars == Result.Result_Ok ()) =
+  Nickel.LoopUtil.preserve_any (mk_usize 0) (Core_models.Slice.impl__len scalars) (fun (_: nat) (_: unit) -> Prims.l_True) (fun (_: unit) -> Prims.l_True) (fun (_: Result.t_Result unit Native.t_Error) -> Prims.l_False);
+  norm_spec [delta_only ["Nickel_crdt.Edit.validate_scalars"; "Nickel_crdt.Edit.invalid"; "Nickel.EditAccepted.scalars_valid"; "Nickel.EditAccepted.scalar_prefix"; "Nickel.EditAccepted.unicode_scalar"; "Nickel.LoopUtil.step_safe"; "Nickel.LoopUtil.output_safe"]; iota; zeta_full; primops; unmeta; unascribe] (Native.validate_scalars scalars)
+
+let fact_scalars_valid (fact: Native.t_Fact) : Type0 =
+  scalars_valid (Alloc.Vec.impl_1__as_slice fact.f_insert)
+
+let validated_scalars (fact: Native.t_Fact) (result: Result.t_Result unit Native.t_Error) : Type0 =
+  match result with | Result.Result_Ok _ -> begin fact_scalars_valid fact end | _ -> begin Prims.l_True end
+
+let no_validation_success (result: Result.t_Result unit Native.t_Error) : Type0 =
+  match result with | Result.Result_Err _ -> begin Prims.l_True end | _ -> begin Prims.l_False end
+
+let successful_validation_has_valid_scalars (facts: t_Slice Native.t_Fact) (limits: Native.t_Limits) (fact: Native.t_Fact) : Lemma (ensures validated_scalars fact (Native.impl_Replica__validate_new facts limits fact)) =
+  Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (fun (_: nat) (_: unit) -> Prims.l_True) (fun (_: unit) -> Prims.l_True) no_validation_success;
+  Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (fun (_: nat) (_: usize) -> Prims.l_True) (fun (_: usize) -> Prims.l_True) no_validation_success;
+  scalar_validation_is_sound (Alloc.Vec.impl_1__as_slice fact.f_insert);
+  norm_spec [delta_only ["Nickel.EditAccepted.scalar_check_result"]; iota; zeta_full] (scalar_check_result (Alloc.Vec.impl_1__as_slice fact.f_insert) (Native.validate_scalars (Alloc.Vec.impl_1__as_slice fact.f_insert)));
+  assert (validated_scalars fact (Native.impl_Replica__validate_new facts limits fact)) by (
+    Tactics.norm [delta_only ["Nickel_crdt.Edit.impl_Replica__validate_new"; "Nickel.EditAccepted.validated_scalars"; "Nickel.EditAccepted.fact_scalars_valid"; "Nickel.EditAccepted.scalar_check_result"; "Nickel.EditAccepted.no_validation_success"; "Nickel.LoopUtil.step_safe"; "Nickel.LoopUtil.output_safe"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"]; iota; zeta_full; primops; unmeta; unascribe];
+    Tactics.smt_sync' 1 1
+  )
+
+let added_scalars (fact: Native.t_Fact) (outcome: Native.t_Replica & Result.t_Result Native.t_Admission Native.t_Error) : Type0 =
+  match outcome with | (_, Result.Result_Ok Native.Admission_Added) -> begin fact_scalars_valid fact end | _ -> begin Prims.l_True end
+
+let receive_added_fact_has_valid_scalars (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures added_scalars fact (Native.impl_Replica__receive before fact)) =
+  successful_validation_has_valid_scalars (Alloc.Vec.impl_1__as_slice before.f_facts) before.f_limits fact;
+  norm_spec [delta_only ["Nickel.EditAccepted.validated_scalars"]; iota; zeta_full] (validated_scalars fact (Native.impl_Replica__validate_new (Alloc.Vec.impl_1__as_slice before.f_facts) before.f_limits fact));
+  assert (added_scalars fact (Native.impl_Replica__receive before fact)) by (
+    Tactics.norm [delta_only ["Nickel_crdt.Edit.impl_Replica__receive"; "Nickel_crdt.Edit.impl_Replica__plan"; "Nickel.EditAccepted.added_scalars"; "Nickel.EditAccepted.validated_scalars"]; iota; zeta_full; primops; unmeta; unascribe];
+    Tactics.smt_sync' 1 1
+  )
+
+let facts_scalars_valid (facts: facts_vec) : Type0 =
+  forall(fact: Native.t_Fact). fact_present (Alloc.Vec.impl_1__as_slice facts) fact ==> fact_scalars_valid fact
+
+let receive_scalars_preserved (outcome: Native.t_Replica & Result.t_Result Native.t_Admission Native.t_Error) : Type0 =
+  match outcome with | (next, _) -> begin facts_scalars_valid next.f_facts end
+
+let receive_preserves_scalar_validity (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (requires facts_scalars_valid before.f_facts) (ensures receive_scalars_preserved (Native.impl_Replica__receive before fact)) =
+  Nickel.EditAtomic.receive_rejection_unchanged before fact;
+  receive_added_has_exact_contents before fact;
+  receive_added_fact_has_valid_scalars before fact;
+  norm_spec [delta_only ["Nickel.EditAccepted.receive_scalars_preserved"; "Nickel.EditAccepted.facts_scalars_valid"; "Nickel.EditAccepted.added_exact_contents"; "Nickel.EditAccepted.appended_contents"; "Nickel.EditAccepted.added_scalars"; "Nickel.EditAtomic.receive_neutral"]; iota; zeta_full; primops] (receive_scalars_preserved (Native.impl_Replica__receive before fact))
+
+let authored_scalars (outcome: Native.t_Replica & Result.t_Result Native.t_Local Native.t_Error) : Type0 =
+  match outcome with | (_, Result.Result_Ok (Native.Local_Authored fact)) -> begin fact_scalars_valid fact end | _ -> begin Prims.l_True end
+
+let edit_authors_only_valid_scalars (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) (delete: Alloc.Vec.t_Vec Native.t_BirthId Alloc.Alloc.t_Global) : Lemma (ensures authored_scalars (Native.impl_Replica__edit before gap insert delete)) =
+  Nickel.EditCommit.authored_fact_replays_same_commit before gap insert delete;
+  match Native.impl_Replica__edit before gap insert delete with | (_, Result.Result_Ok (Native.Local_Authored fact)) -> begin receive_added_fact_has_valid_scalars before fact end | _ -> begin () end;
+  norm_spec [delta_only ["Nickel.EditAccepted.authored_scalars"; "Nickel.EditAccepted.added_scalars"; "Nickel.EditCommit.same_commit"]; iota; zeta_full; primops] (authored_scalars (Native.impl_Replica__edit before gap insert delete))
+
+let edit_scalars_preserved (outcome: Native.t_Replica & Result.t_Result Native.t_Local Native.t_Error) : Type0 =
+  match outcome with | (next, _) -> begin facts_scalars_valid next.f_facts end
+
+let edit_preserves_scalar_validity (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) (delete: Alloc.Vec.t_Vec Native.t_BirthId Alloc.Alloc.t_Global) : Lemma (requires facts_scalars_valid before.f_facts) (ensures edit_scalars_preserved (Native.impl_Replica__edit before gap insert delete)) =
+  Nickel.EditAtomic.edit_rejection_or_empty_unchanged before gap insert delete;
+  edit_authored_has_exact_contents before gap insert delete;
+  edit_authors_only_valid_scalars before gap insert delete;
+  norm_spec [delta_only ["Nickel.EditAccepted.edit_scalars_preserved"; "Nickel.EditAccepted.facts_scalars_valid"; "Nickel.EditAccepted.authored_exact_contents"; "Nickel.EditAccepted.appended_contents"; "Nickel.EditAccepted.authored_scalars"; "Nickel.EditAtomic.edit_neutral"]; iota; zeta_full; primops] (edit_scalars_preserved (Native.impl_Replica__edit before gap insert delete))
+
+let new_scalars_valid (outcome: Result.t_Result Native.t_Replica Native.t_Error) : Type0 =
+  match outcome with | Result.Result_Ok state -> begin facts_scalars_valid state.f_facts end | _ -> begin Prims.l_True end
+
+let new_establishes_scalar_validity (writer: Option.t_Option Native.t_Writer) (limits: Native.t_Limits) : Lemma (ensures new_scalars_valid (Native.impl_Replica__new writer limits)) =
+  norm_spec [delta_only ["Nickel_crdt.Edit.impl_Replica__new"; "Nickel.EditAccepted.new_scalars_valid"; "Nickel.EditAccepted.facts_scalars_valid"; "Nickel.EditAccepted.fact_present"; "Alloc.Vec.impl__new"; "Alloc.Vec.impl_1__as_slice"; "Rust_primitives.Sequence.seq_empty"; "Rust_primitives.Sequence.seq_to_slice"]; iota; zeta_full; primops] (new_scalars_valid (Native.impl_Replica__new writer limits))

@@ -459,3 +459,41 @@ premise for storage canonicalization, **not** for public receive/admission or
 tree replay. Two default controls make the actual selection step, or the final
 canonical return, refuse with `Internal`. Native tests fail and the respective
 unchanged success theorem must reject ordinarily below the query limit.
+
+## accepted scalar-domain component
+
+A source-linked scalar-domain invariant now reaches the public calls:
+construction establishes it; every return from `receive` and `edit` preserves
+it from a scalar-valid before-state. Every fact newly returned by `Authored`,
+and every fact newly accepted with `Added`, contains only Unicode scalar
+values: words at most `0x10ffff`, excluding `0xd800..=0xdfff`. This is a property
+of all retained fact payloads, not yet a proof that each retained tree node has
+its corresponding fact's scalar or that observation enumerates exactly those
+births.
+
+The validator uses an indexed scalar-check helper. Its soundness follows the
+actual loop's checked prefix; a separate completeness lemma says scalar-valid
+input passes this helper. Completeness of this helper does **not** promise
+public admission: dependency, placement, identity and capacity checks remain.
+Exact fact publication and public neutral-return laws compose the scalar check
+into the whole-fact invariant. Native tests include valid range boundaries and
+invalid surrogate/out-of-range words after a valid prefix, with unchanged
+whole instances on rejection.
+
+Two earlier validator loops (predecessor checking and birth counting) also use
+indexed ranges. At the pinned hax version, their previous generic iterator
+`fold_return` has no executable definition or semantic postcondition. It could
+not establish that those loops return early only with errors, rather than
+bypassing the later scalar check with a successful return. The checked range
+semantics now establishes that control-flow fact; the Rust checks and their
+order are preserved. The committed hax snapshot exposes the changes. This is
+not a proof of old/new Rust semantic equivalence or removal of the translator
+from the trusted boundary.
+
+Default controls admit invalid scalar words, pass an empty slice at the real
+validator call site, make a preceding counting loop return success before the
+check, or make the helper reject valid inputs. Each must fail native tests and
+an unchanged named proof ordinarily below the query limit.
+No budget, wire, decoder or resource-policy change is made. The remaining
+well-formedness, causal/Fugue refinement and valid-fitting-input progress
+obligations are still open.

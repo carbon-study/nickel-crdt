@@ -311,3 +311,41 @@ fn successful_permuted_admissions_publish_identical_facts_and_tree() {
         assert_eq!(replica.observe(), results[0].observe());
     }
 }
+
+#[test]
+fn scalar_boundaries_and_late_invalid_payload_are_transactional() {
+    let values = [0, 0xd7ff, 0xe000, 0x10ffff];
+    let (a, fact) = edit(
+        new(Some(Writer::Alice)),
+        0,
+        &values
+            .iter()
+            .map(|&v| char::from_u32(v).unwrap())
+            .collect::<String>(),
+        vec![],
+    );
+    assert_eq!(fact.insert, values);
+    let b = receive(new(None), &fact);
+    assert_eq!(a.observe(), b.observe());
+    for scalar in [0xd800, 0xdfff, 0x110000, u32::MAX] {
+        let before = new(Some(Writer::Alice));
+        let (after, result) = before.clone().edit(0, vec![0x61, scalar], vec![]);
+        assert_eq!(result, Err(Error::Invalid(Invalid::Scalar)));
+        assert_eq!(after, before);
+        let malformed = Fact {
+            id: EventId {
+                writer: Writer::Bo,
+                counter: 1,
+            },
+            after: vec![],
+            insert: vec![0x61, scalar],
+            delete: vec![],
+            gap: Some(0),
+        };
+        for observer in [new(None), receive(new(None), &fact)] {
+            let (after, result) = observer.clone().receive(&malformed);
+            assert_eq!(result, Err(Error::Invalid(Invalid::Scalar)));
+            assert_eq!(after, observer);
+        }
+    }
+}

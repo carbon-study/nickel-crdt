@@ -64,3 +64,13 @@ into `EditAccepted`. Its cardinality argument uses the already-pinned standard
 project axiom or admission. It changes neither native Rust nor the committed
 hax snapshot. The result concerns the extracted storage algorithm, not runtime
 allocation guarantees or independent semantic refinement.
+
+The scalar-domain extension uses the same pinned emitter and existing LoopUtil
+range semantics. The native scalar helper and two preceding validator loops
+now extract as executable `fold_range_return` rather than the pinned opaque
+generic iterator `fold_return`. No semantics is invented for that opaque value;
+no model axiom or budget is changed. The committed native hax snapshot is
+refreshed and checked against fresh extraction. Other native function snapshot
+changes are generated hoist-variable alpha-renaming; the validator body and
+new scalar helper carry the substantive translation changes. This does not
+prove old/new Rust equivalence or eliminate the hax trust boundary.

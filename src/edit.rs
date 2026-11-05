@@ -155,6 +155,16 @@ const MAX_COUNTER: u64 = 9_007_199_254_740_991;
 fn invalid(reason: Invalid) -> Error {
     Error::Invalid(reason)
 }
+// Indexed so the extracted loop has an executable range semantics at this pin.
+fn validate_scalars(scalars: &[u32]) -> Result<(), Error> {
+    for i in 0..scalars.len() {
+        let scalar = scalars[i];
+        if scalar > 0x10ffff || (scalar >= 0xd800 && scalar <= 0xdfff) {
+            return Err(invalid(Invalid::Scalar));
+        }
+    }
+    Ok(())
+}
 fn duplicate_events(xs: &[EventId]) -> bool {
     for i in 0..xs.len() {
         for j in 0..i {
@@ -663,7 +673,8 @@ impl Replica {
         {
             return Err(invalid(Invalid::Predecessor));
         }
-        for e in facts.iter() {
+        for i in 0..facts.len() {
+            let e = &facts[i];
             if has_event(&selected, e.id)
                 && e.id.writer == fact.id.writer
                 && e.id.counter >= fact.id.counter
@@ -675,8 +686,8 @@ impl Replica {
             return Err(Error::Capacity(Capacity::Scalars));
         }
         let mut births = 0;
-        for f in facts.iter() {
-            births = add(births, f.insert.len())?;
+        for i in 0..facts.len() {
+            births = add(births, facts[i].insert.len())?;
         }
         if add(births, fact.insert.len())? > limits.births {
             return Err(Error::Capacity(Capacity::Births));
@@ -684,11 +695,7 @@ impl Replica {
         if fact.delete.len() > 512 {
             return Err(Error::Capacity(Capacity::DeleteTargets));
         }
-        for scalar in fact.insert.iter() {
-            if *scalar > 0x10ffff || (*scalar >= 0xd800 && *scalar <= 0xdfff) {
-                return Err(invalid(Invalid::Scalar));
-            }
-        }
+        validate_scalars(&fact.insert)?;
         let mut basis = Vec::new();
         for f in facts.iter() {
             if has_event(&selected, f.id) {
