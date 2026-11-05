@@ -23,7 +23,7 @@ reference closure. These are proofs about the hax translation of actual source;
 hax and its imported models remain trusted. Committed extraction snapshots
 make translation changes reviewable, not proved equivalent to Rust.
 
-Two distinctions determine the remaining work:
+Three distinctions determine the remaining work:
 
 - Equal accepted whole-fact sets can yield identical canonical vectors and
   rebuilt trees without proving those trees implement the independent ordering
@@ -31,6 +31,13 @@ Two distinctions determine the remaining work:
 - The same *offered* facts can produce different accepted subsets at capacity.
   Keep the native counterexamples. Neither this merge nor the plan adopts a
   new budget policy or promises over-capacity synchronization.
+- Same-ID facts with different content also retain whichever arrives first.
+  The joint exit requires an **identity-consistent offered history**: every
+  event ID denotes exactly one whole fact, including any fact already accepted
+  in the initial state. See the [cloned-writer witness](rust-edit-admit.md#domain-and-representation).
+  Conflicting histories remain an explicit exclusion, not a proposed conflict
+  resolution rule. External producer fencing is a caller obligation; neither
+  `Clone` nor the local allocator enforces it.
 
 ## 1. close reachable causal well-formedness
 
@@ -75,6 +82,17 @@ universal law to the extracted loops. Missing references, cycles outside the
 reachable domain, skipped closure expansion and wrong readiness/author-basis
 mutations remain discriminators. An executed corpus supports this law but
 cannot replace it.
+
+### fit/domain preflight before semantic refinement
+
+After slice 2, define slice 4's valid-input/fit predicate and probe the actual
+native fallible paths **before** investing in slice 3's full refinement proof.
+Include intermediate structures and prefix resources, and retain any valid
+fitting refusal as a blocker. This can expose a necessary representation repair
+while there is less refinement work to redo. The native probes do not close
+public progress. Slice 4's scheduler dependency is on slice 2; its full proof
+and slice 3's semantic proof must meet at the joint exit, rather than treating
+3 → 4 as a strict logical dependency. Keep one active deliverable at a time.
 
 ## 3. connect authoring and retained-node interpretation to meaning
 
@@ -124,19 +142,32 @@ refusal controls and unchanged public theorems must detect arbitrary refusal
 and internal-error injection. If an actual valid fitting history fails, retain
 it as a blocker; do not shrink the domain silently or switch resource policy.
 
-**Joint exit of slices 2–4:** for one fixed finite valid fact set, prove that
-all legal causal delivery schedules whose prefixes meet the stated fit
-conditions admit that same set and yield the same shared interpretation.
+**Joint exit of slices 2–4:** start from the same shared state and limits,
+and one fixed finite valid, identity-consistent fact set extending that state.
+Prove that all legal causal delivery schedules whose prefixes meet the stated
+fit conditions admit that same set and yield the same shared interpretation.
 Compose exact publication/canonical rebuild agreement with semantic refinement
 and public progress; include the independent semantics' schedule-independence
 law wherever that derivation needs it. This concerns delivery of already
 authored facts, not changing an author's knowledge before authoring. It excludes
-the retained over-capacity different-subset cases. Bounded schedule tests do not
-discharge this universal obligation.
+both the retained over-capacity different-subset cases and same-ID conflicting
+histories. Bounded schedule tests do not discharge this universal obligation.
 
-These four slices, including that joint exit, close the edit-only argument. They do **not** close the
-roadmap milestone that includes Undo/Redo/Restore, or constitute a versioned
-release by themselves.
+Extend the exit to finite receive traces with neutral attempts by proving a
+stuttering reduction: deleting calls returning Missing, Duplicate, invalidity
+or another unchanged-state result leaves the same final instance. The remaining
+Added subsequence is a legal causal extension of the initial accepted state.
+Agreement with the fixed target set additionally requires coverage: every target
+fact not already held must eventually be offered/retried when its prerequisites
+are available and the fit conditions hold. Unrelated offers are allowed here
+only when they return neutrally; an extra Added fact changes the target set.
+Infinite Missing retries need not progress. The library supplies no transport,
+automatic retry or fairness guarantee, and a neutral Conflict does not erase
+the effect of having accepted its conflicting alternative first.
+
+These four slices, including that joint exit, close the edit-only argument.
+They do **not** close the roadmap milestone that includes Undo/Redo/Restore,
+or constitute a versioned release by themselves.
 
 ## 5. make the established cut usable
 

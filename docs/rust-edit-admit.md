@@ -59,6 +59,42 @@ advance its local allocator; importing old own-writer facts into a fresh
 producer can therefore cause an ID conflict on its next edit. Writer tags are
 consistency inputs, not authenticated identities or a Byzantine protocol.
 
+Cloning an author does not acquire a second lease. If both copies author from
+the same counter, two different facts can have the same ID. Each observer keeps
+the first, rejecting the second unchanged as Conflict. This is a separate
+arrival-dependent accepted-subset boundary from capacity, and lies outside the
+identity-consistent history premise of the continuation plan. This native
+public-API witness intentionally violates producer fencing:
+
+```rust
+use nickel_crdt::edit::*;
+fn main() {
+    let producer = Replica::new(Some(Writer::Alice), Limits::default()).unwrap();
+    let (_, Ok(Local::Authored(x))) = producer.clone().edit(0, vec!['x' as u32], vec![])
+        else { panic!("expected authored x") };
+    let (_, Ok(Local::Authored(y))) = producer.edit(0, vec!['y' as u32], vec![])
+        else { panic!("expected authored y") };
+    assert_eq!(x.id, y.id);
+    assert_ne!(x, y);
+    let observer = Replica::new(None, Limits::default()).unwrap();
+    let (left, added) = observer.clone().receive(&x);
+    assert_eq!(added, Ok(Admission::Added));
+    let (right, added) = observer.receive(&y);
+    assert_eq!(added, Ok(Admission::Added));
+    let before_left = left.clone();
+    let (left, conflict) = left.receive(&y);
+    assert_eq!(conflict, Err(Error::Invalid(Invalid::Conflict)));
+    assert_eq!(left, before_left);
+    let before_right = right.clone();
+    let (right, conflict) = right.receive(&x);
+    assert_eq!(conflict, Err(Error::Invalid(Invalid::Conflict)));
+    assert_eq!(right, before_right);
+    assert_eq!(left.facts(), &[x]);
+    assert_eq!(right.facts(), &[y]);
+    assert_ne!(left.observe().unwrap(), right.observe().unwrap());
+}
+```
+
 An event ID is `(writer, counter)`, with counters in `1..=2^53-1`. A birth ID
 adds its scalar's index within the event. Insertions derive their IDs from that
 index; callers cannot pair a different birth ID with a scalar. The same-writer
