@@ -409,3 +409,27 @@ The key encoding is also proved injective. A named corollary combines this order
 component with accepted-ID uniqueness to give strict native event-ID order for
 successful canonical results. Equality of canonical vectors across input
 permutations remains a separate obligation.
+
+## agreement after two successful commits
+
+Two receivers can finish with different last offers and still have exactly the
+same candidate facts: the old accepted facts plus the offered fact. When those
+two candidate inputs have the same whole-fact members and length, and **both
+calls return `Added`**, the new source-linked theorem gives equal committed
+fact vectors and equal retained trees. It compares shared facts/tree only, not
+private writers, counters or limits.
+
+The argument first proves that strict event-key order and unique IDs determine
+one vector for a given whole-fact set and length. It applies that result to the
+actual successful `canonical` calls. A separate actual-plan law binds the
+published tree to `interpret` of the published facts; equal canonical vectors
+therefore give equal trees. This is determinism of the existing structural
+rebuild, not its refinement to an independent causal/Fugue specification.
+
+The input predicate is whole-fact membership plus equal length. It includes
+permutations; it does not claim to characterize multiset permutation for
+malformed duplicate-containing inputs. The output theorem is conditional on
+success. It proves neither that a valid fitting input is admitted nor that the
+two calls return the same disposition. Capacity-dependent accepted subsets,
+retry progress, whole-engine convergence and independent semantic refinement
+remain open. No clock, wire, undo or budget policy is adopted here.

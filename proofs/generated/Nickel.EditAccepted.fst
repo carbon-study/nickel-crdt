@@ -482,3 +482,99 @@ let canonical_facts_are_strictly_ordered (input: t_Slice Native.t_Fact) : Lemma 
   canonical_orders_facts input;
   match Native.canonical input with | Result.Result_Ok out -> begin ordered_unique_is_strict out end | _ -> begin () end;
   norm_spec [delta_only ["Nickel.EditAccepted.strict_canonical_result"; "Nickel.EditAccepted.canonical_result_unique"; "Nickel.EditAccepted.order_step_result"; "Nickel.EditAccepted.order_frontier"]; iota; zeta_full] (strict_canonical_result (Native.canonical input))
+
+let prefix_equal (left: facts_vec) (right: facts_vec) (at: nat) : Type0 =
+  forall(i: nat{Prims.l_and (i < Seq.length (Alloc.Vec.impl_1__as_slice left)) (i < Seq.length (Alloc.Vec.impl_1__as_slice right))}). i < at ==> Seq.index (Alloc.Vec.impl_1__as_slice left) i == Seq.index (Alloc.Vec.impl_1__as_slice right) i
+
+let strict_nat_pair (facts: facts_vec) (i: nat{i < Seq.length (Alloc.Vec.impl_1__as_slice facts)}) (j: nat{j < Seq.length (Alloc.Vec.impl_1__as_slice facts)}) : Lemma (requires (facts_strictly_ordered facts /\ i < j)) (ensures event_key (Seq.index (Alloc.Vec.impl_1__as_slice facts) i).f_id < event_key (Seq.index (Alloc.Vec.impl_1__as_slice facts) j).f_id) =
+  norm_spec [delta_only ["Nickel.EditAccepted.facts_strictly_ordered"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"; "Rust_primitives.Slice.slice_index"]; iota; zeta_full; primops] (facts_strictly_ordered facts);
+  let ii = mk_usize i in
+  let jj = mk_usize j in
+  norm_spec [delta_only ["Rust_primitives.Slice.slice_index"]; iota; zeta_full; primops] (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice facts) ii);
+  norm_spec [delta_only ["Rust_primitives.Slice.slice_index"]; iota; zeta_full; primops] (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice facts) jj);
+  assert (Native.event_lt (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice facts) ii).f_id (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice facts) jj).f_id == true);
+  event_order_is_key_order (Seq.index (Alloc.Vec.impl_1__as_slice facts) i).f_id (Seq.index (Alloc.Vec.impl_1__as_slice facts) j).f_id
+
+let ordered_vectors_next (left: facts_vec) (right: facts_vec) (at: nat{Prims.l_and (at < Seq.length (Alloc.Vec.impl_1__as_slice left)) (at < Seq.length (Alloc.Vec.impl_1__as_slice right))}) : Lemma (requires (Prims.l_and (ids_unique left) (ids_unique right) /\ Prims.l_and (facts_strictly_ordered left) (facts_strictly_ordered right) /\ same_fact_contents (Alloc.Vec.impl_1__as_slice left) right /\ prefix_equal left right at)) (ensures Seq.index (Alloc.Vec.impl_1__as_slice left) at == Seq.index (Alloc.Vec.impl_1__as_slice right) at) =
+  let a = Seq.index (Alloc.Vec.impl_1__as_slice left) at in
+  let b = Seq.index (Alloc.Vec.impl_1__as_slice right) at in
+  assert (fact_present (Alloc.Vec.impl_1__as_slice left) a);
+  assert (fact_present (Alloc.Vec.impl_1__as_slice right) b);
+  norm_spec [delta_only ["Nickel.EditAccepted.same_fact_contents"; "Nickel.EditAccepted.prefix_equal"]; iota; zeta_full] (same_fact_contents (Alloc.Vec.impl_1__as_slice left) right);
+  norm_spec [delta_only ["Nickel.EditAccepted.prefix_equal"]; iota; zeta_full] (prefix_equal left right at);
+  let j = find_fact_position (Alloc.Vec.impl_1__as_slice right) a in
+  let k = find_fact_position (Alloc.Vec.impl_1__as_slice left) b in
+  if j < at then
+    begin unique_nat_positions left j at end
+  else
+    begin () end;
+  if k < at then
+    begin unique_nat_positions right k at end
+  else
+    begin () end;
+  if at < j then
+    begin strict_nat_pair right at j;
+    if at < k then
+      begin strict_nat_pair left at k end
+    else
+      begin assert (k == at) end;
+    assert Prims.l_False end
+  else
+    begin assert (j == at) end
+
+let rec ordered_vectors_prefix (left: facts_vec) (right: facts_vec) (at: nat{at <= Seq.length (Alloc.Vec.impl_1__as_slice left)}) : Lemma (requires (Seq.length (Alloc.Vec.impl_1__as_slice left) == Seq.length (Alloc.Vec.impl_1__as_slice right) /\ Prims.l_and (ids_unique left) (ids_unique right) /\ Prims.l_and (facts_strictly_ordered left) (facts_strictly_ordered right) /\ same_fact_contents (Alloc.Vec.impl_1__as_slice left) right /\ prefix_equal left right at)) (ensures prefix_equal left right (Seq.length (Alloc.Vec.impl_1__as_slice left))) (decreases Seq.length (Alloc.Vec.impl_1__as_slice left) - at) =
+  if at < Seq.length (Alloc.Vec.impl_1__as_slice left) then
+    begin ordered_vectors_next left right at;
+    assert (prefix_equal left right (at + 1));
+    ordered_vectors_prefix left right (at + 1) end
+  else
+    begin () end
+
+let ordered_contents_determine_vector (left: facts_vec) (right: facts_vec) : Lemma (requires (Seq.length (Alloc.Vec.impl_1__as_slice left) == Seq.length (Alloc.Vec.impl_1__as_slice right) /\ Prims.l_and (ids_unique left) (ids_unique right) /\ Prims.l_and (facts_strictly_ordered left) (facts_strictly_ordered right) /\ same_fact_contents (Alloc.Vec.impl_1__as_slice left) right)) (ensures left == right) =
+  norm_spec [delta_only ["Nickel.EditAccepted.prefix_equal"]; iota; zeta_full] (prefix_equal left right 0);
+  ordered_vectors_prefix left right 0;
+  norm_spec [delta_only ["Nickel.EditAccepted.prefix_equal"]; iota; zeta_full] (prefix_equal left right (Seq.length (Alloc.Vec.impl_1__as_slice left)));
+  Seq.lemma_eq_intro (Alloc.Vec.impl_1__as_slice left) (Alloc.Vec.impl_1__as_slice right);
+  Seq.lemma_eq_elim (Alloc.Vec.impl_1__as_slice left) (Alloc.Vec.impl_1__as_slice right);
+  norm_spec [delta_only ["Alloc.Vec.impl_1__as_slice"; "Rust_primitives.Sequence.seq_to_slice"]; iota; zeta_full] (Alloc.Vec.impl_1__as_slice left);
+  norm_spec [delta_only ["Alloc.Vec.impl_1__as_slice"; "Rust_primitives.Sequence.seq_to_slice"]; iota; zeta_full] (Alloc.Vec.impl_1__as_slice right)
+
+let same_input_contents_and_length (left: t_Slice Native.t_Fact) (right: t_Slice Native.t_Fact) : Type0 =
+  Prims.l_and (Seq.length left == Seq.length right) (forall(fact: Native.t_Fact). fact_present left fact <==> fact_present right fact)
+
+let canonical_agreement (left: Result.t_Result facts_vec Native.t_Error) (right: Result.t_Result facts_vec Native.t_Error) : Type0 =
+  match (left, right) with | (Result.Result_Ok a, Result.Result_Ok b) -> begin a == b end | _ -> begin Prims.l_True end
+
+let canonical_is_permutation_independent (left: t_Slice Native.t_Fact) (right: t_Slice Native.t_Fact) : Lemma (requires same_input_contents_and_length left right) (ensures canonical_agreement (Native.canonical left) (Native.canonical right)) =
+  canonical_preserves_exact_contents left;
+  canonical_preserves_exact_contents right;
+  canonical_has_unique_ids left;
+  canonical_has_unique_ids right;
+  canonical_facts_are_strictly_ordered left;
+  canonical_facts_are_strictly_ordered right;
+  norm_spec [delta_only ["Nickel.EditAccepted.same_input_contents_and_length"]; iota; zeta_full] (same_input_contents_and_length left right);
+  match (Native.canonical left, Native.canonical right) with | (Result.Result_Ok a, Result.Result_Ok b) -> begin norm_spec [delta_only ["Nickel.EditAccepted.canonical_exact_result"; "Nickel.EditAccepted.same_fact_contents"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"]; iota; zeta_full] (canonical_exact_result left (Native.canonical left));
+  norm_spec [delta_only ["Nickel.EditAccepted.canonical_exact_result"; "Nickel.EditAccepted.same_fact_contents"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"]; iota; zeta_full] (canonical_exact_result right (Native.canonical right));
+  norm_spec [delta_only ["Nickel.EditAccepted.same_fact_contents"]; iota; zeta_full] (same_fact_contents (Alloc.Vec.impl_1__as_slice a) b);
+  ordered_contents_determine_vector a b end | _ -> begin () end;
+  norm_spec [delta_only ["Nickel.EditAccepted.canonical_agreement"; "Nickel.EditAccepted.canonical_result_unique"; "Nickel.EditAccepted.strict_canonical_result"]; iota; zeta_full] (canonical_agreement (Native.canonical left) (Native.canonical right))
+
+let plan_interpretation (outcome: Result.t_Result (Option.t_Option Native.t_Replica) Native.t_Error) : Type0 =
+  match outcome with | Result.Result_Ok (Option.Option_Some next) -> begin Native.interpret (Alloc.Vec.impl_1__as_slice next.f_facts) == Result.Result_Ok next.f_tree end | _ -> begin Prims.l_True end
+
+let plan_publishes_interpretation (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures plan_interpretation (Native.impl_Replica__plan before fact)) =
+  assert (plan_interpretation (Native.impl_Replica__plan before fact)) by (
+    Tactics.norm [delta_only ["Nickel_crdt.Edit.impl_Replica__plan"; "Nickel_crdt.Edit.impl_Replica__with_tree"; "Nickel.EditAccepted.plan_interpretation"; "Core_models.Clone.f_clone"; "Nickel_crdt.Edit.impl_26"; "Nickel_crdt.Edit.impl_82"]; iota; zeta_full; primops; unmeta; unascribe];
+    Tactics.smt_sync' 1 1
+  )
+
+let added_shared_agreement (left: Native.t_Replica & Result.t_Result Native.t_Admission Native.t_Error) (right: Native.t_Replica & Result.t_Result Native.t_Admission Native.t_Error) : Type0 =
+  match left with | (a, Result.Result_Ok Native.Admission_Added) -> begin match right with | (b, Result.Result_Ok Native.Admission_Added) -> begin Prims.l_and (a.f_facts == b.f_facts) (a.f_tree == b.f_tree) end | _ -> begin Prims.l_True end end | _ -> begin Prims.l_True end
+
+let receive_added_shared_state_agrees (left: Native.t_Replica) (left_fact: Native.t_Fact) (right: Native.t_Replica) (right_fact: Native.t_Fact) : Lemma (requires same_input_contents_and_length (Alloc.Vec.impl_1__as_slice (candidate_facts left left_fact)) (Alloc.Vec.impl_1__as_slice (candidate_facts right right_fact))) (ensures added_shared_agreement (Native.impl_Replica__receive left left_fact) (Native.impl_Replica__receive right right_fact)) =
+  plan_publishes_canonical_facts left left_fact;
+  plan_publishes_canonical_facts right right_fact;
+  plan_publishes_interpretation left left_fact;
+  plan_publishes_interpretation right right_fact;
+  canonical_is_permutation_independent (Alloc.Vec.impl_1__as_slice (candidate_facts left left_fact)) (Alloc.Vec.impl_1__as_slice (candidate_facts right right_fact));
+  norm_spec [delta_only ["Nickel_crdt.Edit.impl_Replica__receive"; "Nickel.EditAccepted.added_shared_agreement"; "Nickel.EditAccepted.canonical_publication"; "Nickel.EditAccepted.canonical_agreement"; "Nickel.EditAccepted.plan_interpretation"]; iota; zeta_full; primops; unmeta; unascribe] (added_shared_agreement (Native.impl_Replica__receive left left_fact) (Native.impl_Replica__receive right right_fact))

@@ -287,3 +287,27 @@ fn identity_gate_checks_every_field_and_later_members() {
         assert_eq!(next, a);
     }
 }
+
+#[test]
+fn successful_permuted_admissions_publish_identical_facts_and_tree() {
+    let (alice, a1) = edit(new(Some(Writer::Alice)), 0, "a", vec![]);
+    let (_, a2) = edit(alice, 1, "b", vec![]);
+    let (_, b1) = edit(new(Some(Writer::Bo)), 0, "x", vec![]);
+    let schedules = [[&a1, &a2, &b1], [&a1, &b1, &a2], [&b1, &a1, &a2]];
+    let mut results = vec![];
+    for schedule in schedules {
+        let mut replica = new(None);
+        for fact in schedule {
+            replica = receive(replica, fact);
+        }
+        assert_eq!(replica.facts(), &[a1.clone(), a2.clone(), b1.clone()]);
+        assert_eq!(replica.whole().unwrap().len(), 3);
+        assert_eq!(replica.observe().unwrap().len(), 3);
+        results.push(replica);
+    }
+    for replica in &results[1..] {
+        assert_eq!(replica.facts(), results[0].facts());
+        assert_eq!(replica.whole(), results[0].whole());
+        assert_eq!(replica.observe(), results[0].observe());
+    }
+}

@@ -176,3 +176,26 @@ successful canonical result. The default `order-key-ignores-writer` control
 changes the real comparator body to counter-only comparison and must fail the
 independent key-order bridge. This still does not prove equal sets give equal
 vectors; it supplies the strict-order premise for that next argument.
+
+## conditional canonical and public shared-state agreement
+
+`ordered_contents_determine_vector` proves exact vector equality, using a finite
+prefix argument, unique IDs and strict key order. `canonical_is_permutation_independent`
+applies it to actual canonicalization when both calls succeed. Its input premise
+is equal whole-fact support and equal length, not an asserted multiset-count
+characterization for arbitrary malformed inputs.
+
+`plan_publishes_interpretation` binds actual successful publication to the result
+of the existing native `interpret`. `receive_added_shared_state_agrees` then
+compares two actual public receives: if their candidate fact inputs meet that
+premise and both return Added, committed facts and trees are equal. It does not
+compare error dispositions or establish successful admission. This is structural
+rebuild agreement, not independent semantic refinement of the interpreter.
+
+Two default controls independently keep the old tree in the setter, or pass the
+old tree to the correct setter in the actual plan. Both must fail native tests
+and `plan_publishes_interpretation`; a helper-only control is insufficient. The
+finite native witness uses all three causal schedules of a two-event Alice run
+and concurrent Bo event, checks a nonempty result, and compares public facts,
+whole birth IDs and observations. Existing trust and failure-classification
+boundaries are unchanged.

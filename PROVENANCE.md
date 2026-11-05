@@ -51,3 +51,9 @@ same pinned private CLI above. Its logical precondition conversion uses the
 pinned standard `FStar.Classical.move_requires`/`move_requires_2` and
 `forall_intro_2`; no project axiom is added.
 The native Rust/hax snapshots are unchanged by this proof extension.
+
+The conditional canonical/publication agreement extension also remains in
+`EditAccepted`, emitted by the same pinned private CLI. It uses the pinned
+standard `FStar.Seq` extensional-equality lemmas to pass from pointwise sequence
+agreement to equality of the native fact vectors. The interpretation-publication
+law targets the existing native interpreter, not an independently specified one.
