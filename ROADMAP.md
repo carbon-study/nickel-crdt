@@ -1,9 +1,13 @@
 # toward a usable Nickel library
 
-**Status: proposed execution plan.** The destination is a Rust crate a caller can
-edit, replicate and resume, with proofs about its actual transitions. The Python
+**Status: implementation in progress; release profile still proposed.** The
+destination is a Rust crate a caller can edit, replicate and resume, with proofs
+about its actual transitions. The Python
 experiment helps choose that behavior; extending it is not the release goal.
-This roadmap does not approve an ordering algorithm or start implementation.
+Ren authorized FugueMax for the experimental Rust edit/admit cut. PR18 is
+merged; it does not complete the verified slice or history milestone. The
+[post-merge continuation plan](docs/edit-admit-continuation.md) owns the next
+proof slices; the larger release requirements below remain in force.
 
 ## the first usable release
 
@@ -52,7 +56,8 @@ earlier delivery does not quietly remove anchors, children or recovery from it.
 
 | available now | what it does not establish |
 | --- | --- |
-| locked Rust → hax → F* scaffold, authored Latte proofs and wrong-body control | only Boolean-loop properties; no CRDT property |
+| experimental Rust edit/admit and source-linked return, identity, exact publication, canonical storage and partial WF laws | independent semantic refinement, full WF, valid-fitting admission progress and whole-CRDT convergence remain open |
+| locked Rust → hax → F* scaffold, authored Latte proofs and semantic mutation controls | hax translation/models remain trusted; no Rust/F* equivalence theorem |
 | restricted identity-set edit/Undo/Restore sessions with frozen masks, creator withdrawal and private checkpoints | no text order, anchors, general session algorithm or public Rust API |
 | in-process Restore inspection/confirmation bound to issued selection and full document/private basis | no wire proposal format; restart requires fresh inspection; unrelated changes expire a preview |
 | named-author cancellation/reactivation/withdrawal admission checks and semantic mutation tests | consistency of supplied tags, not authentication or complete hostile-input admission |
@@ -130,7 +135,7 @@ they do not select product semantics by vote.
 | q32 boundary membership | caller choice motivated; mechanism open | Lynn separates gap affinity from per-insertion span membership; Ren confirms intended behavior | span membership is absent from the cut |
 | grouping / derived children | required eventual scope; lifecycle incomplete | Lynn specifies membership and outstanding-job cases; Ren resolves behavior conflicts | no; one call is one primary item in the cut |
 | budgets and q37 | numeric targets and limit response open; no GC selected | Ren supplies intended workloads/acceptable limit response; Lynn proposes measured bounds and admission behavior | cut-specific bounds/response must close |
-| algorithm, abstraction and proofs | candidate order and joint admission references reviewed; no CRDT theorem or Rust transition | Lynn constructs and reviews the cut's algorithm, abstraction and source-linked obligations | yes; no product answer substitutes for this |
+| algorithm, abstraction and proofs | experimental Rust edit/admit merged; partial implementation-linked laws, not a verified slice | Lynn constructs and reviews the cut's algorithm, abstraction and source-linked obligations | yes; no product answer substitutes for this |
 
 **Exit:** one internally consistent contract for the selected profile, an
 executable ordered reference, and a constructive algorithm/correctness argument
@@ -148,8 +153,10 @@ detail; independent unresolved features stay outside that slice's claim.
 
 The [Rust transition/proof reconciliation](docs/rust-transition-cut.md) maps the
 merged references to one joint author/admit boundary, an explicit whole-instance
-abstraction and the source-linked obligations. It is planning, not permission
-to start code or adoption of the pending profile choices.
+abstraction and the source-linked obligations. Its edit-only prefix is now
+implemented in the experimental candidate. The
+[continuation plan](docs/edit-admit-continuation.md) separates remaining edit
+proof obligations from the still-proposed history extension and pending choices.
 
 ### proposed cut: two-writer in-memory sequence / Undo / Restore
 
@@ -164,8 +171,8 @@ budgets, not only a canned example.
 
 For this cut, propose preserving exact element IDs across Undo/Redo/Restore,
 using the running experiment as the candidate effect semantics; this is still
-a decision gate, not adoption by naming it here. New-work redo and skipped-item
-rules must also be selected explicitly. No arbitrary selective redo is added.
+a decision gate, not adoption by naming it here. New-work redo remains pending;
+retain for skipped items is approved. No arbitrary selective redo is added.
 
 Excluded at this stage: primary coalescing and children, general annotation/
 selection-anchor resolution or span membership, portable byte encoding,

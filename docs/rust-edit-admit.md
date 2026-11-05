@@ -11,6 +11,10 @@ go-ahead. It is **not the verified slice's exit**: semantic refinement,
 representation and delivery-independence theorems are still missing. The return-path and commit-coherence lemmas below do not prove those properties. This also
 does not complete the roadmap's experimental milestone, which includes history.
 
+PR18 is merged as an experimental development baseline. The
+[continuation plan](edit-admit-continuation.md) sequences the remaining semantic,
+progress and usability obligations without changing this contract.
+
 ## using the boundary
 
 ```rust
