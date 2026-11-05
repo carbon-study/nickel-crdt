@@ -91,3 +91,12 @@ above. All five universally quantified lemma statements and parameters are
 unchanged, with setter pattern metadata added. Automatic checking replaces the
 manual normalization bodies; the actual public counter call retains its prior
 shallow SMT request. Rust and the committed hax translation remain unchanged.
+
+The Atomic contract-isolation repair uses the same private emitter. It adds a
+complete calculator-value contract while retaining all five existing universal
+statements. The actual edit-boundary proof prunes the two callee fact namespaces
+when composing their contracts. Two default proof-dependency controls remove
+the setter pattern and calculator-contract call separately; both require an
+ordinary named public-counter rejection against the same actual extraction.
+They are not native semantic mutants. All earlier native controls, hax snapshot
+binding, model trust, classifier and proof limits remain unchanged.
