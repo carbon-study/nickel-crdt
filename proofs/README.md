@@ -268,3 +268,20 @@ validator soundness, witnessing the range-loop control-flow obligation.
 This component does not establish node/scalar
 correspondence, complete tree validity, independent replay refinement or public
 valid-fitting-input success.
+
+## attributing negative proof evidence
+
+Both native proof gates require exit2, a final failed query for the named theorem
+below its resource limit without a timeout/resource reason, and an actual
+semantic error whose source range overlaps that query inside the theorem's
+unchanged generated declaration. A warning, a type/extraction failure, another
+declaration's error, or a preliminary failure followed by a successful retry
+cannot supply the evidence. The classifier accepts ordinary proof-condition
+errors and failed synchronous SMT tactics; it does not treat arbitrary tactic
+exceptions as semantic rejection. The small classifier regression gate runs
+inside the existing edit-proof command, without invoking another proof run.
+
+The default `plan-interprets-uncanonical` control derives the tree before
+canonicalizing the fact vector. It must fail native tests and the same actual
+interpretation-publication law as the old-tree controls. This witnesses the
+publication's input ordering, not independent causal/Fugue refinement.

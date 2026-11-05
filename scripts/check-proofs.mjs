@@ -4,6 +4,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {run,verify} from './proof-cache.mjs';
+import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
 const root=fileURLToPath(new URL('..',import.meta.url));
 const {NICKEL_HAX_BIN:hax,NICKEL_PROOF_FSTAR:fstar,NICKEL_HAX_SOURCE:models,NICKEL_FSTAR_MODEL_CACHE:modelCache}=process.env;
 assert(hax&&fstar&&models&&modelCache,'run the locked .#proofs derivation');
@@ -50,8 +51,8 @@ for(const mode of ['positive','wrong-loop-body']) {
   if(mode==='positive')assert.equal(result.status,0,result.log);
   else {
     assert.equal(result.status,2,'require ordinary proof rejection, not timeout/signal');
-    assert.match(result.log,/Query-stats \(Nickel\.Smoke\.flip_bridge,[^\n]*failed/);
-    assert.match(result.log,/Could not prove post-condition|Assertion failed/);
+    assert(hasOrdinaryTheoremRejection({status:result.status,log:result.log,theorem:'Nickel.Smoke.flip_bridge',view:views.get('Nickel.Smoke.fst')}),
+      'require a final ordinary bridge-query failure with a semantic error in that declaration: '+result.log);
     assert(result.modules.includes('Nickel_proof_smoke.fst'));
     assert(result.modules.includes('Nickel.Smoke.fst'));
   }
