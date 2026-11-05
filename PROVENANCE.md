@@ -9,8 +9,8 @@ The generic loop library and prelude were extracted, with Ren's explicit authori
 
 The loop source was renamed from `Light` to `Nickel`. The proof-cache/bootstrap helpers and smoke proof also adapt Lynn's existing harness and loop-shape work. This extraction does not redistribute the Dark application or the Latte compiler. The scaffold's authored code is offered under MIT; upstream toolchains retain their own licenses.
 
-The committed Prelude, LoopUtil, Smoke, EditAtomic, EditCommit, EditIdentity and
-EditAccepted views were re-emitted and compared byte-for-byte using local
+The committed Prelude, LoopUtil, Smoke, EditAtomic, EditCommit, EditIdentity,
+EditAccepted and EditWellFormed views were re-emitted and compared byte-for-byte using local
 `carbon-study/latte-nursery` revision
 `0729bf34e2a7d9538604d951edc44d376d1b8ced` and its locked `.#cli` package. The
 clean local checkout's CLI output matches the installed emitter used for that
@@ -19,7 +19,7 @@ comparison. An authorized local checkout can repeat the emission check with:
 ```sh
 emitter=$(nix build --no-link --print-out-paths /path/to/latte-nursery#cli)
 temporary=$(mktemp -d)
-for name in Prelude LoopUtil Smoke EditAtomic EditCommit EditIdentity EditAccepted; do
+for name in Prelude LoopUtil Smoke EditAtomic EditCommit EditIdentity EditAccepted EditWellFormed; do
   "$emitter/bin/latte" emit-fstar "$PWD/proofs/$name.lt" > "$temporary/Nickel.$name.fst"
   cmp "$temporary/Nickel.$name.fst" "proofs/generated/Nickel.$name.fst" || exit 1
 done
@@ -65,7 +65,7 @@ project axiom or admission. It changes neither native Rust nor the committed
 hax snapshot. The result concerns the extracted storage algorithm, not runtime
 allocation guarantees or independent semantic refinement.
 
-The scalar-domain extension uses the same pinned emitter and existing LoopUtil
+The scalar-domain extension, now in `EditWellFormed`, uses the same pinned emitter and existing LoopUtil
 range semantics. The native scalar helper and two preceding validator loops
 now extract as executable `fold_range_return` rather than the pinned opaque
 generic iterator `fold_return`. No semantics is invented for that opaque value;
@@ -75,8 +75,13 @@ changes are generated hoist-variable alpha-renaming; the validator body and
 new scalar helper carry the substantive translation changes. This does not
 prove old/new Rust equivalence or eliminate the hax trust boundary.
 
-The direct causal-reference extension remains in `EditAccepted`, emitted by the
+The direct causal-reference extension is in `EditWellFormed`, emitted by the
 same private CLI revision above. Its indexed `validate_after` helper factors the
 existing `past` existence guard; the reviewed translation snapshot changes only
 that helper and its `past` caller. These source-bound results retain hax and the
 external models as trusted translation boundaries.
+
+The WF-module split mechanically moves the scalar and direct-reference contracts
+from EditAccepted to EditWellFormed, including their statements and proof bodies,
+with only owned namespace changes. Both regenerated views use that same emitter;
+no Rust, native hax extraction or external model changes accompany the split.

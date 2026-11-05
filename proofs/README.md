@@ -22,8 +22,8 @@ dependency graph. Interfaces and implementations count separately. Unrelated
 workspace files, extraction targets and immutable imported models do not count;
 checked project targets still count on warm runs. The serial sum is not divided
 by make's job count. The two seconds per target cover compiler timeout kill
-grace; ten seconds cover make overhead. For the current seven-module edit chain
-this is 444 seconds, while every F* process remains capped at 60 seconds and
+grace; ten seconds cover make overhead. For the current eight-module edit chain
+this is 506 seconds, while every F* process remains capped at 60 seconds and
 every solver query at rlimit100. Dependency discovery remains independently
 capped at 60 seconds; model bootstrap keeps its explicit 600-second driver.
 Project callers cannot enlarge the derived bound through an explicit override.
@@ -288,7 +288,7 @@ publication's input ordering, not independent causal/Fugue refinement.
 
 ## direct causal-reference closure
 
-`EditAccepted` connects the direct predecessor guard to actual `past`,
+`EditWellFormed` connects the direct predecessor guard to actual `past`,
 validation and public admission. `Added` implies that the offered direct
 predecessor IDs existed in the before facts. Exact whole-fact publication and
 membership monotonicity then give constructor establishment and all-return
@@ -300,3 +300,20 @@ and errors; its hax snapshot is refreshed. Four default controls cover both
 helper semantics and the actual argument wiring at `past` and validation.
 This WF component does not establish acyclicity, exact transitive-past
 computation, scheduler progress/independence, Fugue refinement or full WF.
+
+## compiler boundary for WF components
+
+The accepted-fact/storage proofs remain in `EditAccepted`. Scalar-domain and
+direct causal-reference contracts live in `EditWellFormed`, which imports
+those checked publication laws. The positive gate verifies the full chain
+through `EditWellFormed`; every non-counter control uses that same root,
+with its original owning theorem (relocated where appropriate). The three
+counter controls still stop at `EditAtomic`.
+
+This separates cumulative compiler work into semantic modules; it does not
+increase the 60-second compiler cap or solver rlimit100. The actual graph now
+has eight compiler targets, so the unchanged aggregate formula yields506s.
+Every moved definition, universal statement and proof body is unchanged modulo
+the owned module namespace. Rust and the hax snapshots are unchanged by the
+split. Fresh extraction, byte-matching, native-failure requirements and the
+source-bound ordinary-rejection classifier remain in force.

@@ -531,3 +531,14 @@ argument inside validation. They require native failure, successful fresh
 extraction, and an ordinary source-bound named proof rejection. A skipped guard
 can change `Missing` into a later error without admitting the bad fact; those
 native failures are not reported as successful admission counterexamples.
+
+### WF proof compilation boundary
+
+Scalar and direct-reference contracts are checked in `EditWellFormed`, using
+the accepted-fact/storage contracts from `EditAccepted`. This separates
+cumulative compiler work without changing the statements or proof bodies beyond
+namespace relocation. The full positive gate includes both modules, and their
+semantic controls still require ordinary named source-bound rejections. The
+per-compiler60s and solver rlimit100 limits are unchanged. The a26295f ARM run
+timed out in the positive module after checking the guard and closure-extension
+laws; that run did not establish the remaining public closure proofs on ARM.

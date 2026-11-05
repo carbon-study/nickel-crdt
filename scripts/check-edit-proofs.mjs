@@ -16,7 +16,7 @@ await fs.mkdir(output,{recursive:true});
 const identity=JSON.parse(await fs.readFile(path.join(modelCache,'identity.json'),'utf8'));
 assert.equal(identity.models,models);assert.equal(identity.fstar,fstar);
 const views=new Map();
-for(const name of ['Prelude','LoopUtil','EditAtomic','EditCommit','EditIdentity','EditAccepted']) {
+for(const name of ['Prelude','LoopUtil','EditAtomic','EditCommit','EditIdentity','EditAccepted','EditWellFormed']) {
   const source=`proofs/${name}.lt`,view=`proofs/generated/Nickel.${name}.fst`;
   const code=await fs.readFile(path.join(root,view),'utf8');
   const receipt=(await fs.readFile(path.join(root,`proofs/generated/${name}.sha256`),'utf8')).trim().split('\n');
@@ -108,8 +108,8 @@ for(const mode of selected.length?selected:modes) {
   } else assert.notEqual(code,positive);
   for(const [name,code] of views)await put(path.join(proof,name),code);
   // Counter calculation/installation/wiring controls need only their owning module. The positive path still
-  // checks the complete public proof chain through EditAccepted.
-  const proofRoot=['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditAccepted.fst';
+  // checks the complete public proof chain through EditWellFormed.
+  const proofRoot=['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
   const checked=await verify({dir:proof,roots:[path.join(proof,proofRoot)],fstar,models,modelCache});
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {
@@ -118,14 +118,14 @@ for(const mode of selected.length?selected:modes) {
   } else {
     assert.equal(checked.status,2,'require ordinary proof rejection, not extraction failure/timeout');
     const theorems={
-      'causal-validator-passes-empty':'EditAccepted.successful_validation_has_direct_dependencies',
-      'causal-accepts-missing':'EditAccepted.dependency_validation_is_sound',
-      'causal-call-passes-empty':'EditAccepted.successful_past_has_direct_dependencies',
-      'causal-refuses-present':'EditAccepted.present_dependencies_pass_guard',
-      'scalar-count-loop-bypasses-check':'EditAccepted.successful_validation_has_valid_scalars',
-      'scalar-accepts-invalid':'EditAccepted.scalar_validation_is_sound',
-      'scalar-call-passes-empty':'EditAccepted.successful_validation_has_valid_scalars',
-      'scalar-refuses-valid':'EditAccepted.valid_scalar_input_succeeds',
+      'causal-validator-passes-empty':'EditWellFormed.successful_validation_has_direct_dependencies',
+      'causal-accepts-missing':'EditWellFormed.dependency_validation_is_sound',
+      'causal-call-passes-empty':'EditWellFormed.successful_past_has_direct_dependencies',
+      'causal-refuses-present':'EditWellFormed.present_dependencies_pass_guard',
+      'scalar-count-loop-bypasses-check':'EditWellFormed.successful_validation_has_valid_scalars',
+      'scalar-accepts-invalid':'EditWellFormed.scalar_validation_is_sound',
+      'scalar-call-passes-empty':'EditWellFormed.successful_validation_has_valid_scalars',
+      'scalar-refuses-valid':'EditWellFormed.valid_scalar_input_succeeds',
       'canonical-step-refuses':'EditAccepted.canonical_step_succeeds',
       'canonical-refuses':'EditAccepted.canonical_succeeds_for_unique_ids',
       'plan-keeps-old-tree':'EditAccepted.plan_publishes_interpretation',
