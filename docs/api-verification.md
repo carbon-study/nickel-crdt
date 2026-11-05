@@ -87,9 +87,9 @@ Here `WF` is a fully defined well-formedness predicate, `step` the extracted imp
 
 | ID | intended statement | current status |
 | --- | --- | --- |
-| V1 — transition refinement | for every WF admitted input and successful actual transition, `abs(step(S,x)) = Ref(abs(S),x)` and WF is preserved | no implementation or theorem |
-| V2 — rejection neutrality | every ordinary Err path preserves S, including history/allocator/tokens and publication outputs | no implementation or theorem |
-| V3 — identity and targeting | successful allocation is fresh under the single-writer premise; removals target exactly prepared IDs; grouping never absorbs an unrelated command | no implementation or theorem |
+| V1 — transition refinement | for every WF admitted input and successful actual transition, `abs(step(S,x)) = Ref(abs(S),x)` and WF is preserved | not yet discharged |
+| V2 — rejection neutrality | every ordinary Err path preserves S, including history/allocator/tokens and publication outputs | edit-only whole-instance error/empty neutrality checked in `EditAtomic`; history/token API absent, full obligation remains open |
+| V3 — identity and targeting | successful allocation is fresh under the single-writer premise; removals target exactly prepared IDs; grouping never absorbs an unrelated command | local counter step checked; freshness/targeting/grouping obligation remains open |
 | V4 — delivery independence | any two legal causal schedules for the same valid operation set yield equivalent semantic documents and all future observations; delivery partition and derived caches do not change meaning | reference ordering/activity semantics missing |
 | V5 — history selection/effect | undo/redo selects exactly one eligible local item and implements its agreed abstract effect, including invisible cases, children and redo continuation | semantic choice and general sequence algorithm missing |
 | V6 — anchors/order | gap creation, integration, resolution and restoration refine a complete ordering/affinity specification, including hidden endpoints | complete specification missing |
@@ -109,6 +109,6 @@ F* checking is conditional on its trusted core/solver and the external Rust mode
 
 ## 5. existing evidence and the stop gate
 
-The current `flip_bridge`, `flip_exact` and `flip_involution` statements check one extracted Boolean loop with LoopUtil. The wrong-loop mutation fails its unchanged bridge theorem. Those results demonstrate the proof pipeline, not any V1–V9 property. No theorem in the current tree mentions sequence state, undo, anchors, import or checkpoints.
+The current `flip_bridge`, `flip_exact` and `flip_involution` statements check one extracted Boolean loop with LoopUtil. The wrong-loop mutation fails its unchanged bridge theorem. Those results demonstrate the proof pipeline, not any V1–V9 property. `EditAtomic` now mentions actual Rust edit/admit instances and checks their transactional return paths and counter step. It does not prove semantic refinement, ordering, convergence, undo, anchors or checkpoints.
 
 Before treating undo as an adopted API, I need a reviewed reference semantics and a complete finite-history algorithm with a source-linked correctness argument. It must distinguish local selection from effect semantics, handle ordering through inactive history, and replay the agreed two-writer/late-child/cold-recovery continuations. Finite witnesses can refute an algorithm; passing them does not substitute for the general argument. Until those exist, this document is a proposed verification contract and the core has no advertised verified undo implementation.

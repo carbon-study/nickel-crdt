@@ -6,7 +6,7 @@ const {NICKEL_PROOF_FSTAR:fstar,NICKEL_HAX_SOURCE:models}=process.env;
 const output=process.argv[2];if(!fstar||!models||!output)throw Error('supply F* pin, hax source and output directory');
 await checkTimeoutBudgets();
 const dir=join(process.cwd(),'model-work');await mkdir(dir,{recursive:true});
-const names=['Core_models.Convert.fst','Core_models.fst','Alloc.Slice.fst','Rust_primitives.Hax.Folds.fsti'];
+const names=['Core_models.Convert.fst','Core_models.fst','Alloc.Slice.fst','Rust_primitives.Hax.Folds.fsti','Core_models.Iter.Adapters.Filter.fst','Core_models.Iter.Adapters.Rev.fst','Core_models.Iter.Adapters.Map.fst','Rust_primitives.Hax.Monomorphized_update_at.fsti'];
 const roots=[];
 for(const name of names){let found;for(const base of modelIncludes(models)){try {await readFile(join(base,name));found=join(base,name);break;}catch(e){if(e.code!=='ENOENT')throw e;}}if(!found)throw Error('missing model '+name);roots.push(found);}
 // Cold imported models get a separate bounded allowance. Project callers

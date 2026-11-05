@@ -1,0 +1,148 @@
+{
+  "source_sha256": "cc53b0cdb42e2240ec2553added0117b40526f523ed2a11f8abe34e1b1153c79",
+  "script_sha256": "be608b666da48f60bd0864c0e518414c7f55ecff10ff3bbb8ce2564c02c0db9f",
+  "machine": "shared x86_64 Intel i9-12900KF, no CPU isolation; reference then sorted, no counterbalancing",
+  "correctness": {
+    "histories": 150,
+    "causal_schedules": 882,
+    "fixture_equality": "byte-identical",
+    "independent_oracle": "actual Combined/Doc + FugueMax, 150 histories / 882 schedules passed",
+    "storage_permutations": 720,
+    "native_alternative": "passed",
+    "drop_old_fact_control": "native assertion failure"
+  },
+  "runs": [
+    {
+      "mode": "reference",
+      "shape": "append",
+      "complete": true,
+      "checked_pairs": 128,
+      "completed_plans": 256,
+      "stage_sums_ns": {
+        "identity_ns": 34628,
+        "validation_ns": 31432588,
+        "clone_ns": 2170206,
+        "storage_ns": 19138508,
+        "replay_ns": 27998049245
+      },
+      "last_plan": {
+        "events": 128,
+        "identity_ns": 742,
+        "validation_ns": 457270,
+        "clone_ns": 19747,
+        "storage_ns": 279690,
+        "replay_ns": 484986700
+      }
+    },
+    {
+      "mode": "reference",
+      "shape": "prepend",
+      "complete": true,
+      "checked_pairs": 128,
+      "completed_plans": 256,
+      "stage_sums_ns": {
+        "identity_ns": 43662,
+        "validation_ns": 34301857,
+        "clone_ns": 2564723,
+        "storage_ns": 19371196,
+        "replay_ns": 30653349302
+      },
+      "last_plan": {
+        "events": 128,
+        "identity_ns": 630,
+        "validation_ns": 435897,
+        "clone_ns": 17443,
+        "storage_ns": 278140,
+        "replay_ns": 486388162
+      }
+    },
+    {
+      "mode": "reference",
+      "shape": "frontloaded-delete",
+      "complete": false,
+      "checked_pairs": 62,
+      "completed_plans": 125,
+      "stage_sums_ns": {
+        "identity_ns": 21483,
+        "validation_ns": 4341086,
+        "clone_ns": 1540099,
+        "storage_ns": 1510015,
+        "replay_ns": 44487689406
+      },
+      "last_plan": {
+        "events": 63,
+        "identity_ns": 99,
+        "validation_ns": 87931,
+        "clone_ns": 15627,
+        "storage_ns": 38476,
+        "replay_ns": 749376110
+      }
+    },
+    {
+      "mode": "sorted",
+      "shape": "append",
+      "complete": true,
+      "checked_pairs": 128,
+      "completed_plans": 256,
+      "stage_sums_ns": {
+        "identity_ns": 29136,
+        "validation_ns": 36477633,
+        "clone_ns": 2186073,
+        "storage_ns": 948042,
+        "replay_ns": 28729039200
+      },
+      "last_plan": {
+        "events": 128,
+        "identity_ns": 511,
+        "validation_ns": 502804,
+        "clone_ns": 16456,
+        "storage_ns": 6017,
+        "replay_ns": 486624444
+      }
+    },
+    {
+      "mode": "sorted",
+      "shape": "prepend",
+      "complete": true,
+      "checked_pairs": 128,
+      "completed_plans": 256,
+      "stage_sums_ns": {
+        "identity_ns": 30347,
+        "validation_ns": 36538536,
+        "clone_ns": 2324671,
+        "storage_ns": 924373,
+        "replay_ns": 30623403054
+      },
+      "last_plan": {
+        "events": 128,
+        "identity_ns": 435,
+        "validation_ns": 506396,
+        "clone_ns": 16669,
+        "storage_ns": 5776,
+        "replay_ns": 512807888
+      }
+    },
+    {
+      "mode": "sorted",
+      "shape": "frontloaded-delete",
+      "complete": false,
+      "checked_pairs": 62,
+      "completed_plans": 124,
+      "stage_sums_ns": {
+        "identity_ns": 15975,
+        "validation_ns": 4206906,
+        "clone_ns": 1659106,
+        "storage_ns": 331324,
+        "replay_ns": 44525550317
+      },
+      "last_plan": {
+        "events": 62,
+        "identity_ns": 562,
+        "validation_ns": 94513,
+        "clone_ns": 17895,
+        "storage_ns": 3981,
+        "replay_ns": 742171109
+      }
+    }
+  ]
+}

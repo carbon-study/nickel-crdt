@@ -12,7 +12,7 @@
       rustPlatform = pkgs.makeRustPlatform { cargo = rust; rustc = rust; };
       rustSource = pkgs.lib.fileset.toSource {
         root = ./.;
-        fileset = pkgs.lib.fileset.unions [ ./Cargo.toml ./Cargo.lock ./src ./proof-smoke ];
+        fileset = pkgs.lib.fileset.unions [ ./Cargo.toml ./Cargo.lock ./src ./tests ./examples ./proof-smoke ];
       };
       native = rustPlatform.buildRustPackage {
         pname = "nickel-crdt";
@@ -40,8 +40,8 @@
       proofSource = pkgs.lib.fileset.toSource {
         root = ./.;
         fileset = pkgs.lib.fileset.unions [
-          ./Cargo.toml ./Cargo.lock ./src ./proof-smoke
-          ./proofs/generated ./proofs/Prelude.lt ./proofs/LoopUtil.lt ./proofs/Smoke.lt ./scripts
+          ./Cargo.toml ./Cargo.lock ./src ./tests ./proof-smoke
+          ./proofs/generated ./proofs/Prelude.lt ./proofs/LoopUtil.lt ./proofs/Smoke.lt ./proofs/EditAtomic.lt ./proofs/EditCommit.lt ./proofs/EditIdentity.lt ./proofs/EditAccepted.lt ./proofs/EditWellFormed.lt ./scripts
         ];
       };
       proofCheck = pkgs.runCommand "nickel-proof-smoke" {
@@ -56,17 +56,41 @@
         export NICKEL_HAX_BIN="${haxBin}/bin/cargo-hax"
         export NICKEL_FSTAR_MODEL_CACHE="${models}"
         node scripts/check-proofs.mjs "$out"
+        node scripts/check-edit-proofs.mjs "$out/edit"
+      '';
+      editReferenceSource = pkgs.lib.fileset.toSource {
+        root = ./.;
+        fileset = pkgs.lib.fileset.unions [
+          ./Cargo.toml ./Cargo.lock ./src ./examples ./proof-smoke
+          ./scripts/check-rust-edit-reference.py
+          ./experiments/combined-admission ./experiments/hybrid-restoration
+          ./experiments/ordered-gap-reference
+        ];
+      };
+      editReference = pkgs.runCommand "nickel-edit-reference" {
+        nativeBuildInputs = tools ++ [ pkgs.python3 ];
+      } ''
+        export HOME="$TMPDIR/home"
+        mkdir -p "$HOME" "$out"
+        cp -r ${editReferenceSource} work
+        chmod -R u+w work
+        cd work
+        cargo run --offline --locked --quiet --example edit-reference > "$out/fixtures.json"
+        export NODE="${pkgs.nodejs_22}/bin/node"
+        python3 scripts/check-rust-edit-reference.py "$out/fixtures.json" > "$out/receipt.json"
+        cat "$out/receipt.json"
       '';
     in {
       packages.${system} = {
         default = native;
         inherit native;
+        edit-reference = editReference;
         proof-models = models;
         proofs = proofCheck;
         hax = haxBin;
         hax-fstar = fstar;
       };
-      checks.${system} = { inherit native; proofs = proofCheck; };
+      checks.${system} = { inherit native; proofs = proofCheck; edit-reference = editReference; };
       devShells.${system} = {
         default = pkgs.mkShell {
           packages = tools ++ [ haxBin fstar ];

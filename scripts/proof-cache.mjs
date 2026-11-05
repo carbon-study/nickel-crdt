@@ -5,6 +5,43 @@ import {join,basename} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 export const proofFlags=['--cmi','--warn_error','-331','--split_queries','on_failure','--fuel','4','--ifuel','4','--z3rlimit','100','--timing','--query_stats'];
+export const compilerKillGraceSeconds=2;
+export const makeMarginSeconds=10;
+// Count the reachable compiler targets, not unrelated workspace files, imported
+// immutable models, or extraction targets also emitted by F*'s --dep full.
+export function projectCompilerTargets(graph,dir,sources,roots) {
+  const rules=new Map(),prefix=join(dir,'checked')+'/';
+  for(const line of graph.replace(/\\\r?\n/g,' ').split('\n')) {
+    if(!line.trim()||line.trimStart().startsWith('#'))continue;
+    const colon=line.indexOf(':');if(colon<0)continue;
+    const dependencies=line.slice(colon+1).trim().split(/\s+/).filter(Boolean);
+    for(const target of line.slice(0,colon).trim().split(/\s+/))
+      rules.set(target,[...(rules.get(target)??[]),...dependencies]);
+  }
+  const visited=new Set(),targets=new Set(),known=new Set(sources);
+  function visit(target) {
+    if(visited.has(target))return;visited.add(target);
+    if(target.startsWith(prefix)&&target.endsWith('.checked')) {
+      const source=target.slice(prefix.length,-'.checked'.length);
+      if(!known.has(source))throw Error('unexpected local compiler target: '+target);
+      if(!rules.has(target))throw Error('missing compiler dependency rule: '+target);
+      targets.add(target);
+    }
+    for(const dependency of rules.get(target)??[])visit(dependency);
+  }
+  for(const root of roots) {
+    if(!root.startsWith(prefix)||!known.has(root.slice(prefix.length,-'.checked'.length))||!root.endsWith('.checked'))
+      throw Error('aggregate budget requires project compiler roots: '+root);
+    visit(root);
+  }
+  return [...targets].sort();
+}
+export function aggregateProofSeconds(count,moduleSeconds) {
+  const seconds=count*(moduleSeconds+compilerKillGraceSeconds)+makeMarginSeconds;
+  if(!Number.isSafeInteger(count)||count<1||!Number.isInteger(moduleSeconds)||moduleSeconds<1||!Number.isSafeInteger(seconds))
+    throw Error('invalid aggregate proof budget');
+  return seconds;
+}
 export function projectRlimit() {
   const value=Number(process.env.NICKEL_PROOF_RLIMIT??100);
   if(!Number.isInteger(value)||value<1||value>100)throw Error('NICKEL_PROOF_RLIMIT must be an integer from 1 to 100');
@@ -39,9 +76,10 @@ export function run(label,bin,args,cwd,{env=process.env,seconds=60}={}) {
 }
 // Workspace source hashes, not source mtimes, invalidate direct cache entries.
 // Make/F* then propagate invalidation through the actual dependency graph.
-export async function verify({dir,roots,fstar,models,modelCache,seconds=60,moduleSeconds=60,rlimit=100}) {
+export async function verify({dir,roots,fstar,models,modelCache,seconds,moduleSeconds=60,rlimit=100}) {
   if(!Number.isInteger(moduleSeconds)||moduleSeconds<1||moduleSeconds>180)throw Error('moduleSeconds must be an integer from 1 to 180');
   if(modelCache&&moduleSeconds>60)throw Error('project module budget cannot exceed 60 seconds');
+  if(seconds!==undefined&&(!Number.isSafeInteger(seconds)||seconds<1))throw Error('invalid aggregate seconds');
   await mkdir(join(dir,'checked'),{recursive:true});
   const options=JSON.stringify({fstar,models,modelCache,moduleSeconds,flags:flagsAt(rlimit)});
   let oldOptions;try {oldOptions=await readFile(join(dir,'options.json'),'utf8');}catch(e){if(e.code!=='ENOENT')throw e;}
@@ -70,17 +108,25 @@ export async function verify({dir,roots,fstar,models,modelCache,seconds=60,modul
   }
   await put(join(dir,'depend.mk'),dep.stdout);
   const quote=s=>`'${s.replaceAll("'",`'\\''`)}'`;
-  const command=['timeout','--kill-after=2s',`${moduleSeconds}s`,fstar,...flags].map(quote).join(' ');
+  const command=['timeout',`--kill-after=${compilerKillGraceSeconds}s`,`${moduleSeconds}s`,fstar,...flags].map(quote).join(' ');
   const targets=roots.map(p=>join(dir,'checked',basename(p)+'.checked'));
   // Paths with make metacharacters would need a different escaping protocol.
   for(const p of [dir,...roots])if(/[\s#$:%\\]/.test(p))throw Error('unsupported proof workspace path: '+p);
+  const compilerTargets=seconds===undefined||modelCache?projectCompilerTargets(dep.stdout,dir,Object.keys(current),targets):null;
+  const derivedSeconds=compilerTargets?aggregateProofSeconds(compilerTargets.length,moduleSeconds):undefined;
+  if(modelCache&&seconds!==undefined&&seconds>derivedSeconds)throw Error('project aggregate override exceeds graph-derived bound');
+  const aggregateSeconds=seconds??derivedSeconds;
+  const budget={policy:seconds===undefined?'graph-derived':'explicit',seconds:aggregateSeconds,moduleSeconds,
+    compilerKillGraceSeconds,makeMarginSeconds,compilerTargets};
+  console.log(`[budget] make ${aggregateSeconds}s (${budget.policy}); compiler ${moduleSeconds}s + ${compilerKillGraceSeconds}s kill grace; ${compilerTargets?.length??'uncounted'} project targets`);
   const makefile=`.DEFAULT_GOAL := verify\n.DELETE_ON_ERROR:\ninclude depend.mk\n${dir}/checked/%.checked:\n\t@echo '[CHECK] $*'\n\t@${command} "$<"\n\t@test -f "$@" && touch "$@"\n.PHONY: verify\nverify: ${targets.join(' ')}\n`;
   await put(join(dir,'Makefile'),makefile);
-  const result=run('F* module checks','make',['--jobs=2','--no-print-directory','-f','Makefile','verify'],dir,{seconds});
+  const result=run('F* module checks','make',['--jobs=2','--no-print-directory','-f','Makefile','verify'],dir,{seconds:aggregateSeconds});
+  result.budget=budget;
   result.modules=[...result.log.matchAll(/^\[CHECK\] (.+)$/gm)].map(m=>m[1]);
   await put(join(dir,'last-check.log'),result.log);
   result.stats=proofStats(result.log);
-  await put(join(dir,'last-check.stats.json'),JSON.stringify({rlimit,moduleSeconds,seconds,status:result.status,modules:result.modules,declarations:result.stats},null,2)+'\n');
+  await put(join(dir,'last-check.stats.json'),JSON.stringify({rlimit,moduleSeconds,seconds:aggregateSeconds,budget,status:result.status,modules:result.modules,declarations:result.stats},null,2)+'\n');
   for(const row of result.stats)if(/^(Nickel\.)/.test(row.name)) {
     if(!row.queries.length) {console.log(`[theorem] ${row.name}: declaration ${row.declarationMs??'unmeasured'}ms; no SMT query`);continue;}
     const peak=row.queries.reduce((a,q)=>q.used/q.limit>a.used/a.limit?q:a);
