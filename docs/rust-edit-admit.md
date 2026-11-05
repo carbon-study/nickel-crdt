@@ -405,3 +405,7 @@ component, and all return paths preserve it from an ordered before-state.
 Accepted-ID uniqueness is proved separately. This does not order the causal
 replay schedule or the visible text; in particular, event-ID order is not causal
 order. It does not prove canonicalization progress or delivery independence.
+The key encoding is also proved injective. A named corollary combines this order
+component with accepted-ID uniqueness to give strict native event-ID order for
+successful canonical results. Equality of canonical vectors across input
+permutations remains a separate obligation.

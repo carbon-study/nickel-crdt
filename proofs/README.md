@@ -167,3 +167,12 @@ errors, timeouts and resource-only proof failures are not accepted detection.
 These laws do not yet prove successful canonicalization on valid input, unique
 canonical output under input permutations, causal replay equivalence, text order,
 full representation validity or convergence.
+
+`event_key_identifies_event` proves injectivity of the arithmetic key, including
+its writer component. `ordered_unique_is_strict` therefore turns the separately
+checked uniqueness and nondecreasing-order components into strict native
+`event_lt` order; `canonical_facts_are_strictly_ordered` applies it to the actual
+successful canonical result. The default `order-key-ignores-writer` control
+changes the real comparator body to counter-only comparison and must fail the
+independent key-order bridge. This still does not prove equal sets give equal
+vectors; it supplies the strict-order premise for that next argument.
