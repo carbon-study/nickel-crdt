@@ -6,6 +6,7 @@ fn new(writer: Option<Writer>) -> Replica {
 }
 // Public-state witness for the proved accepted-ID invariant.
 fn assert_unique(r: &Replica) {
+    assert_causally_closed(r);
     assert!(
         r.facts().windows(2).all(|pair| pair[0].id < pair[1].id),
         "accepted facts must be in strict event-ID order"
@@ -348,4 +349,43 @@ fn scalar_boundaries_and_late_invalid_payload_are_transactional() {
             assert_eq!(after, observer);
         }
     }
+}
+
+// Direct-reference closure is checked separately from text and event-ID order.
+fn assert_causally_closed(r: &Replica) {
+    for fact in r.facts() {
+        for id in &fact.after {
+            assert!(
+                r.facts().iter().any(|old| old.id == *id),
+                "dangling direct dependency"
+            );
+        }
+    }
+}
+#[test]
+fn direct_dependency_guard_checks_later_ids_and_keeps_missing_retry_exact() {
+    let (a, root) = edit(new(Some(Writer::Alice)), 0, "a", vec![]);
+    let (b, other) = edit(new(Some(Writer::Bo)), 0, "b", vec![]);
+    let r = receive(new(None), &root);
+    let before = r.clone();
+    let offered = Fact {
+        id: EventId {
+            writer: Writer::Alice,
+            counter: 2,
+        },
+        after: vec![root.id, other.id],
+        insert: vec![],
+        delete: vec![],
+        gap: None,
+    };
+    let (r, result) = r.receive(&offered);
+    assert_eq!(result, Err(Error::Missing));
+    assert_eq!(r, before);
+    let r = receive(r, &other);
+    let r = receive(r, &offered);
+    assert_causally_closed(&r);
+    assert_eq!(r.facts().len(), 3);
+    // Both producer histories remain independently valid and nonempty.
+    assert_causally_closed(&a);
+    assert_causally_closed(&b);
 }

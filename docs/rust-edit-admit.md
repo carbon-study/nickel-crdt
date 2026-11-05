@@ -259,8 +259,10 @@ existing full-instance error/duplicate/empty neutrality lemmas. The local case
 uses the actual author/receive same-commit theorem. This supplies the unique-ID
 premise required by known-member classification without trusting a caller's
 claim about the rebuilt tree. It is an event-ID invariant, **not full edit WF**:
-causal closure, canonical ordering, scalar/birth/tree
-correspondence, allocator progress and semantic refinement remain open. It does
+that ID theorem alone gives neither causal closure nor canonical ordering.
+Separate components below cover storage order, scalar validation and direct
+reference closure; full causal/tree correspondence, allocator progress and
+semantic refinement remain open. It does
 not establish that a valid fitting request succeeds, or justify an Internal
 result as invalidity.
 
@@ -294,9 +296,10 @@ receive/edit calls. It requires no extra before-WF premise for this conditional
 successful-return statement; it does not establish that valid fitting input
 will successfully return.
 
-This does not identify canonical order with the intended order, validate causal
-closure/scalars, relate the tree to semantic interpretation, prove convergence
-or repair the capacity boundary. Those remain separate exit obligations.
+This content theorem alone does not validate causal references or scalars;
+separate components below address those. It does not identify canonical order
+with the intended order, relate the tree to independent semantic interpretation,
+prove convergence or repair the capacity boundary. Those remain exit obligations.
 Changing a selected fact's gap or omitting the canonical loop must fail native
 public-state checks and the corresponding unchanged named content theorem.
 
@@ -497,3 +500,34 @@ an unchanged named proof ordinarily below the query limit.
 No budget, wire, decoder or resource-policy change is made. The remaining
 well-formedness, causal/Fugue refinement and valid-fitting-input progress
 obligations are still open.
+
+## direct causal-reference closure
+
+The direct predecessor-existence guard is now source-linked through the actual
+`past`, validation, plan and public `receive` boundary. Whenever admission
+returns `Added`, every ID in the offered fact's `after` vector occurs in the
+receiver's **before** facts. This conclusion does not assume that before-state
+is well formed. Membership is connected to the independently specified indexed
+lookup/absence relation, rather than trusting a Boolean membership call.
+
+Construction establishes direct-reference closure of accepted facts, and every
+`receive`/`edit` return preserves it from a closed before-state. Success uses
+exact whole-fact publication and monotonic membership; errors, duplicate and
+empty returns use whole-instance neutrality. Local authoring uses the actual
+same-commit law, not a separately implemented author.
+
+The old existence check in `past` is factored into an indexed `validate_after`
+helper so its range semantics is executable at the pinned hax translation.
+Present direct predecessors always pass **that guard**. This is neither
+completeness of `past` nor public admission progress. The checked fact-closure
+component allows cycles in arbitrary supplied before-states; it does not prove
+acyclicity, exact transitive closure, causal schedule independence or termination
+of successful replay. In particular, it is not FugueMax representation
+refinement or the verified edit/admit exit.
+
+Four default source controls test guard soundness, refusal of present
+predecessors, the actual guard argument inside `past`, and the actual `past`
+argument inside validation. They require native failure, successful fresh
+extraction, and an ordinary source-bound named proof rejection. A skipped guard
+can change `Missing` into a later error without admitting the bad fact; those
+native failures are not reported as successful admission counterexamples.

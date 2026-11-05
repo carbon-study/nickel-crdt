@@ -498,13 +498,18 @@ fn frontier(facts: &[Fact]) -> Result<Vec<EventId>, Error> {
     }
     Ok(out)
 }
-fn past(facts: &[Fact], after: &[EventId]) -> Result<Vec<EventId>, Error> {
-    let mut selected = after.to_vec();
-    for id in after {
-        if !has_fact(facts, *id) {
+// Direct predecessor admission guard, separated from closure computation.
+fn validate_after(facts: &[Fact], after: &[EventId]) -> Result<(), Error> {
+    for i in 0..after.len() {
+        if !has_fact(facts, after[i]) {
             return Err(Error::Missing);
         }
     }
+    Ok(())
+}
+fn past(facts: &[Fact], after: &[EventId]) -> Result<Vec<EventId>, Error> {
+    let mut selected = after.to_vec();
+    validate_after(facts, after)?;
     for _ in 0..facts.len() {
         for fact in facts {
             if has_event(&selected, fact.id) {

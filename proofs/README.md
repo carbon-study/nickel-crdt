@@ -285,3 +285,18 @@ The default `plan-interprets-uncanonical` control derives the tree before
 canonicalizing the fact vector. It must fail native tests and the same actual
 interpretation-publication law as the old-tree controls. This witnesses the
 publication's input ordering, not independent causal/Fugue refinement.
+
+## direct causal-reference closure
+
+`EditAccepted` connects the direct predecessor guard to actual `past`,
+validation and public admission. `Added` implies that the offered direct
+predecessor IDs existed in the before facts. Exact whole-fact publication and
+membership monotonicity then give constructor establishment and all-return
+closure preservation for public receive/edit. The local proof composes the
+existing same-commit theorem. Guard completeness is proved separately.
+
+The guard is factored into an executable indexed range, retaining its checks
+and errors; its hax snapshot is refreshed. Four default controls cover both
+helper semantics and the actual argument wiring at `past` and validation.
+This WF component does not establish acyclicity, exact transitive-past
+computation, scheduler progress/independence, Fugue refinement or full WF.

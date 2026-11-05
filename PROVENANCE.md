@@ -74,3 +74,9 @@ refreshed and checked against fresh extraction. Other native function snapshot
 changes are generated hoist-variable alpha-renaming; the validator body and
 new scalar helper carry the substantive translation changes. This does not
 prove old/new Rust equivalence or eliminate the hax trust boundary.
+
+The direct causal-reference extension remains in `EditAccepted`, emitted by the
+same private CLI revision above. Its indexed `validate_after` helper factors the
+existing `past` existence guard; the reviewed translation snapshot changes only
+that helper and its `past` caller. These source-bound results retain hax and the
+external models as trusted translation boundaries.
