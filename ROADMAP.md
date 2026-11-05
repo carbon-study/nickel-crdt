@@ -7,7 +7,9 @@ experiment helps choose that behavior; extending it is not the release goal.
 Ren authorized FugueMax for the experimental Rust edit/admit cut. PR18 is
 merged; it does not complete the verified slice or history milestone. The
 [post-merge continuation plan](docs/edit-admit-continuation.md) owns the next
-proof slices; the larger release requirements below remain in force.
+proof slices. Ren now puts whole-proof-codebase contracts/patterns and a simple
+for-loop interface first, as a gate before further semantic work. The larger
+release requirements below remain in force.
 
 ## the first usable release
 

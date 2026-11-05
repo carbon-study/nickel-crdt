@@ -5,11 +5,16 @@ head `4e0f55d` unchanged. That head passed the complete native/proofs,
 reference and questionnaire checks on ARM. This is a development baseline,
 not the verified edit-only exit, the history milestone or a release.
 
-The next goal is to connect **what an admitted edit means** to the actual Rust
-transition, and show that valid inputs in the supported domain can be admitted.
-Keep the replay implementation while closing those obligations. Performance
-work should then preserve an established meaning, rather than define it by
-agreement with an unproved implementation.
+**Priority changed by Ren:** reform the existing proof codebase around proved
+function contracts, deliberate patterns and a simple for-loop interface before
+any further semantic work. This supersedes the earlier “eventual cleanup; do not
+block proofs on style” sequencing. Sections 1–5 below are the continuation after
+that gate, not work to advance alongside it. The causal-rank candidate in PR20
+is held unchanged; it is not an exception to the new gate.
+
+After the reform, connect **what an admitted edit means** to the actual Rust
+transition and prove supported valid inputs can be admitted. Keep replay while
+closing those obligations; incremental performance work remains later.
 
 ## what the merge supplies
 
@@ -38,6 +43,114 @@ Three distinctions determine the remaining work:
   Conflicting histories remain an explicit exclusion, not a proposed conflict
   resolution rule. External producer fencing is a caller obligation; neither
   `Clone` nor the local allocator enforces it.
+
+## 0. reform contracts, patterns and for-loop proofs first
+
+**Requested outcome:** proofs compose semantic laws instead of repeatedly
+negotiating which Rust definitions, matches and local bindings to unfold.
+Putting the same reduction lists behind a renamed tactic does not meet this
+request. This is a mandatory first deliverable, not a cleanup suggestion.
+
+**Scope:** all project-authored proof code: Prelude, LoopUtil, Smoke, EditAtomic,
+EditCommit, EditIdentity, EditAccepted and EditWellFormed, plus the held
+EditCausal candidate before that candidate advances. Generated authored F* views,
+receipts and verification roots follow those changes. Imported F*/hax models and
+the private Latte compiler are not a codebase to rewrite or new trust to add.
+Unproved Rust behavior does not become proved merely by giving it a contract.
+
+**Boundary decision still required:** Ren has requested eliminating the fiddly
+normalization approach throughout the codebase. No exception has been approved
+for source-linking lemmas. Clarify whether zero explicit normalization is required
+even there, or whether a small, explicitly approved boundary may retain it while
+all callers use contracts. Until that answer, do not declare retained boundary
+normalizers compliant or mark the reform complete. The downstream target is
+unambiguous: no hand-maintained implementation unfolding lists in callers.
+
+### 0a. map and prove useful function contracts
+
+Inspect the existing proof families and record which implementation detail each
+caller currently opens, which semantic law it actually needs, and the source
+boundary that must prove that law. Keep this as a small reviewable coverage
+table, not a new framework. Cover helper wiring as well as helper bodies.
+
+For each needed Rust function, prove a pre/post or exact-result law about its
+actual extracted call. State independent result predicates where appropriate:
+unchanged full state, exact publication, freshness, validation success/error,
+ordering or interpretation installation. Several laws per function can be more
+useful than one monolithic contract. These are proved lemmas, not assumed hax
+annotations or axioms.
+
+Use deliberate Latte `hint` patterns on the actual function-call terms where
+automatic instantiation helps. Check that a caller produces the matching term,
+that needed premises are available, and that the trigger does not generate a
+self-sustaining matching loop. Use explicit calls where they make the dependency
+clearer. Pattern syntax alone is not the abstraction: downstream proofs must be
+able to use the law without reopening its implementation.
+
+**First acceptance slice:** the existing counter calculation → installation →
+actual public call wiring. Preserve its universal conclusions and the three
+existing arithmetic/setter/wrong-argument controls. A theorem about the setter
+alone is not an exit; the wrong argument at the real call must still reject
+ordinarily at its public or call-boundary law. Use this complete slice to check
+the contract/pattern mechanism before migrating the larger proof families.
+
+### 0b. expose ordinary for loops through a simple invariant rule
+
+Build a derived interface over the **actual pinned hax loop interpreter** already
+connected by LoopUtil. An ordinary no-break bounded loop should expose:
+
+- an initial accumulator and a body step;
+- an invariant at the initial index;
+- one preservation obligation from index i/state to the next index/state;
+- an invariant/postcondition at normal completion.
+
+The caller should not reconstruct nested ControlFlow encodings, hax's annotation
+argument or `step_safe`/`output_safe` bookkeeping for every basic loop. Prove the
+adapter once; do not replace the Rust loop by a separate convenient algorithm
+and treat agreement as an assumption. Preserve range endpoints, empty-range and
+index/representation behavior explicitly. Generalizing beyond the first basic
+range shape must not silently add a precondition absent from Rust.
+
+Provide separately named derived rules for early error/return or break shapes
+needed by existing callers. Normal completion, error return and break cannot be
+collapsed into one success case. Keep the general interpreter behind those
+rules rather than weakening the existing early-return controls to fit a simpler
+interface. Inventory supported loop shapes; leave unsupported/unproved Rust loops
+explicitly unsupported, rather than claiming they were verified by this reform.
+
+**Acceptance:** migrate the actual Boolean-loop smoke proof through the basic
+rule, preserving parity/involution and its wrong-body control. Then migrate an
+actual fallible validation loop and its public caller, retaining success,
+early-error and wrong-argument/refusal controls. This checks that the interface
+works at both the loop and real public boundary, not just on an authored example.
+
+### 0c. migrate the whole authored proof codebase
+
+Carry the proven interfaces through identity/membership, exact publication and
+canonicalization, scalar/direct-reference validation, commit/neutral returns,
+and the held causal-rank component. Pure recursive lemmas also get usable
+semantic equations/contracts instead of repeated manual reduction scripts.
+
+For each family, compare the before/after theorem statements and their source
+bindings, then run the affected positive and semantic controls. Keep a named
+mapping for moved/renamed laws. Preserve all-return claims, not only successful
+cases. Do not erase a required premise, reduce the quantifier domain, bless an
+unrelated error or count timeout/resource exhaustion as a successful control.
+Revalidate source/view receipts and actual gate discovery after moves.
+
+**Whole-reform exit:** every authored proof family is accounted for; downstream
+callers use proved contracts and loop rules without manual implementation
+unfolding; any remaining boundary machinery meets Ren's explicitly chosen
+policy. Add a focused recurrence guard for prohibited authored normalization
+forms once that policy is settled, with a failing control. A wrapper or alias
+that merely hides the old reduction lists does not satisfy the gate. Existing
+public conclusions and semantic controls remain intact; fresh extraction/view
+binding, scoped review and exact-head ARM acceptance pass. Keep compiler60s and
+query rlimit100 unchanged; the aggregate graph policy remains separate.
+
+Do not resume sections 1–5, cache adoption, new engine features or other queued
+implementation/review work before this reform gate is closed. This is a change
+of sequencing, not permission to remove unfinished semantic/release obligations.
 
 ## 1. close reachable causal well-formedness
 
@@ -209,16 +322,13 @@ and semantic controls, scoped review and exact-head ARM acceptance. Consult the
 whole candidate's limits as well as the local delta. Report a usable result or
 a retained counterexample, not just another helper lemma.
 
-Build source-function contracts and reuse loop invariant rules where they
-remove repeated implementation reasoning. Prefer explicit lemma composition
-or deliberate triggers over reopening every implementation downstream. Proof
-style must not block correctness work or change theorem strength. Keep compiler
+Section 0 is now the prerequisite reform. Preserve theorem strength throughout
+it and the later semantic slices. Keep compiler
 60 s and query rlimit 100 unchanged; the graph-derived aggregate driver is a
 separate guard. Split a genuinely overgrown compilation unit before publishing
 another timed-out head, and never count resource exhaustion as detection.
 No complete matrix or browser rerun is needed for this documentation plan.
 
-**Immediate next action:** slice 1, reachable causal acyclicity, beginning with
-the exact invariant and its constructor/receive/edit composition. If its
-representation reveals a counterexample, resolve that before using a DAG as a
-premise for slice 2.
+**Immediate next action:** section 0: settle the boundary-normalization policy,
+map current caller needs, and carry the counter contract/pattern slice through
+its actual public wiring and controls. No further causal/scheduler work first.
