@@ -327,8 +327,10 @@ neutral-return proofs. The setter has a deliberate pattern on the actual
 `with_counter(state, counter)` call. The public counter proof calls the existing
 calculation law and uses that setter contract, retaining its previous shallow
 SMT request. All parameters and postconditions remain unchanged. No wrapper
-hides a reduction list; a scoped entry-gate recurrence guard rejects known
-normalization forms in this family. Other proof families and the simple/fallible
+hides a reduction list. The entry-gate token fence prohibits normalization
+operators/imports and tactic uses except the canonical direct shallow SMT call;
+aliases are refused, and default fixture controls exercise that policy. It is a
+source-style fence, not an isolation boundary against arbitrary imported code. Other proof families and the simple/fallible
 for-loop interface still need migration; the whole reform is not complete.
 
 The three counter controls still cover arithmetic, setter implementation and

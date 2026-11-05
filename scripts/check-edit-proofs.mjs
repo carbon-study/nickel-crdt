@@ -7,12 +7,11 @@ import {fileURLToPath} from 'node:url';
 import {digest,run,verify,put} from './proof-cache.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
 import {checkNegativeProofEvidence} from './check-negative-proof-evidence.mjs';
+import {checkProofReform} from './proof-reform.mjs';
+import './check-proof-reform.mjs';
 checkNegativeProofEvidence();
 const root=fileURLToPath(new URL('..',import.meta.url));
-// First migrated proof family: keep explicit normalization from returning.
-const atomicSource=await fs.readFile(path.join(root,'proofs/EditAtomic.lt'),'utf8');
-assert(!/\b(?:norm_spec|delta_only|delta_once|iota|zeta_full)\b|\.norm\s*\(/.test(atomicSource),
-  'EditAtomic reform: explicit normalization is prohibited; compose the proved contracts');
+await checkProofReform(root);
 const {NICKEL_HAX_BIN:hax,NICKEL_PROOF_FSTAR:fstar,NICKEL_HAX_SOURCE:models,NICKEL_FSTAR_MODEL_CACHE:modelCache}=process.env;
 assert(hax&&fstar&&models&&modelCache,'use the locked .#proofs environment');
 const output=process.argv[2];assert(output,'output directory required');
