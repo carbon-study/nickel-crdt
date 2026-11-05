@@ -542,3 +542,22 @@ semantic controls still require ordinary named source-bound rejections. The
 per-compiler60s and solver rlimit100 limits are unchanged. The a26295f ARM run
 timed out in the positive module after checking the guard and closure-extension
 laws; that run did not establish the remaining public closure proofs on ARM.
+
+### reachable causal rank
+
+`EditCausal` composes the existing source-bound contracts into a ghost rank
+certificate for the actual constructor and every receive/edit return. A new
+fact receives a rank above all previously accepted facts; old ranks remain
+unchanged, and neutral returns preserve the certificate. The translated Clone
+instance copies it. A separate finite-path induction proves that no nonempty
+causal path can return to its start. Together these laws give causal acyclicity
+for finite public-call continuations from construction, rather than assuming
+acyclicity for arbitrary closed before-states. The rank is neither stored Rust
+metadata nor event-ID order. Cloning preserves this invariant but does not fence
+a writer or prevent same-ID conflicts across different producer branches.
+
+The complete positive gate now reaches this separate module. The unchanged
+graph allowance counts nine project compiler targets (568s); compiler60s and
+solver rlimit100 remain unchanged. Exact transitive past, causal replay progress
+and projection, independent sequence refinement and valid-fitting admission
+progress remain open. This does not complete the verified edit-only slice.

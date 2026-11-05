@@ -10,7 +10,7 @@ The generic loop library and prelude were extracted, with Ren's explicit authori
 The loop source was renamed from `Light` to `Nickel`. The proof-cache/bootstrap helpers and smoke proof also adapt Lynn's existing harness and loop-shape work. This extraction does not redistribute the Dark application or the Latte compiler. The scaffold's authored code is offered under MIT; upstream toolchains retain their own licenses.
 
 The committed Prelude, LoopUtil, Smoke, EditAtomic, EditCommit, EditIdentity,
-EditAccepted and EditWellFormed views were re-emitted and compared byte-for-byte using local
+EditAccepted, EditWellFormed and EditCausal views were re-emitted and compared byte-for-byte using local
 `carbon-study/latte-nursery` revision
 `0729bf34e2a7d9538604d951edc44d376d1b8ced` and its locked `.#cli` package. The
 clean local checkout's CLI output matches the installed emitter used for that
@@ -19,7 +19,7 @@ comparison. An authorized local checkout can repeat the emission check with:
 ```sh
 emitter=$(nix build --no-link --print-out-paths /path/to/latte-nursery#cli)
 temporary=$(mktemp -d)
-for name in Prelude LoopUtil Smoke EditAtomic EditCommit EditIdentity EditAccepted EditWellFormed; do
+for name in Prelude LoopUtil Smoke EditAtomic EditCommit EditIdentity EditAccepted EditWellFormed EditCausal; do
   "$emitter/bin/latte" emit-fstar "$PWD/proofs/$name.lt" > "$temporary/Nickel.$name.fst"
   cmp "$temporary/Nickel.$name.fst" "proofs/generated/Nickel.$name.fst" || exit 1
 done
@@ -85,3 +85,10 @@ The WF-module split mechanically moves the scalar and direct-reference contracts
 from EditAccepted to EditWellFormed, including their statements and proof bodies,
 with only owned namespace changes. Both regenerated views use that same emitter;
 no Rust, native hax extraction or external model changes accompany the split.
+
+The causal-rank extension in `EditCausal` is emitted by the same pinned private
+CLI. It composes existing source-bound freshness, publication and direct-reference
+contracts, and uses structural recursion on finite causal paths to exclude
+nonempty cycles. Its ghost rank is not Rust storage or a trusted admission-order
+axiom. No Rust source, hax snapshot, model or limit changes. The translated
+derived Clone instance preserves that certificate, not producer fencing.
