@@ -118,13 +118,13 @@ full positive proof chain.
 The reused-counter mutation changes that actual helper's successful result from
 `counter + 1` to `counter`. It must still fail native public tests and now reject
 `counter_result_advances_once` ordinarily. These counter negative checks stop at their
-owning `EditAtomic` module; positive verification still reaches `EditAccepted`.
+owning `EditAtomic` module; positive verification reaches `EditWellFormed`.
 The separate `edit-commit-ignores-counter` control changes the actual counter
 installation inside `with_counter` to retain the old value. It must fail native
 public tests and `counter_installation_is_exact`, which checks both the installed
 counter and preservation of every other instance field. Public `edit` uses
 that function after successful planning, and its unchanged counter theorem
-unfolds the actual call. This controls the installation body, not its argument
+now composes the calculation and setter contracts at the actual call. This controls the installation body, not its argument
 wiring inside `edit`.
 
 The separate `edit-call-passes-old-counter` control mutates that actual call to
@@ -134,11 +134,12 @@ setter-body and call-site controls therefore exercise distinct source boundaries
 Earlier resource-only wiring attempts are retained as failed experiments, not
 counted as proof detections.
 
-The public counter, request binding, same-commit and private-state proofs now
-explicitly normalize their actual native call boundaries, then run the standard
-F* synchronous SMT tactic with fuel/ifuel 1/1. The counter proof uses the checked
-calculation law; private-state proofs expose the existing native clone and tree
-setter. This limits automatic unfolding into replay while preserving the exact
+The request binding, same-commit and private-state proofs still explicitly
+normalize their actual native call boundaries, then run the standard F*
+synchronous SMT tactic with fuel/ifuel 1/1. Those families await the reform below.
+The counter proof now composes the checked calculation and setter contracts,
+with the same shallow final SMT request and no explicit normalization. The
+legacy private-state proofs expose the existing native clone and tree setter. This limits automatic unfolding into replay while preserving the exact
 universal theorem statements. Default module settings, rlimit100 and all wall
 time limits are unchanged; these query-local unfolding depths are lower, not
 larger proof budgets. Positive and mutated programs use identical proof views
@@ -317,3 +318,21 @@ Every moved definition, universal statement and proof body is unchanged modulo
 the owned module namespace. Rust and the hax snapshots are unchanged by the
 split. Fresh extraction, byte-matching, native-failure requirements and the
 source-bound ordinary-rejection classifier remain in force.
+
+## proof reform: first migrated family
+
+`EditAtomic` now proves all five existing universal laws without explicit
+normalization, including the source-linking calculator/setter and public
+neutral-return proofs. The setter has a deliberate pattern on the actual
+`with_counter(state, counter)` call. The public counter proof calls the existing
+calculation law and uses that setter contract, retaining its previous shallow
+SMT request. All parameters and postconditions remain unchanged. No wrapper
+hides a reduction list; a scoped entry-gate recurrence guard rejects known
+normalization forms in this family. Other proof families and the simple/fallible
+for-loop interface still need migration; the whole reform is not complete.
+
+The three counter controls still cover arithmetic, setter implementation and
+the real argument separately. Both public neutral-return controls remain too.
+They require the same native failures, fresh extraction and ordinary named
+source-bound rejections. No Rust/hax/model change, axiom, compiler/query cap or
+graph-budget change accompanies this refactor.
