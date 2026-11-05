@@ -124,7 +124,17 @@ refusal controls and unchanged public theorems must detect arbitrary refusal
 and internal-error injection. If an actual valid fitting history fails, retain
 it as a blocker; do not shrink the domain silently or switch resource policy.
 
-These four slices close the edit-only argument. They do **not** close the
+**Joint exit of slices 2–4:** for one fixed finite valid fact set, prove that
+all legal causal delivery schedules whose prefixes meet the stated fit
+conditions admit that same set and yield the same shared interpretation.
+Compose exact publication/canonical rebuild agreement with semantic refinement
+and public progress; include the independent semantics' schedule-independence
+law wherever that derivation needs it. This concerns delivery of already
+authored facts, not changing an author's knowledge before authoring. It excludes
+the retained over-capacity different-subset cases. Bounded schedule tests do not
+discharge this universal obligation.
+
+These four slices, including that joint exit, close the edit-only argument. They do **not** close the
 roadmap milestone that includes Undo/Redo/Restore, or constitute a versioned
 release by themselves.
 
