@@ -22,8 +22,8 @@ dependency graph. Interfaces and implementations count separately. Unrelated
 workspace files, extraction targets and immutable imported models do not count;
 checked project targets still count on warm runs. The serial sum is not divided
 by make's job count. The two seconds per target cover compiler timeout kill
-grace; ten seconds cover make overhead. For the current eight-module edit chain
-this is 506 seconds, while every F* process remains capped at 60 seconds and
+grace; ten seconds cover make overhead. For the current nine-module edit chain
+this is 568 seconds, while every F* process remains capped at 60 seconds and
 every solver query at rlimit100. Dependency discovery remains independently
 capped at 60 seconds; model bootstrap keeps its explicit 600-second driver.
 Project callers cannot enlarge the derived bound through an explicit override.
@@ -306,14 +306,34 @@ computation, scheduler progress/independence, Fugue refinement or full WF.
 The accepted-fact/storage proofs remain in `EditAccepted`. Scalar-domain and
 direct causal-reference contracts live in `EditWellFormed`, which imports
 those checked publication laws. The positive gate verifies the full chain
-through `EditWellFormed`; every non-counter control uses that same root,
+through `EditCausal`; every non-counter control uses that same root,
 with its original owning theorem (relocated where appropriate). The three
 counter controls still stop at `EditAtomic`.
 
 This separates cumulative compiler work into semantic modules; it does not
 increase the 60-second compiler cap or solver rlimit100. The actual graph now
-has eight compiler targets, so the unchanged aggregate formula yields506s.
+has nine compiler targets, so the unchanged aggregate formula yields568s.
 Every moved definition, universal statement and proof body is unchanged modulo
 the owned module namespace. Rust and the hax snapshots are unchanged by the
 split. Fresh extraction, byte-matching, native-failure requirements and the
 source-bound ordinary-rejection classifier remain in force.
+
+## reachable causal acyclicity
+
+`EditCausal` constructs a ghost natural-valued rank certificate: every direct
+predecessor has a smaller rank, and every accepted event ranks below a bound.
+Construction starts with the empty certificate. Actual receive/edit preserve it
+on every return: Added/Authored assign the fresh ID the old bound, preserving
+old ranks, and advance the bound; neutral returns retain it. The proof composes
+source-bound freshness, exact whole-fact publication and direct-reference closure
+without reopening the native implementation. The translated derived Clone
+instance copies the same certificate and acquires no fresh producer lease.
+
+A separately defined direct edge and recursively defined finite path connect
+the certificate to graph acyclicity: a nonempty causal path strictly decreases
+rank, so cannot return to its start. Constructor plus all-return preservation
+therefore supply an acyclic accepted graph for finite public-call continuations;
+arbitrary closed abstract states can still contain cycles and need not have
+such a certificate. This is not exact transitive `past`, replay scheduling,
+semantic/Fugue refinement, valid-fitting admission progress or convergence.
+The proof remains about the hax translation under the existing trust boundary.
