@@ -32,9 +32,13 @@ function scalar_check_invariant(scalars: t_Slice(u32), at: nat, state: unit): Ty
 proof scalar_validation_is_sound(scalars: t_Slice(u32)): unit
   gives scalar_check_result(scalars, Native.validate_scalars(scalars))
 {
-  Nickel.LoopUtil.preserve_any(mk_usize(0), Core_models.Slice.impl__len(scalars), scalar_check_invariant(scalars), ((_: unit) => scalars_valid(scalars)), scalar_check_result(scalars));
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(scalars),
+    scalar_check_invariant(scalars), ((_: unit) => ()),
+    ((_: unit) => scalars_valid(scalars)), ((_: Native.t_Error) => Prims.l_True));
   assert(scalar_check_result(scalars, Native.validate_scalars(scalars))) by {
     Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.prune("Nickel.LoopUtil.step_safe");
+    Tactics.prune("Nickel.LoopUtil.output_safe");
     Tactics.smt_sync'(1, 1)
   }
 }
@@ -42,9 +46,13 @@ proof valid_scalar_input_succeeds(scalars: t_Slice(u32)): unit
   takes scalars_valid(scalars)
   gives Native.validate_scalars(scalars) == Result.Result_Ok(())
 {
-  Nickel.LoopUtil.preserve_any(mk_usize(0), Core_models.Slice.impl__len(scalars), ((_: nat, _: unit) => Prims.l_True), ((_: unit) => Prims.l_True), ((_: Result.t_Result(unit, Native.t_Error)) => Prims.l_False));
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(scalars),
+    ((_: nat, _: unit) => Prims.l_True), ((_: unit) => ()),
+    ((_: unit) => Prims.l_True), ((_: Native.t_Error) => Prims.l_False));
   assert(Native.validate_scalars(scalars) == Result.Result_Ok(())) by {
     Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.prune("Nickel.LoopUtil.step_safe");
+    Tactics.prune("Nickel.LoopUtil.output_safe");
     Tactics.smt_sync'(1, 1)
   }
 }

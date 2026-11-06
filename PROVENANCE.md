@@ -132,3 +132,9 @@ introduction replaces the universal adapter's explicit recursive trigger,
 without changing its logical type. The native scalar soundness and valid-input
 success boundaries use that rule without normalization; their own validator
 body remains visible. No model, extraction, compiler or budget change is made.
+
+The Result-oriented return-loop specialization composes the preserved general
+rule and exposes successful/error conditions. Its actual scalar callers
+withhold step_safe/output_safe as well as the fold model. This changes neither
+prior theorem types nor the native extraction. Its universal-introduction
+scaffold uses the same pinned standard-library lemmas; no axiom is added.

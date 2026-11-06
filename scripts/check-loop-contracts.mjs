@@ -19,6 +19,7 @@ export async function checkLoopContracts({proof,output,fstar,models,modelCache})
   const loop='Nickel.LoopUtil.fst',smoke='Nickel.Smoke.fst';
   const originals=new Map(await Promise.all([loop,smoke].map(async name=>[name,await fs.readFile(path.join(proof,name),'utf8')])));
   const cases=[
+    ['result-no-return-rule',loop,'result_preserve_any','preserve_any start finish p (fun (s: state) -> successful (done s)) (result_safe successful failed);'],
     ['return-no-step',loop,'preserve','unroll start finish inv value f;'],
     ['return-no-end',loop,'preserve','empty start finish inv value f;'],
     ['return-no-induction',loop,'preserve','preserve (start +! mk_int 1) finish inv next f p post returned'],
@@ -72,7 +73,7 @@ export async function checkScalarContracts({proof,output,fstar,models,modelCache
   const file=path.join(proof,'Nickel.EditWellFormed.fst'),original=await fs.readFile(file,'utf8');
   for(const lemma of ['scalar_validation_is_sound','valid_scalar_input_succeeds']) {
     const [a,b]=declaration(original,lemma),body=original.slice(a,b);
-    const calls=body.match(/Nickel\.LoopUtil\.preserve_any[^;]+;/g);
+    const calls=body.match(/Nickel\.LoopUtil\.result_preserve_any[^;]+;/g);
     assert.equal(calls?.length,1,'one fallible rule call at '+lemma);
     const view=removeCall(original,lemma,calls[0]);
     try {

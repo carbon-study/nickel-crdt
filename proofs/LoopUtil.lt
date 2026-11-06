@@ -356,3 +356,58 @@ proof plain_preserve_any<state: Type0>(start: usize, finish: usize where v(start
   { FStar.Classical.move_requires_3(each, inv, value, f) };
   FStar.Classical.forall_intro_3(each_imp)
 }
+
+// Result-oriented view of a return-capable for loop. The encoding lives here;
+// callers state successful-result and error conditions instead of output_safe.
+import Result = Core_models.Result
+function result_safe<value: Type0, error: Type0>(successful: value => Type0,
+  failed: error => Type0, out: Result.t_Result(value, error)): Type0 {
+  match out { Result.Result_Ok(value) => successful(value), Result.Result_Err(error) => failed(error), }
+}
+function result_finish<state: Type0, value: Type0, error: Type0>(done: state => value,
+  out: output(state, Result.t_Result(value, error))): Result.t_Result(value, error) {
+  match out { ControlFlow_Break(ret) => ret, ControlFlow_Continue(next) => Result.Result_Ok(done(next)), }
+}
+proof result_preserve_any<state: Type0, value: Type0, error: Type0>(start: usize, finish: usize where v(start) <= v(finish),
+  p: nat => state => Type0, done: state => value, successful: value => Type0, failed: error => Type0): unit
+  gives forall(inv: invariant(state, start, finish), initial: state, f: callback(state, Result.t_Result(value, error), start, finish)) .
+    (p(v(start), initial) and
+     (forall(s: state, i: position(start, finish)) . p(v(i), s) ==>
+       (match f(s, i) {
+         ControlFlow_Continue(next) => p(v(i) + 1, next),
+         ControlFlow_Break(ControlFlow_Break(ret)) => result_safe(successful, failed, ret),
+         ControlFlow_Break(ControlFlow_Continue((_, next))) => successful(done(next)),
+       } : Type0)) and
+     (forall(s: state) . p(v(finish), s) ==> successful(done(s)))) ==>
+      result_safe(successful, failed, result_finish(done, fold_range_return(start, finish, inv, initial, f)))
+{
+  proof each(inv: invariant(state, start, finish), initial: state, f: callback(state, Result.t_Result(value, error), start, finish)): unit
+    takes p(v(start), initial)
+    takes forall(s: state, i: position(start, finish)) . p(v(i), s) ==>
+      (match f(s, i) {
+        ControlFlow_Continue(next) => p(v(i) + 1, next),
+        ControlFlow_Break(ControlFlow_Break(ret)) => result_safe(successful, failed, ret),
+        ControlFlow_Break(ControlFlow_Continue((_, next))) => successful(done(next)),
+      } : Type0)
+    takes forall(s: state) . p(v(finish), s) ==> successful(done(s))
+    gives result_safe(successful, failed, result_finish(done, fold_range_return(start, finish, inv, initial, f)))
+  {
+    preserve_any(start, finish, p, ((s: state) => successful(done(s))), result_safe(successful, failed));
+    assert(result_safe(successful, failed, result_finish(done, fold_range_return(start, finish, inv, initial, f)))) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  proof each_imp(inv: invariant(state, start, finish), initial: state, f: callback(state, Result.t_Result(value, error), start, finish)): unit
+    gives (p(v(start), initial) and
+      (forall(s: state, i: position(start, finish)) . p(v(i), s) ==>
+        (match f(s, i) {
+          ControlFlow_Continue(next) => p(v(i) + 1, next),
+          ControlFlow_Break(ControlFlow_Break(ret)) => result_safe(successful, failed, ret),
+          ControlFlow_Break(ControlFlow_Continue((_, next))) => successful(done(next)),
+        } : Type0)) and
+      (forall(s: state) . p(v(finish), s) ==> successful(done(s)))) ==>
+      result_safe(successful, failed, result_finish(done, fold_range_return(start, finish, inv, initial, f)))
+  { FStar.Classical.move_requires_3(each, inv, initial, f) };
+  FStar.Classical.forall_intro_3(each_imp)
+}

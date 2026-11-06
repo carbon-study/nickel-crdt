@@ -190,3 +190,21 @@ let plain_preserve_any (#state: Type0) (start: usize) (finish: usize{v start <= 
     ) in
   let each_imp (inv: total_invariant state start finish) (value: state) (f: plain_callback state start finish) : Lemma (ensures Prims.l_and (Prims.l_and (p (v start) value) (forall(s: state) (i: position start finish{v i < v finish}). p (v i) s ==> p (v i + 1) (f s i))) (forall(s: state). p (v finish) s ==> post s) ==> post (fold_range start finish inv value f)) = FStar.Classical.move_requires_3 each inv value f in
   FStar.Classical.forall_intro_3 each_imp
+
+module Result = Core_models.Result
+
+let result_safe (#value: Type0) (#error: Type0) (successful: value -> Type0) (failed: error -> Type0) (out: Result.t_Result value error) : Type0 =
+  match out with | Result.Result_Ok value -> begin successful value end | Result.Result_Err error -> begin failed error end
+
+let result_finish (#state: Type0) (#value: Type0) (#error: Type0) (done: state -> value) (out: output state (Result.t_Result value error)) : Result.t_Result value error =
+  match out with | ControlFlow_Break ret -> begin ret end | ControlFlow_Continue next -> begin Result.Result_Ok (done next) end
+
+let result_preserve_any (#state: Type0) (#value: Type0) (#error: Type0) (start: usize) (finish: usize{v start <= v finish}) (p: nat -> state -> Type0) (done: state -> value) (successful: value -> Type0) (failed: error -> Type0) : Lemma (ensures forall(inv: invariant state start finish) (initial: state) (f: callback state (Result.t_Result value error) start finish). Prims.l_and (Prims.l_and (p (v start) initial) (forall(s: state) (i: position start finish). p (v i) s ==> ((match f s i with | ControlFlow_Continue next -> begin p (v i + 1) next end | ControlFlow_Break (ControlFlow_Break ret) -> begin result_safe successful failed ret end | ControlFlow_Break (ControlFlow_Continue (_, next)) -> begin successful (done next) end) <: Type0))) (forall(s: state). p (v finish) s ==> successful (done s)) ==> result_safe successful failed (result_finish done (fold_range_return start finish inv initial f))) =
+  let each (inv: invariant state start finish) (initial: state) (f: callback state (Result.t_Result value error) start finish) : Lemma (requires (p (v start) initial /\ (forall(s: state) (i: position start finish). p (v i) s ==> ((match f s i with | ControlFlow_Continue next -> begin p (v i + 1) next end | ControlFlow_Break (ControlFlow_Break ret) -> begin result_safe successful failed ret end | ControlFlow_Break (ControlFlow_Continue (_, next)) -> begin successful (done next) end) <: Type0)) /\ (forall(s: state). p (v finish) s ==> successful (done s)))) (ensures result_safe successful failed (result_finish done (fold_range_return start finish inv initial f))) =
+    preserve_any start finish p (fun (s: state) -> successful (done s)) (result_safe successful failed);
+    assert (result_safe successful failed (result_finish done (fold_range_return start finish inv initial f))) by (
+      Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+      Tactics.smt_sync' 1 1
+    ) in
+  let each_imp (inv: invariant state start finish) (initial: state) (f: callback state (Result.t_Result value error) start finish) : Lemma (ensures Prims.l_and (Prims.l_and (p (v start) initial) (forall(s: state) (i: position start finish). p (v i) s ==> ((match f s i with | ControlFlow_Continue next -> begin p (v i + 1) next end | ControlFlow_Break (ControlFlow_Break ret) -> begin result_safe successful failed ret end | ControlFlow_Break (ControlFlow_Continue (_, next)) -> begin successful (done next) end) <: Type0))) (forall(s: state). p (v finish) s ==> successful (done s)) ==> result_safe successful failed (result_finish done (fold_range_return start finish inv initial f))) = FStar.Classical.move_requires_3 each inv initial f in
+  FStar.Classical.forall_intro_3 each_imp
