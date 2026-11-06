@@ -6,7 +6,7 @@ export function checkProofReformFence() {
   assertReformedSource('fixture','import Tactics = FStar.Tactics.V2\nTactics.prune("Nickel_crdt.Edit.next_counter_after")');
   assertReformedSource('fixture','// norm_spec is prohibited\nfunction name(): string { "Tactics.compute()" }');
   for(const bad of [
-    'norm_spec([delta_only(["x"])] , x)', 'assert_norm(x)', 'normalize_term(x)',
+    'norm_spec([delta_only(["x"])] , x)', 'assert_norm(x)', 'normalize_term(x)', 'normalize(x)', 'FStar.Pervasives.normalize(x)', 'reveal_opaque(x)',
     'Tactics.compute()', 'delta_namespace(["x"])', 'Tactics.unfold_def(x)',
     'let n = Tactics.norm in n(x)', 'import Other = FStar.Tactics.V2',
     'FStar.Tactics.V2.norm(x)', 'import FStar.NormSteps',

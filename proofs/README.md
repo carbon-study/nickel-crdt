@@ -329,7 +329,8 @@ setter law has a deliberate pattern on `with_counter(state, counter)`.
 
 At that edit boundary, two explicit `Tactics.prune` calls withhold the callee
 facts for `next_counter_after` and `with_counter`. The proof can still inspect
-edit's own wiring. The calculator/setter implementation bodies remain available
+edit's own wiring, including plan/frontier bodies. This is isolation of the
+two counter helpers, not an all-callee abstraction. The calculator/setter implementation bodies remain available
 only when establishing their contracts, not when composing them in this
 counter proof. Pruning also withholds implicit SMT typing facts, so the value
 contract specifies the full Ok/Error result, not just an arithmetic predicate

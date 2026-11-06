@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-const forbidden=new Set(['norm','norm_spec','assert_norm','normalize_term','norm_term',
+const forbidden=new Set(['norm','norm_spec','assert_norm','normalize_term','normalize','norm_term','reveal_opaque',
   'compute','delta','delta_only','delta_once','delta_namespace','unfold_def',
   'iota','zeta','zeta_full','primops','unmeta','unascribe']);
 function tokens(source) {
