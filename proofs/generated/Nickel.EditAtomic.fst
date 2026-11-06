@@ -39,8 +39,19 @@ let counter_result_advances_once (counter: u64) : Lemma (ensures counter_result_
 let counter_installation_is_exact (state: Native.t_Replica) (counter: u64) : Lemma (ensures Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and ((Native.impl_Replica__with_counter state counter).f_next_counter == counter) ((Native.impl_Replica__with_counter state counter).f_writer == state.f_writer)) ((Native.impl_Replica__with_counter state counter).f_limits == state.f_limits)) ((Native.impl_Replica__with_counter state counter).f_facts == state.f_facts)) ((Native.impl_Replica__with_counter state counter).f_tree == state.f_tree)) [SMTPat (Native.impl_Replica__with_counter state counter)] =
   ()
 
+let counter_outcome (counter: u64) : Result.t_Result u64 Native.t_Error =
+  if v counter > v Native.v_MAX_COUNTER then
+    begin Result.Result_Err (Native.Error_Capacity Native.Capacity_Counter) end
+  else
+    begin Result.Result_Ok (counter +! mk_u64 1) end
+
+let counter_result_is_exact (counter: u64) : Lemma (ensures Native.next_counter_after counter == counter_outcome counter) =
+  ()
+
 let authored_edit_advances_once (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) (delete: Alloc.Vec.t_Vec Native.t_BirthId Alloc.Alloc.t_Global) : Lemma (ensures edit_counter_step before (Native.impl_Replica__edit before gap insert delete)) =
-  counter_result_advances_once before.f_next_counter;
+  counter_result_is_exact before.f_next_counter;
   assert (edit_counter_step before (Native.impl_Replica__edit before gap insert delete)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__with_counter";
+    Tactics.prune "Nickel_crdt.Edit.next_counter_after";
     Tactics.smt_sync' 1 1
   )

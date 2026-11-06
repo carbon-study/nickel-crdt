@@ -321,22 +321,36 @@ source-bound ordinary-rejection classifier remain in force.
 
 ## proof reform: first migrated family
 
-`EditAtomic` now proves all five existing universal laws without explicit
+`EditAtomic` proves the five pre-existing universal laws without explicit
 normalization, including the source-linking calculator/setter and public
-neutral-return proofs. The setter has a deliberate pattern on the actual
-`with_counter(state, counter)` call. The public counter proof calls the existing
-calculation law and uses that setter contract, retaining its previous shallow
-SMT request. All parameters and postconditions remain unchanged. No wrapper
-hides a reduction list; a scoped entry-gate recurrence guard rejects known
-normalization forms in this family. LoopUtil and Smoke are migrated below.
-Other proof families and the simplified fallible/break interface still need
-migration; the whole reform is not complete.
+neutral-return boundaries. Their parameters and conclusions are unchanged.
+The public counter proof now calls a complete calculator-value contract; its
+setter law has a deliberate pattern on `with_counter(state, counter)`.
 
-The three counter controls still cover arithmetic, setter implementation and
-the real argument separately. Both public neutral-return controls remain too.
-They require the same native failures, fresh extraction and ordinary named
-source-bound rejections. No Rust/hax/model change, axiom, compiler/query cap or
-graph-budget change accompanies this refactor.
+At that edit boundary, two explicit `Tactics.prune` calls withhold the callee
+facts for `next_counter_after` and `with_counter`. The proof can still inspect
+edit's own wiring. The calculator/setter implementation bodies remain available
+only when establishing their contracts, not when composing them in this
+counter proof. Pruning also withholds implicit SMT typing facts, so the value
+contract specifies the full Ok/Error result, not just an arithmetic predicate
+inside a match. The original weaker calculator law remains unchanged.
+
+The default positive gate additionally checks two proof-dependency controls:
+removing the setter pattern or the complete calculator-contract call must give
+an ordinary source-bound failure of the unchanged public counter theorem.
+These change proof machinery only; they are separate from the three actual-Rust
+counter controls for arithmetic, setter implementation and the real argument.
+Both public neutral-return Rust controls remain too. No timeout/exhaustion counts
+as rejection. No Rust/hax/model change, axiom, compiler/query cap or graph-budget
+change accompanies this refactor.
+
+The token fence prohibits normalization operators/imports and tactic references
+except the canonical direct shallow SMT call and these two named visibility
+operations. Aliasing approved methods is refused too. Default fixture controls
+and real-entry probes exercise normalization, import and alias bypasses. This
+is a source-style fence, not an isolation boundary against arbitrary imported
+code. Other proof families and loop-interface work remain; the whole reform is
+not complete.
 
 
 ## ordinary for-loop invariant rule

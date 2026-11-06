@@ -55,13 +55,27 @@ proof counter_installation_is_exact(state: Native.t_Replica, counter: u64): unit
     Native.impl_Replica__with_counter(state, counter).f_tree == state.f_tree
   hint Native.impl_Replica__with_counter(state, counter)
 { () }
-// The calculation law and setter contract suffice for the actual call.
+// Give callers the complete result, including its constructor. The weaker
+// predicate above alone does not replace the pruned function's typing facts.
+function counter_outcome(counter: u64): Result.t_Result(u64, Native.t_Error) {
+  if v(counter) > v(Native.v_MAX_COUNTER) {
+    Result.Result_Err(Native.Error_Capacity(Native.Capacity_Counter))
+  } else { Result.Result_Ok(counter +! mk_u64(1)) }
+}
+proof counter_result_is_exact(counter: u64): unit
+  gives Native.next_counter_after(counter) == counter_outcome(counter)
+{ () }
+
+// This is the source boundary for edit, using contracts for its callees.
+// Helper bodies (and their implicit SMT typing facts) are withheld here.
 // Keep automatic solver unfolding shallow; no implementation reduction list.
 proof authored_edit_advances_once(before: Native.t_Replica, gap: usize, insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global)): unit
   gives edit_counter_step(before, Native.impl_Replica__edit(before, gap, insert, delete))
 {
-  counter_result_advances_once(before.f_next_counter);
+  counter_result_is_exact(before.f_next_counter);
   assert(edit_counter_step(before, Native.impl_Replica__edit(before, gap, insert, delete))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__with_counter");
+    Tactics.prune("Nickel_crdt.Edit.next_counter_after");
     Tactics.smt_sync'(1, 1)
   }
 }
