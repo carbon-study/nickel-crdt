@@ -1,5 +1,9 @@
 # proof scope
 
+Author new and migrated proofs using the [proof style guide](../docs/proof-style.md).
+It includes the readability and boundary-review checklist; the existing legacy
+proofs are not exceptions to that standard.
+
 `Smoke.lt` retains the extracted Rust `flip`/reference-interpreter bridge and also proves parity directly through the plain-loop invariant rule, then derives involution from that parity contract. `LoopUtil.lt` supplies reusable range-loop interpretation and induction lemmas. Its invariant parameter follows the pinned hax representation: it is an annotation, not an independently enforced loop invariant.
 
 The check freshly extracts Rust in isolated positive and mutation workspaces. Both use the same authored theorem statements. Replacing the loop's toggle with identity must fail `Nickel.Smoke.flip_bridge` as a proof obligation; a timeout or extraction error is not an accepted control result. The native test must also detect the mutation.

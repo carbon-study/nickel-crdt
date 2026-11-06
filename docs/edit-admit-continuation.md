@@ -51,6 +51,10 @@ negotiating which Rust definitions, matches and local bindings to unfold.
 Putting the same reduction lists behind a renamed tactic does not meet this
 request. This is a mandatory first deliverable, not a cleanup suggestion.
 
+The [proof style guide](proof-style.md) is the authoring and review standard.
+The whole-reform exit also requires that guide to be reviewed and the migrated
+proofs to satisfy its readability checklist, not merely its source fence.
+
 **Scope:** all project-authored proof code: Prelude, LoopUtil, Smoke, EditAtomic,
 EditCommit, EditIdentity, EditAccepted and EditWellFormed, plus the held
 EditCausal candidate before that candidate advances. Generated authored F* views,
