@@ -100,3 +100,47 @@ the setter pattern and calculator-contract call separately; both require an
 ordinary named public-counter rejection against the same actual extraction.
 They are not native semantic mutants. All earlier native controls, hax snapshot
 binding, model trust, classifier and proof limits remain unchanged.
+
+The LoopUtil/Smoke proof reform uses the same pinned private emitter. Every
+existing universal lemma signature is unchanged. All explicit normalization is
+removed from those two authored modules, including the interpreter boundary
+laws. The new plain-for invariant rule is derived recursively over the pinned
+`Rust_primitives.Hax.Folds.fold_range`; its caller supplies initialization,
+step preservation and the final condition. It does not trust hax's annotation
+as an invariant. Smoke's existing exact-parity theorem now uses that rule on
+the actual extracted Rust loop. No native source, hax snapshot, imported model,
+axiom, compiler/query limit or driver-budget formula changes accompany this cut.
+
+The plain-loop isolation continuation retains the same emitter and models.
+The plain interpretation/induction callers and both actual Rust smoke boundaries
+withhold the `fold_range` facts; the interpretation proof also withholds its
+`option_run` model facts. Their step/end/induction contracts are tested by
+removal controls. The two plain `_any` adapters now use the pinned standard
+`FStar.Classical.move_requires_3`/`forall_intro_3` introduction functions, with
+ordinary universal conclusions instead of an explicit recursive-function
+trigger. Only pattern metadata changes in those conclusions; their logical
+premises, quantification and postconditions are unchanged. No Rust/hax snapshot,
+axiom, tool pin or proof-budget change accompanies the continuation.
+
+The smoke involution consumer additionally prunes the actual Rust function
+facts and composes its two parity-contract calls. Separate default removals of
+each call make that dependency observable.
+
+The return-capable loop preservation continuation also composes its model
+step/end contracts with `fold_range_return` facts withheld. Standard Classical
+introduction replaces the universal adapter's explicit recursive trigger,
+without changing its logical type. The native scalar soundness and valid-input
+success boundaries use that rule without normalization; their own validator
+body remains visible. No model, extraction, compiler or budget change is made.
+
+The Result-oriented return-loop specialization composes the preserved general
+rule and exposes successful/error conditions. Its actual scalar callers
+withhold step_safe/output_safe as well as the fold model. This changes neither
+prior theorem types nor the native extraction. Its universal-introduction
+scaffold uses the same pinned standard-library lemmas; no axiom is added.
+
+The Result step's three repeated matches are factored into the transparent
+`result_step` predicate. Its contents are unchanged. Focused verification also
+checks the current implementation against the exact previous inline universal
+contract, not just the refactored signature; existing actual caller and native
+controls remain. Universal-introduction scaffolding is still repeated.

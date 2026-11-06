@@ -5,7 +5,11 @@ import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {run,verify} from './proof-cache.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
+import {checkProofReform} from './proof-reform.mjs';
+import {checkLoopContracts,checkDirectLoop} from './check-loop-contracts.mjs';
+import './check-proof-reform.mjs';
 const root=fileURLToPath(new URL('..',import.meta.url));
+await checkProofReform(root);
 const {NICKEL_HAX_BIN:hax,NICKEL_PROOF_FSTAR:fstar,NICKEL_HAX_SOURCE:models,NICKEL_FSTAR_MODEL_CACHE:modelCache}=process.env;
 assert(hax&&fstar&&models&&modelCache,'run the locked .#proofs derivation');
 const out=process.argv[2];assert(out,'output directory required');
@@ -58,6 +62,10 @@ for(const mode of ['positive','wrong-loop-body']) {
   }
   await fs.mkdir(out,{recursive:true});
   await fs.writeFile(path.join(out,mode+'.log'),result.log);
-  if(mode==='positive')await fs.copyFile(path.join(proof,'Nickel_proof_smoke.fst'),path.join(out,'Nickel_proof_smoke.fst'));
+  if(mode==='positive') {
+    await fs.copyFile(path.join(proof,'Nickel_proof_smoke.fst'),path.join(out,'Nickel_proof_smoke.fst'));
+    await checkLoopContracts({proof,output:out,fstar,models,modelCache});
+  }
+  await checkDirectLoop({proof,output:out,fstar,models,modelCache,mode});
   console.log(mode==='positive'?'PASS actual Rust loop, LoopUtil bridge, parity and involution':'PASS wrong native loop fails the unchanged bridge theorem');
 }
