@@ -1,0 +1,26 @@
+import Rust_primitives
+import Rust_primitives.Slice
+import Core_models
+import FStar.Pervasives
+import Seq = FStar.Seq
+
+// Checked equations for the pinned hax vector/slice models. No new model axioms.
+proof vector_contents<item: Type0>(items: Rust_primitives.Sequence.t_Seq(item), allocator: Core_models.Marker.t_PhantomData(Alloc.Alloc.t_Global)): unit
+  gives Alloc.Vec.impl_1__as_slice(Alloc.Vec.Vec(items, allocator)) == items
+  hint Alloc.Vec.impl_1__as_slice(Alloc.Vec.Vec(items, allocator))
+{ () }
+
+proof vector_length<item: Type0>(items: Alloc.Vec.t_Vec(item, Alloc.Alloc.t_Global)): unit
+  gives v(Alloc.Vec.impl_1__len(items)) == Seq.length(Alloc.Vec.impl_1__as_slice(items))
+  hint Alloc.Vec.impl_1__len(items)
+{ () }
+
+proof slice_length<item: Type0>(items: t_Slice(item)): unit
+  gives v(Core_models.Slice.impl__len(items)) == Seq.length(items)
+  hint Core_models.Slice.impl__len(items)
+{ () }
+
+proof slice_index<item: Type0>(items: t_Slice(item), at: usize where v(at) < Seq.length(items)): unit
+  gives Rust_primitives.Slice.slice_index(items, at) == Seq.index(items, v(at))
+  hint Rust_primitives.Slice.slice_index(items, at)
+{ () }

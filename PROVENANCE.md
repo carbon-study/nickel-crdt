@@ -9,7 +9,7 @@ The generic loop library and prelude were extracted, with Ren's explicit authori
 
 The loop source was renamed from `Light` to `Nickel`. The proof-cache/bootstrap helpers and smoke proof also adapt Lynn's existing harness and loop-shape work. This extraction does not redistribute the Dark application or the Latte compiler. The scaffold's authored code is offered under MIT; upstream toolchains retain their own licenses.
 
-The committed Prelude, LoopUtil, Smoke, EditAtomic, EditCommit, EditIdentity,
+The committed Prelude, LoopUtil, Vector, Smoke, EditAtomic, EditCommit, EditIdentity,
 EditAccepted and EditWellFormed views were re-emitted and compared byte-for-byte using local
 `carbon-study/latte-nursery` revision
 `0729bf34e2a7d9538604d951edc44d376d1b8ced` and its locked `.#cli` package. The
@@ -19,7 +19,7 @@ comparison. An authorized local checkout can repeat the emission check with:
 ```sh
 emitter=$(nix build --no-link --print-out-paths /path/to/latte-nursery#cli)
 temporary=$(mktemp -d)
-for name in Prelude LoopUtil Smoke EditAtomic EditCommit EditIdentity EditAccepted EditWellFormed; do
+for name in Prelude LoopUtil Vector Smoke EditAtomic EditCommit EditIdentity EditAccepted EditWellFormed; do
   "$emitter/bin/latte" emit-fstar "$PWD/proofs/$name.lt" > "$temporary/Nickel.$name.fst"
   cmp "$temporary/Nickel.$name.fst" "proofs/generated/Nickel.$name.fst" || exit 1
 done
@@ -144,3 +144,9 @@ The Result step's three repeated matches are factored into the transparent
 checks the current implementation against the exact previous inline universal
 contract, not just the refactored signature; existing actual caller and native
 controls remain. Universal-introduction scaffolding is still repeated.
+
+`Vector` contains four checked equations over the already-pinned hax models
+(vector contents/length and slice length/index). It is emitted by the same
+private CLI revision above. It adds no assumed equation and changes no imported
+model. Four Accepted callers withhold those model functions and use the proved
+contracts; other imported model definitions remain available.
