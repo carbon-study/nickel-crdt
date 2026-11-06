@@ -23,6 +23,7 @@ export async function checkLoopContracts({proof,output,fstar,models,modelCache})
     ['loop-no-end',loop,'plain_preserve','plain_end start finish inv value f;'],
     ['loop-no-induction',loop,'plain_preserve','plain_preserve (start +! mk_int 1) finish inv (f value start) f p post;'],
     ['loop-no-adapter',loop,'plain_preserve_any','plain_preserve start finish inv value f p post;'],
+    ['interpret-no-adapter',loop,'plain_interpret_any','plain_interpret start finish inv value f next stop done;'],
     ['interpret-no-fold-step',loop,'plain_interpret','plain_step start finish inv value f;'],
     ['interpret-no-option-step',loop,'plain_interpret','option_run_step finish start value next stop done;'],
     ['interpret-no-fold-end',loop,'plain_interpret','plain_end start finish inv value f;'],

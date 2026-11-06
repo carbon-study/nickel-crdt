@@ -409,7 +409,7 @@ the ordinary symbol. It therefore depended on facts that opacity removes.
 Removing that pattern and using explicit universal introduction preserves the
 logical statement and lets the contract work without the model body.
 
-Twelve default proof-dependency controls remove step/end/induction, adapter or
+Thirteen default proof-dependency controls remove step/end/induction, adapter or
 actual-source contract calls. Each must ordinarily fail its unchanged named
 lemma. These are proof-machinery controls, not native bugs. The original wrong
 Rust loop still fails the old bridge; an additional check omits that bridge and
