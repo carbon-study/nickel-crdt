@@ -138,3 +138,9 @@ rule and exposes successful/error conditions. Its actual scalar callers
 withhold step_safe/output_safe as well as the fold model. This changes neither
 prior theorem types nor the native extraction. Its universal-introduction
 scaffold uses the same pinned standard-library lemmas; no axiom is added.
+
+The Result step's three repeated matches are factored into the transparent
+`result_step` predicate. Its contents are unchanged. Focused verification also
+checks the current implementation against the exact previous inline universal
+contract, not just the refactored signature; existing actual caller and native
+controls remain. Universal-introduction scaffolding is still repeated.

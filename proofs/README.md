@@ -447,6 +447,10 @@ early return satisfies the appropriate Ok/Err condition. The specialization
 proves that rule from the old general preservation contract; it does not copy
 the native callback or add a second loop implementation.
 
+The three-way step obligation is defined once as `result_step` and reused by
+the public contract and its introduction adapters. It separates continuing
+with the next invariant, returning an Ok/Err result, and breaking with a final
+state. This is transparent specification factoring, not another loop algorithm.
 The specialization's contract does not mention `step_safe` or `output_safe`.
 The actual scalar soundness and valid-input-success proofs withhold both of
 those definitions, as well as the model fold, in their final assertions. They
