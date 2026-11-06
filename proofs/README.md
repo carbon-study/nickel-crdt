@@ -425,3 +425,32 @@ detection. Evidence for each result is saved separately.
 This isolates the plain path. The other fallible/break adapters and remaining
 application proof families still need the corresponding isolation work; zero
 explicit normalization alone does not establish their abstraction boundary.
+
+### fallible range loops: the scalar validator
+
+`preserve_any` covers hax's return-capable range loop. The caller gives an
+index/state invariant, a condition for normal completion and a condition for
+an early returned result. The rule's step premise checks all three cases:
+continue at the next index, break with a final state, or return a result.
+Neither the hax annotation nor an early exit supplies preservation by itself.
+
+The inductive rule now composes `unroll`/`empty` and its recursive contract with
+`fold_range_return` facts withheld. Its universal adapter uses explicit standard
+quantifier introduction and ordinary trigger inference, as on the plain path.
+The original logical statement is unchanged; pattern metadata changes.
+
+The first actual native callers are `scalar_validation_is_sound` and
+`valid_scalar_input_succeeds`. Each invokes that rule and checks its own Rust
+validator wiring with the fold facts withheld, without normalization. The
+validator body and scalar-domain predicates remain visible at this source
+boundary. This does not isolate every native callee or migrate all of
+EditWellFormed. The two migrated declarations have an entry fence; the other
+WellFormed declarations remain outside that fence until migrated.
+
+Four additional default dependency controls remove return-loop step/end,
+induction and adapter calls. Two edit-gate controls remove the invariant rule
+from the actual scalar proofs. They must fail ordinarily in their unchanged
+named declarations. The existing native invalid-scalar, false-refusal,
+wrong-argument and early-success controls retain their original targets.
+The separate `fold_range_cf` break interpreter and other application families
+still await migration.

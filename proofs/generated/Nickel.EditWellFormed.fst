@@ -48,11 +48,17 @@ let scalar_check_invariant (scalars: t_Slice u32) (at: nat) (state: unit) : Type
 
 let scalar_validation_is_sound (scalars: t_Slice u32) : Lemma (ensures scalar_check_result scalars (Native.validate_scalars scalars)) =
   Nickel.LoopUtil.preserve_any (mk_usize 0) (Core_models.Slice.impl__len scalars) (scalar_check_invariant scalars) (fun (_: unit) -> scalars_valid scalars) (scalar_check_result scalars);
-  norm_spec [delta_only ["Nickel_crdt.Edit.validate_scalars"; "Nickel_crdt.Edit.invalid"; "Nickel.EditWellFormed.scalar_check_result"; "Nickel.EditWellFormed.scalar_check_invariant"; "Nickel.EditWellFormed.scalars_valid"; "Nickel.EditWellFormed.scalar_prefix"; "Nickel.EditWellFormed.unicode_scalar"; "Nickel.LoopUtil.step_safe"; "Nickel.LoopUtil.output_safe"]; iota; zeta_full; primops; unmeta; unascribe] (scalar_check_result scalars (Native.validate_scalars scalars))
+  assert (scalar_check_result scalars (Native.validate_scalars scalars)) by (
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.smt_sync' 1 1
+  )
 
 let valid_scalar_input_succeeds (scalars: t_Slice u32) : Lemma (requires scalars_valid scalars) (ensures Native.validate_scalars scalars == Result.Result_Ok ()) =
   Nickel.LoopUtil.preserve_any (mk_usize 0) (Core_models.Slice.impl__len scalars) (fun (_: nat) (_: unit) -> Prims.l_True) (fun (_: unit) -> Prims.l_True) (fun (_: Result.t_Result unit Native.t_Error) -> Prims.l_False);
-  norm_spec [delta_only ["Nickel_crdt.Edit.validate_scalars"; "Nickel_crdt.Edit.invalid"; "Nickel.EditWellFormed.scalars_valid"; "Nickel.EditWellFormed.scalar_prefix"; "Nickel.EditWellFormed.unicode_scalar"; "Nickel.LoopUtil.step_safe"; "Nickel.LoopUtil.output_safe"]; iota; zeta_full; primops; unmeta; unascribe] (Native.validate_scalars scalars)
+  assert (Native.validate_scalars scalars == Result.Result_Ok ()) by (
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.smt_sync' 1 1
+  )
 
 let fact_scalars_valid (fact: Native.t_Fact) : Type0 =
   scalars_valid (Alloc.Vec.impl_1__as_slice fact.f_insert)

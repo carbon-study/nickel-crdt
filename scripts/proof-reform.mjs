@@ -18,7 +18,7 @@ export function assertReformedSource(name,source) {
     if(ts[i]==='FStar'&&ts[i+1]==='.'&&ts[i+2]==='Tactics')
       fail('only the canonical Tactics import is approved');
     if(ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&
-      ['"Nickel_crdt.Edit.impl_Replica__with_counter"','"Nickel_crdt.Edit.next_counter_after"','"Rust_primitives.Hax.Folds.fold_range"','"Nickel.LoopUtil.option_run"','"Nickel_proof_smoke.flip"'].includes(ts[i+4])) { i+=5;continue; }
+      ['"Nickel_crdt.Edit.impl_Replica__with_counter"','"Nickel_crdt.Edit.next_counter_after"','"Rust_primitives.Hax.Folds.fold_range"','"Rust_primitives.Hax.Folds.fold_range_return"','"Nickel.LoopUtil.option_run"','"Nickel_proof_smoke.flip"'].includes(ts[i+4])) { i+=5;continue; }
     if(ts[i]==='Tactics') {
       // No aliasing even of approved methods: only this direct call is admitted.
       if(ts.slice(i,i+8).join(' ')!=="Tactics . smt_sync' ( 1 , 1 )")
@@ -29,4 +29,9 @@ export function assertReformedSource(name,source) {
 }
 export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smoke']) {
   for(const name of names)assertReformedSource(name,await fs.readFile(path.join(root,'proofs',name+'.lt'),'utf8'));
+  // Only these two WellFormed boundaries have migrated; the rest remains open.
+  const source=await fs.readFile(path.join(root,'proofs','EditWellFormed.lt'),'utf8');
+  const start=source.indexOf('proof scalar_validation_is_sound('),end=source.indexOf('function fact_scalars_valid(',start);
+  assert(start>=0&&end>start,'scalar reform scope must remain present');
+  assertReformedSource('EditWellFormed.scalar-boundaries',source.slice(start,end));
 }

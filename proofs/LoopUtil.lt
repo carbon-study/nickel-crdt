@@ -60,8 +60,18 @@ proof! preserve<state: Type0, result: Type0>(start: usize, finish: usize where v
     match f(value, start) {
       ControlFlow_Break(_) => (),
       ControlFlow_Continue(next) => preserve(start +! mk_int(1), finish, inv, next, f, p, post, returned),
+    };
+    assert(output_safe(post, returned, fold_range_return(start, finish, inv, value, f))) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.smt_sync'(1, 1)
     }
-  } else { empty(start, finish, inv, value, f) }
+  } else {
+    empty(start, finish, inv, value, f);
+    assert(output_safe(post, returned, fold_range_return(start, finish, inv, value, f))) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.smt_sync'(1, 1)
+    }
+  }
 }
 
 // One interpreter for Option transitions with state/index-dependent early results.
@@ -264,8 +274,7 @@ proof break_interpret_any<state: Type0, result: Type0>(start: usize, finish: usi
 // Universal adapter for the implementation callback, with explicit semantic premises.
 proof preserve_any<state: Type0, result: Type0>(start: usize, finish: usize where v(start) <= v(finish),
   p: nat => state => Type0, post: state => Type0, returned: result => Type0): unit
-  gives forall(inv: invariant(state, start, finish), value: state, f: callback(state, result, start, finish))
-    hint fold_range_return(start, finish, inv, value, f) .
+  gives forall(inv: invariant(state, start, finish), value: state, f: callback(state, result, start, finish)) .
     (p(v(start), value) and
      (forall(s: state, i: position(start, finish)) . p(v(i), s) ==> step_safe(p, post, returned, v(i), f(s, i))) and
      (forall(s: state) . p(v(finish), s) ==> post(s))) ==>
@@ -276,8 +285,20 @@ proof preserve_any<state: Type0, result: Type0>(start: usize, finish: usize wher
     takes forall(s: state, i: position(start, finish)) . p(v(i), s) ==> step_safe(p, post, returned, v(i), f(s, i))
     takes forall(s: state) . p(v(finish), s) ==> post(s)
     gives output_safe(post, returned, fold_range_return(start, finish, inv, value, f))
-    hint fold_range_return(start, finish, inv, value, f)
-  { preserve(start, finish, inv, value, f, p, post, returned) }
+  {
+    preserve(start, finish, inv, value, f, p, post, returned);
+    assert(output_safe(post, returned, fold_range_return(start, finish, inv, value, f))) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  proof each_imp(inv: invariant(state, start, finish), value: state, f: callback(state, result, start, finish)): unit
+    gives (p(v(start), value) and
+      (forall(s: state, i: position(start, finish)) . p(v(i), s) ==> step_safe(p, post, returned, v(i), f(s, i))) and
+      (forall(s: state) . p(v(finish), s) ==> post(s))) ==>
+      output_safe(post, returned, fold_range_return(start, finish, inv, value, f))
+  { FStar.Classical.move_requires_3(each, inv, value, f) };
+  FStar.Classical.forall_intro_3(each_imp)
 }
 
 // Ordinary for loops: one state, one invariant, one step, one final condition.

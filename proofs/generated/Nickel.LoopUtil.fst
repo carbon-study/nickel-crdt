@@ -43,9 +43,17 @@ let rec preserve (#state: Type0) (#result: Type0) (start: usize) (finish: usize{
   if v start < v finish then
     begin unroll start finish inv value f;
     assert (step_safe p post returned (v start) (f value start));
-    match f value start with | ControlFlow_Break _ -> begin () end | ControlFlow_Continue next -> begin preserve (start +! mk_int 1) finish inv next f p post returned end end
+    match f value start with | ControlFlow_Break _ -> begin () end | ControlFlow_Continue next -> begin preserve (start +! mk_int 1) finish inv next f p post returned end;
+    assert (output_safe post returned (fold_range_return start finish inv value f)) by (
+      Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+      Tactics.smt_sync' 1 1
+    ) end
   else
-    begin empty start finish inv value f end
+    begin empty start finish inv value f;
+    assert (output_safe post returned (fold_range_return start finish inv value f)) by (
+      Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+      Tactics.smt_sync' 1 1
+    ) end
 
 module Option = Core_models.Option
 
@@ -146,9 +154,15 @@ let break_interpret_any (#state: Type0) (#result: Type0) (start: usize) (finish:
   let each (inv: total_invariant state start finish) (value: state) (f: break_callback state start finish) : Lemma (requires break_agrees start finish f next stop done) (ensures done (fold_range_cf start finish inv value f) == option_run finish start value next stop done) [SMTPat (fold_range_cf start finish inv value f)] = break_interpret start finish inv value f next stop done in
   ()
 
-let preserve_any (#state: Type0) (#result: Type0) (start: usize) (finish: usize{v start <= v finish}) (p: nat -> state -> Type0) (post: state -> Type0) (returned: result -> Type0) : Lemma (ensures forall(inv: invariant state start finish) (value: state) (f: callback state result start finish). {:pattern (fold_range_return start finish inv value f)} Prims.l_and (Prims.l_and (p (v start) value) (forall(s: state) (i: position start finish). p (v i) s ==> step_safe p post returned (v i) (f s i))) (forall(s: state). p (v finish) s ==> post s) ==> output_safe post returned (fold_range_return start finish inv value f)) =
-  let each (inv: invariant state start finish) (value: state) (f: callback state result start finish) : Lemma (requires (p (v start) value /\ (forall(s: state) (i: position start finish). p (v i) s ==> step_safe p post returned (v i) (f s i)) /\ (forall(s: state). p (v finish) s ==> post s))) (ensures output_safe post returned (fold_range_return start finish inv value f)) [SMTPat (fold_range_return start finish inv value f)] = preserve start finish inv value f p post returned in
-  ()
+let preserve_any (#state: Type0) (#result: Type0) (start: usize) (finish: usize{v start <= v finish}) (p: nat -> state -> Type0) (post: state -> Type0) (returned: result -> Type0) : Lemma (ensures forall(inv: invariant state start finish) (value: state) (f: callback state result start finish). Prims.l_and (Prims.l_and (p (v start) value) (forall(s: state) (i: position start finish). p (v i) s ==> step_safe p post returned (v i) (f s i))) (forall(s: state). p (v finish) s ==> post s) ==> output_safe post returned (fold_range_return start finish inv value f)) =
+  let each (inv: invariant state start finish) (value: state) (f: callback state result start finish) : Lemma (requires (p (v start) value /\ (forall(s: state) (i: position start finish). p (v i) s ==> step_safe p post returned (v i) (f s i)) /\ (forall(s: state). p (v finish) s ==> post s))) (ensures output_safe post returned (fold_range_return start finish inv value f)) =
+    preserve start finish inv value f p post returned;
+    assert (output_safe post returned (fold_range_return start finish inv value f)) by (
+      Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+      Tactics.smt_sync' 1 1
+    ) in
+  let each_imp (inv: invariant state start finish) (value: state) (f: callback state result start finish) : Lemma (ensures Prims.l_and (Prims.l_and (p (v start) value) (forall(s: state) (i: position start finish). p (v i) s ==> step_safe p post returned (v i) (f s i))) (forall(s: state). p (v finish) s ==> post s) ==> output_safe post returned (fold_range_return start finish inv value f)) = FStar.Classical.move_requires_3 each inv value f in
+  FStar.Classical.forall_intro_3 each_imp
 
 type for_invariant (state: Type0) (finish: usize) = (at: nat{at <= v finish}) -> state -> Type0
 
