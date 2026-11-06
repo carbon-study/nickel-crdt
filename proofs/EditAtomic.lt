@@ -67,7 +67,7 @@ proof counter_result_is_exact(counter: u64): unit
 { () }
 
 // This is the source boundary for edit, using contracts for its callees.
-// Helper bodies (and their implicit SMT typing facts) are withheld here.
+// Only next_counter_after/with_counter facts are withheld here, including typing.
 // Keep automatic solver unfolding shallow; no implementation reduction list.
 proof authored_edit_advances_once(before: Native.t_Replica, gap: usize, insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global)): unit
   gives edit_counter_step(before, Native.impl_Replica__edit(before, gap, insert, delete))
