@@ -107,6 +107,21 @@ still cover errors, duplicates and empty edits. Two further wrong Rust bodies
 must fail native tests and their unchanged named content lemmas: altering a
 selected fact's gap and omitting the canonical iterations.
 
+## native push contract
+
+`EditAccepted.push_result_is_exact` gives an exact generic contract for the
+translated Rust `push<T>`: an unchanged vector and `Internal` at the modeled
+length ceiling, or the original sequence followed by exactly the offered item
+and `Ok`. Four append/content/membership proofs withhold the native helper and
+use this contract. Removing its pattern, or withholding its contract in each
+caller, must reject ordinarily. Two actual Rust controls discard the value or
+prepend it and must fail native tests and the exact contract.
+
+The callers still see the imported vector/slice models. This isolates one source
+function in four queries; it does not finish model opacity or the Accepted
+family. The contract concerns the hax translation under those trusted models,
+not physical allocation failure or a proved Rust-to-F* semantic equivalence.
+
 ## counter-control isolation
 
 The counter guard and successor calculation are a pure native helper; no
