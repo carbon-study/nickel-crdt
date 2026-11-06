@@ -8,6 +8,7 @@ import Native = Nickel_crdt.Edit
 import Result = Core_models.Result
 import Option = Core_models.Option
 import Tactics = FStar.Tactics.V2
+import Seq = FStar.Seq
 
 // Accepted-ID uniqueness and exact successful fact contents, not full edit WF.
 type facts_vec = Alloc.Vec.t_Vec(Native.t_Fact, Alloc.Alloc.t_Global)
@@ -72,6 +73,19 @@ proof selected_id_is_unseen(facts: t_Slice(Native.t_Fact), out: t_Slice(Native.t
   norm_spec([delta_only(["Nickel_crdt.Edit.choose_unseen", "Nickel.EditAccepted.choice_returned", "Nickel.EditAccepted.choice_invariant", "Nickel.EditAccepted.choice_post", "Nickel.EditAccepted.choice_safe", "Nickel.LoopUtil.output_safe", "Nickel.LoopUtil.step_safe"]), iota, zeta_full, primops, unmeta, unascribe], Native.choose_unseen(facts, out))
 }
 
+// Exact source-function contract: failure is neutral; success appends one fact.
+function push_outcome<item: Type0>(before: Alloc.Vec.t_Vec(item, Alloc.Alloc.t_Global), fact: item): (Alloc.Vec.t_Vec(item, Alloc.Alloc.t_Global), Result.t_Result(unit, Native.t_Error)) {
+  if v(Alloc.Vec.impl_1__len(before)) ==? max_usize {
+    (before, Result.Result_Err(Native.Error_Internal))
+  } else {
+    (Alloc.Vec.from_seq(Seq.append(Alloc.Vec.impl_1__as_slice(before), Seq.create(1, fact))), Result.Result_Ok(()))
+  }
+}
+proof push_result_is_exact<item: Type0>(before: Alloc.Vec.t_Vec(item, Alloc.Alloc.t_Global), fact: item): unit
+  gives Native.push(before, fact) == push_outcome(before, fact)
+  hint Native.push(before, fact)
+{ () }
+
 function push_result_unique(outcome: (facts_vec, Result.t_Result(unit, Native.t_Error))): Type0 {
   match outcome { (next, Result.Result_Ok(_)) => ids_unique(next), _ => Prims.l_True }
 }
@@ -81,7 +95,10 @@ proof append_fresh_preserves_unique(facts: facts_vec, fact: Native.t_Fact): unit
   gives push_result_unique(Native.push(facts, fact))
 {
   membership_absent(Alloc.Vec.impl_1__as_slice(facts), fact.f_id);
-  norm_spec([delta_only(["Nickel_crdt.Edit.push", "Alloc.Vec.impl_1__push", "Alloc.Vec.impl_1__as_slice", "Alloc.Vec.impl_1__len", "Rust_primitives.Sequence.seq_push", "Rust_primitives.Sequence.seq_len", "Rust_primitives.Sequence.seq_to_slice", "Nickel.EditAccepted.push_result_unique", "Nickel.EditAccepted.ids_unique", "Nickel.EditIdentity.unique_ids", "Nickel.EditIdentity.prefix_absent", "Nickel.EditIdentity.length", "Core_models.Slice.impl__len", "Rust_primitives.Slice.slice_index"]), iota, zeta_full, primops, unmeta, unascribe], Native.push(facts, fact))
+  assert(push_result_unique(Native.push(facts, fact))) by {
+    Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.smt_sync'(1, 1)
+  }
 }
 
 function unique_invariant(at: nat, facts: facts_vec): Type0 { ids_unique(facts) }
@@ -228,7 +245,10 @@ proof append_whole_fact(input: t_Slice(Native.t_Fact), out: facts_vec, fact: Nat
   takes fact_present(input, fact)
   gives append_content_result(input, out, Native.push(out, fact))
 {
-  norm_spec([delta_only(["Nickel_crdt.Edit.push", "Alloc.Vec.impl_1__push", "Alloc.Vec.impl_1__as_slice", "Alloc.Vec.impl_1__len", "Rust_primitives.Sequence.seq_push", "Rust_primitives.Sequence.seq_len", "Rust_primitives.Sequence.seq_to_slice", "Nickel.EditAccepted.append_content_result", "Nickel.EditAccepted.content_invariant", "Nickel.EditAccepted.selected_whole_facts", "Nickel.EditIdentity.length", "Core_models.Slice.impl__len", "Rust_primitives.Slice.slice_index"]), iota, zeta_full, primops, unmeta, unascribe], Native.push(out, fact))
+  assert(append_content_result(input, out, Native.push(out, fact))) by {
+    Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.smt_sync'(1, 1)
+  }
 }
 proof canonical_step_selects_whole_facts(input: t_Slice(Native.t_Fact), out: facts_vec, at: nat): unit
   takes content_invariant(input, at, out)
@@ -264,7 +284,6 @@ proof canonical_selects_whole_facts(input: t_Slice(Native.t_Fact)): unit
 // applied to original positions with one supposedly missing position removed.
 import FStar.Classical
 import FStar.Fin
-import Seq = FStar.Seq
 
 type fact_position(input: t_Slice(Native.t_Fact), fact: Native.t_Fact) = i: nat where
   i < Seq.length(input) and Seq.index(input, i) == fact
@@ -368,7 +387,10 @@ function push_exact_result(before: facts_vec, fact: Native.t_Fact, outcome: (fac
 proof push_has_exact_contents(before: facts_vec, fact: Native.t_Fact): unit
   gives push_exact_result(before, fact, Native.push(before, fact))
 {
-  norm_spec([delta_only(["Nickel_crdt.Edit.push", "Alloc.Vec.impl_1__push", "Alloc.Vec.impl_1__as_slice", "Alloc.Vec.impl_1__len", "Rust_primitives.Sequence.seq_push", "Rust_primitives.Sequence.seq_len", "Rust_primitives.Sequence.seq_to_slice", "Nickel.EditAccepted.push_exact_result", "Nickel.EditAccepted.appended_contents", "Nickel.EditAccepted.fact_present", "Nickel.EditIdentity.length", "Core_models.Slice.impl__len"]), iota, zeta_full, primops, unmeta, unascribe], Native.push(before, fact))
+  assert(push_exact_result(before, fact, Native.push(before, fact))) by {
+    Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.smt_sync'(1, 1)
+  }
 }
 function plan_push_succeeded(before: Native.t_Replica, fact: Native.t_Fact, outcome: Result.t_Result(Option.t_Option(Native.t_Replica), Native.t_Error)): Type0 {
   match outcome { Result.Result_Ok(Option.Option_Some(_)) => (match Native.push(before.f_facts, fact) { (_, result) => result == Result.Result_Ok(()) }), _ => Prims.l_True }
@@ -497,7 +519,10 @@ proof push_membership(out: facts_vec, fact: Native.t_Fact, id: Native.t_EventId)
   match Native.push(out, fact) {
     (next, Result.Result_Ok(_)) => {
       membership_absence_exact(Alloc.Vec.impl_1__as_slice(next), id);
-      norm_spec([delta_only(["Nickel_crdt.Edit.push", "Alloc.Vec.impl_1__push", "Alloc.Vec.impl_1__as_slice", "Alloc.Vec.impl_1__len", "Rust_primitives.Sequence.seq_push", "Rust_primitives.Sequence.seq_len", "Rust_primitives.Sequence.seq_to_slice", "Rust_primitives.Slice.slice_index", "Nickel.EditIdentity.length", "Core_models.Slice.impl__len", "Nickel.EditIdentity.prefix_absent", "Nickel.EditAccepted.absent_after_push"]), iota, zeta_full, primops, unmeta, unascribe], absent_after_push(out, fact, id, Native.push(out, fact)))
+      assert(absent_after_push(out, fact, id, Native.push(out, fact))) by {
+        Tactics.prune("Nickel_crdt.Edit.push");
+        Tactics.smt_sync'(1, 1)
+      }
     }, _ => ()
   }
 }

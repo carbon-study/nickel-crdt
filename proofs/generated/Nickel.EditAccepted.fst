@@ -23,6 +23,8 @@ module Option = Core_models.Option
 
 module Tactics = FStar.Tactics.V2
 
+module Seq = FStar.Seq
+
 type facts_vec = Alloc.Vec.t_Vec Native.t_Fact Alloc.Alloc.t_Global
 
 let ids_unique (facts: facts_vec) : Type0 =
@@ -85,12 +87,24 @@ let selected_id_is_unseen (facts: t_Slice Native.t_Fact) (out: t_Slice Native.t_
   Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (choice_invariant facts out) (choice_post facts out) (choice_returned facts out);
   norm_spec [delta_only ["Nickel_crdt.Edit.choose_unseen"; "Nickel.EditAccepted.choice_returned"; "Nickel.EditAccepted.choice_invariant"; "Nickel.EditAccepted.choice_post"; "Nickel.EditAccepted.choice_safe"; "Nickel.LoopUtil.output_safe"; "Nickel.LoopUtil.step_safe"]; iota; zeta_full; primops; unmeta; unascribe] (Native.choose_unseen facts out)
 
+let push_outcome (#item: Type0) (before: Alloc.Vec.t_Vec item Alloc.Alloc.t_Global) (fact: item) : Alloc.Vec.t_Vec item Alloc.Alloc.t_Global & Result.t_Result unit Native.t_Error =
+  if v (Alloc.Vec.impl_1__len before) ==? max_usize then
+    begin (before, Result.Result_Err Native.Error_Internal) end
+  else
+    begin (Alloc.Vec.from_seq (Seq.append (Alloc.Vec.impl_1__as_slice before) (Seq.create 1 fact)), Result.Result_Ok ()) end
+
+let push_result_is_exact (#item: Type0) (before: Alloc.Vec.t_Vec item Alloc.Alloc.t_Global) (fact: item) : Lemma (ensures Native.push before fact == push_outcome before fact) [SMTPat (Native.push before fact)] =
+  ()
+
 let push_result_unique (outcome: facts_vec & Result.t_Result unit Native.t_Error) : Type0 =
   match outcome with | (next, Result.Result_Ok _) -> begin ids_unique next end | _ -> begin Prims.l_True end
 
 let append_fresh_preserves_unique (facts: facts_vec) (fact: Native.t_Fact) : Lemma (requires (ids_unique facts /\ Native.has_fact (Alloc.Vec.impl_1__as_slice facts) fact.f_id == false)) (ensures push_result_unique (Native.push facts fact)) =
   membership_absent (Alloc.Vec.impl_1__as_slice facts) fact.f_id;
-  norm_spec [delta_only ["Nickel_crdt.Edit.push"; "Alloc.Vec.impl_1__push"; "Alloc.Vec.impl_1__as_slice"; "Alloc.Vec.impl_1__len"; "Rust_primitives.Sequence.seq_push"; "Rust_primitives.Sequence.seq_len"; "Rust_primitives.Sequence.seq_to_slice"; "Nickel.EditAccepted.push_result_unique"; "Nickel.EditAccepted.ids_unique"; "Nickel.EditIdentity.unique_ids"; "Nickel.EditIdentity.prefix_absent"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"; "Rust_primitives.Slice.slice_index"]; iota; zeta_full; primops; unmeta; unascribe] (Native.push facts fact)
+  assert (push_result_unique (Native.push facts fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.push";
+    Tactics.smt_sync' 1 1
+  )
 
 let unique_invariant (at: nat) (facts: facts_vec) : Type0 =
   ids_unique facts
@@ -185,7 +199,10 @@ let append_content_result (input: t_Slice Native.t_Fact) (out: facts_vec) (outco
   match outcome with | (next, Result.Result_Ok _) -> begin content_invariant input (v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice out)) + 1) next end | _ -> begin Prims.l_True end
 
 let append_whole_fact (input: t_Slice Native.t_Fact) (out: facts_vec) (fact: Native.t_Fact) : Lemma (requires (selected_whole_facts input out /\ fact_present input fact)) (ensures append_content_result input out (Native.push out fact)) =
-  norm_spec [delta_only ["Nickel_crdt.Edit.push"; "Alloc.Vec.impl_1__push"; "Alloc.Vec.impl_1__as_slice"; "Alloc.Vec.impl_1__len"; "Rust_primitives.Sequence.seq_push"; "Rust_primitives.Sequence.seq_len"; "Rust_primitives.Sequence.seq_to_slice"; "Nickel.EditAccepted.append_content_result"; "Nickel.EditAccepted.content_invariant"; "Nickel.EditAccepted.selected_whole_facts"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"; "Rust_primitives.Slice.slice_index"]; iota; zeta_full; primops; unmeta; unascribe] (Native.push out fact)
+  assert (append_content_result input out (Native.push out fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.push";
+    Tactics.smt_sync' 1 1
+  )
 
 let canonical_step_selects_whole_facts (input: t_Slice Native.t_Fact) (out: facts_vec) (at: nat) : Lemma (requires content_invariant input at out) (ensures content_step_result input at (Native.canonical_step input out)) =
   match Native.choose_unseen input (Alloc.Vec.impl_1__as_slice out) with | Result.Result_Ok (Option.Option_Some i) -> begin if v i < v (Nickel.EditIdentity.length input) then
@@ -208,8 +225,6 @@ let canonical_selects_whole_facts (input: t_Slice Native.t_Fact) : Lemma (ensure
 open FStar.Classical
 
 open FStar.Fin
-
-module Seq = FStar.Seq
 
 type fact_position (input: t_Slice Native.t_Fact) (fact: Native.t_Fact) = i: nat{Prims.l_and (i < Seq.length input) (Seq.index input i == fact)}
 
@@ -269,7 +284,10 @@ let push_exact_result (before: facts_vec) (fact: Native.t_Fact) (outcome: facts_
   match outcome with | (next, Result.Result_Ok _) -> begin appended_contents before fact next end | _ -> begin Prims.l_True end
 
 let push_has_exact_contents (before: facts_vec) (fact: Native.t_Fact) : Lemma (ensures push_exact_result before fact (Native.push before fact)) =
-  norm_spec [delta_only ["Nickel_crdt.Edit.push"; "Alloc.Vec.impl_1__push"; "Alloc.Vec.impl_1__as_slice"; "Alloc.Vec.impl_1__len"; "Rust_primitives.Sequence.seq_push"; "Rust_primitives.Sequence.seq_len"; "Rust_primitives.Sequence.seq_to_slice"; "Nickel.EditAccepted.push_exact_result"; "Nickel.EditAccepted.appended_contents"; "Nickel.EditAccepted.fact_present"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"]; iota; zeta_full; primops; unmeta; unascribe] (Native.push before fact)
+  assert (push_exact_result before fact (Native.push before fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.push";
+    Tactics.smt_sync' 1 1
+  )
 
 let plan_push_succeeded (before: Native.t_Replica) (fact: Native.t_Fact) (outcome: Result.t_Result (Option.t_Option Native.t_Replica) Native.t_Error) : Type0 =
   match outcome with | Result.Result_Ok (Option.Option_Some _) -> begin match Native.push before.f_facts fact with | (_, result) -> begin result == Result.Result_Ok () end end | _ -> begin Prims.l_True end
@@ -354,7 +372,10 @@ let absent_after_push (out: facts_vec) (fact: Native.t_Fact) (id: Native.t_Event
 let push_membership (out: facts_vec) (fact: Native.t_Fact) (id: Native.t_EventId) : Lemma (ensures absent_after_push out fact id (Native.push out fact)) =
   membership_absence_exact (Alloc.Vec.impl_1__as_slice out) id;
   match Native.push out fact with | (next, Result.Result_Ok _) -> begin membership_absence_exact (Alloc.Vec.impl_1__as_slice next) id;
-  norm_spec [delta_only ["Nickel_crdt.Edit.push"; "Alloc.Vec.impl_1__push"; "Alloc.Vec.impl_1__as_slice"; "Alloc.Vec.impl_1__len"; "Rust_primitives.Sequence.seq_push"; "Rust_primitives.Sequence.seq_len"; "Rust_primitives.Sequence.seq_to_slice"; "Rust_primitives.Slice.slice_index"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"; "Nickel.EditIdentity.prefix_absent"; "Nickel.EditAccepted.absent_after_push"]; iota; zeta_full; primops; unmeta; unascribe] (absent_after_push out fact id (Native.push out fact)) end | _ -> begin () end
+  assert (absent_after_push out fact id (Native.push out fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.push";
+    Tactics.smt_sync' 1 1
+  ) end | _ -> begin () end
 
 let frontier_bounds_unseen (input: t_Slice Native.t_Fact) (out: facts_vec) (i: usize{v i < v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice out))}) (k: usize{v k < v (Nickel.EditIdentity.length input)}) : Lemma (requires (order_frontier input out /\ Native.has_fact (Alloc.Vec.impl_1__as_slice out) (Rust_primitives.Slice.slice_index input k).f_id == false)) (ensures event_key (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) i).f_id <= event_key (Rust_primitives.Slice.slice_index input k).f_id) =
   ()
