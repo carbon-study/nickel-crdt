@@ -106,6 +106,7 @@ let append_fresh_preserves_unique (facts: facts_vec) (fact: Native.t_Fact) : Lem
   assert (push_result_unique (Native.push facts fact)) by (
     Tactics.prune "Nickel_crdt.Edit.push";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__len";
     Tactics.prune "Core_models.Slice.impl__len";
     Tactics.prune "Rust_primitives.Slice.slice_index";
@@ -208,6 +209,7 @@ let append_whole_fact (input: t_Slice Native.t_Fact) (out: facts_vec) (fact: Nat
   assert (append_content_result input out (Native.push out fact)) by (
     Tactics.prune "Nickel_crdt.Edit.push";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__len";
     Tactics.prune "Core_models.Slice.impl__len";
     Tactics.prune "Rust_primitives.Slice.slice_index";
@@ -297,6 +299,7 @@ let push_has_exact_contents (before: facts_vec) (fact: Native.t_Fact) : Lemma (e
   assert (push_exact_result before fact (Native.push before fact)) by (
     Tactics.prune "Nickel_crdt.Edit.push";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__len";
     Tactics.prune "Core_models.Slice.impl__len";
     Tactics.prune "Rust_primitives.Slice.slice_index";
@@ -389,6 +392,7 @@ let push_membership (out: facts_vec) (fact: Native.t_Fact) (id: Native.t_EventId
   assert (absent_after_push out fact id (Native.push out fact)) by (
     Tactics.prune "Nickel_crdt.Edit.push";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__len";
     Tactics.prune "Core_models.Slice.impl__len";
     Tactics.prune "Rust_primitives.Slice.slice_index";

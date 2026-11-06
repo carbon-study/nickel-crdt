@@ -16,6 +16,9 @@ module Seq = FStar.Seq
 let vector_contents (#item: Type0) (items: Rust_primitives.Sequence.t_Seq item) (allocator: Core_models.Marker.t_PhantomData Alloc.Alloc.t_Global) : Lemma (ensures Alloc.Vec.impl_1__as_slice (Alloc.Vec.Vec items allocator) == items) [SMTPat (Alloc.Vec.impl_1__as_slice (Alloc.Vec.Vec items allocator))] =
   ()
 
+let vector_from_seq (#item: Type0) (items: Rust_primitives.Sequence.t_Seq item) : Lemma (ensures Alloc.Vec.impl_1__as_slice (((Alloc.Vec.from_seq items) <: Alloc.Vec.t_Vec item Alloc.Alloc.t_Global)) == items) [SMTPat (Alloc.Vec.impl_1__as_slice (((Alloc.Vec.from_seq items) <: Alloc.Vec.t_Vec item Alloc.Alloc.t_Global)))] =
+  ()
+
 let vector_length (#item: Type0) (items: Alloc.Vec.t_Vec item Alloc.Alloc.t_Global) : Lemma (ensures v (Alloc.Vec.impl_1__len items) == Seq.length (Alloc.Vec.impl_1__as_slice items)) [SMTPat (Alloc.Vec.impl_1__len items)] =
   ()
 

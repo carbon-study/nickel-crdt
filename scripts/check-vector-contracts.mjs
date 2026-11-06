@@ -11,7 +11,7 @@ export async function checkVectorContracts({proof, output, fstar, models, modelC
   const vector = await fs.readFile(vectorFile, 'utf8');
   const accepted = await fs.readFile(acceptedFile, 'utf8');
   const cases = [];
-  for (const name of ['vector_contents', 'vector_length', 'slice_length', 'slice_index']) {
+  for (const name of ['vector_contents', 'vector_from_seq', 'vector_length', 'slice_length', 'slice_index']) {
     const start = vector.indexOf('let ' + name + ' ');
     assert(start >= 0, 'missing vector contract ' + name);
     const at = vector.indexOf(' [SMTPat ', start);
@@ -33,6 +33,10 @@ export async function checkVectorContracts({proof, output, fstar, models, modelC
       needle + '\n    Tactics.prune "Nickel.Vector";') + accepted.slice(end);
     cases.push({name: 'vector-without-contracts-' + name, file: acceptedFile,
       source, theorem: name, view: source});
+    const withoutFromSeq = accepted.slice(0, start) + body.replace(needle,
+      needle + '\n    Tactics.prune "Nickel.Vector.vector_from_seq";') + accepted.slice(end);
+    cases.push({name: 'vector-without-from-seq-' + name, file: acceptedFile,
+      source: withoutFromSeq, theorem: name, view: withoutFromSeq});
   }
   for (const test of cases) {
     try {

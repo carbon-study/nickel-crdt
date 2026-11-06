@@ -10,6 +10,12 @@ proof vector_contents<item: Type0>(items: Rust_primitives.Sequence.t_Seq(item), 
   hint Alloc.Vec.impl_1__as_slice(Alloc.Vec.Vec(items, allocator))
 { () }
 
+// Match the sequence constructor directly; callers need not unfold it first.
+proof vector_from_seq<item: Type0>(items: Rust_primitives.Sequence.t_Seq(item)): unit
+  gives Alloc.Vec.impl_1__as_slice((Alloc.Vec.from_seq(items) : Alloc.Vec.t_Vec(item, Alloc.Alloc.t_Global))) == items
+  hint Alloc.Vec.impl_1__as_slice((Alloc.Vec.from_seq(items) : Alloc.Vec.t_Vec(item, Alloc.Alloc.t_Global)))
+{ () }
+
 proof vector_length<item: Type0>(items: Alloc.Vec.t_Vec(item, Alloc.Alloc.t_Global)): unit
   gives v(Alloc.Vec.impl_1__len(items)) == Seq.length(Alloc.Vec.impl_1__as_slice(items))
   hint Alloc.Vec.impl_1__len(items)
