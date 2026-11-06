@@ -22,8 +22,8 @@ dependency graph. Interfaces and implementations count separately. Unrelated
 workspace files, extraction targets and immutable imported models do not count;
 checked project targets still count on warm runs. The serial sum is not divided
 by make's job count. The two seconds per target cover compiler timeout kill
-grace; ten seconds cover make overhead. For the current eight-module edit chain
-this is 506 seconds, while every F* process remains capped at 60 seconds and
+grace; ten seconds cover make overhead. For the current nine-module edit chain
+this is 568 seconds, while every F* process remains capped at 60 seconds and
 every solver query at rlimit100. Dependency discovery remains independently
 capped at 60 seconds; model bootstrap keeps its explicit 600-second driver.
 Project callers cannot enlarge the derived bound through an explicit override.
@@ -117,10 +117,34 @@ use this contract. Removing its pattern, or withholding its contract in each
 caller, must reject ordinarily. Two actual Rust controls discard the value or
 prepend it and must fail native tests and the exact contract.
 
-The callers still see the imported vector/slice models. This isolates one source
-function in four queries; it does not finish model opacity or the Accepted
-family. The contract concerns the hax translation under those trusted models,
+Other imported vector/slice model definitions remain available; the next section
+describes the selected model-function contracts. The native helper contract
+isolates one source function in four queries; it does not finish model opacity
+or the Accepted family. The contract concerns the hax translation under those trusted models,
 not physical allocation failure or a proved Rust-to-F* semantic equivalence.
+
+## vector/slice model contracts
+
+`Vector.lt` proves five equations over the pinned hax models: a constructed
+global-allocator vector and `from_seq` expose their original sequence; vector
+and slice lengths agree with sequence length; slice indexing agrees with
+sequence indexing.
+The equations are generic in the element type, have deliberate SMT patterns,
+and use no explicit normalization or new assumptions.
+
+The same four push callers withhold `Alloc.Vec.impl_1__as_slice`,
+`Alloc.Vec.from_seq`, `Alloc.Vec.impl_1__len`, `Core_models.Slice.impl__len` and
+`Rust_primitives.Slice.slice_index`, as well as native `push`. This uniform block
+is a deliberate visibility boundary, not a claim that each equation is needed
+in every caller.
+Five pattern removals must reject at the first caller. Separately withholding
+all Vector contracts, or just the new `vector_from_seq` equation, in each caller
+must reject at that caller. These are proof-dependency controls, not native bugs.
+Existing actual-Rust controls remain separate.
+
+This gives those four queries an explicit model-function boundary. Other model
+definitions and sequence reasoning remain available, and the rest of Accepted
+still needs reform. The upstream model trust boundary is unchanged.
 
 ## counter-control isolation
 
@@ -327,8 +351,8 @@ with its original owning theorem (relocated where appropriate). The three
 counter controls still stop at `EditAtomic`.
 
 This separates cumulative compiler work into semantic modules; it does not
-increase the 60-second compiler cap or solver rlimit100. The actual graph now
-has eight compiler targets, so the unchanged aggregate formula yields506s.
+increase the 60-second compiler cap or solver rlimit100. The split produced eight compiler targets. With the Vector model contracts,
+the current edit chain has nine targets and the unchanged formula yields 568s.
 Every moved definition, universal statement and proof body is unchanged modulo
 the owned module namespace. Rust and the hax snapshots are unchanged by the
 split. Fresh extraction, byte-matching, native-failure requirements and the

@@ -8,6 +8,7 @@ import {digest,run,verify,put} from './proof-cache.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
 import {checkProofReform} from './proof-reform.mjs';
 import {checkPushContracts} from './check-push-contracts.mjs';
+import {checkVectorContracts} from './check-vector-contracts.mjs';
 import {checkNegativeProofEvidence} from './check-negative-proof-evidence.mjs';
 import {checkScalarContracts} from './check-loop-contracts.mjs';
 import {checkCounterContracts} from './check-counter-contracts.mjs';
@@ -22,7 +23,7 @@ await fs.mkdir(output,{recursive:true});
 const identity=JSON.parse(await fs.readFile(path.join(modelCache,'identity.json'),'utf8'));
 assert.equal(identity.models,models);assert.equal(identity.fstar,fstar);
 const views=new Map();
-for(const name of ['Prelude','LoopUtil','EditAtomic','EditCommit','EditIdentity','EditAccepted','EditWellFormed']) {
+for(const name of ['Prelude','LoopUtil','Vector','EditAtomic','EditCommit','EditIdentity','EditAccepted','EditWellFormed']) {
   const source=`proofs/${name}.lt`,view=`proofs/generated/Nickel.${name}.fst`;
   const code=await fs.readFile(path.join(root,view),'utf8');
   const receipt=(await fs.readFile(path.join(root,`proofs/generated/${name}.sha256`),'utf8')).trim().split('\n');
@@ -125,6 +126,7 @@ for(const mode of selected.length?selected:modes) {
     assert.equal(checked.status,0,checked.log);
     await checkCounterContracts({proof,output,fstar,models,modelCache});
     await checkPushContracts({proof,output,fstar,models,modelCache});
+    await checkVectorContracts({proof,output,fstar,models,modelCache});
     await checkScalarContracts({proof,output,fstar,models,modelCache});
     await fs.copyFile(path.join(proof,'Nickel_crdt.Edit.fst'),path.join(output,'Nickel_crdt.Edit.fst'));
   } else {
