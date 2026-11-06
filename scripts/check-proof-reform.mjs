@@ -3,7 +3,8 @@ import {assertReformedSource} from './proof-reform.mjs';
 export function checkProofReformFence() {
   const good="import Tactics = FStar.Tactics.V2\nproof p(): unit gives True { assert(True) by { Tactics.smt_sync'(1, 1) } }";
   assertReformedSource('fixture',good);
-  assertReformedSource('fixture','import Tactics = FStar.Tactics.V2\nTactics.prune("Nickel_crdt.Edit.next_counter_after")');
+  for(const namespace of ['Nickel_crdt.Edit.next_counter_after','Rust_primitives.Hax.Folds.fold_range','Nickel.LoopUtil.option_run'])
+    assertReformedSource('fixture','import Tactics = FStar.Tactics.V2\nTactics.prune('+JSON.stringify(namespace)+')');
   assertReformedSource('fixture','// norm_spec is prohibited\nfunction name(): string { "Tactics.compute()" }');
   for(const bad of [
     'norm_spec([delta_only(["x"])] , x)', 'assert_norm(x)', 'normalize_term(x)', 'normalize(x)', 'FStar.Pervasives.normalize(x)', 'reveal_opaque(x)',

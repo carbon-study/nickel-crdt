@@ -2,7 +2,7 @@ import Rust_primitives
 import Core_models
 import Option = Core_models.Option
 import FStar.Pervasives
-import FStar.NormSteps
+import Tactics = FStar.Tactics.V2
 import Nickel.LoopUtil
 import Nickel_proof_smoke
 
@@ -18,7 +18,10 @@ proof flip_bridge(n: usize, value: bool): unit
   gives Nickel_proof_smoke.flip(n, value) == flip_run(n, mk_usize(0), value)
 {
   Nickel.LoopUtil.plain_interpret_any(mk_usize(0), n, flip_next(n), keep, identity);
-  norm_spec([delta_only(["Nickel_proof_smoke.flip"]), iota, zeta_full, primops, unmeta, unascribe], Nickel_proof_smoke.flip(n, value))
+  assert(Nickel_proof_smoke.flip(n, value) == flip_run(n, mk_usize(0), value)) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range");
+    Tactics.smt_sync'(1, 1)
+  }
 }
 function! odd(n: nat): bool
   decreases n
@@ -30,13 +33,27 @@ proof! flip_run_exact(n: usize, at: usize where v(at) <= v(n), value: bool): uni
 {
   if v(at) < v(n) {
     Nickel.LoopUtil.option_run_step(n, at, value, flip_next(n), keep, identity);
-    flip_run_exact(n, at +! mk_int(1), !value);
-    norm_spec([delta_once(["Nickel.Smoke.odd"]), iota, zeta, primops], odd(v(n) - v(at)))
+    flip_run_exact(n, at +! mk_int(1), !value)
   } else { Nickel.LoopUtil.option_run_end(n, at, value, flip_next(n), keep, identity) }
 }
 proof flip_exact(n: usize, value: bool): unit
   gives Nickel_proof_smoke.flip(n, value) == parity(value, v(n))
-{ flip_bridge(n, value); flip_run_exact(n, mk_usize(0), value) }
+{
+  Nickel.LoopUtil.plain_preserve_any(mk_usize(0), n,
+    (at, s) => parity(s, v(n) - at) == parity(value, v(n)),
+    (s) => s == parity(value, v(n)));
+  assert(Nickel_proof_smoke.flip(n, value) == parity(value, v(n))) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range");
+    Tactics.smt_sync'(1, 1)
+  }
+}
 proof flip_involution(n: usize, value: bool): unit
   gives Nickel_proof_smoke.flip(n, Nickel_proof_smoke.flip(n, value)) == value
-{ flip_exact(n, value); flip_exact(n, Nickel_proof_smoke.flip(n, value)) }
+{
+  flip_exact(n, value);
+  flip_exact(n, Nickel_proof_smoke.flip(n, value));
+  assert(Nickel_proof_smoke.flip(n, Nickel_proof_smoke.flip(n, value)) == value) by {
+    Tactics.prune("Nickel_proof_smoke.flip");
+    Tactics.smt_sync'(1, 1)
+  }
+}

@@ -2,7 +2,8 @@ import Rust_primitives
 import Core_models.Ops.Control_flow
 import Rust_primitives.Hax.Folds
 import FStar.Pervasives
-import FStar.NormSteps
+import FStar.Classical
+import Tactics = FStar.Tactics.V2
 
 type output(state: Type0, result: Type0) = t_ControlFlow(result, state)
 type iter_output(state: Type0, result: Type0) = t_ControlFlow(t_ControlFlow(result, (unit, state)), state)
@@ -22,18 +23,12 @@ proof unroll<state: Type0, result: Type0>(start: usize, finish: usize where v(st
       ControlFlow_Break(ControlFlow_Continue((_, next))) => ControlFlow_Continue(next),
       ControlFlow_Continue(next) => fold_range_return(start +! mk_int(1), finish, inv, next, f),
     } : output(state, result))
-{
-  norm_spec([delta_once(["Rust_primitives.Hax.Folds.fold_range_return"]), iota, zeta, primops],
-    fold_range_return(start, finish, inv, value, f))
-}
+{ () }
 
 proof empty<state: Type0, result: Type0>(start: usize, finish: usize where v(start) == v(finish),
   inv: invariant(state, start, finish), value: state, f: callback(state, result, start, finish)): unit
   gives fold_range_return(start, finish, inv, value, f) == ControlFlow_Continue(value)
-{
-  norm_spec([delta_once(["Rust_primitives.Hax.Folds.fold_range_return"]), iota, zeta, primops],
-    fold_range_return(start, finish, inv, value, f))
-}
+{ () }
 
 function output_safe<state: Type0, result: Type0>(post: state => Type0, returned: result => Type0,
   out: output(state, result)): Type0 {
@@ -90,7 +85,7 @@ function! option_run<state: Type0, result: Type0>(finish: usize, at: usize where
 proof option_run_end<state: Type0, result: Type0>(finish: usize, at: usize where v(at) == v(finish), value: state,
   next: transition(state, finish), stop: state => (i: usize where v(i) < v(finish)) => result, done: state => result): unit
   gives option_run(finish, at, value, next, stop, done) == done(value)
-{ norm_spec([delta_once(["Nickel.LoopUtil.option_run"]), iota, zeta, primops], option_run(finish, at, value, next, stop, done)) }
+{ () }
 
 proof option_run_step<state: Type0, result: Type0>(finish: usize, at: usize where v(at) < v(finish), value: state,
   next: transition(state, finish), stop: state => (i: usize where v(i) < v(finish)) => result, done: state => result): unit
@@ -99,7 +94,7 @@ proof option_run_step<state: Type0, result: Type0>(finish: usize, at: usize wher
       Option.Option_None => stop(value, at),
       Option.Option_Some(value) => option_run(finish, at +! mk_int(1), value, next, stop, done),
     } : result)
-{ norm_spec([delta_once(["Nickel.LoopUtil.option_run"]), iota, zeta, primops], option_run(finish, at, value, next, stop, done)) }
+{ () }
 
 // Both function-return and loop-break terminate this interpreter step.
 function option_agrees<state: Type0, result: Type0>(start: usize, finish: usize, f: callback(state, result, start, finish),
@@ -137,7 +132,7 @@ proof! option_interpret<state: Type0, result: Type0>(start: usize, finish: usize
     }
   } else {
     empty(start, finish, inv, value, f);
-    norm_spec([delta_once(["Nickel.LoopUtil.option_run"]), iota, zeta, primops], option_run(finish, start, value, next, stop, done))
+    option_run_end(finish, start, value, next, stop, done)
   }
 }
 
@@ -165,6 +160,16 @@ type break_callback(state: Type0, start: usize, finish: usize) = state => positi
 function plain_agrees<state: Type0>(start: usize, finish: usize, f: plain_callback(state, start, finish), next: transition(state, finish)): Type0 {
   forall(value: state, at: position(start, finish)) . next(value, at) == Option.Option_Some(f(value, at))
 }
+proof plain_step<state: Type0>(start: usize, finish: usize where v(start) < v(finish),
+  inv: total_invariant(state, start, finish), value: state, f: plain_callback(state, start, finish)): unit
+  gives fold_range(start, finish, inv, value, f) ==
+    fold_range(start +! mk_int(1), finish, inv, f(value, start), f)
+{ () }
+proof plain_end<state: Type0>(start: usize, finish: usize where v(start) == v(finish),
+  inv: total_invariant(state, start, finish), value: state, f: plain_callback(state, start, finish)): unit
+  gives fold_range(start, finish, inv, value, f) == value
+{ () }
+
 proof! plain_interpret<state: Type0, result: Type0>(start: usize, finish: usize where v(start) <= v(finish),
   inv: total_invariant(state, start, finish), value: state, f: plain_callback(state, start, finish),
   next: transition(state, finish), stop: state => (i: usize where v(i) < v(finish)) => result, done: state => result): unit
@@ -172,24 +177,46 @@ proof! plain_interpret<state: Type0, result: Type0>(start: usize, finish: usize 
   takes plain_agrees(start, finish, f, next)
   gives done(fold_range(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)
 {
-  norm_spec([delta_once(["Rust_primitives.Hax.Folds.fold_range"]), iota, zeta, primops], fold_range(start, finish, inv, value, f));
   if v(start) < v(finish) {
+    plain_step(start, finish, inv, value, f);
     option_run_step(finish, start, value, next, stop, done);
     assert(next(value, start) == Option.Option_Some(f(value, start)));
-    plain_interpret(start +! mk_int(1), finish, inv, f(value, start), f, next, stop, done)
-  } else { option_run_end(finish, start, value, next, stop, done) }
+    plain_interpret(start +! mk_int(1), finish, inv, f(value, start), f, next, stop, done);
+    assert(done(fold_range(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range");
+      Tactics.prune("Nickel.LoopUtil.option_run");
+      Tactics.smt_sync'(1, 1)
+    }
+  } else {
+    plain_end(start, finish, inv, value, f);
+    option_run_end(finish, start, value, next, stop, done);
+    assert(done(fold_range(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range");
+      Tactics.prune("Nickel.LoopUtil.option_run");
+      Tactics.smt_sync'(1, 1)
+    }
+  }
 }
 proof plain_interpret_any<state: Type0, result: Type0>(start: usize, finish: usize where v(start) <= v(finish),
   next: transition(state, finish), stop: state => (i: usize where v(i) < v(finish)) => result, done: state => result): unit
-  gives forall(inv: total_invariant(state, start, finish), value: state, f: plain_callback(state, start, finish))
-    hint fold_range(start, finish, inv, value, f) . plain_agrees(start, finish, f, next) ==>
+  gives forall(inv: total_invariant(state, start, finish), value: state, f: plain_callback(state, start, finish)) .
+    plain_agrees(start, finish, f, next) ==>
       done(fold_range(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)
 {
   proof each(inv: total_invariant(state, start, finish), value: state, f: plain_callback(state, start, finish)): unit
     takes plain_agrees(start, finish, f, next)
     gives done(fold_range(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)
-    hint fold_range(start, finish, inv, value, f)
-  { plain_interpret(start, finish, inv, value, f, next, stop, done) }
+  {
+    plain_interpret(start, finish, inv, value, f, next, stop, done);
+    assert(done(fold_range(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  proof each_imp(inv: total_invariant(state, start, finish), value: state, f: plain_callback(state, start, finish)): unit
+    gives plain_agrees(start, finish, f, next) ==> done(fold_range(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)
+  { FStar.Classical.move_requires_3(each, inv, value, f) };
+  FStar.Classical.forall_intro_3(each_imp)
 }
 
 function break_agrees<state: Type0, result: Type0>(start: usize, finish: usize, f: break_callback(state, start, finish),
@@ -207,7 +234,6 @@ proof! break_interpret<state: Type0, result: Type0>(start: usize, finish: usize 
   takes break_agrees(start, finish, f, next, stop, done)
   gives done(fold_range_cf(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)
 {
-  norm_spec([delta_once(["Rust_primitives.Hax.Folds.fold_range_cf"]), iota, zeta, primops], fold_range_cf(start, finish, inv, value, f));
   if v(start) < v(finish) {
     option_run_step(finish, start, value, next, stop, done);
     match f(value, start) {
@@ -252,4 +278,60 @@ proof preserve_any<state: Type0, result: Type0>(start: usize, finish: usize wher
     gives output_safe(post, returned, fold_range_return(start, finish, inv, value, f))
     hint fold_range_return(start, finish, inv, value, f)
   { preserve(start, finish, inv, value, f, p, post, returned) }
+}
+
+// Ordinary for loops: one state, one invariant, one step, one final condition.
+// The hax annotation remains separate: it does not supply preservation.
+type for_invariant(state: Type0, finish: usize) = (at: nat where at <= v(finish)) => state => Type0
+proof! plain_preserve<state: Type0>(start: usize, finish: usize where v(start) <= v(finish),
+  inv: total_invariant(state, start, finish), value: state, f: plain_callback(state, start, finish),
+  p: for_invariant(state, finish), post: state => Type0): unit
+  decreases v(finish) - v(start)
+  takes p(v(start), value)
+  takes forall(s: state, i: position(start, finish) where v(i) < v(finish)) . p(v(i), s) ==> p(v(i) + 1, f(s, i))
+  takes forall(s: state) . p(v(finish), s) ==> post(s)
+  gives post(fold_range(start, finish, inv, value, f))
+{
+  if v(start) < v(finish) {
+    plain_step(start, finish, inv, value, f);
+    plain_preserve(start +! mk_int(1), finish, inv, f(value, start), f, p, post);
+    assert(post(fold_range(start, finish, inv, value, f))) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range");
+      Tactics.smt_sync'(1, 1)
+    }
+  } else {
+    plain_end(start, finish, inv, value, f);
+    assert(post(fold_range(start, finish, inv, value, f))) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range");
+      Tactics.smt_sync'(1, 1)
+    }
+  }
+}
+// Match the actual extracted anonymous callback without naming or copying it.
+proof plain_preserve_any<state: Type0>(start: usize, finish: usize where v(start) <= v(finish),
+  p: for_invariant(state, finish), post: state => Type0): unit
+  gives forall(inv: total_invariant(state, start, finish), value: state, f: plain_callback(state, start, finish)) .
+    (p(v(start), value) and
+     (forall(s: state, i: position(start, finish) where v(i) < v(finish)) . p(v(i), s) ==> p(v(i) + 1, f(s, i))) and
+     (forall(s: state) . p(v(finish), s) ==> post(s))) ==>
+      post(fold_range(start, finish, inv, value, f))
+{
+  proof each(inv: total_invariant(state, start, finish), value: state, f: plain_callback(state, start, finish)): unit
+    takes p(v(start), value)
+    takes forall(s: state, i: position(start, finish) where v(i) < v(finish)) . p(v(i), s) ==> p(v(i) + 1, f(s, i))
+    takes forall(s: state) . p(v(finish), s) ==> post(s)
+    gives post(fold_range(start, finish, inv, value, f))
+  {
+    plain_preserve(start, finish, inv, value, f, p, post);
+    assert(post(fold_range(start, finish, inv, value, f))) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  proof each_imp(inv: total_invariant(state, start, finish), value: state, f: plain_callback(state, start, finish)): unit
+    gives (p(v(start), value) and
+       (forall(s: state, i: position(start, finish) where v(i) < v(finish)) . p(v(i), s) ==> p(v(i) + 1, f(s, i))) and
+       (forall(s: state) . p(v(finish), s) ==> post(s))) ==> post(fold_range(start, finish, inv, value, f))
+  { FStar.Classical.move_requires_3(each, inv, value, f) };
+  FStar.Classical.forall_intro_3(each_imp)
 }
