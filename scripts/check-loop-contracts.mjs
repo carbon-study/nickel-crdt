@@ -13,12 +13,17 @@ function declaration(view,name) {
 function removeCall(view,name,needle) {
   const [a,b]=declaration(view,name),body=view.slice(a,b);
   assert.equal(body.split(needle).length,2,'control anchor must occur once in '+name);
-  return view.slice(0,a)+body.replace(needle,'')+view.slice(b);
+  return view.slice(0,a)+body.replace(needle,needle.endsWith(';')?'':'()')+view.slice(b);
 }
 export async function checkLoopContracts({proof,output,fstar,models,modelCache}) {
   const loop='Nickel.LoopUtil.fst',smoke='Nickel.Smoke.fst';
   const originals=new Map(await Promise.all([loop,smoke].map(async name=>[name,await fs.readFile(path.join(proof,name),'utf8')])));
   const cases=[
+    ['result-no-return-rule',loop,'result_preserve_any','preserve_any start finish p (fun (s: state) -> successful (done s)) (result_safe successful failed);'],
+    ['return-no-step',loop,'preserve','unroll start finish inv value f;'],
+    ['return-no-end',loop,'preserve','empty start finish inv value f;'],
+    ['return-no-induction',loop,'preserve','preserve (start +! mk_int 1) finish inv next f p post returned'],
+    ['return-no-adapter',loop,'preserve_any','preserve start finish inv value f p post returned;'],
     ['loop-no-step',loop,'plain_preserve','plain_step start finish inv value f;'],
     ['loop-no-end',loop,'plain_preserve','plain_end start finish inv value f;'],
     ['loop-no-induction',loop,'plain_preserve','plain_preserve (start +! mk_int 1) finish inv (f value start) f p post;'],
@@ -61,4 +66,23 @@ export async function checkDirectLoop({proof,output,fstar,models,modelCache,mode
       'require ordinary direct-parity rejection of the actual wrong Rust body: '+result.log);
     console.log('PASS direct parity '+mode+' without the legacy bridge');
   } finally { await put(file,original); }
+}
+
+// Actual scalar validator boundaries must use the fallible invariant rule.
+export async function checkScalarContracts({proof,output,fstar,models,modelCache}) {
+  const file=path.join(proof,'Nickel.EditWellFormed.fst'),original=await fs.readFile(file,'utf8');
+  for(const lemma of ['scalar_validation_is_sound','valid_scalar_input_succeeds']) {
+    const [a,b]=declaration(original,lemma),body=original.slice(a,b);
+    const calls=body.match(/Nickel\.LoopUtil\.result_preserve_any[^;]+;/g);
+    assert.equal(calls?.length,1,'one fallible rule call at '+lemma);
+    const view=removeCall(original,lemma,calls[0]);
+    try {
+      await put(file,view);
+      const result=await verify({dir:proof,roots:[file],fstar,models,modelCache});
+      await fs.writeFile(path.join(output,lemma+'.without-rule.proof.log'),result.log);
+      assert(hasOrdinaryTheoremRejection({status:result.status,log:result.log,theorem:'Nickel.EditWellFormed.'+lemma,view}),
+        'require ordinary scalar contract-dependency rejection: '+result.log);
+      console.log('PASS '+lemma+': actual validator requires the fallible invariant rule');
+    } finally { await put(file,original); }
+  }
 }

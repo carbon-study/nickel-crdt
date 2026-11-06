@@ -425,3 +425,53 @@ detection. Evidence for each result is saved separately.
 This isolates the plain path. The other fallible/break adapters and remaining
 application proof families still need the corresponding isolation work; zero
 explicit normalization alone does not establish their abstraction boundary.
+
+### fallible range loops: the scalar validator
+
+`preserve_any` covers hax's return-capable range loop. The caller gives an
+index/state invariant, a condition for normal completion and a condition for
+an early returned result. The rule's step premise checks all three cases:
+continue at the next index, break with a final state, or return a result.
+Neither the hax annotation nor an early exit supplies preservation by itself.
+
+The inductive rule now composes `unroll`/`empty` and its recursive contract with
+`fold_range_return` facts withheld. Its universal adapter uses explicit standard
+quantifier introduction and ordinary trigger inference, as on the plain path.
+The original logical statement is unchanged; pattern metadata changes.
+
+The first native callers use a Result-oriented specialization,
+`result_preserve_any`. They supply the index/state invariant, a value produced
+on normal completion, and separate conditions for successful results and errors.
+Continue preserves the next invariant; break satisfies the completion condition;
+early return satisfies the appropriate Ok/Err condition. The specialization
+proves that rule from the old general preservation contract; it does not copy
+the native callback or add a second loop implementation.
+
+The three-way step obligation is defined once as `result_step` and reused by
+the public contract and its introduction adapters. It separates continuing
+with the next invariant, returning an Ok/Err result, and breaking with a final
+state. This is transparent specification factoring, not another loop algorithm.
+The specialization's contract does not mention `step_safe` or `output_safe`.
+The actual scalar soundness and valid-input-success proofs withhold both of
+those definitions, as well as the model fold, in their final assertions. They
+check their own Rust validator wiring; its body and the scalar-domain predicates
+remain visible at that source boundary. Normal completion of the unit-state
+scalar scan produces `Ok(())`; soundness allows any error, while valid-input
+success rules out errors. The old public theorem statements remain unchanged.
+
+The general ControlFlow encoding still belongs to LoopUtil's compatibility
+rule. Its Result specialization exposes the case obligations directly and
+quantifies over the actual anonymous callback; the application proof never
+names or copies that callback. This does not migrate all of EditWellFormed or
+establish all-callee opacity. Only the two migrated scalar declarations have
+the new entry fence.
+
+Four default dependency controls remove return-loop step/end, induction and
+adapter calls. Another removes the general rule from its Result specialization.
+Two edit-gate controls remove the Result rule from the actual scalar proofs.
+All must fail ordinarily in their unchanged named declarations. Existing native
+invalid-scalar, false-refusal, wrong-argument and early-success controls retain
+their original targets. The separate `fold_range_cf` break interpreter and
+other application families still await migration. Repeated visibility and
+quantifier-introduction scaffolds remain a readability issue in the library;
+this specialization does not close the whole reform gate.

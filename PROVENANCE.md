@@ -125,3 +125,22 @@ axiom, tool pin or proof-budget change accompanies the continuation.
 The smoke involution consumer additionally prunes the actual Rust function
 facts and composes its two parity-contract calls. Separate default removals of
 each call make that dependency observable.
+
+The return-capable loop preservation continuation also composes its model
+step/end contracts with `fold_range_return` facts withheld. Standard Classical
+introduction replaces the universal adapter's explicit recursive trigger,
+without changing its logical type. The native scalar soundness and valid-input
+success boundaries use that rule without normalization; their own validator
+body remains visible. No model, extraction, compiler or budget change is made.
+
+The Result-oriented return-loop specialization composes the preserved general
+rule and exposes successful/error conditions. Its actual scalar callers
+withhold step_safe/output_safe as well as the fold model. This changes neither
+prior theorem types nor the native extraction. Its universal-introduction
+scaffold uses the same pinned standard-library lemmas; no axiom is added.
+
+The Result step's three repeated matches are factored into the transparent
+`result_step` predicate. Its contents are unchanged. Focused verification also
+checks the current implementation against the exact previous inline universal
+contract, not just the refactored signature; existing actual caller and native
+controls remain. Universal-introduction scaffolding is still repeated.
