@@ -170,7 +170,7 @@ proof receive_preserves_unique_ids(before: Native.t_Replica, fact: Native.t_Fact
 {
   Nickel.EditAtomic.receive_rejection_unchanged(before, fact);
   receive_added_ids_are_unique(before, fact);
-  norm_spec([delta_only(["Nickel.EditAccepted.receive_state_unique", "Nickel.EditAccepted.added_state_unique", "Nickel.EditAtomic.receive_neutral"]), iota, zeta_full, primops], receive_state_unique(Native.impl_Replica__receive(before, fact)))
+  ()
 }
 function edit_state_unique(outcome: (Native.t_Replica, Result.t_Result(Native.t_Local, Native.t_Error))): Type0 {
   match outcome { (next, _) => ids_unique(next.f_facts) }
@@ -185,7 +185,7 @@ proof edit_preserves_unique_ids(before: Native.t_Replica, gap: usize, insert: Al
     (_, Result.Result_Ok(Native.Local_Authored(fact))) => receive_added_ids_are_unique(before, fact),
     _ => ()
   };
-  norm_spec([delta_only(["Nickel.EditAccepted.edit_state_unique", "Nickel.EditAccepted.added_state_unique", "Nickel.EditAtomic.edit_neutral", "Nickel.EditCommit.same_commit"]), iota, zeta_full, primops], edit_state_unique(Native.impl_Replica__edit(before, gap, insert, delete)))
+  ()
 }
 
 function new_state_unique(outcome: Result.t_Result(Native.t_Replica, Native.t_Error)): Type0 {
@@ -288,15 +288,14 @@ proof squeezed_equal_facts(input: t_Slice(Native.t_Fact) where Seq.length(input)
   takes squeezed_position(input, out, missing, i) == squeezed_position(input, out, missing, j)
   gives Seq.index(Alloc.Vec.impl_1__as_slice(out), i) == Seq.index(Alloc.Vec.impl_1__as_slice(out), j)
 {
-  norm_spec([delta_only(["Nickel.EditAccepted.squeezed_position"]), iota, zeta_full, primops], squeezed_position(input, out, missing, i));
-  norm_spec([delta_only(["Nickel.EditAccepted.squeezed_position"]), iota, zeta_full, primops], squeezed_position(input, out, missing, j))
+  ()
 }
 proof unique_positions(out: facts_vec, i: usize where v(i) < v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(out))), j: usize where v(j) < v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(out)))): unit
   takes ids_unique(out)
   takes Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), i).f_id == Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), j).f_id
   gives i == j
 {
-  norm_spec([delta_only(["Nickel.EditAccepted.ids_unique", "Nickel.EditIdentity.unique_ids"]), iota, zeta_full, primops], ids_unique(out))
+  ()
 }
 proof unique_nat_positions(out: facts_vec, i: nat where i < Seq.length(Alloc.Vec.impl_1__as_slice(out)), j: nat where j < Seq.length(Alloc.Vec.impl_1__as_slice(out))): unit
   takes ids_unique(out)
@@ -356,7 +355,7 @@ proof canonical_preserves_exact_contents(input: t_Slice(Native.t_Fact)): unit
     Result.Result_Ok(out) => whole_selection_covers(input, out),
     _ => ()
   };
-  norm_spec([delta_only(["Nickel.EditAccepted.canonical_exact_result", "Nickel.EditAccepted.canonical_content_result", "Nickel.EditAccepted.canonical_result_unique", "Nickel.EditAccepted.content_invariant", "Nickel.EditAccepted.same_fact_contents", "Nickel.EditAccepted.selected_whole_facts", "Nickel.EditAccepted.fact_present"]), iota, zeta_full, primops], canonical_exact_result(input, Native.canonical(input)))
+  ()
 }
 function appended_contents(before: facts_vec, fact: Native.t_Fact, next: facts_vec): Type0 {
   v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(next))) == v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(before))) + 1 and
@@ -389,7 +388,7 @@ proof successful_plan_has_exact_contents(before: Native.t_Replica, fact: Native.
   push_has_exact_contents(before.f_facts, fact);
   plan_publishes_canonical_facts(before, fact);
   canonical_preserves_exact_contents(Alloc.Vec.impl_1__as_slice(candidate_facts(before, fact)));
-  norm_spec([delta_only(["Nickel.EditAccepted.plan_exact_contents", "Nickel.EditAccepted.appended_contents", "Nickel.EditAccepted.plan_push_succeeded", "Nickel.EditAccepted.push_exact_result", "Nickel.EditAccepted.canonical_publication", "Nickel.EditAccepted.candidate_facts", "Nickel.EditAccepted.canonical_exact_result", "Nickel.EditAccepted.same_fact_contents"]), iota, zeta_full, primops], plan_exact_contents(before, fact, Native.impl_Replica__plan(before, fact)))
+  ()
 }
 function added_exact_contents(before: Native.t_Replica, fact: Native.t_Fact, outcome: (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error))): Type0 {
   match outcome { (next, Result.Result_Ok(Native.Admission_Added)) => appended_contents(before.f_facts, fact, next.f_facts), _ => Prims.l_True }
@@ -411,7 +410,7 @@ proof edit_authored_has_exact_contents(before: Native.t_Replica, gap: usize, ins
     (_, Result.Result_Ok(Native.Local_Authored(fact))) => receive_added_has_exact_contents(before, fact),
     _ => ()
   };
-  norm_spec([delta_only(["Nickel.EditAccepted.authored_exact_contents", "Nickel.EditAccepted.added_exact_contents", "Nickel.EditCommit.same_commit"]), iota, zeta_full, primops], authored_exact_contents(before, Native.impl_Replica__edit(before, gap, insert, delete)))
+  ()
 }
 
 // Canonical fact order is event-ID order, not causal replay order or text order.
@@ -468,9 +467,9 @@ proof membership_absence_exact(input: t_Slice(Native.t_Fact), id: Native.t_Event
   proof reverse(dummy: unit): unit
     takes Nickel.EditIdentity.prefix_absent(input, id, mk_usize(0), Nickel.EditIdentity.length(input))
     gives Native.has_fact(input, id) == false
-  { absent_lookup(input, id, mk_usize(0)); norm_spec([delta_only(["Nickel.EditAccepted.member_value"]), iota], member_value(Nickel.EditIdentity.first_id(input, id, mk_usize(0)))) };
+  { absent_lookup(input, id, mk_usize(0)); () };
   FStar.Classical.move_requires(reverse, ());
-  norm_spec([delta_only(["Nickel.EditAccepted.member_value"]), iota], member_value(Nickel.EditIdentity.first_id(input, id, mk_usize(0))))
+  ()
 }
 function facts_ordered(facts: facts_vec): Type0 {
   forall(i: usize where v(i) < v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(facts))), j: usize where v(j) < v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(facts)))) .
@@ -510,7 +509,7 @@ proof frontier_bounds_unseen(input: t_Slice(Native.t_Fact), out: facts_vec,
   takes Native.has_fact(Alloc.Vec.impl_1__as_slice(out), Rust_primitives.Slice.slice_index(input, k).f_id) == false
   gives event_key(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), i).f_id) <= event_key(Rust_primitives.Slice.slice_index(input, k).f_id)
 {
-  norm_spec([delta_only(["Nickel.EditAccepted.order_frontier"]), iota, zeta_full], order_frontier(input, out))
+  ()
 }
 proof append_least_preserves_frontier(input: t_Slice(Native.t_Fact), out: facts_vec,
   k: usize where v(k) < v(Nickel.EditIdentity.length(input))): unit
@@ -617,7 +616,7 @@ proof authored_facts_are_ordered(before: Native.t_Replica, gap: usize, insert: A
     (_, Result.Result_Ok(Native.Local_Authored(fact))) => receive_added_facts_are_ordered(before, fact),
     _ => ()
   };
-  norm_spec([delta_only(["Nickel.EditAccepted.authored_ordered", "Nickel.EditAccepted.added_ordered", "Nickel.EditCommit.same_commit"]), iota, zeta_full, primops, unmeta, unascribe], authored_ordered(Native.impl_Replica__edit(before, gap, insert, delete)))
+  ()
 }
 function receive_state_ordered(outcome: (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error))): Type0 {
   match outcome { (next, _) => facts_ordered(next.f_facts) }
@@ -628,7 +627,7 @@ proof receive_preserves_fact_order(before: Native.t_Replica, fact: Native.t_Fact
 {
   Nickel.EditAtomic.receive_rejection_unchanged(before, fact);
   receive_added_facts_are_ordered(before, fact);
-  norm_spec([delta_only(["Nickel.EditAccepted.receive_state_ordered", "Nickel.EditAccepted.added_ordered", "Nickel.EditAtomic.receive_neutral"]), iota, zeta_full, primops], receive_state_ordered(Native.impl_Replica__receive(before, fact)))
+  ()
 }
 function edit_state_ordered(outcome: (Native.t_Replica, Result.t_Result(Native.t_Local, Native.t_Error))): Type0 {
   match outcome { (next, _) => facts_ordered(next.f_facts) }
@@ -639,7 +638,7 @@ proof edit_preserves_fact_order(before: Native.t_Replica, gap: usize, insert: Al
 {
   Nickel.EditAtomic.edit_rejection_or_empty_unchanged(before, gap, insert, delete);
   authored_facts_are_ordered(before, gap, insert, delete);
-  norm_spec([delta_only(["Nickel.EditAccepted.edit_state_ordered", "Nickel.EditAccepted.authored_ordered", "Nickel.EditAtomic.edit_neutral"]), iota, zeta_full, primops], edit_state_ordered(Native.impl_Replica__edit(before, gap, insert, delete)))
+  ()
 }
 function new_state_ordered(outcome: Result.t_Result(Native.t_Replica, Native.t_Error)): Type0 {
   match outcome { Result.Result_Ok(state) => facts_ordered(state.f_facts), _ => Prims.l_True }
@@ -654,8 +653,7 @@ proof event_key_identifies_event(a: Native.t_EventId, b: Native.t_EventId): unit
   takes event_key(a) == event_key(b)
   gives a == b
 {
-  norm_spec([delta_only(["Nickel.EditAccepted.event_key"]), iota, zeta_full, primops], event_key(a));
-  norm_spec([delta_only(["Nickel.EditAccepted.event_key"]), iota, zeta_full, primops], event_key(b))
+  ()
 }
 function facts_strictly_ordered(facts: facts_vec): Type0 {
   forall(i: usize where v(i) < v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(facts))), j: usize where v(j) < v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(facts)))) .
@@ -666,7 +664,6 @@ proof ordered_unique_is_strict(facts: facts_vec): unit
   takes facts_ordered(facts)
   gives facts_strictly_ordered(facts)
 {
-  norm_spec([delta_only(["Nickel.EditAccepted.facts_ordered"]), iota, zeta_full], facts_ordered(facts));
   proof each_pair(i: usize where v(i) < v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(facts))), j: usize where v(j) < v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(facts)))): unit
     gives v(i) < v(j) ==> Native.event_lt(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(facts), i).f_id, Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(facts), j).f_id) == true
   {
@@ -679,7 +676,7 @@ proof ordered_unique_is_strict(facts: facts_vec): unit
     } else { () }
   };
   FStar.Classical.forall_intro_2(each_pair);
-  norm_spec([delta_only(["Nickel.EditAccepted.facts_strictly_ordered"]), iota, zeta_full], facts_strictly_ordered(facts))
+  ()
 }
 function strict_canonical_result(result: Result.t_Result(facts_vec, Native.t_Error)): Type0 {
   match result { Result.Result_Ok(facts) => facts_strictly_ordered(facts), _ => Prims.l_True }
@@ -692,7 +689,7 @@ proof canonical_facts_are_strictly_ordered(input: t_Slice(Native.t_Fact)): unit
   match Native.canonical(input) {
     Result.Result_Ok(out) => ordered_unique_is_strict(out), _ => ()
   };
-  norm_spec([delta_only(["Nickel.EditAccepted.strict_canonical_result", "Nickel.EditAccepted.canonical_result_unique", "Nickel.EditAccepted.order_step_result", "Nickel.EditAccepted.order_frontier"]), iota, zeta_full], strict_canonical_result(Native.canonical(input)))
+  ()
 }
 
 // Equality of sorted whole-fact vectors, before lifting to actual canonicalization.
@@ -725,8 +722,6 @@ proof ordered_vectors_next(left: facts_vec, right: facts_vec,
   const b = Seq.index(Alloc.Vec.impl_1__as_slice(right), at);
   assert(fact_present(Alloc.Vec.impl_1__as_slice(left), a));
   assert(fact_present(Alloc.Vec.impl_1__as_slice(right), b));
-  norm_spec([delta_only(["Nickel.EditAccepted.same_fact_contents", "Nickel.EditAccepted.prefix_equal"]), iota, zeta_full], same_fact_contents(Alloc.Vec.impl_1__as_slice(left), right));
-  norm_spec([delta_only(["Nickel.EditAccepted.prefix_equal"]), iota, zeta_full], prefix_equal(left, right, at));
   const j = find_fact_position(Alloc.Vec.impl_1__as_slice(right), a);
   const k = find_fact_position(Alloc.Vec.impl_1__as_slice(left), b);
   if j < at { unique_nat_positions(left, j, at) } else { () };
@@ -760,9 +755,7 @@ proof ordered_contents_determine_vector(left: facts_vec, right: facts_vec): unit
   takes same_fact_contents(Alloc.Vec.impl_1__as_slice(left), right)
   gives left == right
 {
-  norm_spec([delta_only(["Nickel.EditAccepted.prefix_equal"]), iota, zeta_full], prefix_equal(left, right, 0));
   ordered_vectors_prefix(left, right, 0);
-  norm_spec([delta_only(["Nickel.EditAccepted.prefix_equal"]), iota, zeta_full], prefix_equal(left, right, Seq.length(Alloc.Vec.impl_1__as_slice(left))));
   Seq.lemma_eq_intro(Alloc.Vec.impl_1__as_slice(left), Alloc.Vec.impl_1__as_slice(right));
   Seq.lemma_eq_elim(Alloc.Vec.impl_1__as_slice(left), Alloc.Vec.impl_1__as_slice(right));
   norm_spec([delta_only(["Alloc.Vec.impl_1__as_slice", "Rust_primitives.Sequence.seq_to_slice"]), iota, zeta_full], Alloc.Vec.impl_1__as_slice(left));
@@ -785,16 +778,14 @@ proof canonical_is_permutation_independent(left: t_Slice(Native.t_Fact), right: 
   canonical_has_unique_ids(right);
   canonical_facts_are_strictly_ordered(left);
   canonical_facts_are_strictly_ordered(right);
-  norm_spec([delta_only(["Nickel.EditAccepted.same_input_contents_and_length"]), iota, zeta_full], same_input_contents_and_length(left, right));
   match (Native.canonical(left), Native.canonical(right)) {
     (Result.Result_Ok(a), Result.Result_Ok(b)) => {
       norm_spec([delta_only(["Nickel.EditAccepted.canonical_exact_result", "Nickel.EditAccepted.same_fact_contents", "Nickel.EditIdentity.length", "Core_models.Slice.impl__len"]), iota, zeta_full], canonical_exact_result(left, Native.canonical(left)));
       norm_spec([delta_only(["Nickel.EditAccepted.canonical_exact_result", "Nickel.EditAccepted.same_fact_contents", "Nickel.EditIdentity.length", "Core_models.Slice.impl__len"]), iota, zeta_full], canonical_exact_result(right, Native.canonical(right)));
-      norm_spec([delta_only(["Nickel.EditAccepted.same_fact_contents"]), iota, zeta_full], same_fact_contents(Alloc.Vec.impl_1__as_slice(a), b));
       ordered_contents_determine_vector(a, b)
     }, _ => ()
   };
-  norm_spec([delta_only(["Nickel.EditAccepted.canonical_agreement", "Nickel.EditAccepted.canonical_result_unique", "Nickel.EditAccepted.strict_canonical_result"]), iota, zeta_full], canonical_agreement(Native.canonical(left), Native.canonical(right)))
+  ()
 }
 function plan_interpretation(outcome: Result.t_Result(Option.t_Option(Native.t_Replica), Native.t_Error)): Type0 {
   match outcome { Result.Result_Ok(Option.Option_Some(next)) => Native.interpret(Alloc.Vec.impl_1__as_slice(next.f_facts)) == Result.Result_Ok(next.f_tree), _ => Prims.l_True }
@@ -901,8 +892,6 @@ proof canonical_step_succeeds(input: t_Slice(Native.t_Fact), out: facts_vec): un
   choice_always_returns(input, Alloc.Vec.impl_1__as_slice(out));
   selected_id_is_least(input, Alloc.Vec.impl_1__as_slice(out));
   shorter_output_has_unseen(input, Alloc.Vec.impl_1__as_slice(out));
-  norm_spec([delta_only(["Nickel.EditAccepted.choice_total"]), iota, zeta_full], choice_total(Native.choose_unseen(input, Alloc.Vec.impl_1__as_slice(out))));
-  norm_spec([delta_only(["Nickel.EditAccepted.least_result", "Nickel.EditAccepted.least_choice"]), iota, zeta_full, primops], least_result(input, Alloc.Vec.impl_1__as_slice(out), Native.choose_unseen(input, Alloc.Vec.impl_1__as_slice(out))));
   match Native.choose_unseen(input, Alloc.Vec.impl_1__as_slice(out)) {
     Result.Result_Ok(Option.Option_Some(k)) => {
       assert(v(k) < Seq.length(input));
@@ -957,5 +946,5 @@ proof unique_inputs_canonicalize_identically(left: t_Slice(Native.t_Fact), right
   canonical_succeeds_for_unique_ids(left);
   canonical_succeeds_for_unique_ids(right);
   canonical_is_permutation_independent(left, right);
-  norm_spec([delta_only(["Nickel.EditAccepted.canonical_total", "Nickel.EditAccepted.canonical_agreement", "Nickel.EditAccepted.total_canonical_agreement"]), iota, zeta_full, primops], total_canonical_agreement(Native.canonical(left), Native.canonical(right)))
+  ()
 }
