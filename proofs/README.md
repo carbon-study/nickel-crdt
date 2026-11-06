@@ -514,3 +514,26 @@ their original targets. The separate `fold_range_cf` break interpreter and
 other application families still await migration. Repeated visibility and
 quantifier-introduction scaffolds remain a readability issue in the library;
 this specialization does not close the whole reform gate.
+
+## identity equality contract and lookup cleanup
+
+`EditIdentity.fact_equality_exact` checks the actual named native `fact_equal`
+call against structural whole-fact equality and supplies a pattern for that call.
+`duplicate_matches_lookup` withholds that helper and composes its contract with
+lookup reasoning. It no longer needs a local quantified equality scaffold.
+Removing the pattern or withholding the contract must reject ordinarily at the
+actual duplicate boundary. The eight identity Rust controls separately test the
+handwritten equalities, scan key, conflict classification, scan coverage and
+counter guard through fresh extraction.
+
+The three handwritten writer/event/birth equality boundary proofs also need no
+explicit normalization. Their source controls remain important: the pinned hax
+backend structurally lowers ordinary equality operators, so those boundary laws
+must continue to check the named handwritten implementations separately.
+
+Five explicit `first_id` reductions are removed from the recursive lookup proofs
+and their two Accepted consumers; their recursive arguments and universal claims
+are unchanged. This does not hide the lookup spec or vector/slice models.
+The duplicate loop model remains visible, as do the unconverted public
+receive/edit identity boundaries. This is a specific native equality boundary
+and lookup cleanup, not completion of the identity family or whole-codebase reform.

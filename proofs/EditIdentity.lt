@@ -3,6 +3,7 @@ import Rust_primitives.Slice
 import Core_models
 import FStar.Pervasives
 import FStar.NormSteps
+import Tactics = FStar.Tactics.V2
 import Nickel.LoopUtil
 import Native = Nickel_crdt.Edit
 import Result = Core_models.Result
@@ -12,16 +13,17 @@ import Option = Core_models.Option
 // handwritten implementations separately, and keep the critical fact call named.
 proof writer_equality_exact(a: Native.t_Writer, b: Native.t_Writer): unit
   gives Native.impl_1.f_eq(a, b) == (a ==? b)
-{ norm_spec([delta_only(["Nickel_crdt.Edit.impl_1", "Nickel_crdt.Edit.writer_index"]), iota, zeta_full, primops], Native.impl_1.f_eq(a, b)) }
+{ () }
 proof event_equality_exact(a: Native.t_EventId, b: Native.t_EventId): unit
   gives Native.impl_2.f_eq(a, b) == (a ==? b)
-{ norm_spec([delta_only(["Nickel_crdt.Edit.impl_2"]), iota, zeta_full, primops], Native.impl_2.f_eq(a, b)) }
+{ () }
 proof birth_equality_exact(a: Native.t_BirthId, b: Native.t_BirthId): unit
   gives Native.impl_3.f_eq(a, b) == (a ==? b)
-{ norm_spec([delta_only(["Nickel_crdt.Edit.impl_3"]), iota, zeta_full, primops], Native.impl_3.f_eq(a, b)) }
+{ () }
 proof fact_equality_exact(a: Native.t_Fact, b: Native.t_Fact): unit
   gives Native.fact_equal(a, b) == (a ==? b)
-{ norm_spec([delta_only(["Nickel_crdt.Edit.fact_equal"]), iota, zeta_full, primops], Native.fact_equal(a, b)) }
+  hint Native.fact_equal(a, b)
+{ () }
 
 function length(facts: t_Slice(Native.t_Fact)): usize { Core_models.Slice.impl__len(facts) }
 function! first_id(facts: t_Slice(Native.t_Fact), id: Native.t_EventId, at: usize where v(at) <= v(length(facts))): Option.t_Option(Native.t_Fact)
@@ -57,8 +59,7 @@ proof! scan_lookup(facts: t_Slice(Native.t_Fact), fact: Native.t_Fact, at: usize
 {
   if v(at) < v(length(facts)) {
     Nickel.LoopUtil.option_run_step(length(facts), at, (), scan_next(facts, fact), scan_stop(facts, fact), scan_done);
-    if !(Rust_primitives.Slice.slice_index(facts, at).f_id ==? fact.f_id) { scan_lookup(facts, fact, at +! mk_int(1)) } else { () };
-    norm_spec([delta_once(["Nickel.EditIdentity.first_id"]), iota, zeta, primops], first_id(facts, fact.f_id, at))
+    if !(Rust_primitives.Slice.slice_index(facts, at).f_id ==? fact.f_id) { scan_lookup(facts, fact, at +! mk_int(1)) } else { () }
   } else { Nickel.LoopUtil.option_run_end(length(facts), at, (), scan_next(facts, fact), scan_stop(facts, fact), scan_done) }
 }
 function identity_result(facts: t_Slice(Native.t_Fact), fact: Native.t_Fact): Result.t_Result(bool, Native.t_Error) {
@@ -66,14 +67,16 @@ function identity_result(facts: t_Slice(Native.t_Fact), fact: Native.t_Fact): Re
     Result.Result_Err(Native.Error_Invalid(Native.Invalid_Counter))
   } else { classify(first_id(facts, fact.f_id, mk_usize(0)), fact) }
 }
+// This query isolates fact_equal only; the loop model remains visible.
 proof duplicate_matches_lookup(facts: t_Slice(Native.t_Fact), fact: Native.t_Fact): unit
   gives Native.impl_Replica__duplicate(facts, fact) == identity_result(facts, fact)
 {
   Nickel.LoopUtil.option_interpret_any(mk_usize(0), length(facts), scan_next(facts, fact), scan_stop(facts, fact), scan_done);
-  proof every_equality(old: Native.t_Fact): unit gives Native.fact_equal(old, fact) == (old ==? fact)
-  { fact_equality_exact(old, fact) };
   scan_lookup(facts, fact, mk_usize(0));
-  norm_spec([delta_only(["Nickel_crdt.Edit.impl_Replica__duplicate", "Nickel.EditIdentity.identity_result", "Nickel.EditIdentity.scan_run"]), iota, zeta_full, primops, unmeta, unascribe], Native.impl_Replica__duplicate(facts, fact))
+  assert(Native.impl_Replica__duplicate(facts, fact) == identity_result(facts, fact)) by {
+    Tactics.prune("Nickel_crdt.Edit.fact_equal");
+    Tactics.smt_sync'(1, 1)
+  }
 }
 
 function prefix_absent(facts: t_Slice(Native.t_Fact), id: Native.t_EventId, at: usize, finish: usize): Type0 {
@@ -87,8 +90,7 @@ proof! lookup_at(facts: t_Slice(Native.t_Fact), id: Native.t_EventId,
   takes Rust_primitives.Slice.slice_index(facts, found).f_id == id
   gives first_id(facts, id, at) == Option.Option_Some(Rust_primitives.Slice.slice_index(facts, found))
 {
-  if v(at) < v(found) { lookup_at(facts, id, found, at +! mk_int(1)) } else { () };
-  norm_spec([delta_once(["Nickel.EditIdentity.first_id"]), iota, zeta, primops], first_id(facts, id, at))
+  if v(at) < v(found) { lookup_at(facts, id, found, at +! mk_int(1)) } else { () }
 }
 function unique_ids(facts: t_Slice(Native.t_Fact)): Type0 {
   forall(i: usize where v(i) < v(length(facts)), j: usize where v(j) < v(length(facts))) .
@@ -124,7 +126,6 @@ proof! lookup_none(facts: t_Slice(Native.t_Fact), id: Native.t_EventId, at: usiz
   takes first_id(facts, id, at) == Option.Option_None
   gives prefix_absent(facts, id, at, length(facts))
 {
-  norm_spec([delta_once(["Nickel.EditIdentity.first_id"]), iota, zeta, primops], first_id(facts, id, at));
   if v(at) < v(length(facts)) { lookup_none(facts, id, at +! mk_int(1)) } else { () }
 }
 function added_is_fresh(before: Native.t_Replica, fact: Native.t_Fact, outcome: (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error))): Type0 {

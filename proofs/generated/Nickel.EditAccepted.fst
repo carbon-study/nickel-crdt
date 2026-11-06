@@ -57,7 +57,7 @@ let rec member_lookup (facts: t_Slice Native.t_Fact) (id: Native.t_EventId) (at:
       begin member_lookup facts id (at +! mk_int 1) end
     else
       begin () end;
-    norm_spec [delta_once ["Nickel.EditIdentity.first_id"]; iota; zeta; primops] (Nickel.EditIdentity.first_id facts id at) end
+    () end
   else
     begin Nickel.LoopUtil.option_run_end (Nickel.EditIdentity.length facts) at () (member_next facts id) member_stop member_done end
 
@@ -359,8 +359,7 @@ let rec absent_lookup (input: t_Slice Native.t_Fact) (id: Native.t_EventId) (at:
   if v at < v (Nickel.EditIdentity.length input) then
     begin absent_lookup input id (at +! mk_int 1) end
   else
-    begin () end;
-  norm_spec [delta_once ["Nickel.EditIdentity.first_id"]; iota; zeta; primops] (Nickel.EditIdentity.first_id input id at)
+    begin () end
 
 let membership_absence_exact (input: t_Slice Native.t_Fact) (id: Native.t_EventId) : Lemma (ensures Native.has_fact input id == false <==> Nickel.EditIdentity.prefix_absent input id (mk_usize 0) (Nickel.EditIdentity.length input)) =
   membership_exact input id;

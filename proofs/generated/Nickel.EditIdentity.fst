@@ -13,6 +13,8 @@ open FStar.Pervasives
 
 open FStar.NormSteps
 
+module Tactics = FStar.Tactics.V2
+
 open Nickel.LoopUtil
 
 module Native = Nickel_crdt.Edit
@@ -22,16 +24,16 @@ module Result = Core_models.Result
 module Option = Core_models.Option
 
 let writer_equality_exact (a: Native.t_Writer) (b: Native.t_Writer) : Lemma (ensures Native.impl_1.f_eq a b == (a ==? b)) =
-  norm_spec [delta_only ["Nickel_crdt.Edit.impl_1"; "Nickel_crdt.Edit.writer_index"]; iota; zeta_full; primops] (Native.impl_1.f_eq a b)
+  ()
 
 let event_equality_exact (a: Native.t_EventId) (b: Native.t_EventId) : Lemma (ensures Native.impl_2.f_eq a b == (a ==? b)) =
-  norm_spec [delta_only ["Nickel_crdt.Edit.impl_2"]; iota; zeta_full; primops] (Native.impl_2.f_eq a b)
+  ()
 
 let birth_equality_exact (a: Native.t_BirthId) (b: Native.t_BirthId) : Lemma (ensures Native.impl_3.f_eq a b == (a ==? b)) =
-  norm_spec [delta_only ["Nickel_crdt.Edit.impl_3"]; iota; zeta_full; primops] (Native.impl_3.f_eq a b)
+  ()
 
-let fact_equality_exact (a: Native.t_Fact) (b: Native.t_Fact) : Lemma (ensures Native.fact_equal a b == (a ==? b)) =
-  norm_spec [delta_only ["Nickel_crdt.Edit.fact_equal"]; iota; zeta_full; primops] (Native.fact_equal a b)
+let fact_equality_exact (a: Native.t_Fact) (b: Native.t_Fact) : Lemma (ensures Native.fact_equal a b == (a ==? b)) [SMTPat (Native.fact_equal a b)] =
+  ()
 
 let length (facts: t_Slice Native.t_Fact) : usize =
   Core_models.Slice.impl__len facts
@@ -73,8 +75,7 @@ let rec scan_lookup (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact) (at: us
     if not ((Rust_primitives.Slice.slice_index facts at).f_id ==? fact.f_id) then
       begin scan_lookup facts fact (at +! mk_int 1) end
     else
-      begin () end;
-    norm_spec [delta_once ["Nickel.EditIdentity.first_id"]; iota; zeta; primops] (first_id facts fact.f_id at) end
+      begin () end end
   else
     begin Nickel.LoopUtil.option_run_end (length facts) at () (scan_next facts fact) (scan_stop facts fact) scan_done end
 
@@ -86,9 +87,11 @@ let identity_result (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact) : Resul
 
 let duplicate_matches_lookup (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact) : Lemma (ensures Native.impl_Replica__duplicate facts fact == identity_result facts fact) =
   Nickel.LoopUtil.option_interpret_any (mk_usize 0) (length facts) (scan_next facts fact) (scan_stop facts fact) scan_done;
-  let every_equality (old: Native.t_Fact) : Lemma (ensures Native.fact_equal old fact == (old ==? fact)) = fact_equality_exact old fact in
   scan_lookup facts fact (mk_usize 0);
-  norm_spec [delta_only ["Nickel_crdt.Edit.impl_Replica__duplicate"; "Nickel.EditIdentity.identity_result"; "Nickel.EditIdentity.scan_run"]; iota; zeta_full; primops; unmeta; unascribe] (Native.impl_Replica__duplicate facts fact)
+  assert (Native.impl_Replica__duplicate facts fact == identity_result facts fact) by (
+    Tactics.prune "Nickel_crdt.Edit.fact_equal";
+    Tactics.smt_sync' 1 1
+  )
 
 let prefix_absent (facts: t_Slice Native.t_Fact) (id: Native.t_EventId) (at: usize) (finish: usize) : Type0 =
   forall(i: usize{v i < v (length facts)}). Prims.l_and (v at <= v i) (v i < v finish) ==> Prims.l_not ((Rust_primitives.Slice.slice_index facts i).f_id == id)
@@ -97,8 +100,7 @@ let rec lookup_at (facts: t_Slice Native.t_Fact) (id: Native.t_EventId) (found: 
   if v at < v found then
     begin lookup_at facts id found (at +! mk_int 1) end
   else
-    begin () end;
-  norm_spec [delta_once ["Nickel.EditIdentity.first_id"]; iota; zeta; primops] (first_id facts id at)
+    begin () end
 
 let unique_ids (facts: t_Slice Native.t_Fact) : Type0 =
   forall(i: usize{v i < v (length facts)}) (j: usize{v j < v (length facts)}). (Rust_primitives.Slice.slice_index facts i).f_id == (Rust_primitives.Slice.slice_index facts j).f_id ==> i == j
@@ -119,7 +121,6 @@ let receive_invalid_counter (before: Native.t_Replica) (fact: Native.t_Fact) : L
   norm_spec [delta_only ["Nickel_crdt.Edit.impl_Replica__receive"; "Nickel_crdt.Edit.impl_Replica__plan"; "Nickel.EditIdentity.identity_result"]; iota; zeta_full; primops; unmeta; unascribe] (Native.impl_Replica__receive before fact)
 
 let rec lookup_none (facts: t_Slice Native.t_Fact) (id: Native.t_EventId) (at: usize{v at <= v (length facts)}) : Lemma (requires first_id facts id at == Option.Option_None) (ensures prefix_absent facts id at (length facts)) (decreases v (length facts) - v at) =
-  norm_spec [delta_once ["Nickel.EditIdentity.first_id"]; iota; zeta; primops] (first_id facts id at);
   if v at < v (length facts) then
     begin lookup_none facts id (at +! mk_int 1) end
   else
