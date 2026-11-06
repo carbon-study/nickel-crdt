@@ -201,6 +201,8 @@ controls are proof checks, not native bug witnesses.
 
 a cheap per-caller probe is to add `Tactics.prune("Nickel.Vector.vector_from_seq")`
 inside just one caller's query, leaving its model-body withholding in place.
+that particular contract is added in PR26; the probing method applies to any
+selected contract already available in the checked revision.
 that removes the selected contract facts for that query; an ordinary failure at
 that caller shows dependence. `prune` selects a namespace prefix, so verify its
 scope instead of assuming every spelling singles out one declaration. test the
