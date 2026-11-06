@@ -1,7 +1,6 @@
 import Rust_primitives
 import Core_models
 import FStar.Pervasives
-import FStar.NormSteps
 import Tactics = FStar.Tactics.V2
 import Native = Nickel_crdt.Edit
 import Result = Core_models.Result
@@ -15,9 +14,7 @@ function receive_neutral(before: Native.t_Replica, outcome: (Native.t_Replica, R
 }
 proof receive_rejection_unchanged(before: Native.t_Replica, fact: Native.t_Fact): unit
   gives receive_neutral(before, Native.impl_Replica__receive(before, fact))
-{
-  norm_spec([delta_only(["Nickel_crdt.Edit.impl_Replica__receive", "Nickel.EditAtomic.receive_neutral"]), iota, zeta_full, primops, unmeta, unascribe], receive_neutral(before, Native.impl_Replica__receive(before, fact)))
-}
+{ () }
 
 function edit_neutral(before: Native.t_Replica, outcome: (Native.t_Replica, Result.t_Result(Native.t_Local, Native.t_Error))): Type0 {
   match outcome {
@@ -27,9 +24,7 @@ function edit_neutral(before: Native.t_Replica, outcome: (Native.t_Replica, Resu
 }
 proof edit_rejection_or_empty_unchanged(before: Native.t_Replica, gap: usize, insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global)): unit
   gives edit_neutral(before, Native.impl_Replica__edit(before, gap, insert, delete))
-{
-  norm_spec([delta_only(["Nickel_crdt.Edit.impl_Replica__edit", "Nickel_crdt.Edit.next_counter_after", "Nickel_crdt.Edit.impl_Replica__with_counter", "Nickel.EditAtomic.edit_neutral"]), iota, zeta_full, primops, unmeta, unascribe], edit_neutral(before, Native.impl_Replica__edit(before, gap, insert, delete)))
-}
+{ () }
 
 function edit_counter_step(before: Native.t_Replica, outcome: (Native.t_Replica, Result.t_Result(Native.t_Local, Native.t_Error))): Type0 {
   match outcome {
@@ -50,9 +45,7 @@ function counter_result_step(counter: u64, result: Result.t_Result(u64, Native.t
 proof counter_result_advances_once(counter: u64): unit
   gives counter_result_step(counter, Native.next_counter_after(counter))
   hint Native.next_counter_after(counter)
-{
-  norm_spec([delta_only(["Nickel_crdt.Edit.next_counter_after", "Nickel_crdt.Edit.impl_Replica__with_counter", "Nickel.EditAtomic.counter_result_step"]), iota, zeta_full, primops, unmeta, unascribe], counter_result_step(counter, Native.next_counter_after(counter)))
-}
+{ () }
 // Check the actual state installation, separately from calculating a successor.
 proof counter_installation_is_exact(state: Native.t_Replica, counter: u64): unit
   gives Native.impl_Replica__with_counter(state, counter).f_next_counter == counter and
@@ -60,17 +53,29 @@ proof counter_installation_is_exact(state: Native.t_Replica, counter: u64): unit
     Native.impl_Replica__with_counter(state, counter).f_limits == state.f_limits and
     Native.impl_Replica__with_counter(state, counter).f_facts == state.f_facts and
     Native.impl_Replica__with_counter(state, counter).f_tree == state.f_tree
-{
-  norm_spec([delta_only(["Nickel_crdt.Edit.impl_Replica__with_counter"]), iota, zeta_full, primops], Native.impl_Replica__with_counter(state, counter))
+  hint Native.impl_Replica__with_counter(state, counter)
+{ () }
+// Give callers the complete result, including its constructor. The weaker
+// predicate above alone does not replace the pruned function's typing facts.
+function counter_outcome(counter: u64): Result.t_Result(u64, Native.t_Error) {
+  if v(counter) > v(Native.v_MAX_COUNTER) {
+    Result.Result_Err(Native.Error_Capacity(Native.Capacity_Counter))
+  } else { Result.Result_Ok(counter +! mk_u64(1)) }
 }
-// Compose the checked calculation with the actual public wiring. Replay is
-// irrelevant here; do not automatically unfold it in the SMT query.
+proof counter_result_is_exact(counter: u64): unit
+  gives Native.next_counter_after(counter) == counter_outcome(counter)
+{ () }
+
+// This is the source boundary for edit, using contracts for its callees.
+// Only next_counter_after/with_counter facts are withheld here, including typing.
+// Keep automatic solver unfolding shallow; no implementation reduction list.
 proof authored_edit_advances_once(before: Native.t_Replica, gap: usize, insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global)): unit
   gives edit_counter_step(before, Native.impl_Replica__edit(before, gap, insert, delete))
 {
-  counter_result_advances_once(before.f_next_counter);
+  counter_result_is_exact(before.f_next_counter);
   assert(edit_counter_step(before, Native.impl_Replica__edit(before, gap, insert, delete))) by {
-    Tactics.norm([delta_only(["Nickel_crdt.Edit.impl_Replica__edit", "Nickel_crdt.Edit.impl_Replica__with_counter", "Nickel.EditAtomic.edit_counter_step"]), iota, zeta_full, primops, simplify, unmeta, unascribe]);
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__with_counter");
+    Tactics.prune("Nickel_crdt.Edit.next_counter_after");
     Tactics.smt_sync'(1, 1)
   }
 }

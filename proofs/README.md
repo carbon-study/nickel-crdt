@@ -118,13 +118,13 @@ full positive proof chain.
 The reused-counter mutation changes that actual helper's successful result from
 `counter + 1` to `counter`. It must still fail native public tests and now reject
 `counter_result_advances_once` ordinarily. These counter negative checks stop at their
-owning `EditAtomic` module; positive verification still reaches `EditAccepted`.
+owning `EditAtomic` module; positive verification reaches `EditWellFormed`.
 The separate `edit-commit-ignores-counter` control changes the actual counter
 installation inside `with_counter` to retain the old value. It must fail native
 public tests and `counter_installation_is_exact`, which checks both the installed
 counter and preservation of every other instance field. Public `edit` uses
 that function after successful planning, and its unchanged counter theorem
-unfolds the actual call. This controls the installation body, not its argument
+now composes the calculation and setter contracts at the actual call. This controls the installation body, not its argument
 wiring inside `edit`.
 
 The separate `edit-call-passes-old-counter` control mutates that actual call to
@@ -134,11 +134,12 @@ setter-body and call-site controls therefore exercise distinct source boundaries
 Earlier resource-only wiring attempts are retained as failed experiments, not
 counted as proof detections.
 
-The public counter, request binding, same-commit and private-state proofs now
-explicitly normalize their actual native call boundaries, then run the standard
-F* synchronous SMT tactic with fuel/ifuel 1/1. The counter proof uses the checked
-calculation law; private-state proofs expose the existing native clone and tree
-setter. This limits automatic unfolding into replay while preserving the exact
+The request binding, same-commit and private-state proofs still explicitly
+normalize their actual native call boundaries, then run the standard F*
+synchronous SMT tactic with fuel/ifuel 1/1. Those families await the reform below.
+The counter proof now composes the checked calculation and setter contracts,
+with the same shallow final SMT request and no explicit normalization. The
+legacy private-state proofs expose the existing native clone and tree setter. This limits automatic unfolding into replay while preserving the exact
 universal theorem statements. Default module settings, rlimit100 and all wall
 time limits are unchanged; these query-local unfolding depths are lower, not
 larger proof budgets. Positive and mutated programs use identical proof views
@@ -317,3 +318,37 @@ Every moved definition, universal statement and proof body is unchanged modulo
 the owned module namespace. Rust and the hax snapshots are unchanged by the
 split. Fresh extraction, byte-matching, native-failure requirements and the
 source-bound ordinary-rejection classifier remain in force.
+
+## proof reform: first migrated family
+
+`EditAtomic` proves the five pre-existing universal laws without explicit
+normalization, including the source-linking calculator/setter and public
+neutral-return boundaries. Their parameters and conclusions are unchanged.
+The public counter proof now calls a complete calculator-value contract; its
+setter law has a deliberate pattern on `with_counter(state, counter)`.
+
+At that edit boundary, two explicit `Tactics.prune` calls withhold the callee
+facts for `next_counter_after` and `with_counter`. The proof can still inspect
+edit's own wiring, including plan/frontier bodies. This is isolation of the
+two counter helpers, not an all-callee abstraction. The calculator/setter implementation bodies remain available
+only when establishing their contracts, not when composing them in this
+counter proof. Pruning also withholds implicit SMT typing facts, so the value
+contract specifies the full Ok/Error result, not just an arithmetic predicate
+inside a match. The original weaker calculator law remains unchanged.
+
+The default positive gate additionally checks two proof-dependency controls:
+removing the setter pattern or the complete calculator-contract call must give
+an ordinary source-bound failure of the unchanged public counter theorem.
+These change proof machinery only; they are separate from the three actual-Rust
+counter controls for arithmetic, setter implementation and the real argument.
+Both public neutral-return Rust controls remain too. No timeout/exhaustion counts
+as rejection. No Rust/hax/model change, axiom, compiler/query cap or graph-budget
+change accompanies this refactor.
+
+The token fence prohibits normalization operators/imports and tactic references
+except the canonical direct shallow SMT call and these two named visibility
+operations. Aliasing approved methods is refused too. Default fixture controls
+and real-entry probes exercise normalization, import and alias bypasses. This
+is a source-style fence, not an isolation boundary against arbitrary imported
+code. Other proof families and loop-interface work remain; the whole reform is
+not complete.

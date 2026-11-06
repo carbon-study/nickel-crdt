@@ -7,8 +7,12 @@ import {fileURLToPath} from 'node:url';
 import {digest,run,verify,put} from './proof-cache.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
 import {checkNegativeProofEvidence} from './check-negative-proof-evidence.mjs';
+import {checkProofReform} from './proof-reform.mjs';
+import {checkCounterContracts} from './check-counter-contracts.mjs';
+import './check-proof-reform.mjs';
 checkNegativeProofEvidence();
 const root=fileURLToPath(new URL('..',import.meta.url));
+await checkProofReform(root);
 const {NICKEL_HAX_BIN:hax,NICKEL_PROOF_FSTAR:fstar,NICKEL_HAX_SOURCE:models,NICKEL_FSTAR_MODEL_CACHE:modelCache}=process.env;
 assert(hax&&fstar&&models&&modelCache,'use the locked .#proofs environment');
 const output=process.argv[2];assert(output,'output directory required');
@@ -114,6 +118,7 @@ for(const mode of selected.length?selected:modes) {
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {
     assert.equal(checked.status,0,checked.log);
+    await checkCounterContracts({proof,output,fstar,models,modelCache});
     await fs.copyFile(path.join(proof,'Nickel_crdt.Edit.fst'),path.join(output,'Nickel_crdt.Edit.fst'));
   } else {
     assert.equal(checked.status,2,'require ordinary proof rejection, not extraction failure/timeout');
