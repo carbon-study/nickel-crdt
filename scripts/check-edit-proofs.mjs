@@ -6,9 +6,10 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {digest,run,verify,put} from './proof-cache.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
-import {checkNegativeProofEvidence} from './check-negative-proof-evidence.mjs';
 import {checkProofReform} from './proof-reform.mjs';
 import {checkPushContracts} from './check-push-contracts.mjs';
+import {checkNegativeProofEvidence} from './check-negative-proof-evidence.mjs';
+import {checkScalarContracts} from './check-loop-contracts.mjs';
 import {checkCounterContracts} from './check-counter-contracts.mjs';
 import './check-proof-reform.mjs';
 checkNegativeProofEvidence();
@@ -124,6 +125,7 @@ for(const mode of selected.length?selected:modes) {
     assert.equal(checked.status,0,checked.log);
     await checkCounterContracts({proof,output,fstar,models,modelCache});
     await checkPushContracts({proof,output,fstar,models,modelCache});
+    await checkScalarContracts({proof,output,fstar,models,modelCache});
     await fs.copyFile(path.join(proof,'Nickel_crdt.Edit.fst'),path.join(output,'Nickel_crdt.Edit.fst'));
   } else {
     assert.equal(checked.status,2,'require ordinary proof rejection, not extraction failure/timeout');
