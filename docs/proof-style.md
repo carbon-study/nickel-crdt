@@ -51,6 +51,51 @@ its own control flow, but should compose contracts for its callees. document
 exactly which functions are withheld; “the implementation is hidden” is too broad
 if other native or model bodies remain available.
 
+### before and after: the public counter caller
+
+these are literal bodies of `authored_edit_advances_once` before the reform at
+[15096e6](https://github.com/carbon-study/nickel-crdt/blob/15096e6472826bbcc805a0243339756ce24c7650/proofs/EditAtomic.lt)
+and after its reviewed counter migration at
+[84e1cc3](https://github.com/carbon-study/nickel-crdt/blob/84e1cc39837bac06bb072ff83e4b57501b89a29a/proofs/EditAtomic.lt).
+the theorem's complete parameter types and conclusion are identical. the snippets
+need their owning module's definitions/imports; neither is standalone.
+
+before:
+
+```text
+{
+  counter_result_advances_once(before.f_next_counter);
+  assert(edit_counter_step(before, Native.impl_Replica__edit(before, gap, insert, delete))) by {
+    Tactics.norm([delta_only(["Nickel_crdt.Edit.impl_Replica__edit", "Nickel_crdt.Edit.impl_Replica__with_counter", "Nickel.EditAtomic.edit_counter_step"]), iota, zeta_full, primops, simplify, unmeta, unascribe]);
+    Tactics.smt_sync'(1, 1)
+  }
+}
+```
+
+after:
+
+```text
+{
+  counter_result_is_exact(before.f_next_counter);
+  assert(edit_counter_step(before, Native.impl_Replica__edit(before, gap, insert, delete))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__with_counter");
+    Tactics.prune("Nickel_crdt.Edit.next_counter_after");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+```
+
+the old caller chooses implementation reductions. the new caller supplies the
+calculator's exact result and lets the checked setter contract apply at the
+actual call. its query withholds both counter helpers, so their contracts must
+do the work. the caller still sees its own edit wiring, and plan/frontier remain
+visible: this is a two-helper boundary, not an opaque public edit implementation.
+
+the gain is a stable argument the reader can name: calculate the successor,
+install it, check the public result. it is not fewer lines or merely replacing
+one tactic with another. contract/pattern-removal controls and the actual wrong
+call-argument control establish the claimed dependence and source sensitivity.
+
 ### an existing caller
 
 this excerpt is `append_fresh_preserves_unique` at merged `d7e999f` in
@@ -74,7 +119,8 @@ proof append_fresh_preserves_unique(facts: facts_vec, fact: Native.t_Fact): unit
 the body supplies a membership fact and uses the exact push contract with the
 native helper withheld. that contract's pattern makes it available at the call.
 this excerpt demonstrates a native-function boundary only: imported vector/slice
-models remain visible here. extending their boundary is separate work.
+models remain visible at `d7e999f`. PR26 extends that boundary; this pinned
+example is historical, not a description of the latest caller.
 
 ## keep the reasoning in order
 
@@ -115,6 +161,10 @@ adapter scaffolding. recursive proofs need an explicit decreasing measure.
 - use a deliberate `hint` on a term the caller actually produces. every required
   quantified variable must be covered by the pattern; avoid self-generating
   trigger loops. prefer an explicit contract call if it reads more clearly.
+  when another definition produces the caller's term, withhold that producer too
+  if it belongs to the intended boundary. a pattern on `as_slice(Vec(...))` may
+  otherwise appear usable only because the solver unfolds a visible `from_seq`.
+  a direct equation for `as_slice(from_seq(...))` closes that specific gap.
 - put visibility changes beside the goal they affect. `prune` withholds named
   definitions from that goal's smt query; it does not discharge the goal. broad
   namespace pruning needs an explained scope, especially in dependency controls.
@@ -149,12 +199,28 @@ withholding checks when claiming that several callers use the boundary. a
 pattern that changes nothing is not evidence of modularity. model-law dependency
 controls are proof checks, not native bug witnesses.
 
+a cheap per-caller probe is to add `Tactics.prune("Nickel.Vector.vector_from_seq")`
+inside just one caller's query, leaving its model-body withholding in place.
+that removes the selected contract facts for that query; an ordinary failure at
+that caller shows dependence. `prune` selects a namespace prefix, so verify its
+scope instead of assuming every spelling singles out one declaration. test the
+normal caller positively too. uniform boundaries can intentionally hide more
+functions than each caller needs; say so rather than claiming every pair is a
+necessary dependency.
+
 require an ordinary named failure whose semantic error belongs to that theorem's
 source declaration. timeout, solver exhaustion, parser/type errors and failures
 in an earlier unrelated lemma do not count. a positive pass alone is insufficient:
 removing several individually redundant steps can change control attribution.
 
 ## finish a migration, not just a proof edit
+
+before inventing a replacement lemma for a reduction, try deleting it. run both
+the affected positive and its owning controls, including combinations you intend
+to keep. already-available facts may make the step redundant. if deletion changes
+which theorem rejects a control, the migration is not accepted merely because
+something still fails. introduce a contract where a real caller needs one, not
+to replace each old reduction mechanically.
 
 - compare old statements, source bindings and any moved theorem-owner mapping.
 - regenerate the affected authored views, compare them freshly, update receipts
@@ -165,7 +231,7 @@ removing several individually redundant steps can change control attribution.
   may reuse hash-recorded fresh native extractions with normal proof-cache
   invalidation. run native/extraction checks when their boundary changes.
 - keep local checks focused. the complete matrix belongs in ci; docs-only edits
-  do not justify rerunning proof builds or browsers. preserve each running head
+  do not justify rerunning proof builds. preserve each running head
   until its acceptance finishes, then require exact-head arm acceptance for a
   proof change and a scoped collected review before merge.
 
