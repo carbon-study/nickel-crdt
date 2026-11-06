@@ -11,6 +11,8 @@ module Option = Core_models.Option
 
 open FStar.Pervasives
 
+module Tactics = FStar.Tactics.V2
+
 open Nickel.LoopUtil
 
 open Nickel_proof_smoke
@@ -28,7 +30,11 @@ let flip_run (n: usize) (at: usize{v at <= v n}) (value: bool) : bool =
   Nickel.LoopUtil.option_run n at value (flip_next n) keep identity
 
 let flip_bridge (n: usize) (value: bool) : Lemma (ensures Nickel_proof_smoke.flip n value == flip_run n (mk_usize 0) value) =
-  Nickel.LoopUtil.plain_interpret_any (mk_usize 0) n (flip_next n) keep identity
+  Nickel.LoopUtil.plain_interpret_any (mk_usize 0) n (flip_next n) keep identity;
+  assert (Nickel_proof_smoke.flip n value == flip_run n (mk_usize 0) value) by (
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range";
+    Tactics.smt_sync' 1 1
+  )
 
 let rec odd (n: nat) : Tot bool (decreases n) =
   if Prims.op_Equality n 0 then
@@ -50,8 +56,16 @@ let rec flip_run_exact (n: usize) (at: usize{v at <= v n}) (value: bool) : Lemma
     begin Nickel.LoopUtil.option_run_end n at value (flip_next n) keep identity end
 
 let flip_exact (n: usize) (value: bool) : Lemma (ensures Nickel_proof_smoke.flip n value == parity value (v n)) =
-  Nickel.LoopUtil.plain_preserve_any (mk_usize 0) n (fun at s -> parity s (v n - at) == parity value (v n)) (fun s -> s == parity value (v n))
+  Nickel.LoopUtil.plain_preserve_any (mk_usize 0) n (fun at s -> parity s (v n - at) == parity value (v n)) (fun s -> s == parity value (v n));
+  assert (Nickel_proof_smoke.flip n value == parity value (v n)) by (
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range";
+    Tactics.smt_sync' 1 1
+  )
 
 let flip_involution (n: usize) (value: bool) : Lemma (ensures Nickel_proof_smoke.flip n (Nickel_proof_smoke.flip n value) == value) =
   flip_exact n value;
-  flip_exact n (Nickel_proof_smoke.flip n value)
+  flip_exact n (Nickel_proof_smoke.flip n value);
+  assert (Nickel_proof_smoke.flip n (Nickel_proof_smoke.flip n value) == value) by (
+    Tactics.prune "Nickel_proof_smoke.flip";
+    Tactics.smt_sync' 1 1
+  )

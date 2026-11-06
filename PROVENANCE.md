@@ -110,3 +110,18 @@ step preservation and the final condition. It does not trust hax's annotation
 as an invariant. Smoke's existing exact-parity theorem now uses that rule on
 the actual extracted Rust loop. No native source, hax snapshot, imported model,
 axiom, compiler/query limit or driver-budget formula changes accompany this cut.
+
+The plain-loop isolation continuation retains the same emitter and models.
+The plain interpretation/induction callers and both actual Rust smoke boundaries
+withhold the `fold_range` facts; the interpretation proof also withholds its
+`option_run` model facts. Their step/end/induction contracts are tested by
+removal controls. The two plain `_any` adapters now use the pinned standard
+`FStar.Classical.move_requires_3`/`forall_intro_3` introduction functions, with
+ordinary universal conclusions instead of an explicit recursive-function
+trigger. Only pattern metadata changes in those conclusions; their logical
+premises, quantification and postconditions are unchanged. No Rust/hax snapshot,
+axiom, tool pin or proof-budget change accompanies the continuation.
+
+The smoke involution consumer additionally prunes the actual Rust function
+facts and composes its two parity-contract calls. Separate default removals of
+each call make that dependency observable.

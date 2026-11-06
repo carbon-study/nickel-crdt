@@ -18,7 +18,7 @@ export function assertReformedSource(name,source) {
     if(ts[i]==='FStar'&&ts[i+1]==='.'&&ts[i+2]==='Tactics')
       fail('only the canonical Tactics import is approved');
     if(ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&
-      ['"Nickel_crdt.Edit.impl_Replica__with_counter"','"Nickel_crdt.Edit.next_counter_after"'].includes(ts[i+4])) { i+=5;continue; }
+      ['"Nickel_crdt.Edit.impl_Replica__with_counter"','"Nickel_crdt.Edit.next_counter_after"','"Rust_primitives.Hax.Folds.fold_range"','"Nickel.LoopUtil.option_run"','"Nickel_proof_smoke.flip"'].includes(ts[i+4])) { i+=5;continue; }
     if(ts[i]==='Tactics') {
       // No aliasing even of approved methods: only this direct call is admitted.
       if(ts.slice(i,i+8).join(' ')!=="Tactics . smt_sync' ( 1 , 1 )")

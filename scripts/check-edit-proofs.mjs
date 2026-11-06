@@ -8,7 +8,6 @@ import {digest,run,verify,put} from './proof-cache.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
 import {checkProofReform} from './proof-reform.mjs';
 import {checkNegativeProofEvidence} from './check-negative-proof-evidence.mjs';
-import {checkProofReform} from './proof-reform.mjs';
 import {checkCounterContracts} from './check-counter-contracts.mjs';
 import './check-proof-reform.mjs';
 checkNegativeProofEvidence();

@@ -1,6 +1,6 @@
 # proof scope
 
-`Smoke.lt` proves the extracted Rust `flip` function equals a simple range interpreter, then proves its parity result and that applying it twice returns the input. `LoopUtil.lt` supplies reusable range-loop interpretation and induction lemmas. Its invariant parameter follows the pinned hax representation: it is an annotation, not an independently enforced loop invariant.
+`Smoke.lt` retains the extracted Rust `flip`/reference-interpreter bridge and also proves parity directly through the plain-loop invariant rule, then derives involution from that parity contract. `LoopUtil.lt` supplies reusable range-loop interpretation and induction lemmas. Its invariant parameter follows the pinned hax representation: it is an annotation, not an independently enforced loop invariant.
 
 The check freshly extracts Rust in isolated positive and mutation workspaces. Both use the same authored theorem statements. Replacing the loop's toggle with identity must fail `Nickel.Smoke.flip_bridge` as a proof obligation; a timeout or extraction error is not an accepted control result. The native test must also detect the mutation.
 
@@ -355,12 +355,13 @@ not complete.
 
 ## ordinary for-loop invariant rule
 
-For a plain range loop, supply the invariant before the first iteration, show
+For the supported plain range (`start <= finish`, total body/annotation),
+supply the invariant before the first iteration, show
 that the body preserves it at each executed index, and use it at the end.
 `plain_preserve` proves this rule for the actual pinned hax `fold_range`.
-`plain_preserve_any` provides the same rule with a pattern matching the
-anonymous callback emitted by hax, so a caller need not copy that callback or
-encode it as an Option/ControlFlow interpreter. Its semantic invariant has a
+`plain_preserve_any` exposes the same rule as an ordinary universal contract
+over the anonymous callback emitted by hax. A caller need not copy that callback
+or encode it as an Option/ControlFlow interpreter. Its semantic invariant has a
 bounded index (zero through the final index); preservation is required only
 for indices where the body executes. Hax's own annotation remains separate
 and is not treated as a proof of preservation.
@@ -379,7 +380,7 @@ the rule handles loop induction. No auxiliary parity-step wrapper is needed. The
 boundary. This is applied to the actual extracted Rust loop, not a second
 implementation accepted in its place.
 
-All existing LoopUtil/Smoke universal statements remain intact, including the
+All existing LoopUtil/Smoke logical statements remain intact, including the
 legacy reference-interpreter bridge and its wrong-native-body control. Their
 proof bodies now use ordinary induction, contracts and automatic checking
 without explicit normalization. The shared entry fence covers Atomic,
@@ -387,3 +388,39 @@ LoopUtil and Smoke in both proof gates; it catches known normalization forms,
 not arbitrary aliases. Existing fallible/break adapters remain available with
 their exact statements, but a simpler fallible invariant interface and migration
 of the remaining application proof families are still separate reform work.
+
+
+### contract isolation on the plain path
+
+The step/end equations are the source boundaries for the pinned model. Plain
+interpretation and induction then compose those contracts with the fold facts
+withheld; interpretation also withholds its reference interpreter's facts.
+Both actual Rust smoke boundaries withhold the fold facts too. Their own Rust
+function remains available for checking its wiring. The downstream involution
+proof withholds that Rust function and uses its parity contract instead. The caller's invariant and
+final condition are unchanged; the final assertions make the callee-opacity
+check explicit. The same shallow SMT query and existing limits remain in use.
+
+The two plain universal adapters use ordinary quantified contracts introduced
+through standard-library lemmas. Their old explicit recursive-function pattern
+was encoded with a fuel-instrumented symbol, while the actual Rust call used
+the ordinary symbol. It therefore depended on facts that opacity removes.
+Removing that pattern and using explicit universal introduction preserves the
+logical statement and lets the contract work without the model body.
+
+Twelve default proof-dependency controls remove step/end/induction, adapter or
+actual-source contract calls. Each must ordinarily fail its unchanged named
+lemma. These are proof-machinery controls, not native bugs. The original wrong
+Rust loop still fails the old bridge; an additional check omits that bridge and
+requires the direct parity theorem to reject the same actual extraction too.
+The direct positive also passes with the old bridge absent. Neither changes
+the original semantic control or its target.
+
+Controls reuse the checked workspace and normal source-hash invalidation; they
+restore changed generated views in finally blocks. Changed views must actually
+produce source-bound failed queries, so cached successes cannot count as
+detection. Evidence for each result is saved separately.
+
+This isolates the plain path. The other fallible/break adapters and remaining
+application proof families still need the corresponding isolation work; zero
+explicit normalization alone does not establish their abstraction boundary.

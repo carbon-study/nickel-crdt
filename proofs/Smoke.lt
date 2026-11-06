@@ -2,6 +2,7 @@ import Rust_primitives
 import Core_models
 import Option = Core_models.Option
 import FStar.Pervasives
+import Tactics = FStar.Tactics.V2
 import Nickel.LoopUtil
 import Nickel_proof_smoke
 
@@ -16,7 +17,11 @@ function flip_run(n: usize, at: usize where v(at) <= v(n), value: bool): bool {
 proof flip_bridge(n: usize, value: bool): unit
   gives Nickel_proof_smoke.flip(n, value) == flip_run(n, mk_usize(0), value)
 {
-  Nickel.LoopUtil.plain_interpret_any(mk_usize(0), n, flip_next(n), keep, identity)
+  Nickel.LoopUtil.plain_interpret_any(mk_usize(0), n, flip_next(n), keep, identity);
+  assert(Nickel_proof_smoke.flip(n, value) == flip_run(n, mk_usize(0), value)) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range");
+    Tactics.smt_sync'(1, 1)
+  }
 }
 function! odd(n: nat): bool
   decreases n
@@ -36,8 +41,19 @@ proof flip_exact(n: usize, value: bool): unit
 {
   Nickel.LoopUtil.plain_preserve_any(mk_usize(0), n,
     (at, s) => parity(s, v(n) - at) == parity(value, v(n)),
-    (s) => s == parity(value, v(n)))
+    (s) => s == parity(value, v(n)));
+  assert(Nickel_proof_smoke.flip(n, value) == parity(value, v(n))) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range");
+    Tactics.smt_sync'(1, 1)
+  }
 }
 proof flip_involution(n: usize, value: bool): unit
   gives Nickel_proof_smoke.flip(n, Nickel_proof_smoke.flip(n, value)) == value
-{ flip_exact(n, value); flip_exact(n, Nickel_proof_smoke.flip(n, value)) }
+{
+  flip_exact(n, value);
+  flip_exact(n, Nickel_proof_smoke.flip(n, value));
+  assert(Nickel_proof_smoke.flip(n, Nickel_proof_smoke.flip(n, value)) == value) by {
+    Tactics.prune("Nickel_proof_smoke.flip");
+    Tactics.smt_sync'(1, 1)
+  }
+}
