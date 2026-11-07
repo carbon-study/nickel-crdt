@@ -680,9 +680,9 @@ no new automatic trigger.
 The same-commit proof composes this receive equation, the existing exact counter
 calculation/installation contracts, and the public counter-step law. Plan,
 receive, counter helpers, frontier and invalid's native bodies are withheld in
-its source-boundary query. The exact calculator is called explicitly; withholding
-its global facts keeps that call load-bearing. Request binding likewise needs
-none of those callee bodies. Their own edit boundary and model definitions remain
+its source-boundary query. The exact calculator and receive equation are called
+explicitly; neither has an automatic pattern. Deleting each call rejects the
+public proof. Request binding likewise needs none of those callee bodies. Their own edit boundary and model definitions remain
 visible; this is not whole-model opacity.
 
 The private and shared receive compositions now call the receive equation too,

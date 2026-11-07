@@ -59,8 +59,6 @@ let authored_fact_replays_same_commit (before: Native.t_Replica) (gap: usize) (i
     Tactics.prune "Nickel_crdt.Edit.frontier";
     Tactics.prune "Nickel_crdt.Edit.invalid";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
-    Tactics.prune "Nickel.EditCommit.receive_uses_plan";
-    Tactics.prune "Nickel.EditAtomic.counter_result_is_exact";
     Tactics.smt_sync' 1 1
   ) end | _ -> begin () end
 
@@ -87,7 +85,6 @@ let receive_preserves_private_state (before: Native.t_Replica) (fact: Native.t_F
   assert (private_unchanged before (Native.impl_Replica__receive before fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
-    Tactics.prune "Nickel.EditCommit.receive_uses_plan";
     Tactics.smt_sync' 1 1
   )
 
@@ -115,7 +112,6 @@ let admission_ignores_private_state (before: Native.t_Replica) (remote: Native.t
   assert (same_admission (Native.impl_Replica__receive before fact) (Native.impl_Replica__receive remote fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
-    Tactics.prune "Nickel.EditCommit.receive_uses_plan";
     Tactics.smt_sync' 1 1
   )
 
@@ -128,9 +124,6 @@ let local_author_remote_admit (before: Native.t_Replica) (remote: Native.t_Repli
   receive_preserves_private_state remote fact;
   assert (delivered_commit remote (Native.impl_Replica__edit before gap insert delete)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
-    Tactics.prune "Nickel.EditCommit.authored_fact_replays_same_commit";
-    Tactics.prune "Nickel.EditCommit.admission_ignores_private_state";
-    Tactics.prune "Nickel.EditCommit.receive_preserves_private_state";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
     Tactics.smt_sync' 1 1
   ) end | _ -> begin () end

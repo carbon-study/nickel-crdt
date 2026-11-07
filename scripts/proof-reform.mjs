@@ -11,8 +11,6 @@ function tokens(source) {
 }
 const commitVisibility=new Set([
   '"Nickel_crdt.Edit.frontier"','"Nickel_crdt.Edit.impl_Replica__receive"','"Nickel_crdt.Edit.impl_Replica__edit"',
-  '"Nickel.EditCommit.receive_uses_plan"','"Nickel.EditAtomic.counter_result_is_exact"',
-  '"Nickel.EditCommit.authored_fact_replays_same_commit"','"Nickel.EditCommit.admission_ignores_private_state"','"Nickel.EditCommit.receive_preserves_private_state"'
 ]);
 export function assertReformedSource(name,source) {
   const ts=tokens(source),fail=message=>assert.fail(name+' reform: '+message);
