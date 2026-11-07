@@ -9,6 +9,11 @@ function tokens(source) {
   return [...source.matchAll(/\/\/[^\n]*|\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|[A-Za-z_][A-Za-z0-9_']*|[^\s]/g)]
     .map(m=>m[0]).filter(t=>!t.startsWith('//')&&!t.startsWith('/*'));
 }
+const commitVisibility=new Set([
+  '"Nickel_crdt.Edit.frontier"','"Nickel_crdt.Edit.impl_Replica__receive"','"Nickel_crdt.Edit.impl_Replica__edit"',
+  '"Nickel.EditCommit.receive_uses_plan"','"Nickel.EditAtomic.counter_result_is_exact"',
+  '"Nickel.EditCommit.authored_fact_replays_same_commit"','"Nickel.EditCommit.admission_ignores_private_state"','"Nickel.EditCommit.receive_preserves_private_state"'
+]);
 export function assertReformedSource(name,source) {
   const ts=tokens(source),fail=message=>assert.fail(name+' reform: '+message);
   for(let i=0;i<ts.length;i++) {
@@ -19,6 +24,7 @@ export function assertReformedSource(name,source) {
       fail('only the canonical Tactics import is approved');
     if(ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&
       ['"Nickel_crdt.Edit.impl_Replica__with_tree"','"Nickel_crdt.Edit.impl_Replica__plan"','"Nickel_crdt.Edit.impl_Replica__duplicate"','"Nickel_crdt.Edit.invalid"','"Nickel_crdt.Edit.writer_index"','"Nickel_crdt.Edit.fact_equal"','"Alloc.Vec.from_seq"','"Alloc.Vec.impl_1__as_slice"','"Alloc.Vec.impl_1__len"','"Core_models.Slice.impl__len"','"Rust_primitives.Slice.slice_index"','"Nickel_crdt.Edit.push"','"Nickel_crdt.Edit.impl_Replica__with_counter"','"Nickel_crdt.Edit.next_counter_after"','"Rust_primitives.Hax.Folds.fold_range"','"Rust_primitives.Hax.Folds.fold_range_return"','"Nickel.LoopUtil.option_run"','"Nickel.LoopUtil.step_safe"','"Nickel.LoopUtil.output_safe"','"Nickel_proof_smoke.flip"'].includes(ts[i+4])) { i+=5;continue; }
+    if(name==='EditCommit'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&commitVisibility.has(ts[i+4])) { i+=5;continue; }
     if(ts[i]==='Tactics') {
       // No aliasing even of approved methods: only this direct call is admitted.
       if(ts.slice(i,i+8).join(' ')!=="Tactics . smt_sync' ( 1 , 1 )")
@@ -27,7 +33,7 @@ export function assertReformedSource(name,source) {
     }
   }
 }
-export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smoke','Vector','EditIdentity']) {
+export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smoke','Vector','EditIdentity','EditCommit']) {
   for(const name of names)assertReformedSource(name,await fs.readFile(path.join(root,'proofs',name+'.lt'),'utf8'));
   // These scalar boundaries and the declarations below have migrated; other WellFormed proofs remain open.
   const source=await fs.readFile(path.join(root,'proofs','EditWellFormed.lt'),'utf8');
@@ -40,12 +46,6 @@ export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smok
     const match=new RegExp('^proof!? '+name+'[<(]','m').exec(source);assert(match,'missing reformed WellFormed declaration '+name);
     const tail=source.slice(match.index+match[0].length),next=/\n(?:function|proof!?|type|import) /.exec(tail);
     assertReformedSource('EditWellFormed.'+name,source.slice(match.index,next?match.index+match[0].length+next.index:source.length));
-  }
-  const commit=await fs.readFile(path.join(root,'proofs','EditCommit.lt'),'utf8');
-  for(const name of ['same_shared','tree_publication_respects_shared','planned_shared','plan_ignores_private_state','same_admission','admission_ignores_private_state','same_private','tree_publication_keeps_private','planned_private','private_unchanged','plan_preserves_private_state','receive_preserves_private_state']) {
-    const match=new RegExp('^(?:function!?|proof!?) '+name+'[<(]','m').exec(commit);assert(match,'missing reformed private-state declaration '+name);
-    const tail=commit.slice(match.index+match[0].length),next=/\n(?:function|proof!?|type|import) /.exec(tail);
-    assertReformedSource('EditCommit.'+name,commit.slice(match.index,next?match.index+match[0].length+next.index:commit.length));
   }
   const accepted=await fs.readFile(path.join(root,'proofs','EditAccepted.lt'),'utf8');
   for(const name of ['push_outcome','push_result_is_exact','append_fresh_preserves_unique','append_whole_fact','push_has_exact_contents','push_membership','member_lookup','absent_lookup','event_order_is_key_order']) {

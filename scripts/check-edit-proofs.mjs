@@ -13,6 +13,7 @@ import {checkIdentityContracts} from './check-identity-contracts.mjs';
 import {checkWriterContracts} from './check-writer-contracts.mjs';
 import {checkPlanContracts} from './check-plan-contracts.mjs';
 import {checkPrivateContracts} from './check-private-contracts.mjs';
+import {checkCommitContracts} from './check-commit-contracts.mjs';
 import {checkSharedContracts} from './check-shared-contracts.mjs';
 import {checkNegativeProofEvidence} from './check-negative-proof-evidence.mjs';
 import {checkScalarContracts} from './check-loop-contracts.mjs';
@@ -157,6 +158,10 @@ for(const mode of selected.length?selected:modes) {
     await fs.rm(sharedProof,{recursive:true,force:true});
     await fs.cp(proof,sharedProof,{recursive:true,preserveTimestamps:true});
     await checkSharedContracts({proof:sharedProof,output,fstar,models,modelCache});
+    const commitProof=path.join(root,'.cache','edit-proofs','contracts-commit','proof');
+    await fs.rm(commitProof,{recursive:true,force:true});
+    await fs.cp(proof,commitProof,{recursive:true,preserveTimestamps:true});
+    await checkCommitContracts({proof:commitProof,output,fstar,models,modelCache});
     await fs.copyFile(path.join(proof,'Nickel_crdt.Edit.fst'),path.join(output,'Nickel_crdt.Edit.fst'));
   } else {
     assert.equal(checked.status,2,'require ordinary proof rejection, not extraction failure/timeout');
@@ -192,7 +197,7 @@ for(const mode of selected.length?selected:modes) {
       'accepted-publication-duplicates':'EditAccepted.tree_installation_preserves_facts',
       'plan-ignores-duplicate':'EditAtomic.plan_preserves_duplicate_result',
       'plan-swallows-classifier-error':'EditAtomic.plan_preserves_duplicate_result',
-      'receive-plan-rewrites-counter':'EditCommit.authored_fact_replays_same_commit',
+      'receive-plan-rewrites-counter':'EditCommit.receive_uses_plan',
       'invalid-forgets-reason':'EditIdentity.invalid_is_exact',
       'writer-index-collides':'EditIdentity.writer_index_is_exact',
       'identity-writer-equality':'EditIdentity.writer_equality_exact',
@@ -208,7 +213,7 @@ for(const mode of selected.length?selected:modes) {
       'edit-success-reuses-counter':'EditAtomic.counter_result_advances_once',
       'local-return-gap':'EditCommit.authored_fact_binds_request',
       'local-stale-tree':'EditCommit.authored_fact_replays_same_commit',
-      'receive-success-counter':'EditCommit.receive_preserves_private_state',
+      'receive-success-counter':'EditCommit.receive_uses_plan',
       'author-forgets-gap':'EditCommit.authored_fact_binds_request',
       'receive-private-gate':'EditCommit.plan_ignores_private_state',
     };
@@ -216,5 +221,5 @@ for(const mode of selected.length?selected:modes) {
     assert(hasOrdinaryTheoremRejection({status:checked.status,log:checked.log,theorem,view:views.get(file)}),
       'require a final ordinary named query rejection and a semantic error in its source declaration: '+checked.log);
   }
-  console.log(`PASS ${mode}: native and unchanged actual-Rust theorem ${mode==='positive'?'verified':'reject the mutation'}`);
+  console.log(`PASS ${mode}: native and source-bound actual-Rust theorem ${mode==='positive'?'verified':'reject the mutation'}`);
 }

@@ -173,16 +173,12 @@ setter-body and call-site controls therefore exercise distinct source boundaries
 Earlier resource-only wiring attempts are retained as failed experiments, not
 counted as proof detections.
 
-The request binding, same-commit and private-state proofs still explicitly
-normalize their actual native call boundaries, then run the standard F*
-synchronous SMT tactic with fuel/ifuel 1/1. Those families await the reform below.
-The counter proof now composes the checked calculation and setter contracts,
-with the same shallow final SMT request and no explicit normalization. The
-legacy private-state proofs expose the existing native clone and tree setter. This limits automatic unfolding into replay while preserving the exact
-universal theorem statements. Default module settings, rlimit100 and all wall
-time limits are unchanged; these query-local unfolding depths are lower, not
-larger proof budgets. Positive and mutated programs use identical proof views
-and settings.
+The request, counter and commit proofs now use query-local visibility controls
+and shallow synchronous SMT without explicit normalization. Source-boundary
+proofs read their own native operation; callers compose checked contracts with
+those callees withheld. Model definitions remain visible. Default module settings,
+rlimit100 and all wall limits are unchanged. Positive and mutated programs use
+identical proof views and settings.
 
 The wrong-returned-gap control now names the existing public
 `authored_fact_binds_request` theorem, placed before same-commit coherence.
@@ -639,11 +635,10 @@ fail native tests and their corresponding checked contract. The existing
 receive-success-counter mutation still tests the real public receive boundary.
 
 This private-state path alone does not establish shared-state independence;
-that separate contract migration is described below. The request/same-commit
-source boundaries and final derived composition still retain three Commit
-normalization sites. Remaining Accepted/WellFormed boundaries and loop families
-are also open. The six private-state declarations have their own regression
-fence; this is not a whole-Commit or whole-planner isolation claim.
+that separate contract migration is described below. The later receive/commit
+boundary migration removes the remaining three Commit normalization sites and
+extends the fence to the whole file. Remaining Accepted/WellFormed boundaries,
+model isolation and loop families are still open.
 
 ## same-history admission without private planner details
 
@@ -670,4 +665,39 @@ mutation keeps its source/anchor but now rejects earlier at
 public composition. This is the sole control-owner migration in this slice;
 the public theorem and its premise are unchanged. The private-state family’s
 four controls still run, scoped to their own declarations despite the additional
-visibility blocks. Three other Commit normalization sites remain open.
+visibility blocks. The following migration closes the remaining three explicit
+Commit normalization sites.
+
+
+## exact receive boundary and commit composition
+
+`received_plan` gives the three-case public receive result for an arbitrary
+planner result: the same error with unchanged state, duplicate with unchanged
+state, or Added with the planned state. `receive_uses_plan` checks that equation
+against actual receive with plan withheld. It is called explicitly, so it needs
+no new automatic trigger.
+
+The same-commit proof composes this receive equation, the existing exact counter
+calculation/installation contracts, and the public counter-step law. Plan,
+receive, counter helpers, frontier and invalid's native bodies are withheld in
+its source-boundary query. The exact calculator is called explicitly; withholding
+its global facts keeps that call load-bearing. Request binding likewise needs
+none of those callee bodies. Their own edit boundary and model definitions remain
+visible; this is not whole-model opacity.
+
+The private and shared receive compositions now call the receive equation too,
+with receive's body withheld. The final same-history delivery composition uses
+its three public laws with both native edit and receive withheld. All prior
+universal conclusions, premises and patterns remain exact. The whole Commit file
+is fenced against explicit normalization. Nine new default dependency controls
+exercise the receive/counter/setter dependencies and final public composition;
+the preceding eight private/shared controls remain required.
+
+Two existing controls move to the new source boundary: `receive-plan-rewrites-counter`
+and `receive-success-counter` now reject at `receive_uses_plan`, which is the
+checked declaration reading receive's body. Their actual Rust mutations and tests
+are unchanged. The old public same-commit/private-state laws remain unchanged and
+are connected to that equation by the new dependency controls. The earlier
+`receive-private-gate` move to the relational planner law remains as documented.
+No other owner moves, no native or hax snapshot changes, and no convergence or
+extra-concurrent-history claim follows from this reform.

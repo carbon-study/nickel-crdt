@@ -15,6 +15,9 @@ export function checkProofReformFence() {
     "let solve = Tactics.smt_sync'", "Tactics.smt_sync'(4, 4)",
     'Tactics.set_options("--fuel 100")', 'Tactics.prune("Other")', 'let hide = Tactics.prune',
   ])assert.throws(()=>assertReformedSource('fixture',bad),/fixture reform:/,bad);
+  assertReformedSource('EditCommit','Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive")');
+  assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive")'),/fixture reform:/);
+  assert.throws(()=>assertReformedSource('EditCommit','assert_norm(true)'),/EditCommit reform:/);
   console.log('PASS proof-reform fence: approved direct tactic, normalization/import/alias controls');
 }
 checkProofReformFence();

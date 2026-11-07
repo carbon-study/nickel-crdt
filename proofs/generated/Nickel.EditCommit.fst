@@ -9,8 +9,6 @@ open Core_models
 
 open FStar.Pervasives
 
-open FStar.NormSteps
-
 module Tactics = FStar.Tactics.V2
 
 open Nickel.EditAtomic
@@ -33,16 +31,38 @@ let request_bound (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_V
 
 let authored_fact_binds_request (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) (delete: Alloc.Vec.t_Vec Native.t_BirthId Alloc.Alloc.t_Global) : Lemma (ensures request_bound before gap insert delete (Native.impl_Replica__edit before gap insert delete)) =
   assert (request_bound before gap insert delete (Native.impl_Replica__edit before gap insert delete)) by (
-    Tactics.norm [delta_only ["Nickel_crdt.Edit.impl_Replica__edit"; "Nickel.EditCommit.request_bound"; "Nickel.EditCommit.requested_gap"]; iota; zeta_full; primops; simplify; unmeta; unascribe];
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__with_counter";
+    Tactics.prune "Nickel_crdt.Edit.next_counter_after";
+    Tactics.prune "Nickel_crdt.Edit.frontier";
+    Tactics.prune "Nickel_crdt.Edit.invalid";
+    Tactics.smt_sync' 1 1
+  )
+
+let received_plan (before: Native.t_Replica) (result: Nickel.EditAtomic.plan_result) : Native.t_Replica & Result.t_Result Native.t_Admission Native.t_Error =
+  match result with | Result.Result_Err error -> begin (before, Result.Result_Err error) end | Result.Result_Ok Core_models.Option.Option_None -> begin (before, Result.Result_Ok Native.Admission_Duplicate) end | Result.Result_Ok (Core_models.Option.Option_Some next) -> begin (next, Result.Result_Ok Native.Admission_Added) end
+
+let receive_uses_plan (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures Native.impl_Replica__receive before fact == received_plan before (Native.impl_Replica__plan before fact)) =
+  assert (Native.impl_Replica__receive before fact == received_plan before (Native.impl_Replica__plan before fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
     Tactics.smt_sync' 1 1
   )
 
 let authored_fact_replays_same_commit (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) (delete: Alloc.Vec.t_Vec Native.t_BirthId Alloc.Alloc.t_Global) : Lemma (ensures same_commit before (Native.impl_Replica__edit before gap insert delete)) =
   Nickel.EditAtomic.authored_edit_advances_once before gap insert delete;
+  Nickel.EditAtomic.counter_result_is_exact before.f_next_counter;
+  match Native.impl_Replica__edit before gap insert delete with | (_, Result.Result_Ok (Native.Local_Authored fact)) -> begin receive_uses_plan before fact;
   assert (same_commit before (Native.impl_Replica__edit before gap insert delete)) by (
-    Tactics.norm [delta_only ["Nickel_crdt.Edit.impl_Replica__edit"; "Nickel_crdt.Edit.next_counter_after"; "Nickel_crdt.Edit.impl_Replica__with_counter"; "Nickel_crdt.Edit.impl_Replica__receive"; "Nickel.EditCommit.same_commit"]; iota; zeta_full; primops; simplify; unmeta; unascribe];
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__with_counter";
+    Tactics.prune "Nickel_crdt.Edit.next_counter_after";
+    Tactics.prune "Nickel_crdt.Edit.frontier";
+    Tactics.prune "Nickel_crdt.Edit.invalid";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel.EditCommit.receive_uses_plan";
+    Tactics.prune "Nickel.EditAtomic.counter_result_is_exact";
     Tactics.smt_sync' 1 1
-  )
+  ) end | _ -> begin () end
 
 let same_private (before: Native.t_Replica) (next: Native.t_Replica) : Type0 =
   Prims.l_and (Prims.l_and (next.f_writer == before.f_writer) (next.f_next_counter == before.f_next_counter)) (next.f_limits == before.f_limits)
@@ -63,8 +83,11 @@ let private_unchanged (before: Native.t_Replica) (outcome: Native.t_Replica & Re
   match outcome with | (next, _) -> begin same_private before next end
 
 let receive_preserves_private_state (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures private_unchanged before (Native.impl_Replica__receive before fact)) =
+  receive_uses_plan before fact;
   assert (private_unchanged before (Native.impl_Replica__receive before fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel.EditCommit.receive_uses_plan";
     Tactics.smt_sync' 1 1
   )
 
@@ -87,8 +110,12 @@ let same_admission (left: Native.t_Replica & Result.t_Result Native.t_Admission 
   match (left, right) with | ((a, x), (b, y)) -> begin Prims.l_and (x == y) (same_shared a b) end
 
 let admission_ignores_private_state (before: Native.t_Replica) (remote: Native.t_Replica{same_shared before remote}) (fact: Native.t_Fact) : Lemma (ensures same_admission (Native.impl_Replica__receive before fact) (Native.impl_Replica__receive remote fact)) =
+  receive_uses_plan before fact;
+  receive_uses_plan remote fact;
   assert (same_admission (Native.impl_Replica__receive before fact) (Native.impl_Replica__receive remote fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel.EditCommit.receive_uses_plan";
     Tactics.smt_sync' 1 1
   )
 
@@ -98,5 +125,12 @@ let delivered_commit (remote: Native.t_Replica) (outcome: Native.t_Replica & Res
 let local_author_remote_admit (before: Native.t_Replica) (remote: Native.t_Replica{same_shared before remote}) (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) (delete: Alloc.Vec.t_Vec Native.t_BirthId Alloc.Alloc.t_Global) : Lemma (ensures delivered_commit remote (Native.impl_Replica__edit before gap insert delete)) =
   authored_fact_replays_same_commit before gap insert delete;
   match Native.impl_Replica__edit before gap insert delete with | (_, Result.Result_Ok (Native.Local_Authored fact)) -> begin admission_ignores_private_state before remote fact;
-  receive_preserves_private_state remote fact end | _ -> begin () end;
-  norm_spec [delta_only ["Nickel.EditCommit.delivered_commit"; "Nickel.EditCommit.same_commit"; "Nickel.EditCommit.same_admission"; "Nickel.EditCommit.same_shared"; "Nickel.EditCommit.private_unchanged"]; iota; zeta_full; primops; unmeta; unascribe] (delivered_commit remote (Native.impl_Replica__edit before gap insert delete))
+  receive_preserves_private_state remote fact;
+  assert (delivered_commit remote (Native.impl_Replica__edit before gap insert delete)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
+    Tactics.prune "Nickel.EditCommit.authored_fact_replays_same_commit";
+    Tactics.prune "Nickel.EditCommit.admission_ignores_private_state";
+    Tactics.prune "Nickel.EditCommit.receive_preserves_private_state";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.smt_sync' 1 1
+  ) end | _ -> begin () end
