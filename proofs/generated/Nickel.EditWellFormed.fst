@@ -78,7 +78,6 @@ let successful_validation_has_valid_scalars (facts: t_Slice Native.t_Fact) (limi
   Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (fun (_: nat) (_: usize) -> Prims.l_True) (fun (_: usize) -> Prims.l_True) no_validation_success;
   scalar_validation_is_sound (Alloc.Vec.impl_1__as_slice fact.f_insert);
   assert (validated_scalars fact (Native.impl_Replica__validate_new facts limits fact)) by (
-    Tactics.norm [delta_only ["Nickel_crdt.Edit.impl_Replica__validate_new"; "Nickel.EditWellFormed.validated_scalars"; "Nickel.EditWellFormed.fact_scalars_valid"; "Nickel.EditWellFormed.scalar_check_result"; "Nickel.EditWellFormed.no_validation_success"; "Nickel.LoopUtil.step_safe"; "Nickel.LoopUtil.output_safe"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"]; iota; zeta_full; primops; unmeta; unascribe];
     Tactics.smt_sync' 1 1
   )
 
@@ -88,7 +87,6 @@ let added_scalars (fact: Native.t_Fact) (outcome: Native.t_Replica & Result.t_Re
 let receive_added_fact_has_valid_scalars (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures added_scalars fact (Native.impl_Replica__receive before fact)) =
   successful_validation_has_valid_scalars (Alloc.Vec.impl_1__as_slice before.f_facts) before.f_limits fact;
   assert (added_scalars fact (Native.impl_Replica__receive before fact)) by (
-    Tactics.norm [delta_only ["Nickel_crdt.Edit.impl_Replica__receive"; "Nickel_crdt.Edit.impl_Replica__plan"; "Nickel.EditWellFormed.added_scalars"; "Nickel.EditWellFormed.validated_scalars"]; iota; zeta_full; primops; unmeta; unascribe];
     Tactics.smt_sync' 1 1
   )
 
@@ -165,7 +163,6 @@ let validation_has_dependencies (facts: t_Slice Native.t_Fact) (fact: Native.t_F
 let successful_validation_has_direct_dependencies (facts: t_Slice Native.t_Fact) (limits: Native.t_Limits) (fact: Native.t_Fact) : Lemma (ensures validation_has_dependencies facts fact (Native.impl_Replica__validate_new facts limits fact)) =
   successful_past_has_direct_dependencies facts (Alloc.Vec.impl_1__as_slice fact.f_after);
   assert (validation_has_dependencies facts fact (Native.impl_Replica__validate_new facts limits fact)) by (
-    Tactics.norm [delta_only ["Nickel_crdt.Edit.impl_Replica__validate_new"; "Nickel.EditWellFormed.validation_has_dependencies"; "Nickel.EditWellFormed.fact_dependencies_present"; "Nickel.EditWellFormed.past_has_dependencies"]; iota; zeta_full; primops; unmeta; unascribe];
     Tactics.smt_sync' 1 1
   )
 
@@ -175,7 +172,6 @@ let added_dependencies (before: Native.t_Replica) (fact: Native.t_Fact) (outcome
 let receive_added_has_direct_dependencies (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures added_dependencies before fact (Native.impl_Replica__receive before fact)) =
   successful_validation_has_direct_dependencies (Alloc.Vec.impl_1__as_slice before.f_facts) before.f_limits fact;
   assert (added_dependencies before fact (Native.impl_Replica__receive before fact)) by (
-    Tactics.norm [delta_only ["Nickel_crdt.Edit.impl_Replica__receive"; "Nickel_crdt.Edit.impl_Replica__plan"; "Nickel.EditWellFormed.added_dependencies"; "Nickel.EditWellFormed.validation_has_dependencies"]; iota; zeta_full; primops; unmeta; unascribe];
     Tactics.smt_sync' 1 1
   )
 
