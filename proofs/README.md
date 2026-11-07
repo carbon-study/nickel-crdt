@@ -623,3 +623,41 @@ This is a source control, distinct from the proof-dependency controls. No public
 classification theorem is weakened or retargeted. The duplicate loop model and
 public `plan` dependencies remain open; these two hidden callees do not establish
 whole-function opacity or close the proof reform.
+
+## redundant EditAccepted and WellFormed reductions
+
+Thirty-three explicit `norm_spec` reductions in EditAccepted and four
+`Tactics.norm` steps in EditWellFormed were removed because they were redundant.
+The proofs verify without them, and every control still rejects at its usual
+owner. No statement, pattern, control owner or budget changes.
+
+What the removed EditAccepted lists named:
+
+- **18 named a native function.** In the opacity map measured on a tree with these
+  deletions, every such function is read only by its own owning proofs: `receive`
+  (`receive_added_*`), `choose_unseen`, `canonical_step`, `canonical`,
+  `clone_selected_fact`, `with_tree`, `has_fact`, `new` and `plan`
+  (`successful_plan_pushed_fact`). The `impl_26`/`impl_82` (`Clone`) mentions follow from the
+  hax typeclass refinement `x == r`, not from reading a body. That map shows these
+  as owner reads; it does not prove isolation.
+- **15 named only vector/slice model functions.** Those proofs now read the model
+  bodies implicitly. Contracts for them, beyond the existing push-caller `Vector`
+  boundary, are still open.
+
+The four WellFormed steps opened `validate_new`, `receive` and `plan` inside the
+scalar-validity and direct-dependency laws for those operations. They are deleted
+here; whether those reads should go through callee contracts is still open work.
+
+Kept, with their reductions still needed:
+
+- `append_least_preserves_frontier` (6) and the two containment lemmas (5).
+- `canonical_orders_facts` (2): without them its peak rises from 0.66% to about 34%.
+- The four EditAccepted `Tactics.norm` publication/planner boundaries
+  (`plan_publishes_canonical_facts`, `plan_publishes_interpretation`,
+  `canonical_step_succeeds`, `canonical_succeeds_for_unique_ids`), which are left
+  for the planner migration.
+- `selected_id_is_least`: without its reduction its peak rises from 15.6% to about
+  34% when combined with this slice, so it is kept by the same cost rule.
+
+The fence now also covers the 26 migrated EditAccepted declarations and the 4
+WellFormed declarations that are free of normalization.
