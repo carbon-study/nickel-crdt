@@ -2,9 +2,9 @@ import Rust_primitives
 import Rust_primitives.Slice
 import Core_models
 import FStar.Pervasives
-import FStar.NormSteps
 import Tactics = FStar.Tactics.V2
 import Nickel.LoopUtil
+import Nickel.EditAtomic
 import Native = Nickel_crdt.Edit
 import Result = Core_models.Result
 import Option = Core_models.Option
@@ -132,14 +132,22 @@ proof receive_known_identity(before: Native.t_Replica, fact: Native.t_Fact,
 {
   lookup_at(Alloc.Vec.impl_1__as_slice(before.f_facts), fact.f_id, index, mk_usize(0));
   duplicate_matches_lookup(Alloc.Vec.impl_1__as_slice(before.f_facts), fact);
-  norm_spec([delta_only(["Nickel_crdt.Edit.impl_Replica__receive", "Nickel_crdt.Edit.impl_Replica__plan", "Nickel.EditIdentity.identity_result", "Nickel.EditIdentity.classify", "Nickel.EditIdentity.known_identity"]), iota, zeta_full, primops, unmeta, unascribe], Native.impl_Replica__receive(before, fact))
+  assert(Native.impl_Replica__receive(before, fact) == known_identity(before, Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(before.f_facts), index), fact)) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__plan");
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__duplicate");
+    Tactics.smt_sync'(1, 1)
+  }
 }
 proof receive_invalid_counter(before: Native.t_Replica, fact: Native.t_Fact): unit
   takes v(fact.f_id.f_counter) == 0 or v(fact.f_id.f_counter) > 9007199254740991
   gives Native.impl_Replica__receive(before, fact) == (before, Result.Result_Err(Native.Error_Invalid(Native.Invalid_Counter)))
 {
   duplicate_matches_lookup(Alloc.Vec.impl_1__as_slice(before.f_facts), fact);
-  norm_spec([delta_only(["Nickel_crdt.Edit.impl_Replica__receive", "Nickel_crdt.Edit.impl_Replica__plan", "Nickel.EditIdentity.identity_result"]), iota, zeta_full, primops, unmeta, unascribe], Native.impl_Replica__receive(before, fact))
+  assert(Native.impl_Replica__receive(before, fact) == (before, Result.Result_Err(Native.Error_Invalid(Native.Invalid_Counter)))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__plan");
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__duplicate");
+    Tactics.smt_sync'(1, 1)
+  }
 }
 
 proof! lookup_none(facts: t_Slice(Native.t_Fact), id: Native.t_EventId, at: usize where v(at) <= v(length(facts))): unit
@@ -162,7 +170,11 @@ proof receive_added_has_fresh_event_id(before: Native.t_Replica, fact: Native.t_
   duplicate_matches_lookup(Alloc.Vec.impl_1__as_slice(before.f_facts), fact);
   match Native.impl_Replica__receive(before, fact) {
     (_, Result.Result_Ok(Native.Admission_Added)) => {
-      assert(first_id(Alloc.Vec.impl_1__as_slice(before.f_facts), fact.f_id, mk_usize(0)) == Option.Option_None);
+      assert(first_id(Alloc.Vec.impl_1__as_slice(before.f_facts), fact.f_id, mk_usize(0)) == Option.Option_None) by {
+        Tactics.prune("Nickel_crdt.Edit.impl_Replica__plan");
+        Tactics.prune("Nickel_crdt.Edit.impl_Replica__duplicate");
+        Tactics.smt_sync'(1, 1)
+      };
       lookup_none(Alloc.Vec.impl_1__as_slice(before.f_facts), fact.f_id, mk_usize(0))
     },
     _ => ()

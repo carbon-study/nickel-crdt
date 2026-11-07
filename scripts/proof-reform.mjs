@@ -18,7 +18,7 @@ export function assertReformedSource(name,source) {
     if(ts[i]==='FStar'&&ts[i+1]==='.'&&ts[i+2]==='Tactics')
       fail('only the canonical Tactics import is approved');
     if(ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&
-      ['"Nickel_crdt.Edit.invalid"','"Nickel_crdt.Edit.writer_index"','"Nickel_crdt.Edit.fact_equal"','"Alloc.Vec.from_seq"','"Alloc.Vec.impl_1__as_slice"','"Alloc.Vec.impl_1__len"','"Core_models.Slice.impl__len"','"Rust_primitives.Slice.slice_index"','"Nickel_crdt.Edit.push"','"Nickel_crdt.Edit.impl_Replica__with_counter"','"Nickel_crdt.Edit.next_counter_after"','"Rust_primitives.Hax.Folds.fold_range"','"Rust_primitives.Hax.Folds.fold_range_return"','"Nickel.LoopUtil.option_run"','"Nickel.LoopUtil.step_safe"','"Nickel.LoopUtil.output_safe"','"Nickel_proof_smoke.flip"'].includes(ts[i+4])) { i+=5;continue; }
+      ['"Nickel_crdt.Edit.impl_Replica__plan"','"Nickel_crdt.Edit.impl_Replica__duplicate"','"Nickel_crdt.Edit.invalid"','"Nickel_crdt.Edit.writer_index"','"Nickel_crdt.Edit.fact_equal"','"Alloc.Vec.from_seq"','"Alloc.Vec.impl_1__as_slice"','"Alloc.Vec.impl_1__len"','"Core_models.Slice.impl__len"','"Rust_primitives.Slice.slice_index"','"Nickel_crdt.Edit.push"','"Nickel_crdt.Edit.impl_Replica__with_counter"','"Nickel_crdt.Edit.next_counter_after"','"Rust_primitives.Hax.Folds.fold_range"','"Rust_primitives.Hax.Folds.fold_range_return"','"Nickel.LoopUtil.option_run"','"Nickel.LoopUtil.step_safe"','"Nickel.LoopUtil.output_safe"','"Nickel_proof_smoke.flip"'].includes(ts[i+4])) { i+=5;continue; }
     if(ts[i]==='Tactics') {
       // No aliasing even of approved methods: only this direct call is admitted.
       if(ts.slice(i,i+8).join(' ')!=="Tactics . smt_sync' ( 1 , 1 )")
@@ -27,19 +27,13 @@ export function assertReformedSource(name,source) {
     }
   }
 }
-export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smoke','Vector']) {
+export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smoke','Vector','EditIdentity']) {
   for(const name of names)assertReformedSource(name,await fs.readFile(path.join(root,'proofs',name+'.lt'),'utf8'));
   // Only these two WellFormed boundaries have migrated; the rest remains open.
   const source=await fs.readFile(path.join(root,'proofs','EditWellFormed.lt'),'utf8');
   const start=source.indexOf('proof scalar_validation_is_sound('),end=source.indexOf('function fact_scalars_valid(',start);
   assert(start>=0&&end>start,'scalar reform scope must remain present');
   assertReformedSource('EditWellFormed.scalar-boundaries',source.slice(start,end));
-  const identity=await fs.readFile(path.join(root,'proofs','EditIdentity.lt'),'utf8');
-  for(const name of ['invalid_is_exact','writer_code','writer_index_is_exact','receive_added_has_fresh_event_id','authored_event_id_is_fresh','writer_equality_exact','event_equality_exact','birth_equality_exact','fact_equality_exact','scan_lookup','duplicate_matches_lookup','lookup_at','lookup_none']) {
-    const match=new RegExp('^(?:function!?|proof!?) '+name+'[<(]','m').exec(identity);assert(match,'missing reformed identity declaration '+name);
-    const tail=identity.slice(match.index+match[0].length),next=/\n(?:function|proof!?|type|import) /.exec(tail);
-    assertReformedSource('EditIdentity.'+name,identity.slice(match.index,next?match.index+match[0].length+next.index:identity.length));
-  }
   const accepted=await fs.readFile(path.join(root,'proofs','EditAccepted.lt'),'utf8');
   for(const name of ['push_outcome','push_result_is_exact','append_fresh_preserves_unique','append_whole_fact','push_has_exact_contents','push_membership','member_lookup','absent_lookup','event_order_is_key_order']) {
     const match=new RegExp('^(?:function!?|proof!?) '+name+'[<(]','m').exec(accepted);assert(match,'missing reformed Accepted declaration '+name);

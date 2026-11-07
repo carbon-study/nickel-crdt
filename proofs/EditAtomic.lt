@@ -4,6 +4,36 @@ import FStar.Pervasives
 import Tactics = FStar.Tactics.V2
 import Native = Nickel_crdt.Edit
 import Result = Core_models.Result
+import Option = Core_models.Option
+
+// Expose the result constructors when plan's implementation facts are withheld.
+type plan_result = Result.t_Result(Option.t_Option(Native.t_Replica), Native.t_Error)
+function plan_result_shape(result: plan_result): Type0 {
+  (exists(error: Native.t_Error) . result == Result.Result_Err(error)) or
+  result == Result.Result_Ok(Option.Option_None) or
+  (exists(next: Native.t_Replica) . result == Result.Result_Ok(Option.Option_Some(next)))
+}
+proof plan_has_result_shape(before: Native.t_Replica, fact: Native.t_Fact): unit
+  gives plan_result_shape(Native.impl_Replica__plan(before, fact))
+  hint Native.impl_Replica__plan(before, fact)
+{ () }
+
+// Planning propagates the classifier's errors and duplicate result immediately.
+function plan_duplicate_prefix(duplicate: Result.t_Result(bool, Native.t_Error), result: plan_result): Type0 {
+  match duplicate {
+    Result.Result_Err(error) => result == Result.Result_Err(error),
+    Result.Result_Ok(found) => if found { result == Result.Result_Ok(Option.Option_None) } else { Prims.l_True }
+  }
+}
+proof plan_preserves_duplicate_result(before: Native.t_Replica, fact: Native.t_Fact): unit
+  gives plan_duplicate_prefix(Native.impl_Replica__duplicate(Alloc.Vec.impl_1__as_slice(before.f_facts), fact), Native.impl_Replica__plan(before, fact))
+  hint Native.impl_Replica__plan(before, fact)
+{
+  assert(plan_duplicate_prefix(Native.impl_Replica__duplicate(Alloc.Vec.impl_1__as_slice(before.f_facts), fact), Native.impl_Replica__plan(before, fact))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__duplicate");
+    Tactics.smt_sync'(1, 1)
+  }
+}
 
 function receive_neutral(before: Native.t_Replica, outcome: (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error))): Type0 {
   match outcome {
@@ -67,7 +97,8 @@ proof counter_result_is_exact(counter: u64): unit
 { () }
 
 // This is the source boundary for edit, using contracts for its callees.
-// Only next_counter_after/with_counter facts are withheld here, including typing.
+// The counter helpers and plan are withheld here; the latter exposes only
+// result constructors. Frontier remains visible.
 // Keep automatic solver unfolding shallow; no implementation reduction list.
 proof authored_edit_advances_once(before: Native.t_Replica, gap: usize, insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global)): unit
   gives edit_counter_step(before, Native.impl_Replica__edit(before, gap, insert, delete))
@@ -76,6 +107,7 @@ proof authored_edit_advances_once(before: Native.t_Replica, gap: usize, insert: 
   assert(edit_counter_step(before, Native.impl_Replica__edit(before, gap, insert, delete))) by {
     Tactics.prune("Nickel_crdt.Edit.impl_Replica__with_counter");
     Tactics.prune("Nickel_crdt.Edit.next_counter_after");
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__plan");
     Tactics.smt_sync'(1, 1)
   }
 }
