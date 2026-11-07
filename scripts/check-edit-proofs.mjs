@@ -210,6 +210,10 @@ for(const mode of [...(wantPositive?['positive']:[]),...mutations]) {
     positive=code;
   } else assert.notEqual(code,positive);
   for(const [name,code] of views)await put(path.join(proof,name),code);
+  // What this workspace last recorded for the extraction decides whether it must be
+  // recompiled now: changed (seeded, fresh or edited) must recompile; unchanged may be reused.
+  let recorded={};try{recorded=JSON.parse(await fs.readFile(path.join(proof,'sources.json'),'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
+  const extractionChanged=recorded['Nickel_crdt.Edit.fst']!==digest(code);
   // Counter calculation/installation/wiring controls need only their owning module. The positive path still
   // checks the complete public proof chain through EditWellFormed.
   const proofRoot=['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
@@ -231,9 +235,12 @@ for(const mode of [...(wantPositive?['positive']:[]),...mutations]) {
   } else {
     assert.equal(checked.status,2,'require ordinary proof rejection, not extraction failure/timeout');
     const theorem='Nickel.'+theorems[mode],file='Nickel.'+theorems[mode].split('.')[0]+'.fst';
-    // A reused cache must never stand in for checking the changed program: the fresh
-    // extraction and the owning proof module must both be compiled in this run.
-    for(const changed of ['Nickel_crdt.Edit.fst',file])assert(checked.modules.includes(changed),''+changed+' was not compiled for '+mode+': '+checked.modules.join(','));
+    // A reused cache must never stand in for checking the changed program. The owning
+    // proof module always compiles here (a rejected module leaves no checked result);
+    // the extraction must compile whenever it differs from this workspace's last record.
+    // An unchanged extraction in a warm rerun of the same mode may be legitimately reused.
+    for(const changed of [...(extractionChanged?['Nickel_crdt.Edit.fst']:[]),file])
+      assert(checked.modules.includes(changed),changed+' was not compiled for '+mode+': '+(checked.modules.join(',')||'nothing'));
     assert(hasOrdinaryTheoremRejection({status:checked.status,log:checked.log,theorem,view:views.get(file)}),
       'require a final ordinary named query rejection and a semantic error in its source declaration: '+checked.log);
   }
