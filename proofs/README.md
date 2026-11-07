@@ -555,3 +555,18 @@ identity freshness proofs also lose two redundant spec-only reductions. Their
 receive/edit/plan reasoning is not isolated by this deletion; the broader public
 boundary and duplicate loop-model migrations remain open. Every prior public
 Identity/Accepted theorem signature and pattern is unchanged in this slice.
+
+## invalid-result constructor contract
+
+`invalid_is_exact` checks that the actual native `invalid(reason)` helper returns
+`Error_Invalid(reason)`, keeping the supplied reason. The duplicate-classification
+proof withholds this helper alongside `fact_equal`. Each contract's pattern and
+its availability are tested separately; removing the error-constructor pattern
+or contract must reject ordinarily at `duplicate_matches_lookup`.
+
+The actual Rust `invalid-forgets-reason` control replaces the supplied reason
+with `Counter`. It must fail native checks and the new exact helper theorem.
+This is a source control, distinct from the proof-dependency controls. No public
+classification theorem is weakened or retargeted. The duplicate loop model and
+public `plan` dependencies remain open; these two hidden callees do not establish
+whole-function opacity or close the proof reform.
