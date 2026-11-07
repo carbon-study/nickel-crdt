@@ -34,6 +34,13 @@ export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smok
   const start=source.indexOf('proof scalar_validation_is_sound('),end=source.indexOf('function fact_scalars_valid(',start);
   assert(start>=0&&end>start,'scalar reform scope must remain present');
   assertReformedSource('EditWellFormed.scalar-boundaries',source.slice(start,end));
+  // Declarations whose redundant reductions were deleted and that contain no other normalization.
+  // The two containment lemmas keep their reductions; two scalar proofs still use Tactics.norm.
+  for(const name of ['receive_preserves_scalar_validity','edit_authors_only_valid_scalars','edit_preserves_scalar_validity','new_establishes_scalar_validity','event_membership_is_presence','dependency_validation_is_sound','present_dependencies_pass_guard','successful_past_has_direct_dependencies','dependencies_survive_containment','exact_extension_preserves_causal_closure','receive_preserves_causal_closure','edit_preserves_causal_closure','new_establishes_causal_closure']) {
+    const match=new RegExp('^proof!? '+name+'[<(]','m').exec(source);assert(match,'missing reformed WellFormed declaration '+name);
+    const tail=source.slice(match.index+match[0].length),next=/\n(?:function|proof!?|type|import) /.exec(tail);
+    assertReformedSource('EditWellFormed.'+name,source.slice(match.index,next?match.index+match[0].length+next.index:source.length));
+  }
   const identity=await fs.readFile(path.join(root,'proofs','EditIdentity.lt'),'utf8');
   for(const name of ['writer_code','writer_index_is_exact','receive_added_has_fresh_event_id','authored_event_id_is_fresh','writer_equality_exact','event_equality_exact','birth_equality_exact','fact_equality_exact','scan_lookup','duplicate_matches_lookup','lookup_at','lookup_none']) {
     const match=new RegExp('^(?:function!?|proof!?) '+name+'[<(]','m').exec(identity);assert(match,'missing reformed identity declaration '+name);
