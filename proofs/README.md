@@ -626,14 +626,14 @@ whole-function opacity or close the proof reform.
 
 ## redundant EditAccepted and WellFormed reductions
 
-Thirty-four explicit `norm_spec` reductions in EditAccepted and four
+Thirty-three explicit `norm_spec` reductions in EditAccepted and four
 `Tactics.norm` steps in EditWellFormed were removed because they were redundant.
 The proofs verify without them, and every control still rejects at its usual
 owner. No statement, pattern, control owner or budget changes.
 
 What the removed EditAccepted lists named:
 
-- **19 named a native function.** In the opacity map measured on a tree with these
+- **18 named a native function.** In the opacity map measured on a tree with these
   deletions, every such function is read only by its own owning proofs: `receive`
   (`receive_added_*`), `choose_unseen`, `canonical_step`, `canonical`,
   `clone_selected_fact`, `with_tree`, `has_fact`, `new` and `plan`
@@ -656,6 +656,8 @@ Kept, with their reductions still needed:
   (`plan_publishes_canonical_facts`, `plan_publishes_interpretation`,
   `canonical_step_succeeds`, `canonical_succeeds_for_unique_ids`), which are left
   for the planner migration.
+- `selected_id_is_least`: without its reduction its peak rises from 15.6% to about
+  34% when combined with this slice, so it is kept by the same cost rule.
 
-The fence now also covers the 27 migrated EditAccepted declarations and the 4
+The fence now also covers the 26 migrated EditAccepted declarations and the 4
 WellFormed declarations that are free of normalization.

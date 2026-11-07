@@ -343,7 +343,8 @@ let least_result (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) (re
 
 let selected_id_is_least (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) : Lemma (ensures least_result input out (Native.choose_unseen input out)) =
   let each_order (a: Native.t_EventId) (b: Native.t_EventId) : Lemma (ensures Native.event_lt a b == true <==> event_key a < event_key b) [SMTPat (Native.event_lt a b)] = event_order_is_key_order a b in
-  Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (least_choice input out) (least_choice input out (v (Nickel.EditIdentity.length input))) (least_result input out)
+  Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (least_choice input out) (least_choice input out (v (Nickel.EditIdentity.length input))) (least_result input out);
+  norm_spec [delta_only ["Nickel_crdt.Edit.choose_unseen"; "Nickel.EditAccepted.least_choice"; "Nickel.EditAccepted.least_result"; "Nickel.LoopUtil.output_safe"; "Nickel.LoopUtil.step_safe"]; iota; zeta_full; primops; unmeta; unascribe] (Native.choose_unseen input out)
 
 let rec absent_lookup (input: t_Slice Native.t_Fact) (id: Native.t_EventId) (at: usize{v at <= v (Nickel.EditIdentity.length input)}) : Lemma (requires Nickel.EditIdentity.prefix_absent input id at (Nickel.EditIdentity.length input)) (ensures Nickel.EditIdentity.first_id input id at == Option.Option_None) (decreases v (Nickel.EditIdentity.length input) - v at) =
   if v at < v (Nickel.EditIdentity.length input) then
