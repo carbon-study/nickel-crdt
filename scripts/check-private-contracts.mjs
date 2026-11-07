@@ -10,12 +10,19 @@ export async function checkPrivateContracts({proof,output,fstar,models,modelCach
   const planPattern=' [SMTPat (Native.impl_Replica__plan before fact)]';
   const treePrune='Tactics.prune "Nickel_crdt.Edit.impl_Replica__with_tree";';
   const planPrune='Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";';
-  for(const needle of [treePattern,planPattern,treePrune,planPrune])assert.equal(original.split(needle).length,2);
+  for(const needle of [treePattern,planPattern])assert.equal(original.split(needle).length,2);
+  function withholdAt(name,needle,law) {
+    const start=original.indexOf('let '+name+' ');assert(start>=0);
+    const next=/\nlet (?:rec )?\w+ /.exec(original.slice(start+4));
+    const end=next?start+4+next.index:original.length,body=original.slice(start,end);
+    assert.equal(body.split(needle).length,2);
+    return original.slice(0,start)+body.replace(needle,needle+'\n    Tactics.prune "'+law+'";')+original.slice(end);
+  }
   for(const [name,view,theorem]of[
     ['private-without-tree-pattern',original.replace(treePattern,''),'plan_preserves_private_state'],
-    ['private-without-tree-contract',original.replace(treePrune,treePrune+'\n    Tactics.prune "Nickel.EditCommit.tree_publication_keeps_private";'),'plan_preserves_private_state'],
+    ['private-without-tree-contract',withholdAt('plan_preserves_private_state',treePrune,'Nickel.EditCommit.tree_publication_keeps_private'),'plan_preserves_private_state'],
     ['private-without-plan-pattern',original.replace(planPattern,''),'receive_preserves_private_state'],
-    ['private-without-plan-contract',original.replace(planPrune,planPrune+'\n    Tactics.prune "Nickel.EditCommit.plan_preserves_private_state";'),'receive_preserves_private_state'],
+    ['private-without-plan-contract',withholdAt('receive_preserves_private_state',planPrune,'Nickel.EditCommit.plan_preserves_private_state'),'receive_preserves_private_state'],
   ]) {
     try {
       await put(file,view);const result=await verify({dir:proof,roots:[file],fstar,models,modelCache});

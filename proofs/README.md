@@ -638,8 +638,36 @@ private counter in the tree setter or in `plan` before publication; they must
 fail native tests and their corresponding checked contract. The existing
 receive-success-counter mutation still tests the real public receive boundary.
 
-Only this private-state preservation path is migrated. The other four Commit
-normalization sites, its shared-state independence/replay proofs, the remaining
-Accepted and WellFormed boundaries and loop families remain open. The six
-private-state declarations have their own regression fence; this is not a
-whole-Commit or whole-planner isolation claim.
+This private-state path alone does not establish shared-state independence;
+that separate contract migration is described below. The request/same-commit
+source boundaries and final derived composition still retain three Commit
+normalization sites. Remaining Accepted/WellFormed boundaries and loop families
+are also open. The six private-state declarations have their own regression
+fence; this is not a whole-Commit or whole-planner isolation claim.
+
+## same-history admission without private planner details
+
+`tree_publication_respects_shared` compares two setter calls with the same tree
+and equal shared inputs (facts, tree and limits). Its paired trigger exposes
+that relational law to `plan_ignores_private_state`, whose two input replicas
+have the same shared fields but may differ in writer/counter. Planning returns
+matching error/duplicate/success cases; successful results have equal shared
+fields. The existing public `admission_ignores_private_state` composes that law
+with `plan` withheld, preserving its exact same-history premise and conclusion.
+The planner boundary itself withholds `with_tree`.
+
+The setter law is deliberately relational: it does not claim the supplied tree
+was installed. A setter that ignored that tree identically on both replicas
+would still respect shared equality; existing interpretation/publication controls
+must continue to catch that separate error. Neither these laws nor the public
+composition prove general delivery convergence or admission progress.
+
+Four new default dependency controls remove the paired patterns or withhold
+these contracts at their actual callers. A new native setter mutation makes
+publication depend on the private writer. The existing `receive-private-gate`
+mutation keeps its source/anchor but now rejects earlier at
+`plan_ignores_private_state`, the new checked callee boundary, rather than the
+public composition. This is the sole control-owner migration in this slice;
+the public theorem and its premise are unchanged. The private-state family’s
+four controls still run, scoped to their own declarations despite the additional
+visibility blocks. Three other Commit normalization sites remain open.

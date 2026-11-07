@@ -13,6 +13,7 @@ import {checkIdentityContracts} from './check-identity-contracts.mjs';
 import {checkWriterContracts} from './check-writer-contracts.mjs';
 import {checkPlanContracts} from './check-plan-contracts.mjs';
 import {checkPrivateContracts} from './check-private-contracts.mjs';
+import {checkSharedContracts} from './check-shared-contracts.mjs';
 import {checkNegativeProofEvidence} from './check-negative-proof-evidence.mjs';
 import {checkScalarContracts} from './check-loop-contracts.mjs';
 import {checkCounterContracts} from './check-counter-contracts.mjs';
@@ -36,7 +37,7 @@ for(const name of ['Prelude','LoopUtil','Vector','EditAtomic','EditCommit','Edit
   views.set(`Nickel.${name}.fst`,code);
 }
 const original=await fs.readFile(path.join(root,'src/edit.rs'),'utf8');
-const modes=['positive','tree-publication-clears-private-counter','plan-clears-private-counter','plan-ignores-duplicate','plan-swallows-classifier-error','receive-plan-rewrites-counter','invalid-forgets-reason','writer-index-collides','native-push-discards-value','native-push-prepends','causal-validator-passes-empty','causal-accepts-missing','causal-call-passes-empty','causal-refuses-present','plan-interprets-uncanonical','scalar-count-loop-bypasses-check','scalar-accepts-invalid','scalar-call-passes-empty','scalar-refuses-valid','canonical-step-refuses','canonical-refuses','plan-keeps-old-tree','plan-passes-old-tree','order-key-ignores-writer','order-chooses-largest','order-discards-canonical','local-return-after','edit-call-passes-old-counter','edit-commit-ignores-counter','receive-error-corrupts-counter','edit-error-corrupts-counter','edit-success-reuses-counter',
+const modes=['positive','tree-publication-uses-private-writer','tree-publication-clears-private-counter','plan-clears-private-counter','plan-ignores-duplicate','plan-swallows-classifier-error','receive-plan-rewrites-counter','invalid-forgets-reason','writer-index-collides','native-push-discards-value','native-push-prepends','causal-validator-passes-empty','causal-accepts-missing','causal-call-passes-empty','causal-refuses-present','plan-interprets-uncanonical','scalar-count-loop-bypasses-check','scalar-accepts-invalid','scalar-call-passes-empty','scalar-refuses-valid','canonical-step-refuses','canonical-refuses','plan-keeps-old-tree','plan-passes-old-tree','order-key-ignores-writer','order-chooses-largest','order-discards-canonical','local-return-after','edit-call-passes-old-counter','edit-commit-ignores-counter','receive-error-corrupts-counter','edit-error-corrupts-counter','edit-success-reuses-counter',
   'local-return-gap','local-stale-tree','receive-success-counter','author-forgets-gap','receive-private-gate',
   'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality',
   'identity-scan-key','identity-birth-equality','identity-writer-equality',
@@ -49,9 +50,10 @@ for(const mode of selected.length?selected:modes) {
   await fs.mkdir(crate,{recursive:true});await fs.mkdir(proof,{recursive:true});
   for(const name of ['Cargo.toml','Cargo.lock','src','tests','proof-smoke'])await fs.cp(path.join(root,name),path.join(crate,name),{recursive:true});
   if(mode!=='positive') {
-    const scopes={'tree-publication-clears-private-counter':'fn with_tree(', 'plan-clears-private-counter':'fn plan(', 'plan-ignores-duplicate':'fn plan(', 'plan-swallows-classifier-error':'fn plan(', 'receive-plan-rewrites-counter':'pub fn receive(', 'invalid-forgets-reason':'fn invalid(', 'writer-index-collides':'fn writer_index(', 'native-push-discards-value':'fn push<T>','native-push-prepends':'fn push<T>','causal-validator-passes-empty':'fn validate_new(','causal-accepts-missing':'fn validate_after(', 'causal-call-passes-empty':'fn past(', 'causal-refuses-present':'fn validate_after(','plan-interprets-uncanonical':'fn plan(','scalar-count-loop-bypasses-check':'fn validate_new(','scalar-accepts-invalid':'fn validate_scalars(', 'scalar-refuses-valid':'fn validate_scalars(', 'scalar-call-passes-empty':'fn validate_new(','canonical-step-refuses':'fn canonical_step(', 'canonical-refuses':'fn canonical(','plan-keeps-old-tree':'fn with_tree(', 'plan-passes-old-tree':'fn plan(','order-key-ignores-writer':'fn event_lt(','order-chooses-largest':'fn choose_unseen(', 'order-discards-canonical':'fn plan(','edit-commit-ignores-counter':'fn with_counter(', 'edit-success-reuses-counter':'fn next_counter_after(', 'content-changes-whole-fact':'fn clone_selected_fact(', 'content-omits-facts':'fn canonical(', 'accepted-reuses-member':'fn choose_unseen(', 'accepted-wrong-canonical-push':'fn canonical_step(', 'accepted-publication-duplicates':'fn with_tree('};
+    const scopes={'tree-publication-uses-private-writer':'fn with_tree(', 'tree-publication-clears-private-counter':'fn with_tree(', 'plan-clears-private-counter':'fn plan(', 'plan-ignores-duplicate':'fn plan(', 'plan-swallows-classifier-error':'fn plan(', 'receive-plan-rewrites-counter':'pub fn receive(', 'invalid-forgets-reason':'fn invalid(', 'writer-index-collides':'fn writer_index(', 'native-push-discards-value':'fn push<T>','native-push-prepends':'fn push<T>','causal-validator-passes-empty':'fn validate_new(','causal-accepts-missing':'fn validate_after(', 'causal-call-passes-empty':'fn past(', 'causal-refuses-present':'fn validate_after(','plan-interprets-uncanonical':'fn plan(','scalar-count-loop-bypasses-check':'fn validate_new(','scalar-accepts-invalid':'fn validate_scalars(', 'scalar-refuses-valid':'fn validate_scalars(', 'scalar-call-passes-empty':'fn validate_new(','canonical-step-refuses':'fn canonical_step(', 'canonical-refuses':'fn canonical(','plan-keeps-old-tree':'fn with_tree(', 'plan-passes-old-tree':'fn plan(','order-key-ignores-writer':'fn event_lt(','order-chooses-largest':'fn choose_unseen(', 'order-discards-canonical':'fn plan(','edit-commit-ignores-counter':'fn with_counter(', 'edit-success-reuses-counter':'fn next_counter_after(', 'content-changes-whole-fact':'fn clone_selected_fact(', 'content-omits-facts':'fn canonical(', 'accepted-reuses-member':'fn choose_unseen(', 'accepted-wrong-canonical-push':'fn canonical_step(', 'accepted-publication-duplicates':'fn with_tree('};
     const start=original.indexOf(scopes[mode]??(mode==='identity-writer-equality'?'impl PartialEq for Writer':mode==='identity-birth-equality'?'impl PartialEq for BirthId':mode==='identity-event-equality'?'impl PartialEq for EventId':mode==='identity-forgets-gap'?'fn fact_equal(':mode.startsWith('identity-')?'fn duplicate(':mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit('));assert(start>=0);
     const edits={
+      'tree-publication-uses-private-writer':['self.tree = tree;', 'if self.writer.is_some() { self.tree = tree; }'],
       'tree-publication-clears-private-counter':['self.tree = tree;', 'self.tree = tree; self.next_counter = 0;'],
       'plan-clears-private-counter':['let mut next = self.clone();', 'let mut next = self.clone(); next.next_counter = 0;'],
       'native-push-discards-value':['xs.push(value);','let _ = value;'],
@@ -104,7 +106,7 @@ for(const mode of selected.length?selected:modes) {
     };
     const [needle,replacement]=edits[mode];const at=original.indexOf(needle,start);assert(at>=start);
     if(mode.startsWith('native-push-')) { const end=original.indexOf('\n}',start)+2;assert(end>start&&at<end);assert.equal(original.slice(start,end).split(needle).length,2,'one actual push-body anchor'); }
-    if(['tree-publication-clears-private-counter','plan-clears-private-counter','plan-ignores-duplicate','plan-swallows-classifier-error','receive-plan-rewrites-counter'].includes(mode)) {
+    if(['tree-publication-uses-private-writer','tree-publication-clears-private-counter','plan-clears-private-counter','plan-ignores-duplicate','plan-swallows-classifier-error','receive-plan-rewrites-counter'].includes(mode)) {
       const next=/\n    (?:pub )?fn /.exec(original.slice(start));
       const end=next?start+next.index:original.length;
       assert(at<end);assert.equal(original.slice(start,end).split(needle).length,2,'one actual planner/caller anchor');
@@ -151,10 +153,15 @@ for(const mode of selected.length?selected:modes) {
     await fs.rm(privateProof,{recursive:true,force:true});
     await fs.cp(proof,privateProof,{recursive:true,preserveTimestamps:true});
     await checkPrivateContracts({proof:privateProof,output,fstar,models,modelCache});
+    const sharedProof=path.join(root,'.cache','edit-proofs','contracts-shared','proof');
+    await fs.rm(sharedProof,{recursive:true,force:true});
+    await fs.cp(proof,sharedProof,{recursive:true,preserveTimestamps:true});
+    await checkSharedContracts({proof:sharedProof,output,fstar,models,modelCache});
     await fs.copyFile(path.join(proof,'Nickel_crdt.Edit.fst'),path.join(output,'Nickel_crdt.Edit.fst'));
   } else {
     assert.equal(checked.status,2,'require ordinary proof rejection, not extraction failure/timeout');
     const theorems={
+      'tree-publication-uses-private-writer':'EditCommit.tree_publication_respects_shared',
       'tree-publication-clears-private-counter':'EditCommit.tree_publication_keeps_private',
       'plan-clears-private-counter':'EditCommit.plan_preserves_private_state',
       'native-push-discards-value':'EditAccepted.push_result_is_exact',
@@ -203,7 +210,7 @@ for(const mode of selected.length?selected:modes) {
       'local-stale-tree':'EditCommit.authored_fact_replays_same_commit',
       'receive-success-counter':'EditCommit.receive_preserves_private_state',
       'author-forgets-gap':'EditCommit.authored_fact_binds_request',
-      'receive-private-gate':'EditCommit.admission_ignores_private_state',
+      'receive-private-gate':'EditCommit.plan_ignores_private_state',
     };
     const theorem='Nickel.'+theorems[mode],file='Nickel.'+theorems[mode].split('.')[0]+'.fst';
     assert(hasOrdinaryTheoremRejection({status:checked.status,log:checked.log,theorem,view:views.get(file)}),

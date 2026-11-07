@@ -71,12 +71,24 @@ let receive_preserves_private_state (before: Native.t_Replica) (fact: Native.t_F
 let same_shared (left: Native.t_Replica) (right: Native.t_Replica) : Type0 =
   Prims.l_and (Prims.l_and (left.f_facts == right.f_facts) (left.f_tree == right.f_tree)) (left.f_limits == right.f_limits)
 
+let tree_publication_respects_shared (left: Native.t_Replica) (right: Native.t_Replica) (tree: Native.t_Tree) : Lemma (requires same_shared left right) (ensures same_shared (Native.impl_Replica__with_tree left tree) (Native.impl_Replica__with_tree right tree)) [SMTPat (Native.impl_Replica__with_tree left tree); SMTPat (Native.impl_Replica__with_tree right tree)] =
+  ()
+
+let planned_shared (left: Nickel.EditAtomic.plan_result) (right: Nickel.EditAtomic.plan_result) : Type0 =
+  match (left, right) with | (Result.Result_Err a, Result.Result_Err b) -> begin a == b end | (Result.Result_Ok Core_models.Option.Option_None, Result.Result_Ok Core_models.Option.Option_None) -> begin Prims.l_True end | (Result.Result_Ok (Core_models.Option.Option_Some a), Result.Result_Ok (Core_models.Option.Option_Some b)) -> begin same_shared a b end | _ -> begin Prims.l_False end
+
+let plan_ignores_private_state (before: Native.t_Replica) (remote: Native.t_Replica) (fact: Native.t_Fact) : Lemma (requires same_shared before remote) (ensures planned_shared (Native.impl_Replica__plan before fact) (Native.impl_Replica__plan remote fact)) [SMTPat (Native.impl_Replica__plan before fact); SMTPat (Native.impl_Replica__plan remote fact)] =
+  assert (planned_shared (Native.impl_Replica__plan before fact) (Native.impl_Replica__plan remote fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__with_tree";
+    Tactics.smt_sync' 1 1
+  )
+
 let same_admission (left: Native.t_Replica & Result.t_Result Native.t_Admission Native.t_Error) (right: Native.t_Replica & Result.t_Result Native.t_Admission Native.t_Error) : Type0 =
   match (left, right) with | ((a, x), (b, y)) -> begin Prims.l_and (x == y) (same_shared a b) end
 
 let admission_ignores_private_state (before: Native.t_Replica) (remote: Native.t_Replica{same_shared before remote}) (fact: Native.t_Fact) : Lemma (ensures same_admission (Native.impl_Replica__receive before fact) (Native.impl_Replica__receive remote fact)) =
   assert (same_admission (Native.impl_Replica__receive before fact) (Native.impl_Replica__receive remote fact)) by (
-    Tactics.norm [delta_only ["Nickel_crdt.Edit.impl_Replica__receive"; "Nickel_crdt.Edit.impl_Replica__plan"; "Nickel_crdt.Edit.impl_Replica__with_tree"; "Core_models.Clone.f_clone"; "Nickel_crdt.Edit.impl_82"; "Nickel.EditCommit.same_admission"; "Nickel.EditCommit.same_shared"]; iota; zeta_full; primops; simplify; unmeta; unascribe];
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
     Tactics.smt_sync' 1 1
   )
 

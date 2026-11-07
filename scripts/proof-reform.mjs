@@ -42,7 +42,7 @@ export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smok
     assertReformedSource('EditWellFormed.'+name,source.slice(match.index,next?match.index+match[0].length+next.index:source.length));
   }
   const commit=await fs.readFile(path.join(root,'proofs','EditCommit.lt'),'utf8');
-  for(const name of ['same_private','tree_publication_keeps_private','planned_private','private_unchanged','plan_preserves_private_state','receive_preserves_private_state']) {
+  for(const name of ['same_shared','tree_publication_respects_shared','planned_shared','plan_ignores_private_state','same_admission','admission_ignores_private_state','same_private','tree_publication_keeps_private','planned_private','private_unchanged','plan_preserves_private_state','receive_preserves_private_state']) {
     const match=new RegExp('^(?:function!?|proof!?) '+name+'[<(]','m').exec(commit);assert(match,'missing reformed private-state declaration '+name);
     const tail=commit.slice(match.index+match[0].length),next=/\n(?:function|proof!?|type|import) /.exec(tail);
     assertReformedSource('EditCommit.'+name,commit.slice(match.index,next?match.index+match[0].length+next.index:commit.length));
