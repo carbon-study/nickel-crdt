@@ -342,7 +342,10 @@ let event_key (id: Native.t_EventId) : nat =
   rank + v id.f_counter
 
 let event_order_is_key_order (a: Native.t_EventId) (b: Native.t_EventId) : Lemma (ensures Native.event_lt a b == true <==> event_key a < event_key b) =
-  norm_spec [delta_only ["Nickel_crdt.Edit.event_lt"; "Nickel_crdt.Edit.writer_index"; "Nickel.EditAccepted.event_key"]; iota; zeta_full; primops] (Native.event_lt a b)
+  assert (Native.event_lt a b == true <==> event_key a < event_key b) by (
+    Tactics.prune "Nickel_crdt.Edit.writer_index";
+    Tactics.smt_sync' 1 1
+  )
 
 let least_choice (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) (at: nat) (choice: Option.t_Option usize) : Type0 =
   match choice with | Option.Option_None -> begin forall(j: usize{v j < v (Nickel.EditIdentity.length input)}). v j < at ==> Native.has_fact out (Rust_primitives.Slice.slice_index input j).f_id end | Option.Option_Some k -> begin Prims.l_and (Prims.l_and (v k < v (Nickel.EditIdentity.length input)) (Native.has_fact out (Rust_primitives.Slice.slice_index input k).f_id == false)) (forall(j: usize{v j < v (Nickel.EditIdentity.length input)}). Prims.l_and (v j < at) (Native.has_fact out (Rust_primitives.Slice.slice_index input j).f_id == false) ==> event_key (Rust_primitives.Slice.slice_index input k).f_id <= event_key (Rust_primitives.Slice.slice_index input j).f_id) end

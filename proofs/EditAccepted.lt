@@ -458,7 +458,10 @@ function event_key(id: Native.t_EventId): nat {
 proof event_order_is_key_order(a: Native.t_EventId, b: Native.t_EventId): unit
   gives (Native.event_lt(a, b) == true <==> event_key(a) < event_key(b))
 {
-  norm_spec([delta_only(["Nickel_crdt.Edit.event_lt", "Nickel_crdt.Edit.writer_index", "Nickel.EditAccepted.event_key"]), iota, zeta_full, primops], Native.event_lt(a, b))
+  assert(Native.event_lt(a, b) == true <==> event_key(a) < event_key(b)) by {
+    Tactics.prune("Nickel_crdt.Edit.writer_index");
+    Tactics.smt_sync'(1, 1)
+  }
 }
 function least_choice(input: t_Slice(Native.t_Fact), out: t_Slice(Native.t_Fact), at: nat, choice: Option.t_Option(usize)): Type0 {
   match choice {
