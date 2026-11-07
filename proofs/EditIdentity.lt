@@ -39,6 +39,12 @@ proof fact_equality_exact(a: Native.t_Fact, b: Native.t_Fact): unit
   hint Native.fact_equal(a, b)
 { () }
 
+// Keep the error reason when the duplicate guard constructs an invalid result.
+proof invalid_is_exact(reason: Native.t_Invalid): unit
+  gives Native.invalid(reason) == Native.Error_Invalid(reason)
+  hint Native.invalid(reason)
+{ () }
+
 function length(facts: t_Slice(Native.t_Fact)): usize { Core_models.Slice.impl__len(facts) }
 function! first_id(facts: t_Slice(Native.t_Fact), id: Native.t_EventId, at: usize where v(at) <= v(length(facts))): Option.t_Option(Native.t_Fact)
   decreases v(length(facts)) - v(at)
@@ -81,7 +87,7 @@ function identity_result(facts: t_Slice(Native.t_Fact), fact: Native.t_Fact): Re
     Result.Result_Err(Native.Error_Invalid(Native.Invalid_Counter))
   } else { classify(first_id(facts, fact.f_id, mk_usize(0)), fact) }
 }
-// This query isolates fact_equal only; the loop model remains visible.
+// This query isolates fact_equal and invalid; the loop model remains visible.
 proof duplicate_matches_lookup(facts: t_Slice(Native.t_Fact), fact: Native.t_Fact): unit
   gives Native.impl_Replica__duplicate(facts, fact) == identity_result(facts, fact)
 {
@@ -89,6 +95,7 @@ proof duplicate_matches_lookup(facts: t_Slice(Native.t_Fact), fact: Native.t_Fac
   scan_lookup(facts, fact, mk_usize(0));
   assert(Native.impl_Replica__duplicate(facts, fact) == identity_result(facts, fact)) by {
     Tactics.prune("Nickel_crdt.Edit.fact_equal");
+    Tactics.prune("Nickel_crdt.Edit.invalid");
     Tactics.smt_sync'(1, 1)
   }
 }
