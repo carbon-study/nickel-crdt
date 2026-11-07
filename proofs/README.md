@@ -46,6 +46,7 @@ every actual-Rust mutation mode. For development, pass any of:
 - `contracts:<family>` (`counter`, `push`, `vector`, `scalar`, `identity`,
   `writer`): the positive chain, then that family's dependency controls;
 - `positive`: the positive chain and all families (the previous meaning);
+- `cache-safety`: the positive chain, then the cache-reuse self-test;
 - mutation mode names, which run after the positive chain when it is selected.
 
 Each family edits its own copy of the verified positive workspace, so probes
@@ -55,6 +56,23 @@ fresh hax output then replaces `Nickel_crdt.Edit.fst`, and the digest check plus
 F*'s own dependency check force that module and every dependent proof to
 recheck. Only modules independent of the extraction (Prelude, LoopUtil, Vector)
 are reused. Acceptance still requires the complete no-argument gate.
+
+Reuse is checked, not assumed:
+
+- Every selected mutation must have an owning theorem, an anchored edit and a
+  resolvable scope before any native test, extraction or compiler starts.
+- Each hax run writes into a staging directory and is installed as an inventory:
+  project sources that are neither authored views nor part of the fresh extraction
+  are removed before verification.
+- Every mutation run must compile both `Nickel_crdt.Edit.fst` and its owning proof
+  module in that run, so a cache cannot stand in for checking the changed program.
+- The `cache-safety` self-test (part of the no-argument gate) copies the verified
+  positive workspace and requires the following:
+  - an unchanged copy compiles nothing;
+  - a changed extraction recompiles it and its dependents, but reuses Prelude and LoopUtil;
+  - a changed LoopUtil recompiles it and EditIdentity, but reuses the extraction,
+    EditAtomic and EditCommit;
+  - a changed recorded option recompiles everything.
 
 ## actual edit/admit return paths
 
