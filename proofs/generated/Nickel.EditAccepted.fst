@@ -641,8 +641,7 @@ let canonical_step_succeeds (input: t_Slice Native.t_Fact) (out: facts_vec) : Le
   assert (canonical_total (Native.canonical_step input out)) by (
     Tactics.norm [delta_only ["Nickel_crdt.Edit.canonical_step"; "Nickel_crdt.Edit.push"; "Alloc.Vec.impl_1__len"; "Alloc.Vec.impl_1__as_slice"; "Core_models.Bundle.impl__ok_or"; "Core_models.Option.impl__ok_or"; "Nickel.EditAccepted.canonical_total"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"; "Rust_primitives.Sequence.seq_len"; "Rust_primitives.Sequence.seq_to_slice"]; iota; zeta_full; primops; unmeta; unascribe];
     Tactics.smt_sync' 1 1
-  ) end | Result.Result_Ok Option.Option_None -> begin let all_seen (i: nat{i < Seq.length input}) : Lemma (ensures Native.has_fact (Alloc.Vec.impl_1__as_slice out) (Seq.index input i).f_id) [SMTPat (Native.has_fact (Alloc.Vec.impl_1__as_slice out) (Seq.index input i).f_id)] =
-    assert (Native.has_fact (Alloc.Vec.impl_1__as_slice out) (Rust_primitives.Slice.slice_index input (mk_usize i)).f_id) in
+  ) end | Result.Result_Ok Option.Option_None -> begin let all_seen (i: nat{i < Seq.length input}) : Lemma (ensures Native.has_fact (Alloc.Vec.impl_1__as_slice out) (Seq.index input i).f_id) [SMTPat (Native.has_fact (Alloc.Vec.impl_1__as_slice out) (Seq.index input i).f_id)] = assert (Native.has_fact (Alloc.Vec.impl_1__as_slice out) (Rust_primitives.Slice.slice_index input (mk_usize i)).f_id) in
   assert Prims.l_False end | _ -> begin () end
 
 let progress_invariant (input: t_Slice Native.t_Fact) (at: nat) (out: facts_vec) : Type0 =
