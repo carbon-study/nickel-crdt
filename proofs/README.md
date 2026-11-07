@@ -36,6 +36,26 @@ The smoke fixture establishes no CRDT convergence, ordering, undo, codec, Wasm o
 
 The [prospective API/verification contract](../docs/api-verification.md) lists the proposed V1–V9 obligations. None is currently discharged. The [undo analysis](../docs/undo-semantics.md) records the semantic/algorithmic stop gate; the loop proof does not bypass it.
 
+## running the edit gate
+
+With no arguments, `scripts/check-edit-proofs.mjs` (and therefore `.#proofs` and
+CI) runs everything: the positive chain, every contract-dependency family and
+every actual-Rust mutation mode. For development, pass any of:
+
+- `positive-only`: the positive chain alone;
+- `contracts:<family>` (`counter`, `push`, `vector`, `scalar`, `identity`,
+  `writer`): the positive chain, then that family's dependency controls;
+- `positive`: the positive chain and all families (the previous meaning);
+- mutation mode names, which run after the positive chain when it is selected.
+
+Each family edits its own copy of the verified positive workspace, so probes
+neither leave the positive cache in a failed state nor see each other's edits.
+A fresh mutation workspace starts as a copy of the verified positive workspace;
+fresh hax output then replaces `Nickel_crdt.Edit.fst`, and the digest check plus
+F*'s own dependency check force that module and every dependent proof to
+recheck. Only modules independent of the extraction (Prelude, LoopUtil, Vector)
+are reused. Acceptance still requires the complete no-argument gate.
+
 ## actual edit/admit return paths
 
 `EditAtomic.lt` proves complete-instance neutrality on admission errors/duplicates

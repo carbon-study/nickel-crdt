@@ -40,11 +40,32 @@ const modes=['positive','writer-index-collides','native-push-discards-value','na
   'identity-scan-key','identity-birth-equality','identity-writer-equality',
   'accepted-reuses-member','accepted-wrong-canonical-push','accepted-publication-duplicates',
   'content-changes-whole-fact','content-omits-facts'];
-const selected=process.argv.slice(3);for(const mode of selected)assert(modes.includes(mode),'unknown mode '+mode);
-let positive;
-for(const mode of selected.length?selected:modes) {
+// Contract-dependency families run after the positive chain verifies. With no
+// arguments (CI) every mode and every family runs. Development runs may select
+// `positive-only`, `contracts:<family>` (implies the positive chain) and any
+// mutation modes; `positive` keeps its meaning of positive plus all families.
+const families={counter:checkCounterContracts,push:checkPushContracts,vector:checkVectorContracts,
+  scalar:checkScalarContracts,identity:checkIdentityContracts,writer:checkWriterContracts};
+const args=process.argv.slice(3),familyRuns=new Set();let wantPositive=args.length===0;
+const mutations=[];
+for(const arg of args) {
+  if(arg==='positive'){wantPositive=true;for(const name of Object.keys(families))familyRuns.add(name);}
+  else if(arg==='positive-only')wantPositive=true;
+  else if(arg.startsWith('contracts:')){const name=arg.slice(10);assert(Object.hasOwn(families,name),'unknown contract family '+name);wantPositive=true;familyRuns.add(name);}
+  else {assert(modes.includes(arg),'unknown mode '+arg);mutations.push(arg);}
+}
+if(args.length===0){for(const name of Object.keys(families))familyRuns.add(name);mutations.push(...modes.filter(mode=>mode!=='positive'));}
+// A fresh mutation workspace starts from the verified positive workspace: same
+// views and caches, then fresh hax output replaces Nickel_crdt.Edit.fst. Its
+// digest change (and F*'s own dependency check) forces the extracted module and
+// every dependent proof to recheck; only modules independent of it are reused.
+const fresh=async proof=>{try{await fs.access(path.join(proof,'sources.json'));return false;}catch{return true;}};
+let positive,positiveProof;
+for(const mode of [...(wantPositive?['positive']:[]),...mutations]) {
   const work=path.join(root,'.cache','edit-proofs',mode),crate=path.join(work,'crate'),proof=path.join(work,'proof');
-  await fs.mkdir(crate,{recursive:true});await fs.mkdir(proof,{recursive:true});
+  await fs.mkdir(crate,{recursive:true});
+  if(positiveProof&&await fresh(proof))await fs.cp(positiveProof,proof,{recursive:true,preserveTimestamps:true});
+  await fs.mkdir(proof,{recursive:true});
   for(const name of ['Cargo.toml','Cargo.lock','src','tests','proof-smoke'])await fs.cp(path.join(root,name),path.join(crate,name),{recursive:true});
   if(mode!=='positive') {
     const scopes={'writer-index-collides':'fn writer_index(', 'native-push-discards-value':'fn push<T>','native-push-prepends':'fn push<T>','causal-validator-passes-empty':'fn validate_new(','causal-accepts-missing':'fn validate_after(', 'causal-call-passes-empty':'fn past(', 'causal-refuses-present':'fn validate_after(','plan-interprets-uncanonical':'fn plan(','scalar-count-loop-bypasses-check':'fn validate_new(','scalar-accepts-invalid':'fn validate_scalars(', 'scalar-refuses-valid':'fn validate_scalars(', 'scalar-call-passes-empty':'fn validate_new(','canonical-step-refuses':'fn canonical_step(', 'canonical-refuses':'fn canonical(','plan-keeps-old-tree':'fn with_tree(', 'plan-passes-old-tree':'fn plan(','order-key-ignores-writer':'fn event_lt(','order-chooses-largest':'fn choose_unseen(', 'order-discards-canonical':'fn plan(','edit-commit-ignores-counter':'fn with_counter(', 'edit-success-reuses-counter':'fn next_counter_after(', 'content-changes-whole-fact':'fn clone_selected_fact(', 'content-omits-facts':'fn canonical(', 'accepted-reuses-member':'fn choose_unseen(', 'accepted-wrong-canonical-push':'fn canonical_step(', 'accepted-publication-duplicates':'fn with_tree('};
@@ -127,12 +148,15 @@ for(const mode of selected.length?selected:modes) {
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {
     assert.equal(checked.status,0,checked.log);
-    await checkCounterContracts({proof,output,fstar,models,modelCache});
-    await checkPushContracts({proof,output,fstar,models,modelCache});
-    await checkVectorContracts({proof,output,fstar,models,modelCache});
-    await checkScalarContracts({proof,output,fstar,models,modelCache});
-    await checkIdentityContracts({proof,output,fstar,models,modelCache});
-    await checkWriterContracts({proof,output,fstar,models,modelCache});
+    positiveProof=proof;
+    // Each family edits its own copy of the verified positive workspace, so the
+    // positive cache stays clean and families cannot see each other's probes.
+    for(const [name,check] of Object.entries(families))if(familyRuns.has(name)) {
+      const copy=path.join(root,'.cache','edit-proofs','contracts-'+name,'proof');
+      await fs.rm(copy,{recursive:true,force:true});
+      await fs.cp(proof,copy,{recursive:true,preserveTimestamps:true});
+      await check({proof:copy,output,fstar,models,modelCache});
+    }
     await fs.copyFile(path.join(proof,'Nickel_crdt.Edit.fst'),path.join(output,'Nickel_crdt.Edit.fst'));
   } else {
     assert.equal(checked.status,2,'require ordinary proof rejection, not extraction failure/timeout');
