@@ -44,7 +44,7 @@ every actual-Rust mutation mode. For development, pass any of:
 
 - `positive-only`: the positive chain alone;
 - `contracts:<family>` (`counter`, `push`, `vector`, `scalar`, `identity`,
-  `writer`, `plan`): the positive chain, then that family's dependency controls;
+  `writer`, `plan`, `spec`): the positive chain, then that family's dependency controls;
 - `positive`: the positive chain and all families (the previous meaning);
 - `cache-safety`: the positive chain, then the cache-reuse self-test;
 - mutation mode names, which run after the positive chain when it is selected.
@@ -653,3 +653,27 @@ implementation isolation. Other planner callers, including the private-state
 laws in `EditCommit`, still reopen the planner; they need further migration.
 Neither these prefix laws nor their caller compositions prove successful
 admission, causal replay, or delivery convergence.
+
+## readable storage-contract entry point
+
+[`Spec.lt`](Spec.lt) begins the public proof surface with one explicitly defined
+predicate, `stored_facts_valid`: accepted IDs are unique, their storage order is
+nondecreasing, inserted values are Unicode scalars, and every direct causal
+reference names an accepted fact. It does **not** mean full representation WF,
+acyclicity, correct text interpretation, convergence or admission progress.
+
+Three short checked compositions say that a successful `new` establishes this
+predicate and **every** return of `receive` and `edit` preserves it, given the
+predicate before the call. Rejected offers, empty edits and errors are included.
+Each composition explicitly calls its four existing public contracts; its SMT
+query withholds the native operation and those contracts' global facts. The
+explicit calls supply local postconditions. Removing any one of the twelve
+calls must ordinarily reject the corresponding headline theorem.
+
+`contracts:spec` selects these twelve dependency controls; the default full gate
+includes them and checks the positive chain through `Nickel.Spec`. Other native
+mutation controls keep their previous roots and owners. The Spec-only visibility
+allowlist does not grant other proof families these new prune prefixes.
+This adds a checked conjunction surface, not new CRDT semantics. Existing public
+proofs stay in their owning families; error neutrality, exact publication and
+cross-replica headline sections still need their own readable surface.

@@ -9,6 +9,24 @@ function tokens(source) {
   return [...source.matchAll(/\/\/[^\n]*|\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|[A-Za-z_][A-Za-z0-9_']*|[^\s]/g)]
     .map(m=>m[0]).filter(t=>!t.startsWith('//')&&!t.startsWith('/*'));
 }
+// Only the public Spec composition may hide these operation/contract facts.
+const specVisibility=new Set([
+  '"Nickel_crdt.Edit.impl_Replica__new"',
+  '"Nickel.EditAccepted.new_establishes_unique_ids"',
+  '"Nickel.EditAccepted.new_establishes_fact_order"',
+  '"Nickel.EditWellFormed.new_establishes_scalar_validity"',
+  '"Nickel.EditWellFormed.new_establishes_causal_closure"',
+  '"Nickel_crdt.Edit.impl_Replica__receive"',
+  '"Nickel.EditAccepted.receive_preserves_unique_ids"',
+  '"Nickel.EditAccepted.receive_preserves_fact_order"',
+  '"Nickel.EditWellFormed.receive_preserves_scalar_validity"',
+  '"Nickel.EditWellFormed.receive_preserves_causal_closure"',
+  '"Nickel_crdt.Edit.impl_Replica__edit"',
+  '"Nickel.EditAccepted.edit_preserves_unique_ids"',
+  '"Nickel.EditAccepted.edit_preserves_fact_order"',
+  '"Nickel.EditWellFormed.edit_preserves_scalar_validity"',
+  '"Nickel.EditWellFormed.edit_preserves_causal_closure"'
+]);
 export function assertReformedSource(name,source) {
   const ts=tokens(source),fail=message=>assert.fail(name+' reform: '+message);
   for(let i=0;i<ts.length;i++) {
@@ -19,6 +37,7 @@ export function assertReformedSource(name,source) {
       fail('only the canonical Tactics import is approved');
     if(ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&
       ['"Nickel_crdt.Edit.impl_Replica__plan"','"Nickel_crdt.Edit.impl_Replica__duplicate"','"Nickel_crdt.Edit.invalid"','"Nickel_crdt.Edit.writer_index"','"Nickel_crdt.Edit.fact_equal"','"Alloc.Vec.from_seq"','"Alloc.Vec.impl_1__as_slice"','"Alloc.Vec.impl_1__len"','"Core_models.Slice.impl__len"','"Rust_primitives.Slice.slice_index"','"Nickel_crdt.Edit.push"','"Nickel_crdt.Edit.impl_Replica__with_counter"','"Nickel_crdt.Edit.next_counter_after"','"Rust_primitives.Hax.Folds.fold_range"','"Rust_primitives.Hax.Folds.fold_range_return"','"Nickel.LoopUtil.option_run"','"Nickel.LoopUtil.step_safe"','"Nickel.LoopUtil.output_safe"','"Nickel_proof_smoke.flip"'].includes(ts[i+4])) { i+=5;continue; }
+    if(name==='Spec'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&specVisibility.has(ts[i+4])) { i+=5;continue; }
     if(ts[i]==='Tactics') {
       // No aliasing even of approved methods: only this direct call is admitted.
       if(ts.slice(i,i+8).join(' ')!=="Tactics . smt_sync' ( 1 , 1 )")
@@ -27,7 +46,7 @@ export function assertReformedSource(name,source) {
     }
   }
 }
-export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smoke','Vector','EditIdentity']) {
+export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smoke','Vector','EditIdentity','Spec']) {
   for(const name of names)assertReformedSource(name,await fs.readFile(path.join(root,'proofs',name+'.lt'),'utf8'));
   // These scalar boundaries and the declarations below have migrated; other WellFormed proofs remain open.
   const source=await fs.readFile(path.join(root,'proofs','EditWellFormed.lt'),'utf8');

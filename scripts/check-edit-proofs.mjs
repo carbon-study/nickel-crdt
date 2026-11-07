@@ -10,6 +10,7 @@ import {checkProofReform} from './proof-reform.mjs';
 import {checkPushContracts} from './check-push-contracts.mjs';
 import {checkVectorContracts} from './check-vector-contracts.mjs';
 import {checkIdentityContracts} from './check-identity-contracts.mjs';
+import {checkSpecContracts} from './check-spec-contracts.mjs';
 import {checkPlanContracts} from './check-plan-contracts.mjs';
 import {checkWriterContracts} from './check-writer-contracts.mjs';
 import {checkNegativeProofEvidence} from './check-negative-proof-evidence.mjs';
@@ -27,7 +28,7 @@ await fs.mkdir(output,{recursive:true});
 const identity=JSON.parse(await fs.readFile(path.join(modelCache,'identity.json'),'utf8'));
 assert.equal(identity.models,models);assert.equal(identity.fstar,fstar);
 const views=new Map();
-for(const name of ['Prelude','LoopUtil','Vector','EditAtomic','EditCommit','EditIdentity','EditAccepted','EditWellFormed']) {
+for(const name of ['Prelude','LoopUtil','Vector','EditAtomic','EditCommit','EditIdentity','EditAccepted','EditWellFormed','Spec']) {
   const source=`proofs/${name}.lt`,view=`proofs/generated/Nickel.${name}.fst`;
   const code=await fs.readFile(path.join(root,view),'utf8');
   const receipt=(await fs.readFile(path.join(root,`proofs/generated/${name}.sha256`),'utf8')).trim().split('\n');
@@ -47,7 +48,7 @@ const modes=['positive','plan-ignores-duplicate','plan-swallows-classifier-error
 // `positive-only`, `contracts:<family>` (implies the positive chain) and any
 // mutation modes; `positive` keeps its meaning of positive plus all families.
 const families={counter:checkCounterContracts,push:checkPushContracts,vector:checkVectorContracts,
-  scalar:checkScalarContracts,identity:checkIdentityContracts,writer:checkWriterContracts,plan:checkPlanContracts};
+  scalar:checkScalarContracts,identity:checkIdentityContracts,writer:checkWriterContracts,plan:checkPlanContracts,spec:checkSpecContracts};
 const args=process.argv.slice(3),familyRuns=new Set();let wantPositive=args.length===0,cacheSafety=args.length===0;
 const mutations=[];
 for(const arg of args) {
@@ -229,8 +230,8 @@ for(const mode of [...(wantPositive?['positive']:[]),...mutations]) {
   let recorded={};try{recorded=JSON.parse(await fs.readFile(path.join(proof,'sources.json'),'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
   const extractionChanged=recorded['Nickel_crdt.Edit.fst']!==digest(code);
   // Counter calculation/installation/wiring controls need only their owning module. The positive path still
-  // checks the complete public proof chain through EditWellFormed.
-  const proofRoot=['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
+  // checks the complete public proof chain through Spec.
+  const proofRoot=mode==='positive'?'Nickel.Spec.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
   const checked=await verify({dir:proof,roots:[path.join(proof,proofRoot)],fstar,models,modelCache});
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {
