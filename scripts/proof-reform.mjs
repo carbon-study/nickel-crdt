@@ -9,6 +9,10 @@ function tokens(source) {
   return [...source.matchAll(/\/\/[^\n]*|\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|[A-Za-z_][A-Za-z0-9_']*|[^\s]/g)]
     .map(m=>m[0]).filter(t=>!t.startsWith('//')&&!t.startsWith('/*'));
 }
+const containmentVisibility=new Set([
+  '"Nickel.Vector.slice_index"','"Nickel.Vector.slice_length"','"Nickel_crdt.Edit.has_fact"',
+  '"Nickel.EditIdentity.prefix_absent"','"Nickel.EditWellFormed.absence_on_whole_facts"'
+]);
 export function assertReformedSource(name,source) {
   const ts=tokens(source),fail=message=>assert.fail(name+' reform: '+message);
   for(let i=0;i<ts.length;i++) {
@@ -19,6 +23,7 @@ export function assertReformedSource(name,source) {
       fail('only the canonical Tactics import is approved');
     if(ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&
       ['"Nickel_crdt.Edit.invalid"','"Nickel_crdt.Edit.writer_index"','"Nickel_crdt.Edit.fact_equal"','"Alloc.Vec.from_seq"','"Alloc.Vec.impl_1__as_slice"','"Alloc.Vec.impl_1__len"','"Core_models.Slice.impl__len"','"Rust_primitives.Slice.slice_index"','"Nickel_crdt.Edit.push"','"Nickel_crdt.Edit.impl_Replica__with_counter"','"Nickel_crdt.Edit.next_counter_after"','"Rust_primitives.Hax.Folds.fold_range"','"Rust_primitives.Hax.Folds.fold_range_return"','"Nickel.LoopUtil.option_run"','"Nickel.LoopUtil.step_safe"','"Nickel.LoopUtil.output_safe"','"Nickel_proof_smoke.flip"'].includes(ts[i+4])) { i+=5;continue; }
+    if(name==='EditWellFormed'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&containmentVisibility.has(ts[i+4])) { i+=5;continue; }
     if(ts[i]==='Tactics') {
       // No aliasing even of approved methods: only this direct call is admitted.
       if(ts.slice(i,i+8).join(' ')!=="Tactics . smt_sync' ( 1 , 1 )")
@@ -27,20 +32,8 @@ export function assertReformedSource(name,source) {
     }
   }
 }
-export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smoke','Vector']) {
+export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smoke','Vector','EditWellFormed']) {
   for(const name of names)assertReformedSource(name,await fs.readFile(path.join(root,'proofs',name+'.lt'),'utf8'));
-  // Only these two WellFormed boundaries have migrated; the rest remains open.
-  const source=await fs.readFile(path.join(root,'proofs','EditWellFormed.lt'),'utf8');
-  const start=source.indexOf('proof scalar_validation_is_sound('),end=source.indexOf('function fact_scalars_valid(',start);
-  assert(start>=0&&end>start,'scalar reform scope must remain present');
-  assertReformedSource('EditWellFormed.scalar-boundaries',source.slice(start,end));
-  // Declarations whose redundant reductions were deleted and that contain no other normalization.
-  // The two containment lemmas keep their reductions.
-  for(const name of ['successful_validation_has_valid_scalars','receive_added_fact_has_valid_scalars','successful_validation_has_direct_dependencies','receive_added_has_direct_dependencies','receive_preserves_scalar_validity','edit_authors_only_valid_scalars','edit_preserves_scalar_validity','new_establishes_scalar_validity','event_membership_is_presence','dependency_validation_is_sound','present_dependencies_pass_guard','successful_past_has_direct_dependencies','dependencies_survive_containment','exact_extension_preserves_causal_closure','receive_preserves_causal_closure','edit_preserves_causal_closure','new_establishes_causal_closure']) {
-    const match=new RegExp('^proof!? '+name+'[<(]','m').exec(source);assert(match,'missing reformed WellFormed declaration '+name);
-    const tail=source.slice(match.index+match[0].length),next=/\n(?:function|proof!?|type|import) /.exec(tail);
-    assertReformedSource('EditWellFormed.'+name,source.slice(match.index,next?match.index+match[0].length+next.index:source.length));
-  }
   const identity=await fs.readFile(path.join(root,'proofs','EditIdentity.lt'),'utf8');
   for(const name of ['invalid_is_exact','writer_code','writer_index_is_exact','receive_added_has_fresh_event_id','authored_event_id_is_fresh','writer_equality_exact','event_equality_exact','birth_equality_exact','fact_equality_exact','scan_lookup','duplicate_matches_lookup','lookup_at','lookup_none']) {
     const match=new RegExp('^(?:function!?|proof!?) '+name+'[<(]','m').exec(identity);assert(match,'missing reformed identity declaration '+name);
