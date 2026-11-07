@@ -58,18 +58,39 @@ proof authored_fact_replays_same_commit(before: Native.t_Replica, gap: usize, in
   }
 }
 
-function private_unchanged(before: Native.t_Replica, outcome: (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error))): Type0 {
-  match outcome { (next, _) =>
-    next.f_writer == before.f_writer and
-    next.f_next_counter == before.f_next_counter and
-    next.f_limits == before.f_limits
+// Publication must preserve the instance's private writer and allocator state.
+function same_private(before: Native.t_Replica, next: Native.t_Replica): Type0 {
+  next.f_writer == before.f_writer and next.f_next_counter == before.f_next_counter and
+  next.f_limits == before.f_limits
+}
+proof tree_publication_keeps_private(state: Native.t_Replica, tree: Native.t_Tree): unit
+  gives same_private(state, Native.impl_Replica__with_tree(state, tree))
+  hint Native.impl_Replica__with_tree(state, tree)
+{ () }
+function planned_private(before: Native.t_Replica, result: Nickel.EditAtomic.plan_result): Type0 {
+  match result {
+    Result.Result_Ok(Core_models.Option.Option_Some(next)) => same_private(before, next),
+    _ => Prims.l_True
   }
+}
+proof plan_preserves_private_state(before: Native.t_Replica, fact: Native.t_Fact): unit
+  gives planned_private(before, Native.impl_Replica__plan(before, fact))
+  hint Native.impl_Replica__plan(before, fact)
+{
+  assert(planned_private(before, Native.impl_Replica__plan(before, fact))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__with_tree");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+function private_unchanged(before: Native.t_Replica, outcome: (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error))): Type0 {
+  match outcome { (next, _) => same_private(before, next) }
 }
 proof receive_preserves_private_state(before: Native.t_Replica, fact: Native.t_Fact): unit
   gives private_unchanged(before, Native.impl_Replica__receive(before, fact))
 {
   assert(private_unchanged(before, Native.impl_Replica__receive(before, fact))) by {
-    Tactics.norm([delta_only(["Nickel_crdt.Edit.impl_Replica__receive", "Nickel_crdt.Edit.impl_Replica__plan", "Nickel_crdt.Edit.impl_Replica__with_tree", "Core_models.Clone.f_clone", "Nickel_crdt.Edit.impl_82", "Nickel.EditCommit.private_unchanged"]), iota, zeta_full, primops, simplify, unmeta, unascribe]);
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__plan");
     Tactics.smt_sync'(1, 1)
   }
 }

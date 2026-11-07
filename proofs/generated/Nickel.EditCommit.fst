@@ -44,12 +44,27 @@ let authored_fact_replays_same_commit (before: Native.t_Replica) (gap: usize) (i
     Tactics.smt_sync' 1 1
   )
 
+let same_private (before: Native.t_Replica) (next: Native.t_Replica) : Type0 =
+  Prims.l_and (Prims.l_and (next.f_writer == before.f_writer) (next.f_next_counter == before.f_next_counter)) (next.f_limits == before.f_limits)
+
+let tree_publication_keeps_private (state: Native.t_Replica) (tree: Native.t_Tree) : Lemma (ensures same_private state (Native.impl_Replica__with_tree state tree)) [SMTPat (Native.impl_Replica__with_tree state tree)] =
+  ()
+
+let planned_private (before: Native.t_Replica) (result: Nickel.EditAtomic.plan_result) : Type0 =
+  match result with | Result.Result_Ok (Core_models.Option.Option_Some next) -> begin same_private before next end | _ -> begin Prims.l_True end
+
+let plan_preserves_private_state (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures planned_private before (Native.impl_Replica__plan before fact)) [SMTPat (Native.impl_Replica__plan before fact)] =
+  assert (planned_private before (Native.impl_Replica__plan before fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__with_tree";
+    Tactics.smt_sync' 1 1
+  )
+
 let private_unchanged (before: Native.t_Replica) (outcome: Native.t_Replica & Result.t_Result Native.t_Admission Native.t_Error) : Type0 =
-  match outcome with | (next, _) -> begin Prims.l_and (Prims.l_and (next.f_writer == before.f_writer) (next.f_next_counter == before.f_next_counter)) (next.f_limits == before.f_limits) end
+  match outcome with | (next, _) -> begin same_private before next end
 
 let receive_preserves_private_state (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures private_unchanged before (Native.impl_Replica__receive before fact)) =
   assert (private_unchanged before (Native.impl_Replica__receive before fact)) by (
-    Tactics.norm [delta_only ["Nickel_crdt.Edit.impl_Replica__receive"; "Nickel_crdt.Edit.impl_Replica__plan"; "Nickel_crdt.Edit.impl_Replica__with_tree"; "Core_models.Clone.f_clone"; "Nickel_crdt.Edit.impl_82"; "Nickel.EditCommit.private_unchanged"]; iota; zeta_full; primops; simplify; unmeta; unascribe];
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
     Tactics.smt_sync' 1 1
   )
 

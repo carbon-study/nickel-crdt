@@ -615,3 +615,31 @@ implementation isolation. Other planner callers, including the private-state
 laws in `EditCommit`, still reopen the planner; they need further migration.
 Neither these prefix laws nor their caller compositions prove successful
 admission, causal replay, or delivery convergence.
+
+## private state through tree publication
+
+`tree_publication_keeps_private` checks that the actual `with_tree` call keeps
+its input writer, next counter and limits. `plan_preserves_private_state` uses
+that contract with `with_tree` withheld: any `Ok(Some(next))` preserves those
+fields; errors and duplicate/no-new-state results make no publication claim.
+The existing public `receive_preserves_private_state` then uses this planner law
+with `plan` withheld. Its universal conclusion is unchanged.
+
+`same_private` names the three-field relation once. The existing result predicate
+`private_unchanged` simply applies it to the returned instance; its equivalence
+to the original inline predicate is checked during this migration. Neither law
+constrains the resulting facts/tree or proves acceptance, private-state
+independence, or semantic refinement.
+
+Both helper patterns and both contracts have default dependency-removal controls
+at their actual caller. The private family's probes run in a separate copy so
+they do not modify the positive workspace. Two actual Rust mutations clear the
+private counter in the tree setter or in `plan` before publication; they must
+fail native tests and their corresponding checked contract. The existing
+receive-success-counter mutation still tests the real public receive boundary.
+
+Only this private-state preservation path is migrated. The other four Commit
+normalization sites, its shared-state independence/replay proofs, the remaining
+Accepted and WellFormed boundaries and loop families remain open. The six
+private-state declarations have their own regression fence; this is not a
+whole-Commit or whole-planner isolation claim.
