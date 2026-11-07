@@ -44,6 +44,9 @@ let birth_equality_exact (a: Native.t_BirthId) (b: Native.t_BirthId) : Lemma (en
 let fact_equality_exact (a: Native.t_Fact) (b: Native.t_Fact) : Lemma (ensures Native.fact_equal a b == (a ==? b)) [SMTPat (Native.fact_equal a b)] =
   ()
 
+let invalid_is_exact (reason: Native.t_Invalid) : Lemma (ensures Native.invalid reason == Native.Error_Invalid reason) [SMTPat (Native.invalid reason)] =
+  ()
+
 let length (facts: t_Slice Native.t_Fact) : usize =
   Core_models.Slice.impl__len facts
 
@@ -99,6 +102,7 @@ let duplicate_matches_lookup (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact
   scan_lookup facts fact (mk_usize 0);
   assert (Native.impl_Replica__duplicate facts fact == identity_result facts fact) by (
     Tactics.prune "Nickel_crdt.Edit.fact_equal";
+    Tactics.prune "Nickel_crdt.Edit.invalid";
     Tactics.smt_sync' 1 1
   )
 
