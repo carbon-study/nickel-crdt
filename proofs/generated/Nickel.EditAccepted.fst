@@ -618,7 +618,7 @@ let mapped_id_position (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fac
 
 let shorter_output_has_unseen (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) : Lemma (requires (Nickel.EditIdentity.unique_ids input /\ Seq.length out < Seq.length input)) (ensures Prims.l_not (forall(i: nat{i < Seq.length input}). Native.has_fact out (Seq.index input i).f_id)) =
   let impossible () : Lemma (requires forall(i: nat{i < Seq.length input}). Native.has_fact out (Seq.index input i).f_id) (ensures Prims.l_False) = if Seq.length out ==? 0 then
-    begin membership_absence_exact out (Seq.index input 0).f_id
+    begin membership_absence_exact out (Seq.index input 0).f_id end
   else
     begin let position = mapped_id_position input out in
     let positions = Seq.init (Seq.length out + 1) position in
@@ -641,7 +641,7 @@ let canonical_step_succeeds (input: t_Slice Native.t_Fact) (out: facts_vec) : Le
     Tactics.norm [delta_only ["Nickel_crdt.Edit.canonical_step"; "Nickel_crdt.Edit.push"; "Alloc.Vec.impl_1__len"; "Alloc.Vec.impl_1__as_slice"; "Core_models.Bundle.impl__ok_or"; "Core_models.Option.impl__ok_or"; "Nickel.EditAccepted.canonical_total"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"; "Rust_primitives.Sequence.seq_len"; "Rust_primitives.Sequence.seq_to_slice"]; iota; zeta_full; primops; unmeta; unascribe];
     Tactics.smt_sync' 1 1
   ) end | Result.Result_Ok Option.Option_None -> begin let all_seen (i: nat{i < Seq.length input}) : Lemma (ensures Native.has_fact (Alloc.Vec.impl_1__as_slice out) (Seq.index input i).f_id) [SMTPat (Native.has_fact (Alloc.Vec.impl_1__as_slice out) (Seq.index input i).f_id)] =
-    assert (Native.has_fact (Alloc.Vec.impl_1__as_slice out) (Rust_primitives.Slice.slice_index input (mk_usize i)).f_id)
+    assert (Native.has_fact (Alloc.Vec.impl_1__as_slice out) (Rust_primitives.Slice.slice_index input (mk_usize i)).f_id) in
   assert Prims.l_False end | _ -> begin () end
 
 let progress_invariant (input: t_Slice Native.t_Fact) (at: nat) (out: facts_vec) : Type0 =
