@@ -77,7 +77,6 @@ let successful_validation_has_valid_scalars (facts: t_Slice Native.t_Fact) (limi
   Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (fun (_: nat) (_: unit) -> Prims.l_True) (fun (_: unit) -> Prims.l_True) no_validation_success;
   Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (fun (_: nat) (_: usize) -> Prims.l_True) (fun (_: usize) -> Prims.l_True) no_validation_success;
   scalar_validation_is_sound (Alloc.Vec.impl_1__as_slice fact.f_insert);
-  norm_spec [delta_only ["Nickel.EditWellFormed.scalar_check_result"]; iota; zeta_full] (scalar_check_result (Alloc.Vec.impl_1__as_slice fact.f_insert) (Native.validate_scalars (Alloc.Vec.impl_1__as_slice fact.f_insert)));
   assert (validated_scalars fact (Native.impl_Replica__validate_new facts limits fact)) by (
     Tactics.norm [delta_only ["Nickel_crdt.Edit.impl_Replica__validate_new"; "Nickel.EditWellFormed.validated_scalars"; "Nickel.EditWellFormed.fact_scalars_valid"; "Nickel.EditWellFormed.scalar_check_result"; "Nickel.EditWellFormed.no_validation_success"; "Nickel.LoopUtil.step_safe"; "Nickel.LoopUtil.output_safe"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"]; iota; zeta_full; primops; unmeta; unascribe];
     Tactics.smt_sync' 1 1
@@ -88,7 +87,6 @@ let added_scalars (fact: Native.t_Fact) (outcome: Native.t_Replica & Result.t_Re
 
 let receive_added_fact_has_valid_scalars (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures added_scalars fact (Native.impl_Replica__receive before fact)) =
   successful_validation_has_valid_scalars (Alloc.Vec.impl_1__as_slice before.f_facts) before.f_limits fact;
-  norm_spec [delta_only ["Nickel.EditWellFormed.validated_scalars"]; iota; zeta_full] (validated_scalars fact (Native.impl_Replica__validate_new (Alloc.Vec.impl_1__as_slice before.f_facts) before.f_limits fact));
   assert (added_scalars fact (Native.impl_Replica__receive before fact)) by (
     Tactics.norm [delta_only ["Nickel_crdt.Edit.impl_Replica__receive"; "Nickel_crdt.Edit.impl_Replica__plan"; "Nickel.EditWellFormed.added_scalars"; "Nickel.EditWellFormed.validated_scalars"]; iota; zeta_full; primops; unmeta; unascribe];
     Tactics.smt_sync' 1 1
@@ -103,16 +101,14 @@ let receive_scalars_preserved (outcome: Native.t_Replica & Result.t_Result Nativ
 let receive_preserves_scalar_validity (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (requires facts_scalars_valid before.f_facts) (ensures receive_scalars_preserved (Native.impl_Replica__receive before fact)) =
   Nickel.EditAtomic.receive_rejection_unchanged before fact;
   receive_added_has_exact_contents before fact;
-  receive_added_fact_has_valid_scalars before fact;
-  norm_spec [delta_only ["Nickel.EditWellFormed.receive_scalars_preserved"; "Nickel.EditWellFormed.facts_scalars_valid"; "Nickel.EditAccepted.added_exact_contents"; "Nickel.EditAccepted.appended_contents"; "Nickel.EditWellFormed.added_scalars"; "Nickel.EditAtomic.receive_neutral"]; iota; zeta_full; primops] (receive_scalars_preserved (Native.impl_Replica__receive before fact))
+  receive_added_fact_has_valid_scalars before fact
 
 let authored_scalars (outcome: Native.t_Replica & Result.t_Result Native.t_Local Native.t_Error) : Type0 =
   match outcome with | (_, Result.Result_Ok (Native.Local_Authored fact)) -> begin fact_scalars_valid fact end | _ -> begin Prims.l_True end
 
 let edit_authors_only_valid_scalars (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) (delete: Alloc.Vec.t_Vec Native.t_BirthId Alloc.Alloc.t_Global) : Lemma (ensures authored_scalars (Native.impl_Replica__edit before gap insert delete)) =
   Nickel.EditCommit.authored_fact_replays_same_commit before gap insert delete;
-  match Native.impl_Replica__edit before gap insert delete with | (_, Result.Result_Ok (Native.Local_Authored fact)) -> begin receive_added_fact_has_valid_scalars before fact end | _ -> begin () end;
-  norm_spec [delta_only ["Nickel.EditWellFormed.authored_scalars"; "Nickel.EditWellFormed.added_scalars"; "Nickel.EditCommit.same_commit"]; iota; zeta_full; primops] (authored_scalars (Native.impl_Replica__edit before gap insert delete))
+  match Native.impl_Replica__edit before gap insert delete with | (_, Result.Result_Ok (Native.Local_Authored fact)) -> begin receive_added_fact_has_valid_scalars before fact end | _ -> begin () end
 
 let edit_scalars_preserved (outcome: Native.t_Replica & Result.t_Result Native.t_Local Native.t_Error) : Type0 =
   match outcome with | (next, _) -> begin facts_scalars_valid next.f_facts end
@@ -120,21 +116,19 @@ let edit_scalars_preserved (outcome: Native.t_Replica & Result.t_Result Native.t
 let edit_preserves_scalar_validity (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) (delete: Alloc.Vec.t_Vec Native.t_BirthId Alloc.Alloc.t_Global) : Lemma (requires facts_scalars_valid before.f_facts) (ensures edit_scalars_preserved (Native.impl_Replica__edit before gap insert delete)) =
   Nickel.EditAtomic.edit_rejection_or_empty_unchanged before gap insert delete;
   edit_authored_has_exact_contents before gap insert delete;
-  edit_authors_only_valid_scalars before gap insert delete;
-  norm_spec [delta_only ["Nickel.EditWellFormed.edit_scalars_preserved"; "Nickel.EditWellFormed.facts_scalars_valid"; "Nickel.EditAccepted.authored_exact_contents"; "Nickel.EditAccepted.appended_contents"; "Nickel.EditWellFormed.authored_scalars"; "Nickel.EditAtomic.edit_neutral"]; iota; zeta_full; primops] (edit_scalars_preserved (Native.impl_Replica__edit before gap insert delete))
+  edit_authors_only_valid_scalars before gap insert delete
 
 let new_scalars_valid (outcome: Result.t_Result Native.t_Replica Native.t_Error) : Type0 =
   match outcome with | Result.Result_Ok state -> begin facts_scalars_valid state.f_facts end | _ -> begin Prims.l_True end
 
 let new_establishes_scalar_validity (writer: Option.t_Option Native.t_Writer) (limits: Native.t_Limits) : Lemma (ensures new_scalars_valid (Native.impl_Replica__new writer limits)) =
-  norm_spec [delta_only ["Nickel_crdt.Edit.impl_Replica__new"; "Nickel.EditWellFormed.new_scalars_valid"; "Nickel.EditWellFormed.facts_scalars_valid"; "Nickel.EditAccepted.fact_present"; "Alloc.Vec.impl__new"; "Alloc.Vec.impl_1__as_slice"; "Rust_primitives.Sequence.seq_empty"; "Rust_primitives.Sequence.seq_to_slice"]; iota; zeta_full; primops] (new_scalars_valid (Native.impl_Replica__new writer limits))
+  ()
 
 let event_present (facts: t_Slice Native.t_Fact) (id: Native.t_EventId) : Type0 =
   Prims.l_not (Nickel.EditIdentity.prefix_absent facts id (mk_usize 0) (Nickel.EditIdentity.length facts))
 
 let event_membership_is_presence (facts: t_Slice Native.t_Fact) (id: Native.t_EventId) : Lemma (ensures Native.has_fact facts id == true <==> event_present facts id) =
-  membership_absence_exact facts id;
-  norm_spec [delta_only ["Nickel.EditWellFormed.event_present"]; iota] (event_present facts id)
+  membership_absence_exact facts id
 
 let dependency_prefix (facts: t_Slice Native.t_Fact) (after: t_Slice Native.t_EventId) (finish: nat) : Type0 =
   forall(i: usize{v i < v (Core_models.Slice.impl__len after)}). v i < finish ==> event_present facts (Rust_primitives.Slice.slice_index after i)
@@ -150,20 +144,17 @@ let dependency_check_invariant (facts: t_Slice Native.t_Fact) (after: t_Slice Na
 
 let dependency_validation_is_sound (facts: t_Slice Native.t_Fact) (after: t_Slice Native.t_EventId) : Lemma (ensures dependency_check_result facts after (Native.validate_after facts after)) =
   let each_member (id: Native.t_EventId) : Lemma (ensures Native.has_fact facts id == true <==> event_present facts id) [SMTPat (Native.has_fact facts id)] = event_membership_is_presence facts id in
-  Nickel.LoopUtil.preserve_any (mk_usize 0) (Core_models.Slice.impl__len after) (dependency_check_invariant facts after) (fun (_: unit) -> dependencies_present facts after) (dependency_check_result facts after);
-  norm_spec [delta_only ["Nickel_crdt.Edit.validate_after"; "Nickel.EditWellFormed.dependency_check_result"; "Nickel.EditWellFormed.dependencies_present"; "Nickel.EditWellFormed.dependency_prefix"; "Nickel.EditWellFormed.dependency_check_invariant"; "Nickel.LoopUtil.step_safe"; "Nickel.LoopUtil.output_safe"]; iota; zeta_full; primops; unmeta; unascribe] (dependency_check_result facts after (Native.validate_after facts after))
+  Nickel.LoopUtil.preserve_any (mk_usize 0) (Core_models.Slice.impl__len after) (dependency_check_invariant facts after) (fun (_: unit) -> dependencies_present facts after) (dependency_check_result facts after)
 
 let present_dependencies_pass_guard (facts: t_Slice Native.t_Fact) (after: t_Slice Native.t_EventId) : Lemma (requires dependencies_present facts after) (ensures Native.validate_after facts after == Result.Result_Ok ()) =
   let each_member (id: Native.t_EventId) : Lemma (ensures Native.has_fact facts id == true <==> event_present facts id) [SMTPat (Native.has_fact facts id)] = event_membership_is_presence facts id in
-  Nickel.LoopUtil.preserve_any (mk_usize 0) (Core_models.Slice.impl__len after) (fun (_: nat) (_: unit) -> Prims.l_True) (fun (_: unit) -> Prims.l_True) (fun (_: Result.t_Result unit Native.t_Error) -> Prims.l_False);
-  norm_spec [delta_only ["Nickel_crdt.Edit.validate_after"; "Nickel.EditWellFormed.dependencies_present"; "Nickel.EditWellFormed.dependency_prefix"; "Nickel.LoopUtil.step_safe"; "Nickel.LoopUtil.output_safe"]; iota; zeta_full; primops; unmeta; unascribe] (Native.validate_after facts after)
+  Nickel.LoopUtil.preserve_any (mk_usize 0) (Core_models.Slice.impl__len after) (fun (_: nat) (_: unit) -> Prims.l_True) (fun (_: unit) -> Prims.l_True) (fun (_: Result.t_Result unit Native.t_Error) -> Prims.l_False)
 
 let past_has_dependencies (facts: t_Slice Native.t_Fact) (after: t_Slice Native.t_EventId) (result: Result.t_Result (Alloc.Vec.t_Vec Native.t_EventId Alloc.Alloc.t_Global) Native.t_Error) : Type0 =
   match result with | Result.Result_Ok _ -> begin dependencies_present facts after end | _ -> begin Prims.l_True end
 
 let successful_past_has_direct_dependencies (facts: t_Slice Native.t_Fact) (after: t_Slice Native.t_EventId) : Lemma (ensures past_has_dependencies facts after (Native.past facts after)) =
-  dependency_validation_is_sound facts after;
-  norm_spec [delta_only ["Nickel_crdt.Edit.past"; "Nickel.EditWellFormed.past_has_dependencies"; "Nickel.EditWellFormed.dependency_check_result"]; iota; zeta_full; primops; unmeta; unascribe] (past_has_dependencies facts after (Native.past facts after))
+  dependency_validation_is_sound facts after
 
 let fact_dependencies_present (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact) : Type0 =
   dependencies_present facts (Alloc.Vec.impl_1__as_slice fact.f_after)
@@ -226,8 +217,7 @@ let presence_survives_containment (before: t_Slice Native.t_Fact) (next: t_Slice
 let dependencies_survive_containment (before: t_Slice Native.t_Fact) (next: t_Slice Native.t_Fact) (fact: Native.t_Fact) : Lemma (requires (facts_contained before next /\ fact_dependencies_present before fact)) (ensures fact_dependencies_present next fact) =
   let each_id (id: Native.t_EventId) : Lemma (requires event_present before id) (ensures event_present next id) = presence_survives_containment before next id in
   let all_id (id: Native.t_EventId) : Lemma (ensures event_present before id ==> event_present next id) = FStar.Classical.move_requires each_id id in
-  FStar.Classical.forall_intro all_id;
-  norm_spec [delta_only ["Nickel.EditWellFormed.fact_dependencies_present"; "Nickel.EditWellFormed.dependencies_present"; "Nickel.EditWellFormed.dependency_prefix"]; iota] (fact_dependencies_present next fact)
+  FStar.Classical.forall_intro all_id
 
 let facts_causally_closed (facts: facts_vec) : Type0 =
   forall(fact: Native.t_Fact). fact_present (Alloc.Vec.impl_1__as_slice facts) fact ==> fact_dependencies_present (Alloc.Vec.impl_1__as_slice facts) fact
@@ -238,8 +228,7 @@ let exact_extension_preserves_causal_closure (before: facts_vec) (fact: Native.t
     assert (fact_dependencies_present (Alloc.Vec.impl_1__as_slice before) item);
     dependencies_survive_containment (Alloc.Vec.impl_1__as_slice before) (Alloc.Vec.impl_1__as_slice next) item in
   let all_fact (item: Native.t_Fact) : Lemma (ensures fact_present (Alloc.Vec.impl_1__as_slice next) item ==> fact_dependencies_present (Alloc.Vec.impl_1__as_slice next) item) = FStar.Classical.move_requires each_fact item in
-  FStar.Classical.forall_intro all_fact;
-  norm_spec [delta_only ["Nickel.EditWellFormed.facts_causally_closed"]; iota] (facts_causally_closed next)
+  FStar.Classical.forall_intro all_fact
 
 let receive_causally_closed (outcome: Native.t_Replica & Result.t_Result Native.t_Admission Native.t_Error) : Type0 =
   match outcome with | (next, _) -> begin facts_causally_closed next.f_facts end
@@ -248,8 +237,7 @@ let receive_preserves_causal_closure (before: Native.t_Replica) (fact: Native.t_
   Nickel.EditAtomic.receive_rejection_unchanged before fact;
   receive_added_has_exact_contents before fact;
   receive_added_has_direct_dependencies before fact;
-  match Native.impl_Replica__receive before fact with | (next, Result.Result_Ok Native.Admission_Added) -> begin exact_extension_preserves_causal_closure before.f_facts fact next.f_facts end | _ -> begin () end;
-  norm_spec [delta_only ["Nickel.EditWellFormed.receive_causally_closed"; "Nickel.EditAtomic.receive_neutral"]; iota; zeta_full] (receive_causally_closed (Native.impl_Replica__receive before fact))
+  match Native.impl_Replica__receive before fact with | (next, Result.Result_Ok Native.Admission_Added) -> begin exact_extension_preserves_causal_closure before.f_facts fact next.f_facts end | _ -> begin () end
 
 let edit_causally_closed (outcome: Native.t_Replica & Result.t_Result Native.t_Local Native.t_Error) : Type0 =
   match outcome with | (next, _) -> begin facts_causally_closed next.f_facts end
@@ -259,11 +247,10 @@ let edit_preserves_causal_closure (before: Native.t_Replica) (gap: usize) (inser
   edit_authored_has_exact_contents before gap insert delete;
   Nickel.EditCommit.authored_fact_replays_same_commit before gap insert delete;
   match Native.impl_Replica__edit before gap insert delete with | (next, Result.Result_Ok (Native.Local_Authored fact)) -> begin receive_added_has_direct_dependencies before fact;
-  exact_extension_preserves_causal_closure before.f_facts fact next.f_facts end | _ -> begin () end;
-  norm_spec [delta_only ["Nickel.EditWellFormed.edit_causally_closed"; "Nickel.EditAtomic.edit_neutral"]; iota; zeta_full] (edit_causally_closed (Native.impl_Replica__edit before gap insert delete))
+  exact_extension_preserves_causal_closure before.f_facts fact next.f_facts end | _ -> begin () end
 
 let new_causally_closed (outcome: Result.t_Result Native.t_Replica Native.t_Error) : Type0 =
   match outcome with | Result.Result_Ok state -> begin facts_causally_closed state.f_facts end | _ -> begin Prims.l_True end
 
 let new_establishes_causal_closure (writer: Option.t_Option Native.t_Writer) (limits: Native.t_Limits) : Lemma (ensures new_causally_closed (Native.impl_Replica__new writer limits)) =
-  norm_spec [delta_only ["Nickel_crdt.Edit.impl_Replica__new"; "Nickel.EditWellFormed.new_causally_closed"; "Nickel.EditWellFormed.facts_causally_closed"; "Nickel.EditAccepted.fact_present"; "Alloc.Vec.impl__new"; "Alloc.Vec.impl_1__as_slice"; "Rust_primitives.Sequence.seq_empty"; "Rust_primitives.Sequence.seq_to_slice"]; iota; zeta_full; primops] (new_causally_closed (Native.impl_Replica__new writer limits))
+  ()

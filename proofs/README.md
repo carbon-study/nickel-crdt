@@ -556,6 +556,21 @@ receive/edit/plan reasoning is not isolated by this deletion; the broader public
 boundary and duplicate loop-model migrations remain open. Every prior public
 Identity/Accepted theorem signature and pattern is unchanged in this slice.
 
+## redundant WellFormed reductions
+
+Fifteen explicit reductions in EditWellFormed were removed because they were
+redundant. The scalar-validity and causal-closure laws, the presence lemma and
+the dependency-validation laws now verify without them. Ten opened only
+project spec definitions. The other five named a native function (`new`,
+`validate_after`, `past`) inside that function's own owning boundary proof, so
+no callee implementation is newly read by a caller. The two containment lemmas
+`absence_on_whole_facts` and `presence_survives_containment` keep their five
+reductions; removing them fails the positive chain. Two scalar proofs,
+`successful_validation_has_valid_scalars` and `receive_added_fact_has_valid_scalars`,
+still use `Tactics.norm` inside an assertion and stay outside the fence. The fence
+now covers the other thirteen migrated declarations. No theorem statement, pattern, control or
+budget changes. This is reduction cleanup, not new contract isolation.
+
 ## invalid-result constructor contract
 
 `invalid_is_exact` checks that the actual native `invalid(reason)` helper returns
