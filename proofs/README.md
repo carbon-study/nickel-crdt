@@ -570,3 +570,18 @@ reductions; removing them fails the positive chain. Two scalar proofs,
 still use `Tactics.norm` inside an assertion and stay outside the fence. The fence
 now covers the other thirteen migrated declarations. No theorem statement, pattern, control or
 budget changes. This is reduction cleanup, not new contract isolation.
+
+## invalid-result constructor contract
+
+`invalid_is_exact` checks that the actual native `invalid(reason)` helper returns
+`Error_Invalid(reason)`, keeping the supplied reason. The duplicate-classification
+proof withholds this helper alongside `fact_equal`. Each contract's pattern and
+its availability are tested separately; removing the error-constructor pattern
+or contract must reject ordinarily at `duplicate_matches_lookup`.
+
+The actual Rust `invalid-forgets-reason` control replaces the supplied reason
+with `Counter`. It must fail native checks and the new exact helper theorem.
+This is a source control, distinct from the proof-dependency controls. No public
+classification theorem is weakened or retargeted. The duplicate loop model and
+public `plan` dependencies remain open; these two hidden callees do not establish
+whole-function opacity or close the proof reform.
