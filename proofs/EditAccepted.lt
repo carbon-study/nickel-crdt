@@ -32,7 +32,6 @@ proof! member_lookup(facts: t_Slice(Native.t_Fact), id: Native.t_EventId, at: us
   if v(at) < v(Nickel.EditIdentity.length(facts)) {
     Nickel.LoopUtil.option_run_step(Nickel.EditIdentity.length(facts), at, (), member_next(facts, id), member_stop, member_done);
     if !(Rust_primitives.Slice.slice_index(facts, at).f_id ==? id) { member_lookup(facts, id, at +! mk_int(1)) } else { () };
-    norm_spec([delta_once(["Nickel.EditIdentity.first_id"]), iota, zeta, primops], Nickel.EditIdentity.first_id(facts, id, at))
   } else { Nickel.LoopUtil.option_run_end(Nickel.EditIdentity.length(facts), at, (), member_next(facts, id), member_stop, member_done) }
 }
 proof membership_exact(facts: t_Slice(Native.t_Fact), id: Native.t_EventId): unit
@@ -494,8 +493,7 @@ proof! absent_lookup(input: t_Slice(Native.t_Fact), id: Native.t_EventId,
 {
   if v(at) < v(Nickel.EditIdentity.length(input)) {
     absent_lookup(input, id, at +! mk_int(1))
-  } else { () };
-  norm_spec([delta_once(["Nickel.EditIdentity.first_id"]), iota, zeta, primops], Nickel.EditIdentity.first_id(input, id, at))
+  } else { () }
 }
 proof membership_absence_exact(input: t_Slice(Native.t_Fact), id: Native.t_EventId): unit
   gives (Native.has_fact(input, id) == false <==> Nickel.EditIdentity.prefix_absent(input, id, mk_usize(0), Nickel.EditIdentity.length(input)))
@@ -538,7 +536,7 @@ proof push_membership(out: facts_vec, fact: Native.t_Fact, id: Native.t_EventId)
       assert(absent_after_push(out, fact, id, Native.push(out, fact))) by {
         Tactics.prune("Nickel_crdt.Edit.push");
         Tactics.prune("Alloc.Vec.impl_1__as_slice");
-    Tactics.prune("Alloc.Vec.from_seq");
+        Tactics.prune("Alloc.Vec.from_seq");
         Tactics.prune("Alloc.Vec.impl_1__len");
         Tactics.prune("Core_models.Slice.impl__len");
         Tactics.prune("Rust_primitives.Slice.slice_index");
