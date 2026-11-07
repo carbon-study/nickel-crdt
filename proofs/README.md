@@ -664,11 +664,12 @@ WellFormed declarations that are free of normalization.
 
 ## further redundant EditAccepted reductions
 
-Five more explicit reductions are removed:
-- the single site in `selected_id_is_least`;
+Four more explicit reductions are removed:
 - three of the six in `append_least_preserves_frontier`: the order-frontier opening, the `push`/vector-model opening (now carried by the push and Vector contracts) and the final ordered-push opening;
 - one of the two in `canonical_orders_facts`.
 
 They were chosen by adding sites one at a time, keeping each only if the positive chain and the cost rule still held. Removing all six frontier sites, or both `canonical_orders_facts` sites (about 34%), does not hold.
 
-`selected_id_is_least` peaks at about 22% without its reduction, against 15.6% before. It is now normalization-free and fenced. The frontier lemma keeps three reductions and `canonical_orders_facts` keeps one. No statement, pattern or control owner changes. As before, the deleted lists that named `choose_unseen`, `push` or vector models leave implicit owner/model reads; that is cleanup, not callee isolation.
+`selected_id_is_least`'s reduction can be removed on its own (peak 15.6% to about 22%). Combined with this slice its peak reaches about 34%, so it is kept by the cost rule, as in the previous slice.
+
+The frontier lemma keeps three reductions and `canonical_orders_facts` keeps one, so neither declaration is fenced yet. No statement, pattern or control owner changes. The deleted lists that named `push` or vector models leave implicit model reads; that is cleanup, not callee isolation.
