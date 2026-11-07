@@ -44,7 +44,7 @@ every actual-Rust mutation mode. For development, pass any of:
 
 - `positive-only`: the positive chain alone;
 - `contracts:<family>` (`counter`, `push`, `vector`, `scalar`, `identity`,
-  `writer`): the positive chain, then that family's dependency controls;
+  `writer`, `plan`): the positive chain, then that family's dependency controls;
 - `positive`: the positive chain and all families (the previous meaning);
 - `cache-safety`: the positive chain, then the cache-reuse self-test;
 - mutation mode names, which run after the positive chain when it is selected.
@@ -623,3 +623,33 @@ This is a source control, distinct from the proof-dependency controls. No public
 classification theorem is weakened or retargeted. The duplicate loop model and
 public `plan` dependencies remain open; these two hidden callees do not establish
 whole-function opacity or close the proof reform.
+
+## planner prefix contracts
+
+The counter proof needs to distinguish the possible results of `plan`; the
+identity proofs need to know what happens before validation. Two checked laws in
+`EditAtomic` expose just those facts:
+
+- `plan_has_result_shape` supplies the `Err` / `Ok(None)` / `Ok(Some(next))`
+  alternatives when the planner's implementation facts are withheld. This is
+  constructor information, not admission progress.
+- `plan_preserves_duplicate_result` says a classifier error is returned unchanged,
+  and a known duplicate returns `Ok(None)`. It deliberately promises nothing
+  about the `Ok(false)` branch. Its proof withholds the classifier body and
+  treats that result symbolically.
+
+`authored_edit_advances_once` withholds `plan` alongside its two counter helpers.
+The three public identity queries (`receive_known_identity`,
+`receive_invalid_counter`, `receive_added_has_fresh_event_id`) withhold both
+`plan` and `duplicate`, composing the prefix law with the checked classifier law.
+The default gate removes each planner pattern and withholds each required
+contract at its actual consumer. These must give ordinary named rejections.
+Separate native controls ignore a duplicate, swallow a classifier error, and
+rewrite the fact passed from `receive` into `plan`.
+
+`EditIdentity` now has no explicit normalization and its whole authored file is
+fenced. Its duplicate-loop model remains visible: this is not whole-family
+implementation isolation. Other planner callers, including the private-state
+laws in `EditCommit`, still reopen the planner; they need further migration.
+Neither these prefix laws nor their caller compositions prove successful
+admission, causal replay, or delivery convergence.
