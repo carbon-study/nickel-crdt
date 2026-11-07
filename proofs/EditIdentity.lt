@@ -11,9 +11,23 @@ import Option = Core_models.Option
 
 // Equality operators are structurally lowered by the pinned backend. Check the
 // handwritten implementations separately, and keep the critical fact call named.
+function writer_code(writer: Native.t_Writer): u8 {
+  match writer { Native.Writer_Alice => mk_u8(0), Native.Writer_Bo => mk_u8(1) }
+}
+// A shared contract for the two callers that compare native writer codes.
+proof writer_index_is_exact(writer: Native.t_Writer): unit
+  gives Native.writer_index(writer) == writer_code(writer)
+  hint Native.writer_index(writer)
+{ () }
+
 proof writer_equality_exact(a: Native.t_Writer, b: Native.t_Writer): unit
   gives Native.impl_1.f_eq(a, b) == (a ==? b)
-{ () }
+{
+  assert(Native.impl_1.f_eq(a, b) == (a ==? b)) by {
+    Tactics.prune("Nickel_crdt.Edit.writer_index");
+    Tactics.smt_sync'(1, 1)
+  }
+}
 proof event_equality_exact(a: Native.t_EventId, b: Native.t_EventId): unit
   gives Native.impl_2.f_eq(a, b) == (a ==? b)
 { () }
@@ -145,8 +159,7 @@ proof receive_added_has_fresh_event_id(before: Native.t_Replica, fact: Native.t_
       lookup_none(Alloc.Vec.impl_1__as_slice(before.f_facts), fact.f_id, mk_usize(0))
     },
     _ => ()
-  };
-  norm_spec([delta_only(["Nickel.EditIdentity.added_is_fresh"]), iota, zeta_full, primops], added_is_fresh(before, fact, Native.impl_Replica__receive(before, fact)))
+  }
 }
 
 import Nickel.EditCommit
@@ -164,6 +177,5 @@ proof authored_event_id_is_fresh(before: Native.t_Replica, gap: usize, insert: A
   match Native.impl_Replica__edit(before, gap, insert, delete) {
     (_, Result.Result_Ok(Native.Local_Authored(fact))) => { receive_added_has_fresh_event_id(before, fact) },
     _ => ()
-  };
-  norm_spec([delta_only(["Nickel.EditIdentity.authored_id_is_fresh", "Nickel.EditIdentity.added_is_fresh", "Nickel.EditCommit.same_commit"]), iota, zeta_full, primops, unmeta, unascribe], authored_id_is_fresh(before, Native.impl_Replica__edit(before, gap, insert, delete)))
+  }
 }

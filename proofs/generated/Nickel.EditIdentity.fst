@@ -23,8 +23,17 @@ module Result = Core_models.Result
 
 module Option = Core_models.Option
 
-let writer_equality_exact (a: Native.t_Writer) (b: Native.t_Writer) : Lemma (ensures Native.impl_1.f_eq a b == (a ==? b)) =
+let writer_code (writer: Native.t_Writer) : u8 =
+  match writer with | Native.Writer_Alice -> begin mk_u8 0 end | Native.Writer_Bo -> begin mk_u8 1 end
+
+let writer_index_is_exact (writer: Native.t_Writer) : Lemma (ensures Native.writer_index writer == writer_code writer) [SMTPat (Native.writer_index writer)] =
   ()
+
+let writer_equality_exact (a: Native.t_Writer) (b: Native.t_Writer) : Lemma (ensures Native.impl_1.f_eq a b == (a ==? b)) =
+  assert (Native.impl_1.f_eq a b == (a ==? b)) by (
+    Tactics.prune "Nickel_crdt.Edit.writer_index";
+    Tactics.smt_sync' 1 1
+  )
 
 let event_equality_exact (a: Native.t_EventId) (b: Native.t_EventId) : Lemma (ensures Native.impl_2.f_eq a b == (a ==? b)) =
   ()
@@ -132,8 +141,7 @@ let added_is_fresh (before: Native.t_Replica) (fact: Native.t_Fact) (outcome: Na
 let receive_added_has_fresh_event_id (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures added_is_fresh before fact (Native.impl_Replica__receive before fact)) =
   duplicate_matches_lookup (Alloc.Vec.impl_1__as_slice before.f_facts) fact;
   match Native.impl_Replica__receive before fact with | (_, Result.Result_Ok Native.Admission_Added) -> begin assert (first_id (Alloc.Vec.impl_1__as_slice before.f_facts) fact.f_id (mk_usize 0) == Option.Option_None);
-  lookup_none (Alloc.Vec.impl_1__as_slice before.f_facts) fact.f_id (mk_usize 0) end | _ -> begin () end;
-  norm_spec [delta_only ["Nickel.EditIdentity.added_is_fresh"]; iota; zeta_full; primops] (added_is_fresh before fact (Native.impl_Replica__receive before fact))
+  lookup_none (Alloc.Vec.impl_1__as_slice before.f_facts) fact.f_id (mk_usize 0) end | _ -> begin () end
 
 open Nickel.EditCommit
 
@@ -142,5 +150,4 @@ let authored_id_is_fresh (before: Native.t_Replica) (outcome: Native.t_Replica &
 
 let authored_event_id_is_fresh (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) (delete: Alloc.Vec.t_Vec Native.t_BirthId Alloc.Alloc.t_Global) : Lemma (ensures authored_id_is_fresh before (Native.impl_Replica__edit before gap insert delete)) =
   Nickel.EditCommit.authored_fact_replays_same_commit before gap insert delete;
-  match Native.impl_Replica__edit before gap insert delete with | (_, Result.Result_Ok (Native.Local_Authored fact)) -> begin receive_added_has_fresh_event_id before fact end | _ -> begin () end;
-  norm_spec [delta_only ["Nickel.EditIdentity.authored_id_is_fresh"; "Nickel.EditIdentity.added_is_fresh"; "Nickel.EditCommit.same_commit"]; iota; zeta_full; primops; unmeta; unascribe] (authored_id_is_fresh before (Native.impl_Replica__edit before gap insert delete))
+  match Native.impl_Replica__edit before gap insert delete with | (_, Result.Result_Ok (Native.Local_Authored fact)) -> begin receive_added_has_fresh_event_id before fact end | _ -> begin () end

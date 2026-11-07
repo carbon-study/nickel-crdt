@@ -537,3 +537,21 @@ are unchanged. This does not hide the lookup spec or vector/slice models.
 The duplicate loop model remains visible, as do the unconverted public
 receive/edit identity boundaries. This is a specific native equality boundary
 and lookup cleanup, not completion of the identity family or whole-codebase reform.
+
+## shared writer-code contract
+
+`writer_index_is_exact` checks the actual native helper against the two-case
+`writer_code` mapping (Alice → 0, Bo → 1). Both `writer_equality_exact` and
+`event_order_is_key_order` withhold the native helper; neither may reconstruct
+that mapping by opening its body. The helper contract has a deliberate pattern.
+Three default dependency controls remove that pattern at the first caller or
+withhold the contract independently in each caller. A separate actual Rust
+`writer-index-collides` control maps Bo to zero and must fail native checks plus
+the exact helper theorem.
+
+This closes those two writer-index dependencies, without hiding the writer
+`PartialEq` implementation or `event_lt` from their owning proofs. The public
+identity freshness proofs also lose two redundant spec-only reductions. Their
+receive/edit/plan reasoning is not isolated by this deletion; the broader public
+boundary and duplicate loop-model migrations remain open. Every prior public
+Identity/Accepted theorem signature and pattern is unchanged in this slice.
