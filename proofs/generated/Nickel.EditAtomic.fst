@@ -15,6 +15,28 @@ module Native = Nickel_crdt.Edit
 
 module Result = Core_models.Result
 
+module Option = Core_models.Option
+
+type plan_result = Result.t_Result (Option.t_Option Native.t_Replica) Native.t_Error
+
+let plan_result_shape (result: plan_result) : Type0 =
+  Prims.l_or (Prims.l_or (exists(error: Native.t_Error). result == Result.Result_Err error) (result == Result.Result_Ok Option.Option_None)) (exists(next: Native.t_Replica). result == Result.Result_Ok (Option.Option_Some next))
+
+let plan_has_result_shape (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures plan_result_shape (Native.impl_Replica__plan before fact)) [SMTPat (Native.impl_Replica__plan before fact)] =
+  ()
+
+let plan_duplicate_prefix (duplicate: Result.t_Result bool Native.t_Error) (result: plan_result) : Type0 =
+  match duplicate with | Result.Result_Err error -> begin result == Result.Result_Err error end | Result.Result_Ok found -> begin if found then
+    begin result == Result.Result_Ok Option.Option_None end
+  else
+    begin Prims.l_True end end
+
+let plan_preserves_duplicate_result (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures plan_duplicate_prefix (Native.impl_Replica__duplicate (Alloc.Vec.impl_1__as_slice before.f_facts) fact) (Native.impl_Replica__plan before fact)) [SMTPat (Native.impl_Replica__plan before fact)] =
+  assert (plan_duplicate_prefix (Native.impl_Replica__duplicate (Alloc.Vec.impl_1__as_slice before.f_facts) fact) (Native.impl_Replica__plan before fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__duplicate";
+    Tactics.smt_sync' 1 1
+  )
+
 let receive_neutral (before: Native.t_Replica) (outcome: Native.t_Replica & Result.t_Result Native.t_Admission Native.t_Error) : Type0 =
   match outcome with | (next, Result.Result_Err _) -> begin next == before end | (next, Result.Result_Ok Native.Admission_Duplicate) -> begin next == before end | _ -> begin Prims.l_True end
 
@@ -53,5 +75,6 @@ let authored_edit_advances_once (before: Native.t_Replica) (gap: usize) (insert:
   assert (edit_counter_step before (Native.impl_Replica__edit before gap insert delete)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__with_counter";
     Tactics.prune "Nickel_crdt.Edit.next_counter_after";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
     Tactics.smt_sync' 1 1
   )

@@ -11,11 +11,11 @@ open Core_models
 
 open FStar.Pervasives
 
-open FStar.NormSteps
-
 module Tactics = FStar.Tactics.V2
 
 open Nickel.LoopUtil
+
+open Nickel.EditAtomic
 
 module Native = Nickel_crdt.Edit
 
@@ -127,11 +127,19 @@ let known_identity (before: Native.t_Replica) (old: Native.t_Fact) (fact: Native
 let receive_known_identity (before: Native.t_Replica) (fact: Native.t_Fact) (index: usize{v index < v (length (Alloc.Vec.impl_1__as_slice before.f_facts))}) : Lemma (requires (unique_ids (Alloc.Vec.impl_1__as_slice before.f_facts) /\ (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice before.f_facts) index).f_id == fact.f_id /\ Prims.l_and (0 < v fact.f_id.f_counter) (v fact.f_id.f_counter <= 9007199254740991))) (ensures Native.impl_Replica__receive before fact == known_identity before (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice before.f_facts) index) fact) =
   lookup_at (Alloc.Vec.impl_1__as_slice before.f_facts) fact.f_id index (mk_usize 0);
   duplicate_matches_lookup (Alloc.Vec.impl_1__as_slice before.f_facts) fact;
-  norm_spec [delta_only ["Nickel_crdt.Edit.impl_Replica__receive"; "Nickel_crdt.Edit.impl_Replica__plan"; "Nickel.EditIdentity.identity_result"; "Nickel.EditIdentity.classify"; "Nickel.EditIdentity.known_identity"]; iota; zeta_full; primops; unmeta; unascribe] (Native.impl_Replica__receive before fact)
+  assert (Native.impl_Replica__receive before fact == known_identity before (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice before.f_facts) index) fact) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__duplicate";
+    Tactics.smt_sync' 1 1
+  )
 
 let receive_invalid_counter (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (requires Prims.l_or (v fact.f_id.f_counter == 0) (v fact.f_id.f_counter > 9007199254740991)) (ensures Native.impl_Replica__receive before fact == (before, Result.Result_Err (Native.Error_Invalid Native.Invalid_Counter))) =
   duplicate_matches_lookup (Alloc.Vec.impl_1__as_slice before.f_facts) fact;
-  norm_spec [delta_only ["Nickel_crdt.Edit.impl_Replica__receive"; "Nickel_crdt.Edit.impl_Replica__plan"; "Nickel.EditIdentity.identity_result"]; iota; zeta_full; primops; unmeta; unascribe] (Native.impl_Replica__receive before fact)
+  assert (Native.impl_Replica__receive before fact == (before, Result.Result_Err (Native.Error_Invalid Native.Invalid_Counter))) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__duplicate";
+    Tactics.smt_sync' 1 1
+  )
 
 let rec lookup_none (facts: t_Slice Native.t_Fact) (id: Native.t_EventId) (at: usize{v at <= v (length facts)}) : Lemma (requires first_id facts id at == Option.Option_None) (ensures prefix_absent facts id at (length facts)) (decreases v (length facts) - v at) =
   if v at < v (length facts) then
@@ -144,7 +152,11 @@ let added_is_fresh (before: Native.t_Replica) (fact: Native.t_Fact) (outcome: Na
 
 let receive_added_has_fresh_event_id (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures added_is_fresh before fact (Native.impl_Replica__receive before fact)) =
   duplicate_matches_lookup (Alloc.Vec.impl_1__as_slice before.f_facts) fact;
-  match Native.impl_Replica__receive before fact with | (_, Result.Result_Ok Native.Admission_Added) -> begin assert (first_id (Alloc.Vec.impl_1__as_slice before.f_facts) fact.f_id (mk_usize 0) == Option.Option_None);
+  match Native.impl_Replica__receive before fact with | (_, Result.Result_Ok Native.Admission_Added) -> begin assert (first_id (Alloc.Vec.impl_1__as_slice before.f_facts) fact.f_id (mk_usize 0) == Option.Option_None) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__duplicate";
+    Tactics.smt_sync' 1 1
+  );
   lookup_none (Alloc.Vec.impl_1__as_slice before.f_facts) fact.f_id (mk_usize 0) end | _ -> begin () end
 
 open Nickel.EditCommit
