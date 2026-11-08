@@ -150,7 +150,7 @@ break adapters' trigger metadata, without changing their logical statements.
 `Vector` contains checked equations over the already-pinned hax models
 (vector contents/length and slice length/index). It is emitted by the same
 private CLI revision above. It adds no assumed equation and changes no imported
-model. Four Accepted callers withhold those model functions and use the proved
+model. Four Accepted push callers, and the frontier lemma's one slice equation, withhold those model functions and use the proved
 contracts; other imported model definitions remain available.
 
 The remaining-family candidate ports the previously held EditCausal rank/path
