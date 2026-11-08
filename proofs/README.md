@@ -856,7 +856,7 @@ requires the owner to reject.
 
 | proof | callee bodies withheld | contract it composes |
 | --- | --- | --- |
-| `selected_id_is_least` (owns `choose_unseen`) | `has_fact`, `event_lt`, `fold_range_return` | `least_extends_all` (the loop step in spec terms), `event_order_is_key_order` |
+| `selected_id_is_least` (owns `choose_unseen`) | `has_fact`, `event_lt`, `fold_range_return` | `least_extends_all` (the quantified loop step in spec terms), `event_order_is_key_order` |
 | `canonical_orders_facts` (owns `canonical`) | `canonical_step`, `choose_unseen`, `push`, `fold_range_return` | `canonical_step_preserves_order` (hinted) |
 | `canonical_succeeds_for_unique_ids` (owns `canonical`) | the same four | `canonical_step_succeeds` + `canonical_step_selects_whole_facts` (hinted) |
 | `canonical_step_succeeds` (owns `canonical_step`) | `choose_unseen`, `push`, `clone_selected_fact`, `has_fact` | `choice_always_returns`, `selected_id_is_least`, an explicit `push_result_is_exact` instance |
@@ -879,13 +879,12 @@ out unnecessary and is not included.
 
 **Owner move:** `plan-keeps-old-tree` now rejects first at the setter contract
 `tree_installation_installs_tree`, which reads `with_tree`'s body, instead of
-at `plan_publishes_interpretation`. The control
-`accepted-interpretation-without-tree-contract` removes the local tree equation's
-SMTPat (not a call), and ties the public theorem to that
+at `plan_publishes_interpretation`. The pattern-removal control
+`accepted-interpretation-without-tree-contract` ties the public theorem to that
 contract. With its callee bodies withheld,
 `canonical_orders_facts` needs no base-case lemma (peak 1.35%). With them
-visible and no reduction, it peaked at about 34% (82% in the earlier sweep). No old statement,
-pattern or control owner changes.
+visible and no reduction, it peaked at about 34% (82% in the earlier sweep). No old statement or
+pattern changes; the only control-owner change is the recorded setter migration.
 
 **Note.**
 - Each prune in `canonical_step_succeeds` passes alone. Withholding `push` and
