@@ -339,13 +339,18 @@ let least_result (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) (re
   match result with | Result.Result_Ok choice -> begin least_choice input out (v (Nickel.EditIdentity.length input)) choice end | _ -> begin Prims.l_True end
 
 let least_next (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) (j: usize{v j < v (Nickel.EditIdentity.length input)}) (choice: Option.t_Option usize) : Option.t_Option usize =
-  if Native.has_fact out (Rust_primitives.Slice.slice_index input j).f_id then choice
-  else match choice with | Option.Option_None -> Option.Option_Some j | Option.Option_Some k -> if v k < v (Nickel.EditIdentity.length input) && event_key (Rust_primitives.Slice.slice_index input j).f_id < event_key (Rust_primitives.Slice.slice_index input k).f_id then Option.Option_Some j else choice
+  if Native.has_fact out (Rust_primitives.Slice.slice_index input j).f_id then
+    begin choice end
+  else
+    begin match choice with | Option.Option_None -> begin Option.Option_Some j end | Option.Option_Some k -> begin if v k < v (Nickel.EditIdentity.length input) && event_key (Rust_primitives.Slice.slice_index input j).f_id < event_key (Rust_primitives.Slice.slice_index input k).f_id then
+      begin Option.Option_Some j end
+    else
+      begin choice end end end
 
 let least_extends (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) (j: usize{v j < v (Nickel.EditIdentity.length input)}) (choice: Option.t_Option usize) : Lemma (requires least_choice input out (v j) choice) (ensures least_choice input out (v j + 1) (least_next input out j choice)) =
   ()
 
-let least_extends_all (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) : Lemma (ensures forall (j: usize{v j < v (Nickel.EditIdentity.length input)}) (choice: Option.t_Option usize). least_choice input out (v j) choice ==> least_choice input out (v j + 1) (least_next input out j choice)) =
+let least_extends_all (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) : Lemma (ensures forall(j: usize{v j < v (Nickel.EditIdentity.length input)}) (choice: Option.t_Option usize). least_choice input out (v j) choice ==> least_choice input out (v j + 1) (least_next input out j choice)) =
   let each (j: usize{v j < v (Nickel.EditIdentity.length input)}) (choice: Option.t_Option usize) : Lemma (ensures least_choice input out (v j) choice ==> least_choice input out (v j + 1) (least_next input out j choice)) = FStar.Classical.move_requires (least_extends input out j) choice in
   FStar.Classical.forall_intro_2 each
 
@@ -397,7 +402,7 @@ let push_membership (out: facts_vec) (fact: Native.t_Fact) (id: Native.t_EventId
     Tactics.smt_sync' 1 1
   ) end | _ -> begin () end
 
-let push_membership_next (out: facts_vec) (fact: Native.t_Fact) (id: Native.t_EventId) (next: facts_vec) : Lemma (requires Native.push out fact == (next, Result.Result_Ok ())) (ensures (Native.has_fact (Alloc.Vec.impl_1__as_slice next) id == false <==> (Native.has_fact (Alloc.Vec.impl_1__as_slice out) id == false /\ Prims.l_not (fact.f_id == id)))) =
+let push_membership_next (out: facts_vec) (fact: Native.t_Fact) (id: Native.t_EventId) (next: facts_vec) : Lemma (requires Native.push out fact == (next, Result.Result_Ok ())) (ensures Native.has_fact (Alloc.Vec.impl_1__as_slice next) id == false <==> Prims.l_and (Native.has_fact (Alloc.Vec.impl_1__as_slice out) id == false) (Prims.l_not (fact.f_id == id))) =
   push_membership out fact id
 
 let frontier_bounds_unseen (input: t_Slice Native.t_Fact) (out: facts_vec) (i: usize{v i < v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice out))}) (k: usize{v k < v (Nickel.EditIdentity.length input)}) : Lemma (requires (order_frontier input out /\ Native.has_fact (Alloc.Vec.impl_1__as_slice out) (Rust_primitives.Slice.slice_index input k).f_id == false)) (ensures event_key (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) i).f_id <= event_key (Rust_primitives.Slice.slice_index input k).f_id) =
