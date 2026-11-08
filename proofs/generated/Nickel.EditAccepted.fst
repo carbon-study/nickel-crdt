@@ -393,13 +393,11 @@ let frontier_bounds_unseen (input: t_Slice Native.t_Fact) (out: facts_vec) (i: u
   ()
 
 let append_least_preserves_frontier (input: t_Slice Native.t_Fact) (out: facts_vec) (k: usize{v k < v (Nickel.EditIdentity.length input)}) : Lemma (requires (order_frontier input out /\ least_choice input (Alloc.Vec.impl_1__as_slice out) (v (Nickel.EditIdentity.length input)) (Option.Option_Some k))) (ensures ordered_push_result input (Native.push out (Rust_primitives.Slice.slice_index input k))) =
-  norm_spec [delta_only ["Nickel.EditAccepted.order_frontier"; "Nickel.EditAccepted.facts_ordered"]; iota; zeta_full] (order_frontier input out);
   norm_spec [delta_only ["Nickel.EditAccepted.least_choice"]; iota; zeta_full] (least_choice input (Alloc.Vec.impl_1__as_slice out) (v (Nickel.EditIdentity.length input)) (Option.Option_Some k));
   let fact = Rust_primitives.Slice.slice_index input k in
   match Native.push out fact with | (next, Result.Result_Ok _) -> begin let each_frontier (i: usize{v i < v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice next))}) (j: usize{v j < v (Nickel.EditIdentity.length input)}) : Lemma (requires Native.has_fact (Alloc.Vec.impl_1__as_slice next) (Rust_primitives.Slice.slice_index input j).f_id == false) (ensures event_key (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice next) i).f_id <= event_key (Rust_primitives.Slice.slice_index input j).f_id) =
     push_membership out fact (Rust_primitives.Slice.slice_index input j).f_id;
     norm_spec [delta_only ["Nickel.EditAccepted.absent_after_push"]; iota; zeta_full] (absent_after_push out fact (Rust_primitives.Slice.slice_index input j).f_id (Native.push out fact));
-    norm_spec [delta_only ["Nickel_crdt.Edit.push"; "Alloc.Vec.impl_1__push"; "Alloc.Vec.impl_1__as_slice"; "Alloc.Vec.impl_1__len"; "Rust_primitives.Sequence.seq_push"; "Rust_primitives.Sequence.seq_len"; "Rust_primitives.Sequence.seq_to_slice"; "Rust_primitives.Slice.slice_index"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"]; iota; zeta_full; primops; unmeta; unascribe] (Native.push out fact);
     assert (Native.has_fact (Alloc.Vec.impl_1__as_slice out) (Rust_primitives.Slice.slice_index input j).f_id == false);
     if v i < v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice out)) then
       begin assert (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice next) i == Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) i);
@@ -423,8 +421,7 @@ let append_least_preserves_frontier (input: t_Slice Native.t_Fact) (out: facts_v
         assert (event_key (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) i).f_id <= event_key fact.f_id) end end
     else
       begin () end in
-  FStar.Classical.forall_intro_2 each_pair;
-  norm_spec [delta_only ["Nickel.EditAccepted.ordered_push_result"; "Nickel.EditAccepted.order_frontier"; "Nickel.EditAccepted.facts_ordered"]; iota; zeta_full] (ordered_push_result input (Native.push out fact)) end | _ -> begin () end
+  FStar.Classical.forall_intro_2 each_pair end | _ -> begin () end
 
 let order_step_result (input: t_Slice Native.t_Fact) (result: Result.t_Result facts_vec Native.t_Error) : Type0 =
   match result with | Result.Result_Ok next -> begin order_frontier input next end | _ -> begin Prims.l_True end
@@ -442,7 +439,6 @@ let order_invariant (input: t_Slice Native.t_Fact) (at: nat) (out: facts_vec) : 
 
 let canonical_orders_facts (input: t_Slice Native.t_Fact) : Lemma (ensures order_step_result input (Native.canonical input)) =
   let each_order_step (out: facts_vec) : Lemma (requires order_frontier input out) (ensures order_step_result input (Native.canonical_step input out)) [SMTPat (Native.canonical_step input out)] = canonical_step_preserves_order input out in
-  norm_spec [delta_only ["Nickel.EditAccepted.order_frontier"; "Nickel.EditAccepted.facts_ordered"; "Nickel.EditIdentity.length"; "Core_models.Slice.impl__len"; "Alloc.Vec.impl__new"; "Alloc.Vec.impl_1__as_slice"; "Rust_primitives.Sequence.seq_empty"; "Rust_primitives.Sequence.seq_to_slice"]; iota; zeta_full; primops] (order_frontier input (Alloc.Vec.impl__new ()));
   Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (order_invariant input) (order_frontier input) (order_step_result input);
   norm_spec [delta_only ["Nickel_crdt.Edit.canonical"; "Nickel.EditAccepted.order_invariant"; "Nickel.EditAccepted.order_step_result"; "Nickel.LoopUtil.output_safe"; "Nickel.LoopUtil.step_safe"]; iota; zeta_full; primops; unmeta; unascribe] (order_step_result input (Native.canonical input))
 
