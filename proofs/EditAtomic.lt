@@ -5,6 +5,7 @@ import Tactics = FStar.Tactics.V2
 import Native = Nickel_crdt.Edit
 import Result = Core_models.Result
 import Option = Core_models.Option
+import Nickel.Vector
 
 // Expose the result constructors when plan's implementation facts are withheld.
 type plan_result = Result.t_Result(Option.t_Option(Native.t_Replica), Native.t_Error)
@@ -35,6 +36,28 @@ proof plan_preserves_duplicate_result(before: Native.t_Replica, fact: Native.t_F
   }
 }
 
+// A successful plan can only follow the actual validator's successful return.
+// This constructor/control-flow contract leaves validation and rebuild opaque.
+function validation_succeeded(result: Result.t_Result(unit, Native.t_Error)): Type0 {
+  match result { Result.Result_Ok(_) => Prims.l_True, _ => Prims.l_False }
+}
+function plan_was_validated(validation: Result.t_Result(unit, Native.t_Error), result: plan_result): Type0 {
+  match result { Result.Result_Ok(Option.Option_Some(_)) => validation_succeeded(validation), _ => Prims.l_True }
+}
+proof successful_plan_requires_validation(before: Native.t_Replica, fact: Native.t_Fact): unit
+  gives plan_was_validated(Native.impl_Replica__validate_new(Alloc.Vec.impl_1__as_slice(before.f_facts), before.f_limits, fact), Native.impl_Replica__plan(before, fact))
+{
+  assert(plan_was_validated(Native.impl_Replica__validate_new(Alloc.Vec.impl_1__as_slice(before.f_facts), before.f_limits, fact), Native.impl_Replica__plan(before, fact))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__validate_new");
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__duplicate");
+    Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.prune("Nickel_crdt.Edit.canonical");
+    Tactics.prune("Nickel_crdt.Edit.interpret");
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__with_tree");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
 function receive_neutral(before: Native.t_Replica, outcome: (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error))): Type0 {
   match outcome {
     (next, Result.Result_Err(_)) => next == before,
@@ -44,7 +67,12 @@ function receive_neutral(before: Native.t_Replica, outcome: (Native.t_Replica, R
 }
 proof receive_rejection_unchanged(before: Native.t_Replica, fact: Native.t_Fact): unit
   gives receive_neutral(before, Native.impl_Replica__receive(before, fact))
-{ () }
+{
+  assert(receive_neutral(before, Native.impl_Replica__receive(before, fact))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__plan");
+    Tactics.smt_sync'(1, 1)
+  }
+}
 
 function edit_neutral(before: Native.t_Replica, outcome: (Native.t_Replica, Result.t_Result(Native.t_Local, Native.t_Error))): Type0 {
   match outcome {
@@ -54,7 +82,15 @@ function edit_neutral(before: Native.t_Replica, outcome: (Native.t_Replica, Resu
 }
 proof edit_rejection_or_empty_unchanged(before: Native.t_Replica, gap: usize, insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global)): unit
   gives edit_neutral(before, Native.impl_Replica__edit(before, gap, insert, delete))
-{ () }
+{
+  assert(edit_neutral(before, Native.impl_Replica__edit(before, gap, insert, delete))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__plan");
+    Tactics.prune("Nickel_crdt.Edit.frontier");
+    Tactics.prune("Nickel_crdt.Edit.next_counter_after");
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__with_counter");
+    Tactics.smt_sync'(1, 1)
+  }
+}
 
 function edit_counter_step(before: Native.t_Replica, outcome: (Native.t_Replica, Result.t_Result(Native.t_Local, Native.t_Error))): Type0 {
   match outcome {
@@ -96,18 +132,41 @@ proof counter_result_is_exact(counter: u64): unit
   gives Native.next_counter_after(counter) == counter_outcome(counter)
 { () }
 
+// Constructor information is independent of the function producing a Result.
+proof result_has_constructor<ok: Type0, err: Type0>(out: Result.t_Result(ok, err)): unit
+  gives (exists(value: ok) . out == Result.Result_Ok(value)) or
+    (exists(error: err) . out == Result.Result_Err(error))
+{ match out { Result.Result_Ok(_) => (), Result.Result_Err(_) => () } }
+
 // This is the source boundary for edit, using contracts for its callees.
 // The counter helpers and plan are withheld here; the latter exposes only
-// result constructors. Frontier remains visible.
+// result constructors. Frontier contributes only generic Result constructors.
 // Keep automatic solver unfolding shallow; no implementation reduction list.
 proof authored_edit_advances_once(before: Native.t_Replica, gap: usize, insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global)): unit
   gives edit_counter_step(before, Native.impl_Replica__edit(before, gap, insert, delete))
 {
   counter_result_is_exact(before.f_next_counter);
+  result_has_constructor(Native.frontier(Alloc.Vec.impl_1__as_slice(before.f_facts)));
   assert(edit_counter_step(before, Native.impl_Replica__edit(before, gap, insert, delete))) by {
+    Tactics.prune("Nickel_crdt.Edit.frontier");
     Tactics.prune("Nickel_crdt.Edit.impl_Replica__with_counter");
     Tactics.prune("Nickel_crdt.Edit.next_counter_after");
     Tactics.prune("Nickel_crdt.Edit.impl_Replica__plan");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// Constructor-owned storage fact; callers need not inspect the constructor.
+function constructed_empty(result: Result.t_Result(Native.t_Replica, Native.t_Error)): Type0 {
+  match result { Result.Result_Ok(state) => Alloc.Vec.impl_1__as_slice(state.f_facts) == FStar.Seq.empty, _ => Prims.l_True }
+}
+proof new_has_empty_facts(writer: Option.t_Option(Native.t_Writer), limits: Native.t_Limits): unit
+  gives constructed_empty(Native.impl_Replica__new(writer, limits))
+{
+  Nickel.Vector.empty_vector_contents<#Native.t_Fact>();
+  assert(constructed_empty(Native.impl_Replica__new(writer, limits))) by {
+    Tactics.prune("Alloc.Vec.impl__new");
+    Tactics.prune("Alloc.Vec.impl_1__as_slice");
     Tactics.smt_sync'(1, 1)
   }
 }

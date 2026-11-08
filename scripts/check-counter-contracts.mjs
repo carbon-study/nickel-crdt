@@ -13,7 +13,7 @@ export async function checkCounterContracts({proof,output,fstar,models,modelCach
   for(const [name,needle] of controls) {
     assert.equal(original.split(needle).length,2,'contract-control anchor must occur exactly once');
     const dir=path.join(path.dirname(proof),name);await fs.mkdir(dir,{recursive:true});
-    for(const file of ['Nickel.Prelude.fst','Nickel_crdt.Edit.fst'])
+    for(const file of ['Nickel.Prelude.fst','Nickel.Vector.fst','Nickel_crdt.Edit.fst'])
       await put(path.join(dir,file),await fs.readFile(path.join(proof,file)));
     const view=original.replace(needle,'');await put(path.join(dir,'Nickel.EditAtomic.fst'),view);
     const result=await verify({dir,roots:[path.join(dir,'Nickel.EditAtomic.fst')],fstar,models,modelCache});
