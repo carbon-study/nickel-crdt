@@ -672,8 +672,8 @@ withheld in that query.
 `presence_survives_containment` chooses one before-fact with the required ID.
 Containment gives the same whole fact in the next slice; the checked absence
 law then rules out absence. There is no second position search, reverse lookup
-or hand-expanded prefix predicate. That caller withholds the prefix predicate,
-the absence law's global facts and native `has_fact`; its explicit absence-law
+or hand-expanded prefix predicate. That caller withholds the prefix predicate
+and native `has_fact`. The absence law has no automatic pattern; its explicit
 call supplies the usable contract.
 
 All21 prior WellFormed theorem signatures, premises and patterns remain exact.

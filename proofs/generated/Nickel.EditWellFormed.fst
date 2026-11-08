@@ -212,7 +212,6 @@ let presence_survives_containment (before: t_Slice Native.t_Fact) (next: t_Slice
   assert (event_present next id) by (
     Tactics.prune "Nickel_crdt.Edit.has_fact";
     Tactics.prune "Nickel.EditIdentity.prefix_absent";
-    Tactics.prune "Nickel.EditWellFormed.absence_on_whole_facts";
     Tactics.smt_sync' 1 1
   )
 

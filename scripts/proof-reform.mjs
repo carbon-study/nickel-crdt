@@ -11,7 +11,7 @@ function tokens(source) {
 }
 const containmentVisibility=new Set([
   '"Nickel.Vector.slice_index"','"Nickel.Vector.slice_length"','"Nickel_crdt.Edit.has_fact"',
-  '"Nickel.EditIdentity.prefix_absent"','"Nickel.EditWellFormed.absence_on_whole_facts"'
+  '"Nickel.EditIdentity.prefix_absent"'
 ]);
 export function assertReformedSource(name,source) {
   const ts=tokens(source),fail=message=>assert.fail(name+' reform: '+message);
