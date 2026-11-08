@@ -1,7 +1,6 @@
 import Rust_primitives
 import Core_models
 import FStar.Pervasives
-import FStar.NormSteps
 import Nickel.LoopUtil
 import Nickel.EditIdentity
 import Native = Nickel_crdt.Edit
@@ -141,6 +140,12 @@ proof canonical_has_unique_ids(facts: t_Slice(Native.t_Fact)): unit
   Nickel.LoopUtil.preserve_any(mk_usize(0), Nickel.EditIdentity.length(facts), unique_invariant, ids_unique, canonical_result_unique)
 }
 
+// The with_tree setter contract for the installed tree.
+proof tree_installation_installs_tree(state: Native.t_Replica, tree: Native.t_Tree): unit
+  gives Native.impl_Replica__with_tree(state, tree).f_tree == tree
+{
+  ()
+}
 proof tree_installation_preserves_facts(state: Native.t_Replica, tree: Native.t_Tree): unit
   gives Native.impl_Replica__with_tree(state, tree).f_facts == state.f_facts
 {
@@ -158,11 +163,34 @@ function canonical_publication(before: Native.t_Replica, fact: Native.t_Fact, ou
     _ => Prims.l_True
   }
 }
+// Expose the result constructors when the planner's callee bodies are withheld,
+// as plan_has_result_shape does for plan itself. These state only the declared
+// result type; withholding a function also withholds its typing facts.
+function result_shape<value: Type0>(result: Result.t_Result(value, Native.t_Error)): Type0 {
+  (exists(error: Native.t_Error) . result == Result.Result_Err(error)) or
+  (exists(out: value) . result == Result.Result_Ok(out))
+}
+proof canonical_has_result_shape(input: t_Slice(Native.t_Fact)): unit
+  gives result_shape(Native.canonical(input))
+  hint Native.canonical(input)
+{ () }
+proof interpret_has_result_shape(input: t_Slice(Native.t_Fact)): unit
+  gives result_shape(Native.interpret(input))
+  hint Native.interpret(input)
+{ () }
 proof plan_publishes_canonical_facts(before: Native.t_Replica, fact: Native.t_Fact): unit
   gives canonical_publication(before, fact, Native.impl_Replica__plan(before, fact))
 {
+  proof each_tree_facts(state: Native.t_Replica, tree: Native.t_Tree): unit
+    gives Native.impl_Replica__with_tree(state, tree).f_facts == state.f_facts
+    hint Native.impl_Replica__with_tree(state, tree)
+  { tree_installation_preserves_facts(state, tree) };
   assert(canonical_publication(before, fact, Native.impl_Replica__plan(before, fact))) by {
-    Tactics.norm([delta_only(["Nickel_crdt.Edit.impl_Replica__plan", "Nickel_crdt.Edit.impl_Replica__with_tree", "Nickel.EditAccepted.canonical_publication", "Nickel.EditAccepted.candidate_facts", "Core_models.Clone.f_clone", "Nickel_crdt.Edit.impl_26", "Nickel_crdt.Edit.impl_82"]), iota, zeta_full, primops, unmeta, unascribe]);
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__with_tree");
+    Tactics.prune("Nickel_crdt.Edit.canonical");
+    Tactics.prune("Nickel_crdt.Edit.interpret");
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__duplicate");
+    Tactics.prune("Nickel_crdt.Edit.push");
     Tactics.smt_sync'(1, 1)
   }
 }
@@ -465,6 +493,24 @@ function least_choice(input: t_Slice(Native.t_Fact), out: t_Slice(Native.t_Fact)
 function least_result(input: t_Slice(Native.t_Fact), out: t_Slice(Native.t_Fact), result: Result.t_Result(Option.t_Option(usize), Native.t_Error)): Type0 {
   match result { Result.Result_Ok(choice) => least_choice(input, out, v(Nickel.EditIdentity.length(input)), choice), _ => Prims.l_True }
 }
+// One loop step in spec terms; the loop owner only matches the native body to it.
+function least_next(input: t_Slice(Native.t_Fact), out: t_Slice(Native.t_Fact), j: usize where v(j) < v(Nickel.EditIdentity.length(input)), choice: Option.t_Option(usize)): Option.t_Option(usize) {
+  if Native.has_fact(out, Rust_primitives.Slice.slice_index(input, j).f_id) { choice } else {
+    match choice {
+      Option.Option_None => Option.Option_Some(j),
+      Option.Option_Some(k) => if v(k) < v(Nickel.EditIdentity.length(input)) && event_key(Rust_primitives.Slice.slice_index(input, j).f_id) < event_key(Rust_primitives.Slice.slice_index(input, k).f_id) { Option.Option_Some(j) } else { choice },
+    }
+  }
+}
+proof least_extends_all(input: t_Slice(Native.t_Fact), out: t_Slice(Native.t_Fact)): unit
+  gives forall(j: usize where v(j) < v(Nickel.EditIdentity.length(input)), choice: Option.t_Option(usize)) .
+    least_choice(input, out, v(j), choice) ==> least_choice(input, out, v(j) + 1, least_next(input, out, j, choice))
+{
+  proof each(j: usize where v(j) < v(Nickel.EditIdentity.length(input)), choice: Option.t_Option(usize)): unit
+    gives least_choice(input, out, v(j), choice) ==> least_choice(input, out, v(j) + 1, least_next(input, out, j, choice))
+  { () };
+  FStar.Classical.forall_intro_2(each)
+}
 proof selected_id_is_least(input: t_Slice(Native.t_Fact), out: t_Slice(Native.t_Fact)): unit
   gives least_result(input, out, Native.choose_unseen(input, out))
 {
@@ -472,8 +518,14 @@ proof selected_id_is_least(input: t_Slice(Native.t_Fact), out: t_Slice(Native.t_
     gives (Native.event_lt(a, b) == true <==> event_key(a) < event_key(b))
     hint Native.event_lt(a, b)
   { event_order_is_key_order(a, b) };
+  least_extends_all(input, out);
   Nickel.LoopUtil.preserve_any(mk_usize(0), Nickel.EditIdentity.length(input), least_choice(input, out), least_choice(input, out, v(Nickel.EditIdentity.length(input))), least_result(input, out));
-  norm_spec([delta_only(["Nickel_crdt.Edit.choose_unseen", "Nickel.EditAccepted.least_choice", "Nickel.EditAccepted.least_result", "Nickel.LoopUtil.output_safe", "Nickel.LoopUtil.step_safe"]), iota, zeta_full, primops, unmeta, unascribe], Native.choose_unseen(input, out))
+  assert(least_result(input, out, Native.choose_unseen(input, out))) by {
+    Tactics.prune("Nickel_crdt.Edit.has_fact");
+    Tactics.prune("Nickel_crdt.Edit.event_lt");
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.smt_sync'(1, 1)
+  }
 }
 
 proof! absent_lookup(input: t_Slice(Native.t_Fact), id: Native.t_EventId,
@@ -552,7 +604,6 @@ proof append_least_preserves_frontier(input: t_Slice(Native.t_Fact), out: facts_
   takes least_choice(input, Alloc.Vec.impl_1__as_slice(out), v(Nickel.EditIdentity.length(input)), Option.Option_Some(k))
   gives ordered_push_result(input, Native.push(out, Rust_primitives.Slice.slice_index(input, k)))
 {
-  norm_spec([delta_only(["Nickel.EditAccepted.least_choice"]), iota, zeta_full], least_choice(input, Alloc.Vec.impl_1__as_slice(out), v(Nickel.EditIdentity.length(input)), Option.Option_Some(k)));
   const fact = Rust_primitives.Slice.slice_index(input, k);
   match Native.push(out, fact) {
     (next, Result.Result_Ok(_)) => {
@@ -561,10 +612,14 @@ proof append_least_preserves_frontier(input: t_Slice(Native.t_Fact), out: facts_
         gives event_key(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), i).f_id) <= event_key(Rust_primitives.Slice.slice_index(input, j).f_id)
       {
         push_membership(out, fact, Rust_primitives.Slice.slice_index(input, j).f_id);
-        norm_spec([delta_only(["Nickel.EditAccepted.absent_after_push"]), iota, zeta_full], absent_after_push(out, fact, Rust_primitives.Slice.slice_index(input, j).f_id, Native.push(out, fact)));
-        assert(Native.has_fact(Alloc.Vec.impl_1__as_slice(out), Rust_primitives.Slice.slice_index(input, j).f_id) == false);
+        assert(Native.push(out, fact) == (next, Result.Result_Ok(())));
+        assert(Native.has_fact(Alloc.Vec.impl_1__as_slice(out), Rust_primitives.Slice.slice_index(input, j).f_id) == false) by {
+          Tactics.prune("Nickel_crdt.Edit.push");
+          Tactics.smt_sync'(1, 1)
+        };
         if v(i) < v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(out))) {
           assert(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), i) == Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), i));
+          frontier_bounds_unseen(input, out, i, j);
           assert(event_key(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), i).f_id) <= event_key(Rust_primitives.Slice.slice_index(input, j).f_id))
         } else {
           assert(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), i) == fact);
@@ -579,7 +634,13 @@ proof append_least_preserves_frontier(input: t_Slice(Native.t_Fact), out: facts_
       proof each_pair(i: usize where v(i) < v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(next))), j: usize where v(j) < v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(next)))): unit
         gives v(i) < v(j) ==> event_key(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), i).f_id) <= event_key(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), j).f_id)
       {
-        norm_spec([delta_only(["Nickel_crdt.Edit.push", "Alloc.Vec.impl_1__push", "Alloc.Vec.impl_1__as_slice", "Alloc.Vec.impl_1__len", "Rust_primitives.Sequence.seq_push", "Rust_primitives.Sequence.seq_len", "Rust_primitives.Sequence.seq_to_slice", "Rust_primitives.Slice.slice_index", "Nickel.EditIdentity.length", "Core_models.Slice.impl__len"]), iota, zeta_full, primops, unmeta, unascribe], Native.push(out, fact));
+        assert(Alloc.Vec.impl_1__as_slice(next) == Seq.append(Alloc.Vec.impl_1__as_slice(out), Seq.create(1, fact))) by {
+          Tactics.prune("Nickel_crdt.Edit.push");
+          Tactics.prune("Alloc.Vec.impl_1__as_slice");
+          Tactics.prune("Alloc.Vec.from_seq");
+          Tactics.prune("Alloc.Vec.impl_1__len");
+          Tactics.smt_sync'(1, 1)
+        };
         if v(i) < v(j) {
           assert(v(i) < v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(out))));
           assert(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), i) == Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), i));
@@ -623,7 +684,13 @@ proof canonical_orders_facts(input: t_Slice(Native.t_Fact)): unit
     hint Native.canonical_step(input, out)
   { canonical_step_preserves_order(input, out) };
   Nickel.LoopUtil.preserve_any(mk_usize(0), Nickel.EditIdentity.length(input), order_invariant(input), order_frontier(input), order_step_result(input));
-  norm_spec([delta_only(["Nickel_crdt.Edit.canonical", "Nickel.EditAccepted.order_invariant", "Nickel.EditAccepted.order_step_result", "Nickel.LoopUtil.output_safe", "Nickel.LoopUtil.step_safe"]), iota, zeta_full, primops, unmeta, unascribe], order_step_result(input, Native.canonical(input)))
+  assert(order_step_result(input, Native.canonical(input))) by {
+    Tactics.prune("Nickel_crdt.Edit.canonical_step");
+    Tactics.prune("Nickel_crdt.Edit.choose_unseen");
+    Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.smt_sync'(1, 1)
+  }
 }
 function added_ordered(outcome: (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error))): Type0 {
   match outcome { (next, Result.Result_Ok(Native.Admission_Added)) => facts_ordered(next.f_facts), _ => Prims.l_True }
@@ -815,8 +882,20 @@ function plan_interpretation(outcome: Result.t_Result(Option.t_Option(Native.t_R
 proof plan_publishes_interpretation(before: Native.t_Replica, fact: Native.t_Fact): unit
   gives plan_interpretation(Native.impl_Replica__plan(before, fact))
 {
+  proof each_tree_facts(state: Native.t_Replica, tree: Native.t_Tree): unit
+    gives Native.impl_Replica__with_tree(state, tree).f_facts == state.f_facts
+    hint Native.impl_Replica__with_tree(state, tree)
+  { tree_installation_preserves_facts(state, tree) };
+  proof each_tree(state: Native.t_Replica, tree: Native.t_Tree): unit
+    gives Native.impl_Replica__with_tree(state, tree).f_tree == tree
+    hint Native.impl_Replica__with_tree(state, tree)
+  { tree_installation_installs_tree(state, tree) };
   assert(plan_interpretation(Native.impl_Replica__plan(before, fact))) by {
-    Tactics.norm([delta_only(["Nickel_crdt.Edit.impl_Replica__plan", "Nickel_crdt.Edit.impl_Replica__with_tree", "Nickel.EditAccepted.plan_interpretation", "Core_models.Clone.f_clone", "Nickel_crdt.Edit.impl_26", "Nickel_crdt.Edit.impl_82"]), iota, zeta_full, primops, unmeta, unascribe]);
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__with_tree");
+    Tactics.prune("Nickel_crdt.Edit.canonical");
+    Tactics.prune("Nickel_crdt.Edit.interpret");
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__duplicate");
+    Tactics.prune("Nickel_crdt.Edit.push");
     Tactics.smt_sync'(1, 1)
   }
 }
@@ -913,8 +992,12 @@ proof canonical_step_succeeds(input: t_Slice(Native.t_Fact), out: facts_vec): un
   match Native.choose_unseen(input, Alloc.Vec.impl_1__as_slice(out)) {
     Result.Result_Ok(Option.Option_Some(k)) => {
       assert(v(k) < Seq.length(input));
+      push_result_is_exact(out, Native.clone_selected_fact(Rust_primitives.Slice.slice_index(input, k)));
       assert(canonical_total(Native.canonical_step(input, out))) by {
-        Tactics.norm([delta_only(["Nickel_crdt.Edit.canonical_step", "Nickel_crdt.Edit.push", "Alloc.Vec.impl_1__len", "Alloc.Vec.impl_1__as_slice", "Core_models.Bundle.impl__ok_or", "Core_models.Option.impl__ok_or", "Nickel.EditAccepted.canonical_total", "Nickel.EditIdentity.length", "Core_models.Slice.impl__len", "Rust_primitives.Sequence.seq_len", "Rust_primitives.Sequence.seq_to_slice"]), iota, zeta_full, primops, unmeta, unascribe]);
+        Tactics.prune("Nickel_crdt.Edit.choose_unseen");
+        Tactics.prune("Nickel_crdt.Edit.push");
+        Tactics.prune("Nickel_crdt.Edit.clone_selected_fact");
+        Tactics.prune("Nickel_crdt.Edit.has_fact");
         Tactics.smt_sync'(1, 1)
       }
     },
@@ -947,8 +1030,11 @@ proof canonical_succeeds_for_unique_ids(input: t_Slice(Native.t_Fact)): unit
   };
   Nickel.LoopUtil.preserve_any(mk_usize(0), Nickel.EditIdentity.length(input), progress_invariant(input), (out => Prims.l_True), ((result: Result.t_Result(facts_vec, Native.t_Error)) => Prims.l_False));
   assert(canonical_total(Native.canonical(input))) by {
-  Tactics.norm([delta_only(["Nickel_crdt.Edit.canonical", "Nickel.EditAccepted.canonical_total", "Nickel.EditAccepted.progress_invariant", "Nickel.EditAccepted.content_step_result", "Nickel.EditAccepted.content_invariant", "Nickel.LoopUtil.step_safe", "Nickel.LoopUtil.output_safe", "Nickel.EditIdentity.length", "Core_models.Slice.impl__len", "Alloc.Vec.impl__new", "Alloc.Vec.impl_1__as_slice", "Rust_primitives.Sequence.seq_empty", "Rust_primitives.Sequence.seq_to_slice"]), iota, zeta_full, primops, unmeta, unascribe]);
-  Tactics.smt_sync'(1, 1)
+    Tactics.prune("Nickel_crdt.Edit.canonical_step");
+    Tactics.prune("Nickel_crdt.Edit.choose_unseen");
+    Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.smt_sync'(1, 1)
   }
 }
 function total_canonical_agreement(left: Result.t_Result(facts_vec, Native.t_Error), right: Result.t_Result(facts_vec, Native.t_Error)): Type0 {

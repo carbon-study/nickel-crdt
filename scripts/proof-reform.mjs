@@ -31,6 +31,11 @@ const specVisibility=new Set([
 const commitVisibility=new Set([
   '"Nickel_crdt.Edit.frontier"','"Nickel_crdt.Edit.impl_Replica__receive"','"Nickel_crdt.Edit.impl_Replica__edit"',
 ]);
+// Accepted callers may hide these callee bodies, so their proofs go through the callee contracts.
+const acceptedVisibility=new Set([
+  '"Nickel_crdt.Edit.canonical_step"','"Nickel_crdt.Edit.choose_unseen"','"Nickel_crdt.Edit.canonical"',
+  '"Nickel_crdt.Edit.has_fact"','"Nickel_crdt.Edit.event_lt"','"Nickel_crdt.Edit.clone_selected_fact"','"Nickel_crdt.Edit.interpret"',
+]);
 export function assertReformedSource(name,source) {
   const ts=tokens(source),fail=message=>assert.fail(name+' reform: '+message);
   for(let i=0;i<ts.length;i++) {
@@ -44,6 +49,7 @@ export function assertReformedSource(name,source) {
     if(name==='LoopUtil'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+4]==='"Rust_primitives.Hax.Folds.fold_range_cf"'&&ts[i+5]===')') { i+=5;continue; }
     if(name==='EditWellFormed'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&wellFormedVisibility.has(ts[i+4])) { i+=5;continue; }
     if(name==='Spec'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&specVisibility.has(ts[i+4])) { i+=5;continue; }
+    if(name==='EditAccepted'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&acceptedVisibility.has(ts[i+4])) { i+=5;continue; }
     if(name==='EditCommit'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&commitVisibility.has(ts[i+4])) { i+=5;continue; }
     if(name==='EditAtomic'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&atomicVisibility.has(ts[i+4])) { i+=5;continue; }
     if(name==='EditCausal'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&causalVisibility.has(ts[i+4])) { i+=5;continue; }
@@ -55,13 +61,6 @@ export function assertReformedSource(name,source) {
     }
   }
 }
-export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smoke','Vector','EditCausal','EditIdentity','EditWellFormed','Spec','EditCommit']) {
+export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smoke','Vector','EditCausal','EditIdentity','EditWellFormed','Spec','EditCommit','EditAccepted']) {
   for(const name of names)assertReformedSource(name,await fs.readFile(path.join(root,'proofs',name+'.lt'),'utf8'));
-  const accepted=await fs.readFile(path.join(root,'proofs','EditAccepted.lt'),'utf8');
-  for(const name of ['push_outcome','push_result_is_exact','append_fresh_preserves_unique','append_whole_fact','push_has_exact_contents','push_membership','member_lookup','absent_lookup','event_order_is_key_order','canonical_has_unique_ids','canonical_is_permutation_independent','canonical_selects_whole_facts','canonical_step_preserves_order','canonical_step_preserves_unique','canonical_step_selects_whole_facts','choice_always_returns','empty_has_unique_ids','find_id_position','membership_exact','new_establishes_fact_order','new_establishes_unique_ids','ordered_contents_determine_vector','receive_added_facts_are_ordered','receive_added_has_exact_contents','receive_added_ids_are_unique','receive_added_shared_state_agrees','selected_fact_is_exact','selected_fact_keeps_id','selected_id_is_unseen','shorter_output_has_unseen','strict_nat_pair','successful_plan_pushed_fact','tree_installation_preserves_facts','unique_nat_positions','unique_slice_nat_positions']) {
-    const match=new RegExp('^(?:function!?|proof!?) '+name+'[<(]','m').exec(accepted);assert(match,'missing reformed Accepted declaration '+name);
-    const tail=accepted.slice(match.index+match[0].length),next=/\n(?:function|proof!?|type|import) /.exec(tail);
-    const end=next?match.index+match[0].length+next.index:accepted.length;
-    assertReformedSource('EditAccepted.'+name,accepted.slice(match.index,end));
-  }
 }
