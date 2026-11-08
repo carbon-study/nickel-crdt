@@ -106,7 +106,7 @@ proof receive_obeys_contract(before: Native.t_Replica, fact: Native.t_Fact): uni
 }
 
 // Errors and empty edits leave the whole instance unchanged. Authored binds
-// the exact requested insert/delete/gap and writer, uses the old counter once,
+// the exact insert/delete and writer, and the requested gap when inserting; uses the old counter once,
 // publishes exactly that fresh fact, and agrees with admitting it to before.
 // This says nothing about admission to a receiver with extra concurrent facts.
 function edit_contract(before: Native.t_Replica, gap: usize,

@@ -26,6 +26,11 @@ export function checkProofReformFence() {
   assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive")'),/fixture reform:/);
   assert.throws(()=>assertReformedSource('EditCommit','assert_norm(true)'),/EditCommit reform:/);
 
+  for(const name of ['EditCausal','EditAtomic','EditWellFormed']) {
+    assert.throws(()=>assertReformedSource(name,'assert_norm(true)'),new RegExp(name+' reform:'));
+  }
+  assertReformedSource('LoopUtil','Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf")');
+  assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf")'),/fixture reform:/);
   console.log('PASS proof-reform fence: approved direct tactic, normalization/import/alias controls');
 }
 checkProofReformFence();

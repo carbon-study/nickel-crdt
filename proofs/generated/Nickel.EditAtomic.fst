@@ -17,6 +17,8 @@ module Result = Core_models.Result
 
 module Option = Core_models.Option
 
+open Nickel.Vector
+
 type plan_result = Result.t_Result (Option.t_Option Native.t_Replica) Native.t_Error
 
 let plan_result_shape (result: plan_result) : Type0 =
@@ -37,17 +39,43 @@ let plan_preserves_duplicate_result (before: Native.t_Replica) (fact: Native.t_F
     Tactics.smt_sync' 1 1
   )
 
+let validation_succeeded (result: Result.t_Result unit Native.t_Error) : Type0 =
+  match result with | Result.Result_Ok _ -> begin Prims.l_True end | _ -> begin Prims.l_False end
+
+let plan_was_validated (validation: Result.t_Result unit Native.t_Error) (result: plan_result) : Type0 =
+  match result with | Result.Result_Ok (Option.Option_Some _) -> begin validation_succeeded validation end | _ -> begin Prims.l_True end
+
+let successful_plan_requires_validation (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures plan_was_validated (Native.impl_Replica__validate_new (Alloc.Vec.impl_1__as_slice before.f_facts) before.f_limits fact) (Native.impl_Replica__plan before fact)) =
+  assert (plan_was_validated (Native.impl_Replica__validate_new (Alloc.Vec.impl_1__as_slice before.f_facts) before.f_limits fact) (Native.impl_Replica__plan before fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__validate_new";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__duplicate";
+    Tactics.prune "Nickel_crdt.Edit.push";
+    Tactics.prune "Nickel_crdt.Edit.canonical";
+    Tactics.prune "Nickel_crdt.Edit.interpret";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__with_tree";
+    Tactics.smt_sync' 1 1
+  )
+
 let receive_neutral (before: Native.t_Replica) (outcome: Native.t_Replica & Result.t_Result Native.t_Admission Native.t_Error) : Type0 =
   match outcome with | (next, Result.Result_Err _) -> begin next == before end | (next, Result.Result_Ok Native.Admission_Duplicate) -> begin next == before end | _ -> begin Prims.l_True end
 
 let receive_rejection_unchanged (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures receive_neutral before (Native.impl_Replica__receive before fact)) =
-  ()
+  assert (receive_neutral before (Native.impl_Replica__receive before fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.smt_sync' 1 1
+  )
 
 let edit_neutral (before: Native.t_Replica) (outcome: Native.t_Replica & Result.t_Result Native.t_Local Native.t_Error) : Type0 =
   match outcome with | (_, Result.Result_Ok (Native.Local_Authored _)) -> begin Prims.l_True end | (next, _) -> begin next == before end
 
 let edit_rejection_or_empty_unchanged (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) (delete: Alloc.Vec.t_Vec Native.t_BirthId Alloc.Alloc.t_Global) : Lemma (ensures edit_neutral before (Native.impl_Replica__edit before gap insert delete)) =
-  ()
+  assert (edit_neutral before (Native.impl_Replica__edit before gap insert delete)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Edit.frontier";
+    Tactics.prune "Nickel_crdt.Edit.next_counter_after";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__with_counter";
+    Tactics.smt_sync' 1 1
+  )
 
 let edit_counter_step (before: Native.t_Replica) (outcome: Native.t_Replica & Result.t_Result Native.t_Local Native.t_Error) : Type0 =
   match outcome with | (next, Result.Result_Ok (Native.Local_Authored fact)) -> begin Prims.l_and (v next.f_next_counter == v before.f_next_counter + 1) (fact.f_id.f_counter == before.f_next_counter) end | _ -> begin Prims.l_True end
@@ -70,11 +98,27 @@ let counter_outcome (counter: u64) : Result.t_Result u64 Native.t_Error =
 let counter_result_is_exact (counter: u64) : Lemma (ensures Native.next_counter_after counter == counter_outcome counter) =
   ()
 
+let result_has_constructor (#ok: Type0) (#err: Type0) (out: Result.t_Result ok err) : Lemma (ensures Prims.l_or (exists(value: ok). out == Result.Result_Ok value) (exists(error: err). out == Result.Result_Err error)) =
+  match out with | Result.Result_Ok _ -> begin () end | Result.Result_Err _ -> begin () end
+
 let authored_edit_advances_once (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) (delete: Alloc.Vec.t_Vec Native.t_BirthId Alloc.Alloc.t_Global) : Lemma (ensures edit_counter_step before (Native.impl_Replica__edit before gap insert delete)) =
   counter_result_is_exact before.f_next_counter;
+  result_has_constructor (Native.frontier (Alloc.Vec.impl_1__as_slice before.f_facts));
   assert (edit_counter_step before (Native.impl_Replica__edit before gap insert delete)) by (
+    Tactics.prune "Nickel_crdt.Edit.frontier";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__with_counter";
     Tactics.prune "Nickel_crdt.Edit.next_counter_after";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.smt_sync' 1 1
+  )
+
+let constructed_empty (result: Result.t_Result Native.t_Replica Native.t_Error) : Type0 =
+  match result with | Result.Result_Ok state -> begin Alloc.Vec.impl_1__as_slice state.f_facts == FStar.Seq.empty end | _ -> begin Prims.l_True end
+
+let new_has_empty_facts (writer: Option.t_Option Native.t_Writer) (limits: Native.t_Limits) : Lemma (ensures constructed_empty (Native.impl_Replica__new writer limits)) =
+  Nickel.Vector.empty_vector_contents #Native.t_Fact ();
+  assert (constructed_empty (Native.impl_Replica__new writer limits)) by (
+    Tactics.prune "Alloc.Vec.impl__new";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
     Tactics.smt_sync' 1 1
   )

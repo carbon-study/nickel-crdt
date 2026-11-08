@@ -10,7 +10,9 @@ function contracts, deliberate patterns and a simple for-loop interface before
 any further semantic work. This supersedes the earlier “eventual cleanup; do not
 block proofs on style” sequencing. Sections 1–5 below are the continuation after
 that gate, not work to advance alongside it. The causal-rank candidate in PR20
-is held unchanged; it is not an exception to the new gate.
+is held against new semantic continuation. Ren separately authorized reform of
+its existing statements within the single remaining-family migration; that
+permission does not advance the semantic plan.
 
 After the reform, connect **what an admitted edit means** to the actual Rust
 transition and prove supported valid inputs can be admitted. Keep replay while

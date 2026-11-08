@@ -48,7 +48,7 @@ every actual-Rust mutation mode. For development, pass any of:
 
 - `positive-only`: the positive chain alone;
 - `contracts:<family>` (`counter`, `push`, `vector`, `scalar`, `identity`,
-  `writer`, `plan`, `containment`, `spec`, `private`, `shared`, `commit`): the positive chain, then that family's dependency controls;
+  `writer`, `plan`, `containment`, `spec`, `private`, `shared`, `commit`, `remaining`): the positive chain, then that family's dependency controls;
 - `positive`: the positive chain and all families (the previous meaning);
 - `cache-safety`: the positive chain, then the cache-reuse self-test;
 - mutation mode names, which run after the positive chain when it is selected.
@@ -199,7 +199,7 @@ full positive proof chain.
 The reused-counter mutation changes that actual helper's successful result from
 `counter + 1` to `counter`. It must still fail native public tests and now reject
 `counter_result_advances_once` ordinarily. These counter negative checks stop at their
-owning `EditAtomic` module; positive verification reaches `EditWellFormed`.
+owning `EditAtomic` module; positive verification checks the `Spec` and `EditCausal` roots.
 The separate `edit-commit-ignores-counter` control changes the actual counter
 installation inside `with_counter` to retain the old value. It must fail native
 public tests and `counter_installation_is_exact`, which checks both the installed
@@ -388,13 +388,14 @@ computation, scheduler progress/independence, Fugue refinement or full WF.
 The accepted-fact/storage proofs remain in `EditAccepted`. Scalar-domain and
 direct causal-reference contracts live in `EditWellFormed`, which imports
 those checked publication laws. The positive gate now verifies the full chain
-through `Spec`; non-counter mutation controls retain the `EditWellFormed` root
+through `Spec` and `EditCausal`; non-counter mutation controls retain the `EditWellFormed` root
 and their owning theorems (relocated where appropriate). The three counter
 controls still stop at `EditAtomic`.
 
 This separates cumulative compiler work into semantic modules; it does not
 increase the 60-second compiler cap or solver rlimit100. The split produced eight compiler targets. With the Vector model contracts,
-the current edit chain has nine targets and the unchanged formula yields 568s.
+the earlier edit chain had nine targets (568s). The current Spec/Causal
+positive union has eleven targets (692s), using that same formula.
 Every moved definition, universal statement and proof body is unchanged modulo
 the owned module namespace. Rust and the hax snapshots are unchanged by the
 split. Fresh extraction, byte-matching, native-failure requirements and the
@@ -755,9 +756,9 @@ refinement against an independent CRDT semantics. Those remain open.
 `contracts:spec` removes each of the 33 public-law calls independently and
 requires ordinary rejection at its headline. Patternless lemmas supply their
 posts by these explicit calls; there are no decorative lemma-name prunes.
-The default positive chain checks through Spec, while native mutation roots
-and owners stay unchanged. The Spec-only native visibility permissions do not
-extend to other families.
+The default positive chain checks Spec and Causal, while native mutation roots
+and owners stay unchanged. Spec visibility permissions remain module-scoped;
+other families have their own explicit permissions.
 
 ## private state through tree publication
 
@@ -860,3 +861,43 @@ They were chosen by adding sites one at a time, keeping each only if the positiv
 `selected_id_is_least`'s reduction can be removed on its own (peak 15.6% to about 22%). Combined with this slice its peak reaches about 34%, so it is kept by the cost rule, as in the previous slice.
 
 The frontier lemma keeps three reductions and `canonical_orders_facts` keeps one, so neither declaration is fenced yet. No statement, pattern or control owner changes. The deleted lists that named `push` or vector models leave implicit model reads; that is cleanup, not callee isolation.
+## remaining-family reform candidate
+
+The remaining-family candidate preserves the established universal claims,
+including the held `EditCausal` rank component. It adds no transitive-past,
+scheduling, semantic-refinement, admission-progress or convergence claim.
+
+Loop clients provide semantic invariants and completion/return conditions.
+`early_return_preserve_any` covers validators whose prefix loops can fail before
+the final check. The identity scan uses `option_interpret_any`; the break
+adapter has checked step/end equations. Universal adapters share
+`Classical.forall_intro_3 (Classical.move_requires_3 each)` rather than copying
+another quantified proposition. The option/break adapters deliberately remove
+their old fuel-sensitive quantifier triggers; their logical types are unchanged.
+
+The actual constructor's empty-fact contract uses the explicit, patternless
+`Vector.empty_vector_contents` equation. Scalar, closure and rank establishment
+compose that contract with `new` withheld. A successful-plan prefix contract
+states that actual validation succeeded; it promises no planning progress.
+
+Selected caller queries withhold native callees, fold encodings and vector/slice
+model operations. These are query-local visibility boundaries, not globally
+opaque modules. Contract-call removals test the recorded compositions;
+patterned membership facts have separate per-caller withholding controls.
+`contracts:remaining` selects these checks, and no-argument CI includes them.
+Existing native source-control owners are retained.
+
+The positive gate checks both `Spec` and `EditCausal`; mutation roots retain
+their owning Atomic or WellFormed chain. Eleven reachable project compiler
+targets yield a 692s aggregate allowance under the unchanged graph policy.
+Each compiler still has 60s and the solver rlimit remains 100.
+
+`EditCausal` carries a ghost rank, absent from Rust storage: each direct
+predecessor ranks below its event, and accepted ranks stay below a bound.
+Added/Authored extend this certificate at a fresh ID; neutral calls preserve it.
+A separately defined edge and finite path connect the certificate to exclusion
+of nonempty causal cycles. This covers finite public-call continuations from
+`new`, under the existing translation/model trust. Arbitrary closed abstract
+states need not admit such a certificate. Derived Clone preserves the existing
+certificate through hax's identity-refined Clone signature; it grants no writer
+lease. Ghost-only rank/edge controls are separate from native mutations.

@@ -32,6 +32,11 @@ let writer_index_is_exact (writer: Native.t_Writer) : Lemma (ensures Native.writ
 let writer_equality_exact (a: Native.t_Writer) (b: Native.t_Writer) : Lemma (ensures Native.impl_1.f_eq a b == (a ==? b)) =
   assert (Native.impl_1.f_eq a b == (a ==? b)) by (
     Tactics.prune "Nickel_crdt.Edit.writer_index";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
     Tactics.smt_sync' 1 1
   )
 
@@ -85,11 +90,28 @@ let rec scan_lookup (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact) (at: us
   if v at < v (length facts) then
     begin Nickel.LoopUtil.option_run_step (length facts) at () (scan_next facts fact) (scan_stop facts fact) scan_done;
     if not ((Rust_primitives.Slice.slice_index facts at).f_id ==? fact.f_id) then
-      begin scan_lookup facts fact (at +! mk_int 1) end
+      begin scan_lookup facts fact (at +! mk_int 1);
+      assert (scan_run facts fact at == classify (first_id facts fact.f_id at) fact) by (
+        Tactics.prune "Nickel.LoopUtil.option_run";
+        Tactics.prune "Core_models.Slice.impl__len";
+        Tactics.prune "Rust_primitives.Slice.slice_index";
+        Tactics.smt_sync' 1 1
+      ) end
     else
-      begin () end end
+      begin assert (scan_run facts fact at == classify (first_id facts fact.f_id at) fact) by (
+        Tactics.prune "Nickel.LoopUtil.option_run";
+        Tactics.prune "Core_models.Slice.impl__len";
+        Tactics.prune "Rust_primitives.Slice.slice_index";
+        Tactics.smt_sync' 1 1
+      ) end end
   else
-    begin Nickel.LoopUtil.option_run_end (length facts) at () (scan_next facts fact) (scan_stop facts fact) scan_done end
+    begin Nickel.LoopUtil.option_run_end (length facts) at () (scan_next facts fact) (scan_stop facts fact) scan_done;
+    assert (scan_run facts fact at == classify (first_id facts fact.f_id at) fact) by (
+      Tactics.prune "Nickel.LoopUtil.option_run";
+      Tactics.prune "Core_models.Slice.impl__len";
+      Tactics.prune "Rust_primitives.Slice.slice_index";
+      Tactics.smt_sync' 1 1
+    ) end
 
 let identity_result (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact) : Result.t_Result bool Native.t_Error =
   if v fact.f_id.f_counter ==? 0 || v fact.f_id.f_counter > 9007199254740991 then
@@ -101,8 +123,15 @@ let duplicate_matches_lookup (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact
   Nickel.LoopUtil.option_interpret_any (mk_usize 0) (length facts) (scan_next facts fact) (scan_stop facts fact) scan_done;
   scan_lookup facts fact (mk_usize 0);
   assert (Native.impl_Replica__duplicate facts fact == identity_result facts fact) by (
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.prune "Nickel.LoopUtil.option_run";
     Tactics.prune "Nickel_crdt.Edit.fact_equal";
     Tactics.prune "Nickel_crdt.Edit.invalid";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
     Tactics.smt_sync' 1 1
   )
 
@@ -130,6 +159,11 @@ let receive_known_identity (before: Native.t_Replica) (fact: Native.t_Fact) (ind
   assert (Native.impl_Replica__receive before fact == known_identity before (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice before.f_facts) index) fact) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__duplicate";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
     Tactics.smt_sync' 1 1
   )
 
@@ -138,6 +172,11 @@ let receive_invalid_counter (before: Native.t_Replica) (fact: Native.t_Fact) : L
   assert (Native.impl_Replica__receive before fact == (before, Result.Result_Err (Native.Error_Invalid Native.Invalid_Counter))) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__duplicate";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
     Tactics.smt_sync' 1 1
   )
 
@@ -155,6 +194,11 @@ let receive_added_has_fresh_event_id (before: Native.t_Replica) (fact: Native.t_
   match Native.impl_Replica__receive before fact with | (_, Result.Result_Ok Native.Admission_Added) -> begin assert (first_id (Alloc.Vec.impl_1__as_slice before.f_facts) fact.f_id (mk_usize 0) == Option.Option_None) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__duplicate";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
     Tactics.smt_sync' 1 1
   );
   lookup_none (Alloc.Vec.impl_1__as_slice before.f_facts) fact.f_id (mk_usize 0) end | _ -> begin () end

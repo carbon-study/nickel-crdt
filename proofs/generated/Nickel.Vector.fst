@@ -27,3 +27,6 @@ let slice_length (#item: Type0) (items: t_Slice item) : Lemma (ensures v (Core_m
 
 let slice_index (#item: Type0) (items: t_Slice item) (at: usize{v at < Seq.length items}) : Lemma (ensures Rust_primitives.Slice.slice_index items at == Seq.index items (v at)) [SMTPat (Rust_primitives.Slice.slice_index items at)] =
   ()
+
+let empty_vector_contents (#item: Type0) () : Lemma (ensures Alloc.Vec.impl_1__as_slice (((Alloc.Vec.impl__new ()) <: Alloc.Vec.t_Vec item Alloc.Alloc.t_Global)) == Seq.empty) =
+  ()
