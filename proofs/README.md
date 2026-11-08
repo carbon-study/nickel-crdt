@@ -741,4 +741,3 @@ allowlist does not grant other proof families these new prune prefixes.
 This adds a checked conjunction surface, not new CRDT semantics. Existing public
 proofs stay in their owning families; error neutrality, exact publication and
 cross-replica headline sections still need their own readable surface.
-

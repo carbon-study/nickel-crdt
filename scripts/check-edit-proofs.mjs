@@ -231,8 +231,8 @@ for(const mode of [...(wantPositive?['positive']:[]),...mutations]) {
   let recorded={};try{recorded=JSON.parse(await fs.readFile(path.join(proof,'sources.json'),'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
   const extractionChanged=recorded['Nickel_crdt.Edit.fst']!==digest(code);
   // Counter calculation/installation/wiring controls need only their owning module. The positive path still
-  // checks the complete public proof chain through EditWellFormed.
-  const proofRoot=['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
+  // checks the complete public proof chain through Spec.
+  const proofRoot=mode==='positive'?'Nickel.Spec.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
   const checked=await verify({dir:proof,roots:[path.join(proof,proofRoot)],fstar,models,modelCache});
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {
