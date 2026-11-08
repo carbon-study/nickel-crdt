@@ -1,0 +1,256 @@
+# proof style guide
+
+write a proof so a reader can follow the operation, its contract and the few
+facts connecting them. the reader should not have to reconstruct the extracted
+program or guess which definitions the solver happened to use.
+
+this is the style for new and migrated nickel proofs. it also supplies the
+readability checklist for the [whole-codebase reform](edit-admit-continuation.md#0-reform-contracts-patterns-and-for-loop-proofs-first).
+legacy proofs are migration work, not examples that grant exceptions. a shorter
+file or fewer tactic names does not by itself establish a better proof.
+
+## start with the claim
+
+- name the operation and observable property: `push_result_is_exact`,
+  `receive_rejection_unchanged`, `scalar_validation_is_sound`. avoid names like
+  `helper2`, `do_proof` or `fixed`.
+- say what happens on every relevant result branch. distinguish a success-only
+  property from an all-return property. include errors, empty work and duplicates
+  when the claim is about transactional behavior.
+- make semantic premises visible in `takes` clauses or clearly named parameters.
+  ordinary index bounds can stay in parameter refinements. do not hide a major
+  premise such as equal shared state in a long parameter type on a public surface.
+- use a named predicate when it explains a concept or removes a substantial
+  repeated expression. its definition must be nearby or easy to find. a name
+  that merely abbreviates the entire goal once usually adds another lookup.
+- state the exact domain. fact storage order is not text order; four preserved
+  invariant components are not complete semantic well-formedness. do not call a
+  structural rebuild theorem semantic refinement.
+
+when refactoring an existing theorem, keep its logical strength and premises.
+compare the old and new statements, including parameter refinements and pattern
+metadata. if the old statement is wrong or needs a different domain, report the
+change as a separate claim decision; do not disguise it as style cleanup.
+
+## prove contracts at the actual boundary
+
+prove laws about the actual extracted function call. an independently rewritten
+algorithm is not its contract until the implementation connection is checked.
+use exact-result laws where callers need constructors, unchanged fields or full
+contents; an underspecified predicate can leave callers depending on hidden
+implementation facts.
+
+one function may need several small laws. choose them from actual caller needs,
+then keep the relevant bodies unavailable in those caller queries. do not split
+a contract into dozens of forwarding lemmas just to make each proof one line.
+a new helper earns its place by removing repeated reasoning, naming a useful
+semantic step or establishing a real boundary.
+
+keep implementation knowledge in its owning boundary proof. a caller may inspect
+its own control flow, but should compose contracts for its callees. document
+exactly which functions are withheld; “the implementation is hidden” is too broad
+if other native or model bodies remain available.
+
+### before and after: the public counter caller
+
+these are literal bodies of `authored_edit_advances_once` before the reform at
+[15096e6](https://github.com/carbon-study/nickel-crdt/blob/15096e6472826bbcc805a0243339756ce24c7650/proofs/EditAtomic.lt)
+and after its reviewed counter migration at
+[84e1cc3](https://github.com/carbon-study/nickel-crdt/blob/84e1cc39837bac06bb072ff83e4b57501b89a29a/proofs/EditAtomic.lt).
+the theorem's complete parameter types and conclusion are identical. the snippets
+need their owning module's definitions/imports; neither is standalone.
+
+before:
+
+```text
+{
+  counter_result_advances_once(before.f_next_counter);
+  assert(edit_counter_step(before, Native.impl_Replica__edit(before, gap, insert, delete))) by {
+    Tactics.norm([delta_only(["Nickel_crdt.Edit.impl_Replica__edit", "Nickel_crdt.Edit.impl_Replica__with_counter", "Nickel.EditAtomic.edit_counter_step"]), iota, zeta_full, primops, simplify, unmeta, unascribe]);
+    Tactics.smt_sync'(1, 1)
+  }
+}
+```
+
+after:
+
+```text
+{
+  counter_result_is_exact(before.f_next_counter);
+  assert(edit_counter_step(before, Native.impl_Replica__edit(before, gap, insert, delete))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__with_counter");
+    Tactics.prune("Nickel_crdt.Edit.next_counter_after");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+```
+
+the old caller chooses implementation reductions. the new caller supplies the
+calculator's exact result and lets the checked setter contract apply at the
+actual call. its query withholds both counter helpers, so their contracts must
+do the work. the caller still sees its own edit wiring, and plan/frontier remain
+visible: this is a two-helper boundary, not an opaque public edit implementation.
+
+the gain is a stable argument the reader can name: calculate the successor,
+install it, check the public result. it is not fewer lines or merely replacing
+one tactic with another. contract/pattern-removal controls and the actual wrong
+call-argument control establish the claimed dependence and source sensitivity.
+
+### an existing caller
+
+this excerpt is `append_fresh_preserves_unique` at merged `d7e999f` in
+[`EditAccepted.lt`](https://github.com/carbon-study/nickel-crdt/blob/d7e999fe04a2f1f8e99b9ec22f71ba6b6d44fddf/proofs/EditAccepted.lt). the existing definitions and
+imports in that file are required; this is not a standalone example.
+
+```text
+proof append_fresh_preserves_unique(facts: facts_vec, fact: Native.t_Fact): unit
+  takes ids_unique(facts)
+  takes Native.has_fact(Alloc.Vec.impl_1__as_slice(facts), fact.f_id) == false
+  gives push_result_unique(Native.push(facts, fact))
+{
+  membership_absent(Alloc.Vec.impl_1__as_slice(facts), fact.f_id);
+  assert(push_result_unique(Native.push(facts, fact))) by {
+    Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+```
+
+the body supplies a membership fact and uses the exact push contract with the
+native helper withheld. that contract's pattern makes it available at the call.
+this excerpt demonstrates a native-function boundary only: imported vector/slice
+models remain visible at `d7e999f`. PR26 extends that boundary; this pinned
+example is historical, not a description of the latest caller.
+
+## keep the reasoning in order
+
+prefer a few direct lemma calls, a meaningful case split or a recursive induction
+step. put intermediate assertions where they expose a missing mathematical step,
+not after every expression as solver encouragement. use descriptive local names
+such as `before`, `next`, `fact` and `index`.
+
+keep one-off reasoning local. extract a repeated result match or quantifier
+argument when it gives callers a simpler interface. preserve captures and joint
+premises when factoring it. do not scatter essentially identical `each`,
+`each_imp` and `move_requires` scaffolds across every caller. existing repetitions
+are still reform work; another wrapper around each repetition is not a solution.
+
+comments should explain a non-obvious premise, boundary or choice of invariant.
+remove comments that merely repeat the next lemma's name. comments are not proof
+steps and must not claim more opacity or correctness than the checked query has.
+
+## use loop rules at the caller's level
+
+for a basic bounded loop, expose the initial state, invariant, preservation step
+and completion condition. use the derived plain-loop interface over the actual
+pinned interpreter. callers should not manipulate the fold model or rebuild
+`ControlFlow`, `step_safe` and `output_safe` obligations.
+
+for fallible loops, state what continuing preserves and what early `Ok` or `Err`
+returns establish. use the result-level rule where it fits. use a separate rule
+for a genuinely different exit shape; do not add impossible-case hypotheses just
+to force a loop into a convenient adapter. keep bounds and empty ranges in scope.
+
+[`Smoke.flip_exact`](../proofs/Smoke.lt) and the two scalar-boundary proofs in
+[`EditWellFormed.lt`](../proofs/EditWellFormed.lt) show the current caller
+interfaces. they are starting points, not instructions to copy their internal
+adapter scaffolding. recursive proofs need an explicit decreasing measure.
+
+## keep automation deliberate and local
+
+- use a deliberate `hint` on a term the caller actually produces. every required
+  quantified variable must be covered by the pattern; avoid self-generating
+  trigger loops. prefer an explicit contract call if it reads more clearly.
+  when another definition produces the caller's term, withhold that producer too
+  if it belongs to the intended boundary. a pattern on `as_slice(Vec(...))` may
+  otherwise appear usable only because the solver unfolds a visible `from_seq`.
+  a direct equation for `as_slice(from_seq(...))` closes that specific gap.
+- put visibility changes beside the goal they affect. `prune` withholds named
+  definitions from that goal's smt query; it does not discharge the goal. broad
+  namespace pruning needs an explained scope, especially in dependency controls.
+- do not prune a patternless project lemma after calling it. without an SMT
+  pattern (`hint`), that lemma is not offered automatically; the explicit call
+  supplies its postcondition. deleting the call is the useful dependency control.
+  pruning a patterned lemma can instead test that an explicit call is needed.
+  keep those two cases distinct and delete visibility controls that do no work.
+- the current reformed queries use `Tactics.smt_sync'(1, 1)` for shallow automatic
+  unfolding. the numbers are fuel settings, not a bound on theorem inputs. do not
+  scatter solver tuning through callers in place of finding the missing law.
+- explicit authored normalization, including `norm_spec`, `norm`, `delta_only`,
+  `iota` and `zeta` scripts or aliases hiding them, is prohibited in reformed
+  code. no source-boundary exception is approved. do not move a reduction list
+  into a helper and call that an abstraction.
+- `prune`/smt assertion blocks still carry boilerplate. keep it small and explicit;
+  do not advertise current syntax as a final ergonomic interface. improving it
+  must preserve the checked visibility boundary and the pinned toolchain policy.
+
+if a proof becomes unpredictable, first identify the missing premise, contract
+or induction step. retain unsuccessful attempts in local evidence notes. do not
+respond by enlarging compiler/query limits, changing trusted models, adding an
+admission or silently narrowing the theorem.
+
+## show that the abstraction does work
+
+check two different boundaries:
+
+1. **implementation sensitivity:** a real wrong Rust body or wrong actual call
+   argument must fail native checks and the intended source-linked law after
+   fresh extraction, where that kind of control applies.
+2. **contract dependence:** with the helper bodies withheld, remove the needed
+   pattern or contract use and require an ordinary failure at the caller.
+
+pattern deletion may stop at the first caller. use separate caller-scoped
+withholding checks when claiming that several callers use the boundary. a
+pattern that changes nothing is not evidence of modularity. model-law dependency
+controls are proof checks, not native bug witnesses.
+
+a cheap per-caller probe is to add `Tactics.prune("Nickel.Vector.vector_from_seq")`
+inside just one caller's query, leaving its model-body withholding in place.
+that particular contract is added in PR26; the probing method applies to any
+selected contract already available in the checked revision.
+that removes the selected contract facts for that query; an ordinary failure at
+that caller shows dependence. `prune` selects a namespace prefix, so verify its
+scope instead of assuming every spelling singles out one declaration. test the
+normal caller positively too. uniform boundaries can intentionally hide more
+functions than each caller needs; say so rather than claiming every pair is a
+necessary dependency.
+
+require an ordinary named failure whose semantic error belongs to that theorem's
+source declaration. timeout, solver exhaustion, parser/type errors and failures
+in an earlier unrelated lemma do not count. a positive pass alone is insufficient:
+removing several individually redundant steps can change control attribution.
+
+## finish a migration, not just a proof edit
+
+before inventing a replacement lemma for a reduction, try deleting it. run both
+the affected positive and its owning controls, including combinations you intend
+to keep. already-available facts may make the step redundant. if deletion changes
+which theorem rejects a control, the migration is not accepted merely because
+something still fails. introduce a contract where a real caller needs one, not
+to replace each old reduction mechanically.
+
+- compare old statements, source bindings and any moved theorem-owner mapping.
+- regenerate the affected authored views, compare them freshly, update receipts
+  and provenance, and include new files in the actual verification gate.
+- extend the source fence to the migrated scope and test an actual forbidden
+  injection. the fence catches prohibited forms; it does not judge readability.
+- run the relevant positive and dependency/semantic controls. proof-only changes
+  may reuse hash-recorded fresh native extractions with normal proof-cache
+  invalidation. run native/extraction checks when their boundary changes.
+- keep local checks focused. the complete matrix belongs in ci; docs-only edits
+  do not justify rerunning proof builds. preserve each running head
+  until its acceptance finishes, then require exact-head arm acceptance for a
+  proof change and a scoped collected review before merge.
+
+review a representative caller by reading its statement and body together:
+can you identify the claim, premises, contracts and induction without opening
+the callee implementations? does each new abstraction remove work for that
+reader and for the next author? if not, the readability gate is still open.
+
+## the public theorem surface
+
+`Spec.lt` is proposed, not implemented. its job is to present checked public
+predicates, explicit premises and short compositions of implementation-linked
+laws. it must not be a parallel set of copied claims or a new unproved model.
+name partial invariant bundles precisely and surface the hypotheses of
+cross-replica laws. keep the missing semantic/refinement/progress results visible.
