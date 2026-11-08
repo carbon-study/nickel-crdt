@@ -48,7 +48,7 @@ every actual-Rust mutation mode. For development, pass any of:
 
 - `positive-only`: the positive chain alone;
 - `contracts:<family>` (`counter`, `push`, `vector`, `scalar`, `identity`,
-  `writer`, `plan`, `containment`, `spec`): the positive chain, then that family's dependency controls;
+  `writer`, `plan`, `containment`, `spec`, `private`, `shared`, `commit`): the positive chain, then that family's dependency controls;
 - `positive`: the positive chain and all families (the previous meaning);
 - `cache-safety`: the positive chain, then the cache-reuse self-test;
 - mutation mode names, which run after the positive chain when it is selected.
@@ -741,3 +741,93 @@ allowlist does not grant other proof families these new prune prefixes.
 This adds a checked conjunction surface, not new CRDT semantics. Existing public
 proofs stay in their owning families; error neutrality, exact publication and
 cross-replica headline sections still need their own readable surface.
+
+## private state through tree publication
+
+`tree_publication_keeps_private` checks that the actual `with_tree` call keeps
+its input writer, next counter and limits. `plan_preserves_private_state` uses
+that contract with `with_tree` withheld: any `Ok(Some(next))` preserves those
+fields; errors and duplicate/no-new-state results make no publication claim.
+The existing public `receive_preserves_private_state` then uses this planner law
+with `plan` withheld. Its universal conclusion is unchanged.
+
+`same_private` names the three-field relation once. The existing result predicate
+`private_unchanged` simply applies it to the returned instance; its equivalence
+to the original inline predicate is checked during this migration. Neither law
+constrains the resulting facts/tree or proves acceptance, private-state
+independence, or semantic refinement.
+
+Both helper patterns and both contracts have default dependency-removal controls
+at their actual caller. The private family's probes run in a separate copy so
+they do not modify the positive workspace. Two actual Rust mutations clear the
+private counter in the tree setter or in `plan` before publication; they must
+fail native tests and their corresponding checked contract. The existing
+receive-success-counter mutation still tests the real public receive boundary.
+
+This private-state path alone does not establish shared-state independence;
+that separate contract migration is described below. The later receive/commit
+boundary migration removes the remaining three Commit normalization sites and
+extends the fence to the whole file. Remaining Accepted/WellFormed boundaries,
+model isolation and loop families are still open.
+
+## same-history admission without private planner details
+
+`tree_publication_respects_shared` compares two setter calls with the same tree
+and equal shared inputs (facts, tree and limits). Its paired trigger exposes
+that relational law to `plan_ignores_private_state`, whose two input replicas
+have the same shared fields but may differ in writer/counter. Planning returns
+matching error/duplicate/success cases; successful results have equal shared
+fields. The existing public `admission_ignores_private_state` composes that law
+with `plan` withheld, preserving its exact same-history premise and conclusion.
+The planner boundary itself withholds `with_tree`.
+
+The setter law is deliberately relational: it does not claim the supplied tree
+was installed. A setter that ignored that tree identically on both replicas
+would still respect shared equality; existing interpretation/publication controls
+must continue to catch that separate error. Neither these laws nor the public
+composition prove general delivery convergence or admission progress.
+
+Four new default dependency controls remove the paired patterns or withhold
+these contracts at their actual callers. A new native setter mutation makes
+publication depend on the private writer. The existing `receive-private-gate`
+mutation keeps its source/anchor but now rejects earlier at
+`plan_ignores_private_state`, the new checked callee boundary, rather than the
+public composition. This is the sole control-owner migration in this slice;
+the public theorem and its premise are unchanged. The private-state family’s
+four controls still run, scoped to their own declarations despite the additional
+visibility blocks. The following migration closes the remaining three explicit
+Commit normalization sites.
+
+
+## exact receive boundary and commit composition
+
+`received_plan` gives the three-case public receive result for an arbitrary
+planner result: the same error with unchanged state, duplicate with unchanged
+state, or Added with the planned state. `receive_uses_plan` checks that equation
+against actual receive with plan withheld. It is called explicitly, so it needs
+no new automatic trigger.
+
+The same-commit proof composes this receive equation, the existing exact counter
+calculation/installation contracts, and the public counter-step law. Plan,
+receive, counter helpers, frontier and invalid's native bodies are withheld in
+its source-boundary query. The exact calculator and receive equation are called
+explicitly; neither has an automatic pattern. Deleting each call rejects the
+public proof. Request binding likewise needs none of those callee bodies. Their own edit boundary and model definitions remain
+visible; this is not whole-model opacity.
+
+The private and shared receive compositions now call the receive equation too,
+with receive's body withheld. The final same-history delivery composition uses
+its three public laws with both native edit and receive withheld. All prior
+universal conclusions, premises and patterns remain exact. The whole Commit file
+is fenced against explicit normalization. Nine new default dependency controls
+exercise the receive/counter/setter dependencies and final public composition;
+the preceding eight private/shared controls remain required.
+
+Two existing controls move to the new source boundary: `receive-plan-rewrites-counter`
+and `receive-success-counter` now reject at `receive_uses_plan`, which is the
+checked declaration reading receive's body. Their actual Rust mutations and tests
+are unchanged. The old public same-commit/private-state laws remain unchanged and
+are connected to that equation by the new dependency controls. The earlier
+`receive-private-gate` move to the relational planner law remains as documented.
+No other owner moves, no native or hax snapshot changes, and no convergence or
+extra-concurrent-history claim follows from this reform.
