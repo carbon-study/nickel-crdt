@@ -129,20 +129,40 @@ proof! option_interpret<state: Type0, result: Type0>(start: usize, finish: usize
     match f(value, start) {
       ControlFlow_Break(ControlFlow_Break(ret)) => {
         assert(next(value, start) == Option.Option_None);
-        assert(stop(value, start) == ret)
+        assert(stop(value, start) == ret);
+        assert(option_finish(done, fold_range_return(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)) by {
+          Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+          Tactics.prune("Nickel.LoopUtil.option_run");
+          Tactics.smt_sync'(1, 1)
+        }
       },
       ControlFlow_Break(ControlFlow_Continue((_, out))) => {
         assert(next(value, start) == Option.Option_None);
-        assert(stop(value, start) == done(out))
+        assert(stop(value, start) == done(out));
+        assert(option_finish(done, fold_range_return(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)) by {
+          Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+          Tactics.prune("Nickel.LoopUtil.option_run");
+          Tactics.smt_sync'(1, 1)
+        }
       },
       ControlFlow_Continue(out) => {
         assert(next(value, start) == Option.Option_Some(out));
-        option_interpret(start +! mk_int(1), finish, inv, out, f, next, stop, done)
+        option_interpret(start +! mk_int(1), finish, inv, out, f, next, stop, done);
+        assert(option_finish(done, fold_range_return(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)) by {
+          Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+          Tactics.prune("Nickel.LoopUtil.option_run");
+          Tactics.smt_sync'(1, 1)
+        }
       },
     }
   } else {
     empty(start, finish, inv, value, f);
-    option_run_end(finish, start, value, next, stop, done)
+    option_run_end(finish, start, value, next, stop, done);
+    assert(option_finish(done, fold_range_return(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.prune("Nickel.LoopUtil.option_run");
+      Tactics.smt_sync'(1, 1)
+    }
   }
 }
 
@@ -150,15 +170,22 @@ proof! option_interpret<state: Type0, result: Type0>(start: usize, finish: usize
 proof option_interpret_any<state: Type0, result: Type0>(start: usize, finish: usize where v(start) <= v(finish),
   next: transition(state, finish), stop: state => (i: usize where v(i) < v(finish)) => result, done: state => result): unit
   gives forall(inv: invariant(state, start, finish), value: state, f: callback(state, result, start, finish))
-    hint fold_range_return(start, finish, inv, value, f) .
+    .
     option_agrees(start, finish, f, next, stop, done) ==>
       option_finish(done, fold_range_return(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)
 {
   proof each(inv: invariant(state, start, finish), value: state, f: callback(state, result, start, finish)): unit
     takes option_agrees(start, finish, f, next, stop, done)
     gives option_finish(done, fold_range_return(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)
-    hint fold_range_return(start, finish, inv, value, f)
-  { option_interpret(start, finish, inv, value, f, next, stop, done) }
+  {
+    option_interpret(start, finish, inv, value, f, next, stop, done);
+    assert(option_finish(done, fold_range_return(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.prune("Nickel.LoopUtil.option_run");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(each))
 }
 
 // These adapters cover the default true-invariant plain/break range encodings.
@@ -223,10 +250,7 @@ proof plain_interpret_any<state: Type0, result: Type0>(start: usize, finish: usi
       Tactics.smt_sync'(1, 1)
     }
   };
-  proof each_imp(inv: total_invariant(state, start, finish), value: state, f: plain_callback(state, start, finish)): unit
-    gives plain_agrees(start, finish, f, next) ==> done(fold_range(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)
-  { FStar.Classical.move_requires_3(each, inv, value, f) };
-  FStar.Classical.forall_intro_3(each_imp)
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(each))
 }
 
 function break_agrees<state: Type0, result: Type0>(start: usize, finish: usize, f: break_callback(state, start, finish),
@@ -237,6 +261,19 @@ function break_agrees<state: Type0, result: Type0>(start: usize, finish: usize, 
       ControlFlow_Continue(out) => next(value, at) == Option.Option_Some(out),
     } : Type0)
 }
+proof break_step<state: Type0>(start: usize, finish: usize where v(start) < v(finish),
+  inv: total_invariant(state, start, finish), value: state, f: break_callback(state, start, finish)): unit
+  gives fold_range_cf(start, finish, inv, value, f) ==
+    (match f(value, start) {
+      ControlFlow_Break((_, out)) => out,
+      ControlFlow_Continue(out) => fold_range_cf(start +! mk_int(1), finish, inv, out, f),
+    } : state)
+{ () }
+proof break_end<state: Type0>(start: usize, finish: usize where v(start) == v(finish),
+  inv: total_invariant(state, start, finish), value: state, f: break_callback(state, start, finish)): unit
+  gives fold_range_cf(start, finish, inv, value, f) == value
+{ () }
+
 proof! break_interpret<state: Type0, result: Type0>(start: usize, finish: usize where v(start) <= v(finish),
   inv: total_invariant(state, start, finish), value: state, f: break_callback(state, start, finish),
   next: transition(state, finish), stop: state => (i: usize where v(i) < v(finish)) => result, done: state => result): unit
@@ -245,30 +282,56 @@ proof! break_interpret<state: Type0, result: Type0>(start: usize, finish: usize 
   gives done(fold_range_cf(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)
 {
   if v(start) < v(finish) {
+    break_step(start, finish, inv, value, f);
     option_run_step(finish, start, value, next, stop, done);
     match f(value, start) {
       ControlFlow_Break((_, out)) => {
         assert(next(value, start) == Option.Option_None);
-        assert(stop(value, start) == done(out))
+        assert(stop(value, start) == done(out));
+        assert(done(fold_range_cf(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)) by {
+          Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf");
+          Tactics.prune("Nickel.LoopUtil.option_run");
+          Tactics.smt_sync'(1, 1)
+        }
       },
       ControlFlow_Continue(out) => {
         assert(next(value, start) == Option.Option_Some(out));
-        break_interpret(start +! mk_int(1), finish, inv, out, f, next, stop, done)
+        break_interpret(start +! mk_int(1), finish, inv, out, f, next, stop, done);
+        assert(done(fold_range_cf(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)) by {
+          Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf");
+          Tactics.prune("Nickel.LoopUtil.option_run");
+          Tactics.smt_sync'(1, 1)
+        }
       },
     }
-  } else { option_run_end(finish, start, value, next, stop, done) }
+  } else {
+    break_end(start, finish, inv, value, f);
+    option_run_end(finish, start, value, next, stop, done);
+    assert(done(fold_range_cf(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf");
+      Tactics.prune("Nickel.LoopUtil.option_run");
+      Tactics.smt_sync'(1, 1)
+    }
+  }
 }
 proof break_interpret_any<state: Type0, result: Type0>(start: usize, finish: usize where v(start) <= v(finish),
   next: transition(state, finish), stop: state => (i: usize where v(i) < v(finish)) => result, done: state => result): unit
   gives forall(inv: total_invariant(state, start, finish), value: state, f: break_callback(state, start, finish))
-    hint fold_range_cf(start, finish, inv, value, f) . break_agrees(start, finish, f, next, stop, done) ==>
+    . break_agrees(start, finish, f, next, stop, done) ==>
       done(fold_range_cf(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)
 {
   proof each(inv: total_invariant(state, start, finish), value: state, f: break_callback(state, start, finish)): unit
     takes break_agrees(start, finish, f, next, stop, done)
     gives done(fold_range_cf(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)
-    hint fold_range_cf(start, finish, inv, value, f)
-  { break_interpret(start, finish, inv, value, f, next, stop, done) }
+  {
+    break_interpret(start, finish, inv, value, f, next, stop, done);
+    assert(done(fold_range_cf(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf");
+      Tactics.prune("Nickel.LoopUtil.option_run");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(each))
 }
 
 // Universal adapter for the implementation callback, with explicit semantic premises.
@@ -292,13 +355,41 @@ proof preserve_any<state: Type0, result: Type0>(start: usize, finish: usize wher
       Tactics.smt_sync'(1, 1)
     }
   };
-  proof each_imp(inv: invariant(state, start, finish), value: state, f: callback(state, result, start, finish)): unit
-    gives (p(v(start), value) and
-      (forall(s: state, i: position(start, finish)) . p(v(i), s) ==> step_safe(p, post, returned, v(i), f(s, i))) and
-      (forall(s: state) . p(v(finish), s) ==> post(s))) ==>
-      output_safe(post, returned, fold_range_return(start, finish, inv, value, f))
-  { FStar.Classical.move_requires_3(each, inv, value, f) };
-  FStar.Classical.forall_intro_3(each_imp)
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(each))
+}
+
+// A scan may continue, finish, or return early. Callers name only the invariant
+// and the allowed early results; a normal finish has no extra obligation.
+function return_step<state: Type0, result: Type0>(p: nat => state => Type0,
+  returned: result => Type0, at: nat, out: iter_output(state, result)): Type0 {
+  match out {
+    ControlFlow_Continue(next) => p(at + 1, next),
+    ControlFlow_Break(ControlFlow_Break(ret)) => returned(ret),
+    ControlFlow_Break(ControlFlow_Continue(_)) => Prims.l_True,
+  }
+}
+function early_returns_only<state: Type0, result: Type0>(returned: result => Type0, out: output(state, result)): Type0 {
+  match out { ControlFlow_Break(ret) => returned(ret), ControlFlow_Continue(_) => Prims.l_True }
+}
+proof early_return_preserve_any<state: Type0, result: Type0>(start: usize, finish: usize where v(start) <= v(finish),
+  p: nat => state => Type0, returned: result => Type0): unit
+  gives forall(inv: invariant(state, start, finish), value: state, f: callback(state, result, start, finish)) .
+    (p(v(start), value) and
+     (forall(s: state, i: position(start, finish)) . p(v(i), s) ==> return_step(p, returned, v(i), f(s, i)))) ==>
+      early_returns_only(returned, fold_range_return(start, finish, inv, value, f))
+{
+  proof each(inv: invariant(state, start, finish), value: state, f: callback(state, result, start, finish)): unit
+    takes p(v(start), value)
+    takes forall(s: state, i: position(start, finish)) . p(v(i), s) ==> return_step(p, returned, v(i), f(s, i))
+    gives early_returns_only(returned, fold_range_return(start, finish, inv, value, f))
+  {
+    preserve_any(start, finish, p, ((_: state) => Prims.l_True), returned);
+    assert(early_returns_only(returned, fold_range_return(start, finish, inv, value, f))) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(each))
 }
 
 // Ordinary for loops: one state, one invariant, one step, one final condition.
@@ -349,12 +440,7 @@ proof plain_preserve_any<state: Type0>(start: usize, finish: usize where v(start
       Tactics.smt_sync'(1, 1)
     }
   };
-  proof each_imp(inv: total_invariant(state, start, finish), value: state, f: plain_callback(state, start, finish)): unit
-    gives (p(v(start), value) and
-       (forall(s: state, i: position(start, finish) where v(i) < v(finish)) . p(v(i), s) ==> p(v(i) + 1, f(s, i))) and
-       (forall(s: state) . p(v(finish), s) ==> post(s))) ==> post(fold_range(start, finish, inv, value, f))
-  { FStar.Classical.move_requires_3(each, inv, value, f) };
-  FStar.Classical.forall_intro_3(each_imp)
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(each))
 }
 
 // Result-oriented view of a return-capable for loop. The encoding lives here;
@@ -400,12 +486,5 @@ proof result_preserve_any<state: Type0, value: Type0, error: Type0>(start: usize
       Tactics.smt_sync'(1, 1)
     }
   };
-  proof each_imp(inv: invariant(state, start, finish), initial: state, f: callback(state, Result.t_Result(value, error), start, finish)): unit
-    gives (p(v(start), initial) and
-      (forall(s: state, i: position(start, finish)) . p(v(i), s) ==>
-        result_step(p, done, successful, failed, v(i), f(s, i))) and
-      (forall(s: state) . p(v(finish), s) ==> successful(done(s)))) ==>
-      result_safe(successful, failed, result_finish(done, fold_range_return(start, finish, inv, initial, f)))
-  { FStar.Classical.move_requires_3(each, inv, initial, f) };
-  FStar.Classical.forall_intro_3(each_imp)
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(each))
 }

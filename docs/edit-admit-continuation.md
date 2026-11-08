@@ -10,7 +10,9 @@ function contracts, deliberate patterns and a simple for-loop interface before
 any further semantic work. This supersedes the earlier “eventual cleanup; do not
 block proofs on style” sequencing. Sections 1–5 below are the continuation after
 that gate, not work to advance alongside it. The causal-rank candidate in PR20
-is held unchanged; it is not an exception to the new gate.
+is held against new semantic continuation. Ren separately authorized reform of
+its existing statements within the single remaining-family migration; that
+permission does not advance the semantic plan.
 
 After the reform, connect **what an admitted edit means** to the actual Rust
 transition and prove supported valid inputs can be admitted. Keep replay while
@@ -51,8 +53,12 @@ negotiating which Rust definitions, matches and local bindings to unfold.
 Putting the same reduction lists behind a renamed tactic does not meet this
 request. This is a mandatory first deliverable, not a cleanup suggestion.
 
-**Scope:** all project-authored proof code: Prelude, LoopUtil, Smoke, EditAtomic,
-EditCommit, EditIdentity, EditAccepted and EditWellFormed, plus the held
+The [proof style guide](proof-style.md) is the authoring and review standard.
+The whole-reform exit also requires that guide to be reviewed and the migrated
+proofs to satisfy its readability checklist, not merely its source fence.
+
+**Scope:** all project-authored proof code: Prelude, LoopUtil, Smoke, Vector,
+EditAtomic, EditCommit, EditIdentity, EditAccepted, EditWellFormed and Spec, plus the held
 EditCausal candidate before that candidate advances. Generated authored F* views,
 receipts and verification roots follow those changes. Imported F*/hax models and
 the private Latte compiler are not a codebase to rewrite or new trust to add.

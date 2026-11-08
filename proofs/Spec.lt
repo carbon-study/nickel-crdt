@@ -1,0 +1,211 @@
+import Rust_primitives
+import Core_models
+import FStar.Pervasives
+import Native = Nickel_crdt.Edit
+import Result = Core_models.Result
+import Option = Core_models.Option
+import Atomic = Nickel.EditAtomic
+import Commit = Nickel.EditCommit
+import Identity = Nickel.EditIdentity
+import Accepted = Nickel.EditAccepted
+import WellFormed = Nickel.EditWellFormed
+import Tactics = FStar.Tactics.V2
+
+// The four established storage invariants. This does not assert causal
+// acyclicity, text-order semantics, capacity progress or convergence.
+function stored_facts_valid(state: Native.t_Replica): Type0 {
+  Accepted.ids_unique(state.f_facts) and
+  Accepted.facts_ordered(state.f_facts) and
+  WellFormed.facts_scalars_valid(state.f_facts) and
+  WellFormed.facts_causally_closed(state.f_facts)
+}
+function constructed_facts_valid(result: Result.t_Result(Native.t_Replica, Native.t_Error)): Type0 {
+  match result { Result.Result_Ok(state) => stored_facts_valid(state), _ => Prims.l_True }
+}
+function received_facts_valid(result: (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error))): Type0 {
+  match result { (state, _) => stored_facts_valid(state) }
+}
+function edited_facts_valid(result: (Native.t_Replica, Result.t_Result(Native.t_Local, Native.t_Error))): Type0 {
+  match result { (state, _) => stored_facts_valid(state) }
+}
+
+// A successful constructor establishes all four invariants.
+proof new_establishes_valid_facts(writer: Option.t_Option(Native.t_Writer), limits: Native.t_Limits): unit
+  gives constructed_facts_valid(Native.impl_Replica__new(writer, limits))
+{
+  Accepted.new_establishes_unique_ids(writer, limits);
+  Accepted.new_establishes_fact_order(writer, limits);
+  WellFormed.new_establishes_scalar_validity(writer, limits);
+  WellFormed.new_establishes_causal_closure(writer, limits);
+  assert(constructed_facts_valid(Native.impl_Replica__new(writer, limits))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__new");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// Every receive return preserves valid stored facts, including rejected offers.
+proof receive_preserves_valid_facts(before: Native.t_Replica, fact: Native.t_Fact): unit
+  takes stored_facts_valid(before)
+  gives received_facts_valid(Native.impl_Replica__receive(before, fact))
+{
+  Accepted.receive_preserves_unique_ids(before, fact);
+  Accepted.receive_preserves_fact_order(before, fact);
+  WellFormed.receive_preserves_scalar_validity(before, fact);
+  WellFormed.receive_preserves_causal_closure(before, fact);
+  assert(received_facts_valid(Native.impl_Replica__receive(before, fact))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// Every edit return preserves them too, including empty edits and errors.
+proof edit_preserves_valid_facts(before: Native.t_Replica, gap: usize, insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global)): unit
+  takes stored_facts_valid(before)
+  gives edited_facts_valid(Native.impl_Replica__edit(before, gap, insert, delete))
+{
+  Accepted.edit_preserves_unique_ids(before, gap, insert, delete);
+  Accepted.edit_preserves_fact_order(before, gap, insert, delete);
+  WellFormed.edit_preserves_scalar_validity(before, gap, insert, delete);
+  WellFormed.edit_preserves_causal_closure(before, gap, insert, delete);
+  assert(edited_facts_valid(Native.impl_Replica__edit(before, gap, insert, delete))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__edit");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// Public outcomes, with no valid-before premise. A receive error or duplicate
+// changes nothing. Added publishes exactly one fresh whole fact, with valid
+// scalars and existing direct predecessors, in unique event-key storage order.
+// Every receive return preserves writer, counter and limits.
+function receive_contract(before: Native.t_Replica, fact: Native.t_Fact,
+  outcome: (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error))): Type0 {
+  Atomic.receive_neutral(before, outcome) and
+  Commit.private_unchanged(before, outcome) and
+  Accepted.added_exact_contents(before, fact, outcome) and
+  Identity.added_is_fresh(before, fact, outcome) and
+  Accepted.added_state_unique(outcome) and
+  Accepted.added_ordered(outcome) and
+  WellFormed.added_scalars(fact, outcome) and
+  WellFormed.added_dependencies(before, fact, outcome)
+}
+proof receive_obeys_contract(before: Native.t_Replica, fact: Native.t_Fact): unit
+  gives receive_contract(before, fact, Native.impl_Replica__receive(before, fact))
+{
+  Atomic.receive_rejection_unchanged(before, fact);
+  Commit.receive_preserves_private_state(before, fact);
+  Accepted.receive_added_has_exact_contents(before, fact);
+  Identity.receive_added_has_fresh_event_id(before, fact);
+  Accepted.receive_added_ids_are_unique(before, fact);
+  Accepted.receive_added_facts_are_ordered(before, fact);
+  WellFormed.receive_added_fact_has_valid_scalars(before, fact);
+  WellFormed.receive_added_has_direct_dependencies(before, fact);
+  assert(receive_contract(before, fact, Native.impl_Replica__receive(before, fact))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// Errors and empty edits leave the whole instance unchanged. Authored binds
+// the exact insert/delete and writer, and the requested gap when inserting; uses the old counter once,
+// publishes exactly that fresh fact, and agrees with admitting it to before.
+// This says nothing about admission to a receiver with extra concurrent facts.
+function edit_contract(before: Native.t_Replica, gap: usize,
+  insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global),
+  outcome: (Native.t_Replica, Result.t_Result(Native.t_Local, Native.t_Error))): Type0 {
+  Atomic.edit_neutral(before, outcome) and
+  Atomic.edit_counter_step(before, outcome) and
+  Commit.request_bound(before, gap, insert, delete, outcome) and
+  Commit.same_commit(before, outcome) and
+  Accepted.authored_exact_contents(before, outcome) and
+  Identity.authored_id_is_fresh(before, outcome) and
+  Accepted.authored_ordered(outcome) and
+  WellFormed.authored_scalars(outcome)
+}
+proof edit_obeys_contract(before: Native.t_Replica, gap: usize,
+  insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global)): unit
+  gives edit_contract(before, gap, insert, delete, Native.impl_Replica__edit(before, gap, insert, delete))
+{
+  Atomic.edit_rejection_or_empty_unchanged(before, gap, insert, delete);
+  Atomic.authored_edit_advances_once(before, gap, insert, delete);
+  Commit.authored_fact_binds_request(before, gap, insert, delete);
+  Commit.authored_fact_replays_same_commit(before, gap, insert, delete);
+  Accepted.edit_authored_has_exact_contents(before, gap, insert, delete);
+  Identity.authored_event_id_is_fresh(before, gap, insert, delete);
+  Accepted.authored_facts_are_ordered(before, gap, insert, delete);
+  WellFormed.edit_authors_only_valid_scalars(before, gap, insert, delete);
+  assert(edit_contract(before, gap, insert, delete, Native.impl_Replica__edit(before, gap, insert, delete))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__edit");
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// Identity classification has explicit domain premises. The stored member may
+// occur at any in-bounds index; unique before-IDs make that choice immaterial.
+proof known_identity_is_classified(before: Native.t_Replica, fact: Native.t_Fact,
+  index: usize where v(index) < v(Identity.length(Alloc.Vec.impl_1__as_slice(before.f_facts)))): unit
+  takes Identity.unique_ids(Alloc.Vec.impl_1__as_slice(before.f_facts))
+  takes Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(before.f_facts), index).f_id == fact.f_id
+  takes 0 < v(fact.f_id.f_counter) and v(fact.f_id.f_counter) <= 9007199254740991
+  gives Native.impl_Replica__receive(before, fact) ==
+    Identity.known_identity(before, Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(before.f_facts), index), fact)
+{
+  Identity.receive_known_identity(before, fact, index);
+  assert(Native.impl_Replica__receive(before, fact) ==
+    Identity.known_identity(before, Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(before.f_facts), index), fact)) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof invalid_counter_is_rejected(before: Native.t_Replica, fact: Native.t_Fact): unit
+  takes v(fact.f_id.f_counter) == 0 or v(fact.f_id.f_counter) > 9007199254740991
+  gives Native.impl_Replica__receive(before, fact) == (before, Result.Result_Err(Native.Error_Invalid(Native.Invalid_Counter)))
+{
+  Identity.receive_invalid_counter(before, fact);
+  assert(Native.impl_Replica__receive(before, fact) == (before, Result.Result_Err(Native.Error_Invalid(Native.Invalid_Counter)))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// Same shared history means equal facts, tree and limits. Private writer and
+// counter may differ. These premises do not cover extra concurrent history.
+proof equal_shared_history_gives_same_admission(before: Native.t_Replica, remote: Native.t_Replica, fact: Native.t_Fact): unit
+  takes Commit.same_shared(before, remote)
+  gives Commit.same_admission(Native.impl_Replica__receive(before, fact), Native.impl_Replica__receive(remote, fact))
+{
+  Commit.admission_ignores_private_state(before, remote, fact);
+  assert(Commit.same_admission(Native.impl_Replica__receive(before, fact), Native.impl_Replica__receive(remote, fact))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof authored_fact_admits_on_equal_shared_history(before: Native.t_Replica, remote: Native.t_Replica, gap: usize,
+  insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global)): unit
+  takes Commit.same_shared(before, remote)
+  gives Commit.delivered_commit(remote, Native.impl_Replica__edit(before, gap, insert, delete))
+{
+  Commit.local_author_remote_admit(before, remote, gap, insert, delete);
+  assert(Commit.delivered_commit(remote, Native.impl_Replica__edit(before, gap, insert, delete))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__edit");
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// Candidate lists may be permuted, but must have the same whole-fact support
+// and length. Both receives must be Added for the facts/tree equality to apply.
+// This is conditional structural rebuild agreement, not delivery convergence.
+proof equal_candidate_contents_give_same_rebuild(left: Native.t_Replica, left_fact: Native.t_Fact,
+  right: Native.t_Replica, right_fact: Native.t_Fact): unit
+  takes Accepted.same_input_contents_and_length(
+    Alloc.Vec.impl_1__as_slice(Accepted.candidate_facts(left, left_fact)),
+    Alloc.Vec.impl_1__as_slice(Accepted.candidate_facts(right, right_fact)))
+  gives Accepted.added_shared_agreement(Native.impl_Replica__receive(left, left_fact), Native.impl_Replica__receive(right, right_fact))
+{
+  Accepted.receive_added_shared_state_agrees(left, left_fact, right, right_fact);
+  assert(Accepted.added_shared_agreement(Native.impl_Replica__receive(left, left_fact), Native.impl_Replica__receive(right, right_fact))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
+    Tactics.smt_sync'(1, 1)
+  }
+}

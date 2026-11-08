@@ -3,7 +3,7 @@ import {assertReformedSource} from './proof-reform.mjs';
 export function checkProofReformFence() {
   const good="import Tactics = FStar.Tactics.V2\nproof p(): unit gives True { assert(True) by { Tactics.smt_sync'(1, 1) } }";
   assertReformedSource('fixture',good);
-  for(const namespace of ['Nickel_crdt.Edit.impl_Replica__plan','Nickel_crdt.Edit.impl_Replica__duplicate','Nickel_crdt.Edit.invalid','Nickel_crdt.Edit.writer_index','Nickel_crdt.Edit.fact_equal','Alloc.Vec.from_seq','Alloc.Vec.impl_1__as_slice','Alloc.Vec.impl_1__len','Core_models.Slice.impl__len','Rust_primitives.Slice.slice_index','Nickel_crdt.Edit.next_counter_after','Rust_primitives.Hax.Folds.fold_range','Rust_primitives.Hax.Folds.fold_range_return','Nickel.LoopUtil.option_run','Nickel.LoopUtil.step_safe','Nickel.LoopUtil.output_safe'])
+  for(const namespace of ['Nickel_crdt.Edit.impl_Replica__with_tree','Nickel_crdt.Edit.impl_Replica__plan','Nickel_crdt.Edit.impl_Replica__duplicate','Nickel_crdt.Edit.invalid','Nickel_crdt.Edit.writer_index','Nickel_crdt.Edit.fact_equal','Alloc.Vec.from_seq','Alloc.Vec.impl_1__as_slice','Alloc.Vec.impl_1__len','Core_models.Slice.impl__len','Rust_primitives.Slice.slice_index','Nickel_crdt.Edit.next_counter_after','Rust_primitives.Hax.Folds.fold_range','Rust_primitives.Hax.Folds.fold_range_return','Nickel.LoopUtil.option_run','Nickel.LoopUtil.step_safe','Nickel.LoopUtil.output_safe'])
     assertReformedSource('fixture','import Tactics = FStar.Tactics.V2\nTactics.prune('+JSON.stringify(namespace)+')');
   assertReformedSource('fixture','// norm_spec is prohibited\nfunction name(): string { "Tactics.compute()" }');
   assertReformedSource('fixture','Tactics.prune("Nickel_crdt.Edit.push")');
@@ -15,6 +15,22 @@ export function checkProofReformFence() {
     "let solve = Tactics.smt_sync'", "Tactics.smt_sync'(4, 4)",
     'Tactics.set_options("--fuel 100")', 'Tactics.prune("Other")', 'let hide = Tactics.prune',
   ])assert.throws(()=>assertReformedSource('fixture',bad),/fixture reform:/,bad);
+  assertReformedSource('EditWellFormed','Tactics.prune("Nickel.EditIdentity.prefix_absent")');
+  assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Nickel.EditIdentity.prefix_absent")'),/fixture reform:/);
+  assert.throws(()=>assertReformedSource('EditWellFormed','assert_norm(true)'),/EditWellFormed reform:/);
+  assertReformedSource('Spec','Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive")');
+  assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive")'),/fixture reform:/);
+  assert.throws(()=>assertReformedSource('Spec','assert_norm(true)'),/Spec reform:/);
+
+  assertReformedSource('EditCommit','Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive")');
+  assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive")'),/fixture reform:/);
+  assert.throws(()=>assertReformedSource('EditCommit','assert_norm(true)'),/EditCommit reform:/);
+
+  for(const name of ['EditCausal','EditAtomic','EditWellFormed']) {
+    assert.throws(()=>assertReformedSource(name,'assert_norm(true)'),new RegExp(name+' reform:'));
+  }
+  assertReformedSource('LoopUtil','Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf")');
+  assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf")'),/fixture reform:/);
   console.log('PASS proof-reform fence: approved direct tactic, normalization/import/alias controls');
 }
 checkProofReformFence();

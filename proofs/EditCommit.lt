@@ -1,7 +1,6 @@
 import Rust_primitives
 import Core_models
 import FStar.Pervasives
-import FStar.NormSteps
 import Tactics = FStar.Tactics.V2
 import Nickel.EditAtomic
 import Native = Nickel_crdt.Edit
@@ -37,13 +36,34 @@ function request_bound(before: Native.t_Replica, gap: usize, insert: Alloc.Vec.t
     _ => Prims.l_True
   }
 }
-// Normalize the real call boundary, then keep replay opaque to shallow SMT.
+// Read the authoring boundary without reopening its planner/counter callees.
 // The statement still quantifies every native input and successful outcome.
 proof authored_fact_binds_request(before: Native.t_Replica, gap: usize, insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global)): unit
   gives request_bound(before, gap, insert, delete, Native.impl_Replica__edit(before, gap, insert, delete))
 {
   assert(request_bound(before, gap, insert, delete, Native.impl_Replica__edit(before, gap, insert, delete))) by {
-    Tactics.norm([delta_only(["Nickel_crdt.Edit.impl_Replica__edit", "Nickel.EditCommit.request_bound", "Nickel.EditCommit.requested_gap"]), iota, zeta_full, primops, simplify, unmeta, unascribe]);
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__plan");
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__with_counter");
+    Tactics.prune("Nickel_crdt.Edit.next_counter_after");
+    Tactics.prune("Nickel_crdt.Edit.frontier");
+    Tactics.prune("Nickel_crdt.Edit.invalid");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// Exact public receive boundary; plan stays an uninterpreted callee here.
+function received_plan(before: Native.t_Replica, result: Nickel.EditAtomic.plan_result): (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error)) {
+  match result {
+    Result.Result_Err(error) => (before, Result.Result_Err(error)),
+    Result.Result_Ok(Core_models.Option.Option_None) => (before, Result.Result_Ok(Native.Admission_Duplicate)),
+    Result.Result_Ok(Core_models.Option.Option_Some(next)) => (next, Result.Result_Ok(Native.Admission_Added))
+  }
+}
+proof receive_uses_plan(before: Native.t_Replica, fact: Native.t_Fact): unit
+  gives Native.impl_Replica__receive(before, fact) == received_plan(before, Native.impl_Replica__plan(before, fact))
+{
+  assert(Native.impl_Replica__receive(before, fact) == received_plan(before, Native.impl_Replica__plan(before, fact))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__plan");
     Tactics.smt_sync'(1, 1)
   }
 }
@@ -52,24 +72,59 @@ proof authored_fact_replays_same_commit(before: Native.t_Replica, gap: usize, in
   gives same_commit(before, Native.impl_Replica__edit(before, gap, insert, delete))
 {
   Nickel.EditAtomic.authored_edit_advances_once(before, gap, insert, delete);
-  assert(same_commit(before, Native.impl_Replica__edit(before, gap, insert, delete))) by {
-    Tactics.norm([delta_only(["Nickel_crdt.Edit.impl_Replica__edit", "Nickel_crdt.Edit.next_counter_after", "Nickel_crdt.Edit.impl_Replica__with_counter", "Nickel_crdt.Edit.impl_Replica__receive", "Nickel.EditCommit.same_commit"]), iota, zeta_full, primops, simplify, unmeta, unascribe]);
+  Nickel.EditAtomic.counter_result_is_exact(before.f_next_counter);
+  match Native.impl_Replica__edit(before, gap, insert, delete) {
+    (_, Result.Result_Ok(Native.Local_Authored(fact))) => {
+      receive_uses_plan(before, fact);
+      assert(same_commit(before, Native.impl_Replica__edit(before, gap, insert, delete))) by {
+        Tactics.prune("Nickel_crdt.Edit.impl_Replica__plan");
+        Tactics.prune("Nickel_crdt.Edit.impl_Replica__with_counter");
+        Tactics.prune("Nickel_crdt.Edit.next_counter_after");
+        Tactics.prune("Nickel_crdt.Edit.frontier");
+        Tactics.prune("Nickel_crdt.Edit.invalid");
+        Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
+        Tactics.smt_sync'(1, 1)
+      }
+    },
+    _ => ()
+  }
+}
+
+// Publication must preserve the instance's private writer and allocator state.
+function same_private(before: Native.t_Replica, next: Native.t_Replica): Type0 {
+  next.f_writer == before.f_writer and next.f_next_counter == before.f_next_counter and
+  next.f_limits == before.f_limits
+}
+proof tree_publication_keeps_private(state: Native.t_Replica, tree: Native.t_Tree): unit
+  gives same_private(state, Native.impl_Replica__with_tree(state, tree))
+  hint Native.impl_Replica__with_tree(state, tree)
+{ () }
+function planned_private(before: Native.t_Replica, result: Nickel.EditAtomic.plan_result): Type0 {
+  match result {
+    Result.Result_Ok(Core_models.Option.Option_Some(next)) => same_private(before, next),
+    _ => Prims.l_True
+  }
+}
+proof plan_preserves_private_state(before: Native.t_Replica, fact: Native.t_Fact): unit
+  gives planned_private(before, Native.impl_Replica__plan(before, fact))
+  hint Native.impl_Replica__plan(before, fact)
+{
+  assert(planned_private(before, Native.impl_Replica__plan(before, fact))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__with_tree");
     Tactics.smt_sync'(1, 1)
   }
 }
 
 function private_unchanged(before: Native.t_Replica, outcome: (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error))): Type0 {
-  match outcome { (next, _) =>
-    next.f_writer == before.f_writer and
-    next.f_next_counter == before.f_next_counter and
-    next.f_limits == before.f_limits
-  }
+  match outcome { (next, _) => same_private(before, next) }
 }
 proof receive_preserves_private_state(before: Native.t_Replica, fact: Native.t_Fact): unit
   gives private_unchanged(before, Native.impl_Replica__receive(before, fact))
 {
+  receive_uses_plan(before, fact);
   assert(private_unchanged(before, Native.impl_Replica__receive(before, fact))) by {
-    Tactics.norm([delta_only(["Nickel_crdt.Edit.impl_Replica__receive", "Nickel_crdt.Edit.impl_Replica__plan", "Nickel_crdt.Edit.impl_Replica__with_tree", "Core_models.Clone.f_clone", "Nickel_crdt.Edit.impl_82", "Nickel.EditCommit.private_unchanged"]), iota, zeta_full, primops, simplify, unmeta, unascribe]);
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__plan");
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
     Tactics.smt_sync'(1, 1)
   }
 }
@@ -77,14 +132,43 @@ proof receive_preserves_private_state(before: Native.t_Replica, fact: Native.t_F
 function same_shared(left: Native.t_Replica, right: Native.t_Replica): Type0 {
   left.f_facts == right.f_facts and left.f_tree == right.f_tree and left.f_limits == right.f_limits
 }
+// Equal shared inputs remain equal through the same tree publication.
+// This is relational; it does not assert that the supplied tree was installed.
+proof tree_publication_respects_shared(left: Native.t_Replica, right: Native.t_Replica, tree: Native.t_Tree): unit
+  takes same_shared(left, right)
+  gives same_shared(Native.impl_Replica__with_tree(left, tree), Native.impl_Replica__with_tree(right, tree))
+  hint Native.impl_Replica__with_tree(left, tree), Native.impl_Replica__with_tree(right, tree)
+{ () }
+function planned_shared(left: Nickel.EditAtomic.plan_result, right: Nickel.EditAtomic.plan_result): Type0 {
+  match (left, right) {
+    (Result.Result_Err(a), Result.Result_Err(b)) => a == b,
+    (Result.Result_Ok(Core_models.Option.Option_None), Result.Result_Ok(Core_models.Option.Option_None)) => Prims.l_True,
+    (Result.Result_Ok(Core_models.Option.Option_Some(a)), Result.Result_Ok(Core_models.Option.Option_Some(b))) => same_shared(a, b),
+    _ => Prims.l_False
+  }
+}
+proof plan_ignores_private_state(before: Native.t_Replica, remote: Native.t_Replica, fact: Native.t_Fact): unit
+  takes same_shared(before, remote)
+  gives planned_shared(Native.impl_Replica__plan(before, fact), Native.impl_Replica__plan(remote, fact))
+  hint Native.impl_Replica__plan(before, fact), Native.impl_Replica__plan(remote, fact)
+{
+  assert(planned_shared(Native.impl_Replica__plan(before, fact), Native.impl_Replica__plan(remote, fact))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__with_tree");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
 function same_admission(left: (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error)), right: (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error))): Type0 {
   match (left, right) { ((a, x), (b, y)) => x == y and same_shared(a, b) }
 }
 proof admission_ignores_private_state(before: Native.t_Replica, remote: Native.t_Replica where same_shared(before, remote), fact: Native.t_Fact): unit
   gives same_admission(Native.impl_Replica__receive(before, fact), Native.impl_Replica__receive(remote, fact))
 {
+  receive_uses_plan(before, fact);
+  receive_uses_plan(remote, fact);
   assert(same_admission(Native.impl_Replica__receive(before, fact), Native.impl_Replica__receive(remote, fact))) by {
-    Tactics.norm([delta_only(["Nickel_crdt.Edit.impl_Replica__receive", "Nickel_crdt.Edit.impl_Replica__plan", "Nickel_crdt.Edit.impl_Replica__with_tree", "Core_models.Clone.f_clone", "Nickel_crdt.Edit.impl_82", "Nickel.EditCommit.same_admission", "Nickel.EditCommit.same_shared"]), iota, zeta_full, primops, simplify, unmeta, unascribe]);
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__plan");
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
     Tactics.smt_sync'(1, 1)
   }
 }
@@ -109,9 +193,13 @@ proof local_author_remote_admit(before: Native.t_Replica, remote: Native.t_Repli
   match Native.impl_Replica__edit(before, gap, insert, delete) {
     (_, Result.Result_Ok(Native.Local_Authored(fact))) => {
       admission_ignores_private_state(before, remote, fact);
-      receive_preserves_private_state(remote, fact)
+      receive_preserves_private_state(remote, fact);
+      assert(delivered_commit(remote, Native.impl_Replica__edit(before, gap, insert, delete))) by {
+        Tactics.prune("Nickel_crdt.Edit.impl_Replica__edit");
+        Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
+        Tactics.smt_sync'(1, 1)
+      }
     },
     _ => ()
-  };
-  norm_spec([delta_only(["Nickel.EditCommit.delivered_commit", "Nickel.EditCommit.same_commit", "Nickel.EditCommit.same_admission", "Nickel.EditCommit.same_shared", "Nickel.EditCommit.private_unchanged"]), iota, zeta_full, primops, unmeta, unascribe], delivered_commit(remote, Native.impl_Replica__edit(before, gap, insert, delete)))
+  }
 }

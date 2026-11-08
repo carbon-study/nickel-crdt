@@ -10,7 +10,7 @@ The generic loop library and prelude were extracted, with Ren's explicit authori
 The loop source was renamed from `Light` to `Nickel`. The proof-cache/bootstrap helpers and smoke proof also adapt Lynn's existing harness and loop-shape work. This extraction does not redistribute the Dark application or the Latte compiler. The scaffold's authored code is offered under MIT; upstream toolchains retain their own licenses.
 
 The committed Prelude, LoopUtil, Vector, Smoke, EditAtomic, EditCommit, EditIdentity,
-EditAccepted and EditWellFormed views were re-emitted and compared byte-for-byte using local
+EditAccepted, EditWellFormed, Spec and EditCausal views were re-emitted and compared byte-for-byte using local
 `carbon-study/latte-nursery` revision
 `0729bf34e2a7d9538604d951edc44d376d1b8ced` and its locked `.#cli` package. The
 clean local checkout's CLI output matches the installed emitter used for that
@@ -19,7 +19,7 @@ comparison. An authorized local checkout can repeat the emission check with:
 ```sh
 emitter=$(nix build --no-link --print-out-paths /path/to/latte-nursery#cli)
 temporary=$(mktemp -d)
-for name in Prelude LoopUtil Vector Smoke EditAtomic EditCommit EditIdentity EditAccepted EditWellFormed; do
+for name in Prelude LoopUtil Vector Smoke EditAtomic EditCommit EditIdentity EditAccepted EditWellFormed Spec EditCausal; do
   "$emitter/bin/latte" emit-fstar "$PWD/proofs/$name.lt" > "$temporary/Nickel.$name.fst"
   cmp "$temporary/Nickel.$name.fst" "proofs/generated/Nickel.$name.fst" || exit 1
 done
@@ -143,10 +143,18 @@ The Result step's three repeated matches are factored into the transparent
 `result_step` predicate. Its contents are unchanged. Focused verification also
 checks the current implementation against the exact previous inline universal
 contract, not just the refactored signature; existing actual caller and native
-controls remain. Universal-introduction scaffolding is still repeated.
+controls remain. The remaining-family candidate factors universal introduction through the existing
+Classical move-requires/forall-introduction functions. It changes the option and
+break adapters' trigger metadata, without changing their logical statements.
 
-`Vector` contains four checked equations over the already-pinned hax models
+`Vector` contains checked equations over the already-pinned hax models
 (vector contents/length and slice length/index). It is emitted by the same
 private CLI revision above. It adds no assumed equation and changes no imported
-model. Four Accepted callers withhold those model functions and use the proved
+model. Four Accepted push callers, and the frontier lemma's one slice equation, withhold those model functions and use the proved
 contracts; other imported model definitions remain available.
+
+The remaining-family candidate ports the previously held EditCausal rank/path
+proofs without strengthening their claims. It reuses the same native/hax
+translations and imported model trust, including identity-refined derived Clone.
+The additional empty-vector equation and constructor/validation-prefix contracts
+are proved in the project; they are not new imported assumptions.

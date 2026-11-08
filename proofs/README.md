@@ -1,5 +1,9 @@
 # proof scope
 
+Author new and migrated proofs using the [proof style guide](../docs/proof-style.md).
+It includes the readability and boundary-review checklist; the existing legacy
+proofs are not exceptions to that standard.
+
 `Smoke.lt` retains the extracted Rust `flip`/reference-interpreter bridge and also proves parity directly through the plain-loop invariant rule, then derives involution from that parity contract. `LoopUtil.lt` supplies reusable range-loop interpretation and induction lemmas. Its invariant parameter follows the pinned hax representation: it is an annotation, not an independently enforced loop invariant.
 
 The check freshly extracts Rust in isolated positive and mutation workspaces. Both use the same authored theorem statements. Replacing the loop's toggle with identity must fail `Nickel.Smoke.flip_bridge` as a proof obligation; a timeout or extraction error is not an accepted control result. The native test must also detect the mutation.
@@ -44,7 +48,7 @@ every actual-Rust mutation mode. For development, pass any of:
 
 - `positive-only`: the positive chain alone;
 - `contracts:<family>` (`counter`, `push`, `vector`, `scalar`, `identity`,
-  `writer`, `plan`): the positive chain, then that family's dependency controls;
+  `writer`, `plan`, `containment`, `accepted`, `spec`, `private`, `shared`, `commit`, `remaining`): the positive chain, then that family's dependency controls;
 - `positive`: the positive chain and all families (the previous meaning);
 - `cache-safety`: the positive chain, then the cache-reuse self-test;
 - mutation mode names, which run after the positive chain when it is selected.
@@ -175,9 +179,13 @@ The same four push callers withhold `Alloc.Vec.impl_1__as_slice`,
 `Rust_primitives.Slice.slice_index`, as well as native `push`. This uniform block
 is a deliberate visibility boundary, not a claim that each equation is needed
 in every caller.
-Five pattern removals must reject at the first caller. Separately withholding
-all Vector contracts, or just the new `vector_from_seq` equation, in each caller
-must reject at that caller. These are proof-dependency controls, not native bugs.
+Five global pattern removals must reject at their named dependent proof. The
+slice-length removal now reaches the earlier isolated Identity duplicate boundary;
+the others still reach the first Accepted push caller. Each equation is also
+withheld only within that Accepted caller's query, requiring its own rejection
+without disrupting upstream proofs. Separately withholding all Vector contracts,
+or just the `vector_from_seq` equation, in each of the four callers must reject
+at that caller. These are proof-dependency controls, not native bugs.
 Existing actual-Rust controls remain separate.
 
 This gives those four queries an explicit model-function boundary. Other model
@@ -195,7 +203,7 @@ full positive proof chain.
 The reused-counter mutation changes that actual helper's successful result from
 `counter + 1` to `counter`. It must still fail native public tests and now reject
 `counter_result_advances_once` ordinarily. These counter negative checks stop at their
-owning `EditAtomic` module; positive verification reaches `EditWellFormed`.
+owning `EditAtomic` module; positive verification checks the `Spec` and `EditCausal` roots.
 The separate `edit-commit-ignores-counter` control changes the actual counter
 installation inside `with_counter` to retain the old value. It must fail native
 public tests and `counter_installation_is_exact`, which checks both the installed
@@ -383,14 +391,15 @@ computation, scheduler progress/independence, Fugue refinement or full WF.
 
 The accepted-fact/storage proofs remain in `EditAccepted`. Scalar-domain and
 direct causal-reference contracts live in `EditWellFormed`, which imports
-those checked publication laws. The positive gate verifies the full chain
-through `EditWellFormed`; every non-counter control uses that same root,
-with its original owning theorem (relocated where appropriate). The three
-counter controls still stop at `EditAtomic`.
+those checked publication laws. The positive gate now verifies the full chain
+through `Spec` and `EditCausal`; non-counter mutation controls retain the `EditWellFormed` root
+and their owning theorems (relocated where appropriate). The three counter
+controls still stop at `EditAtomic`.
 
 This separates cumulative compiler work into semantic modules; it does not
 increase the 60-second compiler cap or solver rlimit100. The split produced eight compiler targets. With the Vector model contracts,
-the current edit chain has nine targets and the unchanged formula yields 568s.
+the earlier edit chain had nine targets (568s). The current Spec/Causal
+positive union has eleven targets (692s), using that same formula.
 Every moved definition, universal statement and proof body is unchanged modulo
 the owned module namespace. Rust and the hax snapshots are unchanged by the
 split. Fresh extraction, byte-matching, native-failure requirements and the
@@ -596,18 +605,14 @@ Identity/Accepted theorem signature and pattern is unchanged in this slice.
 
 ## redundant WellFormed reductions
 
-Fifteen explicit reductions in EditWellFormed were removed because they were
-redundant. The scalar-validity and causal-closure laws, the presence lemma and
-the dependency-validation laws now verify without them. Ten opened only
-project spec definitions. The other five named a native function (`new`,
-`validate_after`, `past`) inside that function's own owning boundary proof, so
-no callee implementation is newly read by a caller. The two containment lemmas
-`absence_on_whole_facts` and `presence_survives_containment` keep their five
-reductions; removing them fails the positive chain. Two scalar proofs,
-`successful_validation_has_valid_scalars` and `receive_added_fact_has_valid_scalars`,
-still use `Tactics.norm` inside an assertion and stay outside the fence. The fence
-now covers the other thirteen migrated declarations. No theorem statement, pattern, control or
-budget changes. This is reduction cleanup, not new contract isolation.
+The first cleanup removed fifteen redundant reductions from EditWellFormed's
+scalar-validity, causal-closure, membership and dependency-validation laws.
+Ten opened only project spec definitions. Five named a native function
+(`new`, `validate_after`, `past`) inside its own owning boundary proof.
+That cleanup added no new contract isolation. The subsequent deletion cut below
+removed four `Tactics.norm` steps, and the containment-contract migration removes
+the last five reductions. The whole file is now fenced; implicit model/callee
+reads outside the named contract boundaries still need migration.
 
 ## invalid-result constructor contract
 
@@ -649,8 +654,9 @@ rewrite the fact passed from `receive` into `plan`.
 
 `EditIdentity` now has no explicit normalization and its whole authored file is
 fenced. Its duplicate-loop model remains visible: this is not whole-family
-implementation isolation. Other planner callers, including the private-state
-laws in `EditCommit`, still reopen the planner; they need further migration.
+implementation isolation. At that prefix-contract cut, other planner callers still reopened the planner.
+The private/shared/receive compositions below now migrate the Commit callers;
+Accepted publication boundaries and other implicit model/loop reads remain open.
 Neither these prefix laws nor their caller compositions prove successful
 admission, causal replay, or delivery convergence.
 
@@ -675,12 +681,13 @@ What the removed EditAccepted lists named:
   boundary, are still open.
 
 The four WellFormed steps opened `validate_new`, `receive` and `plan` inside the
-scalar-validity and direct-dependency laws for those operations. They are deleted
-here; whether those reads should go through callee contracts is still open work.
+scalar-validity and direct-dependency laws for those operations. Their deletion
+does not establish callee isolation; those implicit reads remain open work.
 
 Kept, with their reductions still needed:
 
-- `append_least_preserves_frontier` (6) and the two containment lemmas (5).
+- `append_least_preserves_frontier` (6). The two containment lemmas' five sites
+  were retained at that deletion cut, then removed through the contracts below.
 - `canonical_orders_facts` (2): without them its peak rises from 0.66% to about 34%.
 - The four EditAccepted `Tactics.norm` publication/planner boundaries
   (`plan_publishes_canonical_facts`, `plan_publishes_interpretation`,
@@ -691,6 +698,161 @@ Kept, with their reductions still needed:
 
 The fence now also covers the 26 migrated EditAccepted declarations and the 4
 WellFormed declarations that are free of normalization.
+
+
+## containment through whole-fact witnesses
+
+The last five explicit WellFormed reductions are gone. In
+`absence_on_whole_facts`, a selected whole fact is related to its sequence
+position by the existing checked slice-index and slice-length contracts. The
+model index/length implementations and those contracts' global facts are
+withheld; the two explicit calls supply local facts. Native `has_fact` is also
+withheld in that query.
+
+`presence_survives_containment` chooses one before-fact with the required ID.
+Containment gives the same whole fact in the next slice; the checked absence
+law then rules out absence. There is no second position search, reverse lookup
+or hand-expanded prefix predicate. That caller withholds the prefix predicate
+and native `has_fact`. The absence law has no automatic pattern; its explicit
+call supplies the usable contract.
+
+All21 prior WellFormed theorem signatures, premises and patterns remain exact.
+Three default `contracts:containment` controls remove the two vector calls and
+the absence-law call independently; each must reject ordinarily at its caller.
+The whole WellFormed file is fenced against normalization, and its extra
+visibility prefixes are not allowed in other families. This does not make all
+remaining validators/loop models opaque or close the reform: prior implicit
+callee/model reads outside these two boundaries remain open.
+
+## readable public-contract entry point
+
+[`Spec.lt`](Spec.lt) presents the 33 established public behavior laws through ten
+checked headlines. Each calls the existing laws explicitly and withholds the
+native operation bodies. The original proofs and their premises stay unchanged.
+Implementation-only boundaries such as `receive_uses_plan` remain in their owning
+families; this is a public behavior surface, not a second implementation layer.
+
+| headline | explicit premise | constituent laws |
+| --- | --- | --- |
+| `new_establishes_valid_facts` | none; conclusion is conditional on successful construction | four storage invariants |
+| `receive_preserves_valid_facts` | valid stored facts before | four invariant preservations, every return |
+| `edit_preserves_valid_facts` | valid stored facts before | four invariant preservations, every return |
+| `receive_obeys_contract` | none | neutrality/private state, exact contents, fresh ID, unique/ordered storage, new-fact scalars and direct dependencies (eight laws) |
+| `edit_obeys_contract` | none | neutrality, counter, request, same-commit replay, exact contents, fresh ID, storage order and new-fact scalars (eight laws) |
+| `known_identity_is_classified` | in-bounds member, unique before-IDs, matching ID and valid counter | duplicate/conflict classification |
+| `invalid_counter_is_rejected` | zero or over-domain counter | exact invalid-counter return |
+| `equal_shared_history_gives_same_admission` | equal facts/tree/limits | same admission despite different private writer/counter |
+| `authored_fact_admits_on_equal_shared_history` | equal facts/tree/limits | conditional authored-fact delivery and receiver-private-state preservation |
+| `equal_candidate_contents_give_same_rebuild` | equal candidate whole-fact support and length | identical facts/tree when both receives are Added |
+
+The four storage invariants are unique IDs, nondecreasing event-key storage
+order, inserted Unicode scalars and direct causal-reference closure. This is
+not full representation WF, causal acyclicity or a text-order semantics theorem.
+The outcome bundles apply with no before-invariant premise; their success-only
+clauses say nothing about a call that errors or returns no authored fact. Their
+neutrality clauses cover those other returns explicitly.
+
+Both same-history premises are visible `takes` lines. Equal candidate contents
+allows permutations and is distinct from equal starting shared state. None of
+these conditional laws proves delivery convergence, admission progress or
+refinement against an independent CRDT semantics. Those remain open.
+
+`contracts:spec` removes each of the 33 public-law calls independently and
+requires ordinary rejection at its headline. Patternless lemmas supply their
+posts by these explicit calls; there are no decorative lemma-name prunes.
+The default positive chain checks Spec and Causal, while native mutation roots
+and owners stay unchanged. Spec visibility permissions remain module-scoped;
+other families have their own explicit permissions.
+
+## private state through tree publication
+
+`tree_publication_keeps_private` checks that the actual `with_tree` call keeps
+its input writer, next counter and limits. `plan_preserves_private_state` uses
+that contract with `with_tree` withheld: any `Ok(Some(next))` preserves those
+fields; errors and duplicate/no-new-state results make no publication claim.
+The existing public `receive_preserves_private_state` then uses this planner law
+with `plan` withheld. Its universal conclusion is unchanged.
+
+`same_private` names the three-field relation once. The existing result predicate
+`private_unchanged` simply applies it to the returned instance; its equivalence
+to the original inline predicate is checked during this migration. Neither law
+constrains the resulting facts/tree or proves acceptance, private-state
+independence, or semantic refinement.
+
+Both helper patterns and both contracts have default dependency-removal controls
+at their actual caller. The private family's probes run in a separate copy so
+they do not modify the positive workspace. Two actual Rust mutations clear the
+private counter in the tree setter or in `plan` before publication; they must
+fail native tests and their corresponding checked contract. The existing
+receive-success-counter mutation still tests the real public receive boundary.
+
+This private-state path alone does not establish shared-state independence;
+that separate contract migration is described below. The later receive/commit
+boundary migration removes the remaining three Commit normalization sites and
+extends the fence to the whole file. Remaining Accepted/WellFormed boundaries,
+model isolation and loop families are still open.
+
+## same-history admission without private planner details
+
+`tree_publication_respects_shared` compares two setter calls with the same tree
+and equal shared inputs (facts, tree and limits). Its paired trigger exposes
+that relational law to `plan_ignores_private_state`, whose two input replicas
+have the same shared fields but may differ in writer/counter. Planning returns
+matching error/duplicate/success cases; successful results have equal shared
+fields. The existing public `admission_ignores_private_state` composes that law
+with `plan` withheld, preserving its exact same-history premise and conclusion.
+The planner boundary itself withholds `with_tree`.
+
+The setter law is deliberately relational: it does not claim the supplied tree
+was installed. A setter that ignored that tree identically on both replicas
+would still respect shared equality; existing interpretation/publication controls
+must continue to catch that separate error. Neither these laws nor the public
+composition prove general delivery convergence or admission progress.
+
+Four new default dependency controls remove the paired patterns or withhold
+these contracts at their actual callers. A new native setter mutation makes
+publication depend on the private writer. The existing `receive-private-gate`
+mutation keeps its source/anchor but now rejects earlier at
+`plan_ignores_private_state`, the new checked callee boundary, rather than the
+public composition. This is the sole control-owner migration in this slice;
+the public theorem and its premise are unchanged. The private-state family’s
+four controls still run, scoped to their own declarations despite the additional
+visibility blocks. The following migration closes the remaining three explicit
+Commit normalization sites.
+
+
+## exact receive boundary and commit composition
+
+`received_plan` gives the three-case public receive result for an arbitrary
+planner result: the same error with unchanged state, duplicate with unchanged
+state, or Added with the planned state. `receive_uses_plan` checks that equation
+against actual receive with plan withheld. It is called explicitly, so it needs
+no new automatic trigger.
+
+The same-commit proof composes this receive equation, the existing exact counter
+calculation/installation contracts, and the public counter-step law. Plan,
+receive, counter helpers, frontier and invalid's native bodies are withheld in
+its source-boundary query. The exact calculator and receive equation are called
+explicitly; neither has an automatic pattern. Deleting each call rejects the
+public proof. Request binding likewise needs none of those callee bodies. Their own edit boundary and model definitions remain
+visible; this is not whole-model opacity.
+
+The private and shared receive compositions now call the receive equation too,
+with receive's body withheld. The final same-history delivery composition uses
+its three public laws with both native edit and receive withheld. All prior
+universal conclusions, premises and patterns remain exact. The whole Commit file
+is fenced against explicit normalization. Nine new default dependency controls
+exercise the receive/counter/setter dependencies and final public composition;
+the preceding eight private/shared controls remain required.
+
+Two existing controls move to the new source boundary: `receive-plan-rewrites-counter`
+and `receive-success-counter` now reject at `receive_uses_plan`, which is the
+checked declaration reading receive's body. Their actual Rust mutations and tests
+are unchanged. The old public same-commit/private-state laws remain unchanged and
+are connected to that equation by the new dependency controls. The earlier
+`receive-private-gate` move to the relational planner law remains as documented.
+No other owner moves, no native or hax snapshot changes, and no convergence or
+extra-concurrent-history claim follows from this reform.
 
 ## further redundant EditAccepted reductions
 
@@ -703,3 +865,207 @@ They were chosen by adding sites one at a time, keeping each only if the positiv
 `selected_id_is_least`'s reduction can be removed on its own (peak 15.6% to about 22%). Combined with this slice its peak reaches about 34%, so it is kept by the cost rule, as in the previous slice.
 
 The frontier lemma keeps three reductions and `canonical_orders_facts` keeps one, so neither declaration is fenced yet. No statement, pattern or control owner changes. The deleted lists that named `push` or vector models leave implicit model reads; that is cleanup, not callee isolation.
+## remaining-family reform candidate
+
+The remaining-family candidate preserves the established universal claims,
+including the held `EditCausal` rank component. It adds no transitive-past,
+scheduling, semantic-refinement, admission-progress or convergence claim.
+
+Loop clients provide semantic invariants and completion/return conditions.
+`early_return_preserve_any` covers validators whose prefix loops can fail before
+the final check. The identity scan uses `option_interpret_any`; the break
+adapter has checked step/end equations. Universal adapters share
+`Classical.forall_intro_3 (Classical.move_requires_3 each)` rather than copying
+another quantified proposition. The option/break adapters deliberately remove
+their old fuel-sensitive quantifier triggers; their logical types are unchanged.
+
+The actual constructor's empty-fact contract uses the explicit, patternless
+`Vector.empty_vector_contents` equation. Scalar, closure and rank establishment
+compose that contract with `new` withheld. A successful-plan prefix contract
+states that actual validation succeeded; it promises no planning progress.
+
+Selected caller queries withhold native callees, fold encodings and vector/slice
+model operations. These are query-local visibility boundaries, not globally
+opaque modules. Contract-call removals test the recorded compositions;
+patterned membership facts have separate per-caller withholding controls.
+`contracts:remaining` selects these checks, and no-argument CI includes them.
+Existing native source-control owners are retained.
+
+The positive gate checks both `Spec` and `EditCausal`; mutation roots retain
+their owning Atomic or WellFormed chain. Eleven reachable project compiler
+targets yield a 692s aggregate allowance under the unchanged graph policy.
+Each compiler still has 60s and the solver rlimit remains 100.
+
+`EditCausal` carries a ghost rank, absent from Rust storage: each direct
+predecessor ranks below its event, and accepted ranks stay below a bound.
+Added/Authored extend this certificate at a fresh ID; neutral calls preserve it.
+A separately defined edge and finite path connect the certificate to exclusion
+of nonempty causal cycles. This covers finite public-call continuations from
+`new`, under the existing translation/model trust. Arbitrary closed abstract
+states need not admit such a certificate. Derived Clone preserves the existing
+certificate through hax's identity-refined Clone signature; it grants no writer
+lease. Ghost-only rank/edge controls are separate from native mutations.
+
+
+## EditAccepted without normalization
+
+The last nine explicit reductions in EditAccepted are gone, and the whole module
+is fenced. It no longer imports `FStar.NormSteps`. Each affected proof now states
+its conclusion in an assertion that withholds the callee bodies with
+`Tactics.prune`, so it can only pass through the callee contracts. The
+`contracts:accepted` family withholds each of those contracts in turn and
+requires the owner to reject.
+
+| proof | callee bodies withheld | contract it composes |
+| --- | --- | --- |
+| `selected_id_is_least` (owns `choose_unseen`) | `has_fact`, `event_lt`, `fold_range_return` | `least_extends_all` (the quantified loop step in spec terms), `event_order_is_key_order` |
+| `canonical_orders_facts` (owns `canonical`) | `canonical_step`, `choose_unseen`, `push`, `fold_range_return` | `canonical_step_preserves_order` (hinted) |
+| `canonical_succeeds_for_unique_ids` (owns `canonical`) | the same four | `canonical_step_succeeds` + `canonical_step_selects_whole_facts` (hinted) |
+| `canonical_step_succeeds` (owns `canonical_step`) | `choose_unseen`, `push`, `clone_selected_fact`, `has_fact` | `choice_always_returns`, `selected_id_is_least`, an explicit `push_result_is_exact` instance |
+| `append_least_preserves_frontier` (caller of `push`) | `push`; the vector models in its one slice equation | `push_membership`, `push_result_is_exact`, Vector, `frontier_bounds_unseen` |
+| `plan_publishes_canonical_facts` (owns `plan`) | `with_tree`, `canonical`, `interpret`, `duplicate`, `push` | `tree_installation_preserves_facts` (local hint), `canonical`/`interpret` result shapes |
+| `plan_publishes_interpretation` (owns `plan`) | the same five | `tree_installation_preserves_facts` and the new setter contract `tree_installation_installs_tree` (local hints), the result shapes |
+
+New declarations: `least_next`, `least_extends_all`,
+`tree_installation_installs_tree`, `result_shape` and the hinted
+`canonical_has_result_shape` / `interpret_has_result_shape`.
+
+**Why the result shapes exist.** `Tactics.prune` withholds a function's typing
+facts along with its body. Without "`canonical x` is a `Result`", the solver
+cannot rebuild `canonical x == Ok v` from the planner's match, so withholding
+`canonical` failed even though the conclusion only needs congruence. The two
+shape lemmas state only the declared result type, following
+`plan_has_result_shape`. Each is load-bearing: removing its pattern makes
+`plan_publishes_canonical_facts` reject. An equivalent `duplicate` shape turned
+out unnecessary and is not included.
+
+**Owner move:** `plan-keeps-old-tree` now rejects first at the setter contract
+`tree_installation_installs_tree`, which reads `with_tree`'s body, instead of
+at `plan_publishes_interpretation`. The pattern-removal control
+`accepted-interpretation-without-tree-contract` ties the public theorem to that
+contract. With its callee bodies withheld,
+`canonical_orders_facts` needs no base-case lemma (peak 1.35%). With them
+visible and no reduction, it peaked at about 34% (82% in the earlier sweep). No old statement or
+pattern changes; that migration records the setter control-owner change.
+
+**Note.**
+- Each prune in `canonical_step_succeeds` passes alone. Withholding `push` and
+  `clone_selected_fact` together needs the explicit `push_result_is_exact`
+  instance.
+
+## Result-level Accepted loop callers
+
+Accepted's seven loop owners now supply an invariant, an identity finish map,
+and separate `Ok`/`Err` conditions to `LoopUtil.result_preserve_any`. Their final
+source-linked queries withhold the fold, `step_safe` and `output_safe`; callers
+no longer need the interpreter's internal safety predicates to recover their
+public result property.
+
+| owner | `Ok` condition | `Err` condition |
+| --- | --- | --- |
+| `selected_id_is_unseen` | the choice is absent from the output | unconstrained |
+| `canonical_has_unique_ids` | unique IDs | unconstrained |
+| `canonical_selects_whole_facts` | exact-length whole-fact selection invariant | unconstrained |
+| `selected_id_is_least` | least unseen choice | unconstrained |
+| `canonical_orders_facts` | ordered facts and frontier | unconstrained |
+| `choice_always_returns` | unconstrained | false |
+| `canonical_succeeds_for_unique_ids` | unconstrained | false |
+
+Preservation laws still allow errors; the existing totality laws exclude them.
+Every old theorem type, premise and pattern is unchanged. Each owner has a
+separate default call-removal control requiring an ordinary rejection at that
+owner when its Result-rule call is removed, in addition to the ten existing
+Accepted dependency cases. Four further call-removal checks tie the canonical
+owners to their source frame. These checks extend `contracts:accepted`; the CI
+entry is unchanged.
+
+This closes these loop-interface dependencies, not every callee/model dependency
+in the family. Source-boundary proofs still inspect the function they establish;
+no single-boundary-per-function policy or new semantic claim is introduced.
+
+The canonical owners compose one checked source-frame equation:
+`canonical` starts empty, runs its actual fallible step over the complete
+`0..input.len()` range, then publishes the resulting `Result`. The frame
+equation withholds `canonical_step`; the four public callers withhold
+`canonical` as well as the fold and the two internal predicates. The frame
+is ordinary authored code checked against the fresh native translation, not
+an assumed equation. Its callback remains in this one boundary definition.
+
+Two existing native mutations now reject at
+`EditAccepted.canonical_uses_complete_range`: `content-omits-facts`
+changes the range to `0..0`, and `canonical-refuses` changes the final
+return to an error. Their native patches are unchanged. The first patch also
+changes hax's inferred index type to i32; without the frame it causes an
+unrelated failure at the uniqueness theorem, despite the empty output being
+unique. That failure is not counted. The frame checks the actual range/return
+wiring directly, and its four dependency checks preserve each public theorem's
+connection to that wiring. These are explicit control-owner migrations, with
+no weakened universal theorem or broader admission/convergence claim.
+
+## Lookup and empty-state boundaries
+
+The final Accepted lookup bridge composes `option_interpret_any` with
+`member_lookup`, withholding both the fold and `option_run`. Its induction
+uses checked step/end equations with `option_run` withheld in each branch.
+The absence IFF proves its reverse implication first, then closes the two
+boolean cases with the membership implementation hidden. No caller needs to
+recover that implication by expanding the native lookup.
+The final assertions stay inside their branches, where the step/induction facts
+are available; appending one after the conditional was insufficient.
+
+`empty_has_unique_ids` composes the checked empty-vector equation instead of
+reading the constructor model. `new_establishes_fact_order` composes the checked
+`new_has_empty_facts` contract with the native constructor hidden. These two
+contracts come from the remaining-family migration in PR37; this addition is
+for the combined36/37 tree, not a standalone advance of the PR36 base.
+
+Nineteen additional default Accepted controls remove the lookup interpreter,
+lookup induction, its step/end/recursive calls, both directions of the absence
+IFF the Boolean-range hint, both constructor-value equations, two local step calls,
+four canonical initializer calls and the two empty-state contracts
+one at a time. Each requires its own ordinary named rejection. No old theorem
+header, native mutation, native control owner or imported model changes in this
+addition. `contracts:accepted` retains every prior case; the optional selector
+is for focused local checks and defaults to all cases.
+
+Checked Vector value equations describe from_seq and empty construction, beside the existing slice equations. Four loop callers use the empty-value equation with the constructor model hidden. The push boundary uses from_seq_value only after splitting the existing capacity guard: its precondition is invalid on the full-capacity branch. Both unique/content local adapters compose step laws with the native step hidden. The membership Boolean-range hint restores only the declared return type lost by pruning, not membership semantics.
+
+## Independent canonical-frame controls
+
+The Accepted family's default path also tests two ghost-only frame faults:
+`accepted-frame-refuses` must reject at `canonical_succeeds_for_unique_ids`,
+and `accepted-frame-drops-facts` at `canonical_selects_whole_facts`.
+These leave Rust and its extracted translation unchanged. They test the public
+laws independently of the source-to-frame transcription check, which already
+owns the actual malformed-native-loop controls.
+
+Only inside the family's disposable proof copy, the harness replaces the exact
+transcription lemma with a test-only assumed declaration. A healthy frame must
+first verify under that same trust cut. Each fault then changes only the ghost
+`canonical_loop_result` body, preserving all consumer headers and proofs.
+Ordinary named rejection is mandatory; parser/type errors, unrelated failures
+and resource exhaustion are not credited. The original view is restored in
+`finally`, including on compiler failure, and the native source must stay exact.
+
+The assumed declaration is deliberate fault injection, never a production lemma,
+a positive proof result, a new model axiom or certification of the transcription
+boundary. The production source/view/receipts remain unchanged. Existing native
+controls and their source-frame owners are retained; these two tests supplement
+them with independent public progress/content discrimination.
+
+The push boundary additionally composes a local checked length-value equation:
+its vector length equals the usize constructor of its slice cardinality. Both
+final guard branches withhold all six designated vector/slice model operations.
+Removing that explicit contract must reject at push_result_is_exact. A numeric
+length equation alone was insufficient when pruning also removed the result's
+constructor/type facts; the exact typed value restores those facts without
+reopening the model in the caller. The default family therefore retains all21
+prior dependency cases, adds19 (40 in total), then runs the healthy ghost-frame
+fixture and the two independent public progress/content fault cases.
+
+The global `vector_contents` pattern-removal control is owned by
+`push_result_is_exact`: the final length/model-opacity repair makes that
+boundary the first dependent consumer. Its scoped equation-removal counterpart
+still rejects at `append_fresh_preserves_unique`, and the remaining per-caller
+controls remain unchanged. This is a proof-dependency control-owner migration,
+not a native mutation-owner change or a weakened rejection criterion.

@@ -9,9 +9,9 @@ open Core_models
 
 open FStar.Pervasives
 
-open FStar.NormSteps
-
 open Nickel.LoopUtil
+
+open Nickel.Vector
 
 open Nickel.EditIdentity
 
@@ -52,6 +52,11 @@ let scalar_validation_is_sound (scalars: t_Slice u32) : Lemma (ensures scalar_ch
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
     Tactics.smt_sync' 1 1
   )
 
@@ -61,6 +66,11 @@ let valid_scalar_input_succeeds (scalars: t_Slice u32) : Lemma (requires scalars
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
     Tactics.smt_sync' 1 1
   )
 
@@ -74,10 +84,19 @@ let no_validation_success (result: Result.t_Result unit Native.t_Error) : Type0 
   match result with | Result.Result_Err _ -> begin Prims.l_True end | _ -> begin Prims.l_False end
 
 let successful_validation_has_valid_scalars (facts: t_Slice Native.t_Fact) (limits: Native.t_Limits) (fact: Native.t_Fact) : Lemma (ensures validated_scalars fact (Native.impl_Replica__validate_new facts limits fact)) =
-  Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (fun (_: nat) (_: unit) -> Prims.l_True) (fun (_: unit) -> Prims.l_True) no_validation_success;
-  Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (fun (_: nat) (_: usize) -> Prims.l_True) (fun (_: usize) -> Prims.l_True) no_validation_success;
+  Nickel.LoopUtil.early_return_preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (fun (_: nat) (_: unit) -> Prims.l_True) no_validation_success;
+  Nickel.LoopUtil.early_return_preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (fun (_: nat) (_: usize) -> Prims.l_True) no_validation_success;
   scalar_validation_is_sound (Alloc.Vec.impl_1__as_slice fact.f_insert);
   assert (validated_scalars fact (Native.impl_Replica__validate_new facts limits fact)) by (
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Nickel_crdt.Edit.validate_scalars";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
     Tactics.smt_sync' 1 1
   )
 
@@ -86,7 +105,17 @@ let added_scalars (fact: Native.t_Fact) (outcome: Native.t_Replica & Result.t_Re
 
 let receive_added_fact_has_valid_scalars (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures added_scalars fact (Native.impl_Replica__receive before fact)) =
   successful_validation_has_valid_scalars (Alloc.Vec.impl_1__as_slice before.f_facts) before.f_limits fact;
+  Nickel.EditAtomic.successful_plan_requires_validation before fact;
+  Nickel.EditCommit.receive_uses_plan before fact;
   assert (added_scalars fact (Native.impl_Replica__receive before fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__validate_new";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
     Tactics.smt_sync' 1 1
   )
 
@@ -99,14 +128,41 @@ let receive_scalars_preserved (outcome: Native.t_Replica & Result.t_Result Nativ
 let receive_preserves_scalar_validity (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (requires facts_scalars_valid before.f_facts) (ensures receive_scalars_preserved (Native.impl_Replica__receive before fact)) =
   Nickel.EditAtomic.receive_rejection_unchanged before fact;
   receive_added_has_exact_contents before fact;
-  receive_added_fact_has_valid_scalars before fact
+  receive_added_fact_has_valid_scalars before fact;
+  match Native.impl_Replica__receive before fact with | (next, Result.Result_Ok Native.Admission_Added) -> begin assert (receive_scalars_preserved (Native.impl_Replica__receive before fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
+    Tactics.smt_sync' 1 1
+  ) end | _ -> begin assert (receive_scalars_preserved (Native.impl_Replica__receive before fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
+    Tactics.smt_sync' 1 1
+  ) end
 
 let authored_scalars (outcome: Native.t_Replica & Result.t_Result Native.t_Local Native.t_Error) : Type0 =
   match outcome with | (_, Result.Result_Ok (Native.Local_Authored fact)) -> begin fact_scalars_valid fact end | _ -> begin Prims.l_True end
 
 let edit_authors_only_valid_scalars (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) (delete: Alloc.Vec.t_Vec Native.t_BirthId Alloc.Alloc.t_Global) : Lemma (ensures authored_scalars (Native.impl_Replica__edit before gap insert delete)) =
   Nickel.EditCommit.authored_fact_replays_same_commit before gap insert delete;
-  match Native.impl_Replica__edit before gap insert delete with | (_, Result.Result_Ok (Native.Local_Authored fact)) -> begin receive_added_fact_has_valid_scalars before fact end | _ -> begin () end
+  match Native.impl_Replica__edit before gap insert delete with | (_, Result.Result_Ok (Native.Local_Authored fact)) -> begin receive_added_fact_has_valid_scalars before fact end | _ -> begin () end;
+  assert (authored_scalars (Native.impl_Replica__edit before gap insert delete)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
+    Tactics.smt_sync' 1 1
+  )
 
 let edit_scalars_preserved (outcome: Native.t_Replica & Result.t_Result Native.t_Local Native.t_Error) : Type0 =
   match outcome with | (next, _) -> begin facts_scalars_valid next.f_facts end
@@ -114,19 +170,58 @@ let edit_scalars_preserved (outcome: Native.t_Replica & Result.t_Result Native.t
 let edit_preserves_scalar_validity (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) (delete: Alloc.Vec.t_Vec Native.t_BirthId Alloc.Alloc.t_Global) : Lemma (requires facts_scalars_valid before.f_facts) (ensures edit_scalars_preserved (Native.impl_Replica__edit before gap insert delete)) =
   Nickel.EditAtomic.edit_rejection_or_empty_unchanged before gap insert delete;
   edit_authored_has_exact_contents before gap insert delete;
-  edit_authors_only_valid_scalars before gap insert delete
+  edit_authors_only_valid_scalars before gap insert delete;
+  match Native.impl_Replica__edit before gap insert delete with | (next, Result.Result_Ok (Native.Local_Authored fact)) -> begin assert (edit_scalars_preserved (Native.impl_Replica__edit before gap insert delete)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
+    Tactics.smt_sync' 1 1
+  ) end | _ -> begin assert (edit_scalars_preserved (Native.impl_Replica__edit before gap insert delete)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
+    Tactics.smt_sync' 1 1
+  ) end
 
 let new_scalars_valid (outcome: Result.t_Result Native.t_Replica Native.t_Error) : Type0 =
   match outcome with | Result.Result_Ok state -> begin facts_scalars_valid state.f_facts end | _ -> begin Prims.l_True end
 
 let new_establishes_scalar_validity (writer: Option.t_Option Native.t_Writer) (limits: Native.t_Limits) : Lemma (ensures new_scalars_valid (Native.impl_Replica__new writer limits)) =
-  ()
+  Nickel.EditAtomic.new_has_empty_facts writer limits;
+  assert (new_scalars_valid (Native.impl_Replica__new writer limits)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__new";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
+    Tactics.smt_sync' 1 1
+  )
 
 let event_present (facts: t_Slice Native.t_Fact) (id: Native.t_EventId) : Type0 =
   Prims.l_not (Nickel.EditIdentity.prefix_absent facts id (mk_usize 0) (Nickel.EditIdentity.length facts))
 
 let event_membership_is_presence (facts: t_Slice Native.t_Fact) (id: Native.t_EventId) : Lemma (ensures Native.has_fact facts id == true <==> event_present facts id) =
   membership_absence_exact facts id
+
+let membership_result (facts: t_Slice Native.t_Fact) (id: Native.t_EventId) (found: bool) : Type0 =
+  Prims.l_or (Prims.l_and (found == true) (event_present facts id)) (Prims.l_and (found == false) (Prims.l_not (event_present facts id)))
+
+let membership_result_is_exact (facts: t_Slice Native.t_Fact) (id: Native.t_EventId) : Lemma (ensures membership_result facts id (Native.has_fact facts id)) [SMTPat (Native.has_fact facts id)] =
+  event_membership_is_presence facts id;
+  match Native.has_fact facts id with | true -> begin assert (membership_result facts id (Native.has_fact facts id)) by (
+    Tactics.prune "Nickel_crdt.Edit.has_fact";
+    Tactics.smt_sync' 1 1
+  ) end | false -> begin assert (membership_result facts id (Native.has_fact facts id)) by (
+    Tactics.prune "Nickel_crdt.Edit.has_fact";
+    Tactics.smt_sync' 1 1
+  ) end
 
 let dependency_prefix (facts: t_Slice Native.t_Fact) (after: t_Slice Native.t_EventId) (finish: nat) : Type0 =
   forall(i: usize{v i < v (Core_models.Slice.impl__len after)}). v i < finish ==> event_present facts (Rust_primitives.Slice.slice_index after i)
@@ -141,18 +236,52 @@ let dependency_check_invariant (facts: t_Slice Native.t_Fact) (after: t_Slice Na
   dependency_prefix facts after at
 
 let dependency_validation_is_sound (facts: t_Slice Native.t_Fact) (after: t_Slice Native.t_EventId) : Lemma (ensures dependency_check_result facts after (Native.validate_after facts after)) =
-  let each_member (id: Native.t_EventId) : Lemma (ensures Native.has_fact facts id == true <==> event_present facts id) [SMTPat (Native.has_fact facts id)] = event_membership_is_presence facts id in
-  Nickel.LoopUtil.preserve_any (mk_usize 0) (Core_models.Slice.impl__len after) (dependency_check_invariant facts after) (fun (_: unit) -> dependencies_present facts after) (dependency_check_result facts after)
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len after) (dependency_check_invariant facts after) (fun (_: unit) -> ()) (fun (_: unit) -> dependencies_present facts after) (fun (_: Native.t_Error) -> Prims.l_True);
+  assert (dependency_check_result facts after (Native.validate_after facts after)) by (
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Nickel_crdt.Edit.has_fact";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
+    Tactics.smt_sync' 1 1
+  )
 
 let present_dependencies_pass_guard (facts: t_Slice Native.t_Fact) (after: t_Slice Native.t_EventId) : Lemma (requires dependencies_present facts after) (ensures Native.validate_after facts after == Result.Result_Ok ()) =
-  let each_member (id: Native.t_EventId) : Lemma (ensures Native.has_fact facts id == true <==> event_present facts id) [SMTPat (Native.has_fact facts id)] = event_membership_is_presence facts id in
-  Nickel.LoopUtil.preserve_any (mk_usize 0) (Core_models.Slice.impl__len after) (fun (_: nat) (_: unit) -> Prims.l_True) (fun (_: unit) -> Prims.l_True) (fun (_: Result.t_Result unit Native.t_Error) -> Prims.l_False)
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len after) (fun (_: nat) (_: unit) -> Prims.l_True) (fun (_: unit) -> ()) (fun (_: unit) -> Prims.l_True) (fun (_: Native.t_Error) -> Prims.l_False);
+  assert (Native.validate_after facts after == Result.Result_Ok ()) by (
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Nickel_crdt.Edit.has_fact";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
+    Tactics.smt_sync' 1 1
+  )
 
 let past_has_dependencies (facts: t_Slice Native.t_Fact) (after: t_Slice Native.t_EventId) (result: Result.t_Result (Alloc.Vec.t_Vec Native.t_EventId Alloc.Alloc.t_Global) Native.t_Error) : Type0 =
   match result with | Result.Result_Ok _ -> begin dependencies_present facts after end | _ -> begin Prims.l_True end
 
 let successful_past_has_direct_dependencies (facts: t_Slice Native.t_Fact) (after: t_Slice Native.t_EventId) : Lemma (ensures past_has_dependencies facts after (Native.past facts after)) =
-  dependency_validation_is_sound facts after
+  dependency_validation_is_sound facts after;
+  assert (past_has_dependencies facts after (Native.past facts after)) by (
+    Tactics.prune "Nickel_crdt.Edit.validate_after";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.smt_sync' 1 1
+  )
 
 let fact_dependencies_present (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact) : Type0 =
   dependencies_present facts (Alloc.Vec.impl_1__as_slice fact.f_after)
@@ -163,6 +292,15 @@ let validation_has_dependencies (facts: t_Slice Native.t_Fact) (fact: Native.t_F
 let successful_validation_has_direct_dependencies (facts: t_Slice Native.t_Fact) (limits: Native.t_Limits) (fact: Native.t_Fact) : Lemma (ensures validation_has_dependencies facts fact (Native.impl_Replica__validate_new facts limits fact)) =
   successful_past_has_direct_dependencies facts (Alloc.Vec.impl_1__as_slice fact.f_after);
   assert (validation_has_dependencies facts fact (Native.impl_Replica__validate_new facts limits fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
     Tactics.smt_sync' 1 1
   )
 
@@ -171,7 +309,17 @@ let added_dependencies (before: Native.t_Replica) (fact: Native.t_Fact) (outcome
 
 let receive_added_has_direct_dependencies (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures added_dependencies before fact (Native.impl_Replica__receive before fact)) =
   successful_validation_has_direct_dependencies (Alloc.Vec.impl_1__as_slice before.f_facts) before.f_limits fact;
+  Nickel.EditAtomic.successful_plan_requires_validation before fact;
+  Nickel.EditCommit.receive_uses_plan before fact;
   assert (added_dependencies before fact (Native.impl_Replica__receive before fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__validate_new";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
     Tactics.smt_sync' 1 1
   )
 
@@ -182,8 +330,18 @@ let absence_on_whole_facts (facts: t_Slice Native.t_Fact) (id: Native.t_EventId)
   membership_absence_exact facts id;
   let forward (fact: Native.t_Fact) : Lemma (requires (Nickel.EditIdentity.prefix_absent facts id (mk_usize 0) (Nickel.EditIdentity.length facts) /\ fact_present facts fact)) (ensures Prims.l_not (fact.f_id == id)) =
     let i = find_fact_position facts fact in
-    norm_spec [delta_only ["Rust_primitives.Slice.slice_index"]; iota; zeta_full; primops] (Rust_primitives.Slice.slice_index facts (mk_usize i));
-    norm_spec [delta_only ["Nickel.EditIdentity.prefix_absent"]; iota; zeta_full] (Nickel.EditIdentity.prefix_absent facts id (mk_usize 0) (Nickel.EditIdentity.length facts)) in
+    Nickel.Vector.slice_index facts (mk_usize i);
+    Nickel.Vector.slice_length facts;
+    assert (Prims.l_not (fact.f_id == id)) by (
+      Tactics.prune "Nickel.Vector.slice_index";
+      Tactics.prune "Nickel.Vector.slice_length";
+      Tactics.prune "Rust_primitives.Slice.slice_index";
+      Tactics.prune "Core_models.Slice.impl__len";
+      Tactics.prune "Alloc.Vec.from_seq";
+      Tactics.prune "Alloc.Vec.impl_1__as_slice";
+      Tactics.prune "Alloc.Vec.impl_1__len";
+      Tactics.smt_sync' 1 1
+    ) in
   let reverse (dummy: unit) : Lemma (requires forall(fact: Native.t_Fact). fact_present facts fact ==> Prims.l_not (fact.f_id == id)) (ensures Nickel.EditIdentity.prefix_absent facts id (mk_usize 0) (Nickel.EditIdentity.length facts)) = if Native.has_fact facts id then
     begin let i = find_id_position facts id in
     assert (fact_present facts (Seq.index facts i));
@@ -197,18 +355,19 @@ let absence_on_whole_facts (facts: t_Slice Native.t_Fact) (id: Native.t_EventId)
 let presence_survives_containment (before: t_Slice Native.t_Fact) (next: t_Slice Native.t_Fact) (id: Native.t_EventId) : Lemma (requires (facts_contained before next /\ event_present before id)) (ensures event_present next id) =
   event_membership_is_presence before id;
   let i = find_id_position before id in
-  assert (fact_present before (Seq.index before i));
-  norm_spec [delta_only ["Nickel.EditWellFormed.facts_contained"]; iota] (facts_contained before next);
-  assert (fact_present next (Seq.index before i));
-  let j = find_fact_position next (Seq.index before i) in
-  membership_absence_exact next id;
-  if not (Native.has_fact next id) then
-    begin norm_spec [delta_only ["Rust_primitives.Slice.slice_index"]; iota; zeta_full; primops] (Rust_primitives.Slice.slice_index next (mk_usize j));
-    norm_spec [delta_only ["Nickel.EditIdentity.prefix_absent"]; iota; zeta_full] (Nickel.EditIdentity.prefix_absent next id (mk_usize 0) (Nickel.EditIdentity.length next));
-    assert Prims.l_False end
-  else
-    begin () end;
-  event_membership_is_presence next id
+  let witness = Seq.index before i in
+  assert (fact_present before witness);
+  assert (fact_present next witness);
+  absence_on_whole_facts next id;
+  assert (event_present next id) by (
+    Tactics.prune "Nickel.EditIdentity.prefix_absent";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
+    Tactics.smt_sync' 1 1
+  )
 
 let dependencies_survive_containment (before: t_Slice Native.t_Fact) (next: t_Slice Native.t_Fact) (fact: Native.t_Fact) : Lemma (requires (facts_contained before next /\ fact_dependencies_present before fact)) (ensures fact_dependencies_present next fact) =
   let each_id (id: Native.t_EventId) : Lemma (requires event_present before id) (ensures event_present next id) = presence_survives_containment before next id in
@@ -233,7 +392,17 @@ let receive_preserves_causal_closure (before: Native.t_Replica) (fact: Native.t_
   Nickel.EditAtomic.receive_rejection_unchanged before fact;
   receive_added_has_exact_contents before fact;
   receive_added_has_direct_dependencies before fact;
-  match Native.impl_Replica__receive before fact with | (next, Result.Result_Ok Native.Admission_Added) -> begin exact_extension_preserves_causal_closure before.f_facts fact next.f_facts end | _ -> begin () end
+  match Native.impl_Replica__receive before fact with | (next, Result.Result_Ok Native.Admission_Added) -> begin exact_extension_preserves_causal_closure before.f_facts fact next.f_facts end | _ -> begin () end;
+  assert (receive_causally_closed (Native.impl_Replica__receive before fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
+    Tactics.smt_sync' 1 1
+  )
 
 let edit_causally_closed (outcome: Native.t_Replica & Result.t_Result Native.t_Local Native.t_Error) : Type0 =
   match outcome with | (next, _) -> begin facts_causally_closed next.f_facts end
@@ -243,10 +412,29 @@ let edit_preserves_causal_closure (before: Native.t_Replica) (gap: usize) (inser
   edit_authored_has_exact_contents before gap insert delete;
   Nickel.EditCommit.authored_fact_replays_same_commit before gap insert delete;
   match Native.impl_Replica__edit before gap insert delete with | (next, Result.Result_Ok (Native.Local_Authored fact)) -> begin receive_added_has_direct_dependencies before fact;
-  exact_extension_preserves_causal_closure before.f_facts fact next.f_facts end | _ -> begin () end
+  exact_extension_preserves_causal_closure before.f_facts fact next.f_facts end | _ -> begin () end;
+  assert (edit_causally_closed (Native.impl_Replica__edit before gap insert delete)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
+    Tactics.smt_sync' 1 1
+  )
 
 let new_causally_closed (outcome: Result.t_Result Native.t_Replica Native.t_Error) : Type0 =
   match outcome with | Result.Result_Ok state -> begin facts_causally_closed state.f_facts end | _ -> begin Prims.l_True end
 
 let new_establishes_causal_closure (writer: Option.t_Option Native.t_Writer) (limits: Native.t_Limits) : Lemma (ensures new_causally_closed (Native.impl_Replica__new writer limits)) =
-  ()
+  Nickel.EditAtomic.new_has_empty_facts writer limits;
+  assert (new_causally_closed (Native.impl_Replica__new writer limits)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__new";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
+    Tactics.smt_sync' 1 1
+  )
