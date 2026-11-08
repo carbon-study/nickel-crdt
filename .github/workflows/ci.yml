@@ -30,9 +30,10 @@ jobs:
   # The proof gate is split across parallel runners. Together the targets are
   # exactly the full local gate (`nix flake check`): native and the edit
   # reference; smoke, positive chain, every contract family and cache safety
-  # (proofs-core); and every mutation mode, partitioned by index modulo the
+  # (proofs-core-a and proofs-core-b, the latter taking every family the former
+  # omits); and every mutation mode, partitioned by index modulo the
   # shard count (proofs-shard-<i>, see check-edit-proofs.mjs). The shard list
-  # here must match proofShards in flake.nix; the core job checks that.
+  # here must match proofShards in flake.nix; the core-a job checks that.
   scaffold:
     name: ${{ matrix.target }}
     runs-on: ubuntu-24.04-arm
@@ -40,7 +41,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [native, proofs-core, proofs-shard-0, proofs-shard-1, proofs-shard-2]
+        target: [native, proofs-core-a, proofs-core-b, proofs-shard-0, proofs-shard-1, proofs-shard-2]
     # Each run saves its own cache generation and restores the newest one for
     # the same Nix files (else the newest for this OS/arch), so builds finished
     # after a failed or partial run are kept by the next save. A fixed key could
@@ -70,7 +71,7 @@ jobs:
       # Public checks verify the committed F* views; Latte emission is private
       # and not regenerated here (proofs/README.md).
       - name: shard coverage
-        if: matrix.target == 'proofs-core'
+        if: matrix.target == 'proofs-core-a'
         run: |
           shards=$(nix eval --json .#packages.aarch64-linux --apply 'p: builtins.length (builtins.filter (n: builtins.match "proofs-shard-[0-9]+" n != null) (builtins.attrNames p))')
           test "$shards" = 3 || { echo "flake exposes $shards proof shards; ci.yml lists 3"; exit 1; }
@@ -84,9 +85,9 @@ jobs:
       # Save even when the check failed or timed out, so finished toolchain
       # paths are not rebuilt next time. The key is new for every run.
       # One job saves, so parallel shards do not store five copies of the same
-      # toolchain; the core job builds every input the shards need.
+      # toolchain; core-a builds every input the other proof jobs need.
       - name: save Nix store
-        if: always() && matrix.target == 'proofs-core'
+        if: always() && matrix.target == 'proofs-core-a'
         uses: nix-community/cache-nix-action/save@v7
         with:
           primary-key: ${{ steps.key.outputs.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}

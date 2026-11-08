@@ -62,8 +62,11 @@
         node scripts/check-edit-proofs.mjs "$out/edit"${pkgs.lib.optionalString (args != [ ]) " ${pkgs.lib.escapeShellArgs args}"}
       '';
       proofCheck = mkProofCheck "smoke" true [ ];
-      # Smoke, the positive chain, every contract family and cache safety.
-      proofCore = mkProofCheck "core" true [ "positive" "cache-safety" ];
+      # Smoke, the positive chain, every contract family and cache safety, in two
+      # roughly equal halves; the second takes every family the first omits.
+      proofCoreFamilies = [ "remaining" "spec" ];
+      proofCoreA = mkProofCheck "core-a" true ([ "cache-safety" ] ++ map (f: "contracts:${f}") proofCoreFamilies);
+      proofCoreB = mkProofCheck "core-b" false [ "contracts-except:${builtins.concatStringsSep "," proofCoreFamilies}" ];
       proofShardChecks = builtins.listToAttrs (builtins.genList (i: {
         name = "proofs-shard-${toString i}";
         value = mkProofCheck "shard-${toString i}" false [ "shard:${toString i}/${toString proofShards}" ];
@@ -97,7 +100,8 @@
         edit-reference = editReference;
         proof-models = models;
         proofs = proofCheck;
-        proofs-core = proofCore;
+        proofs-core-a = proofCoreA;
+        proofs-core-b = proofCoreB;
         hax = haxBin;
         hax-fstar = fstar;
       } // proofShardChecks;
