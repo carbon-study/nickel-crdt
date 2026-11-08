@@ -10,6 +10,7 @@ import {checkProofReform} from './proof-reform.mjs';
 import {checkPushContracts} from './check-push-contracts.mjs';
 import {checkVectorContracts} from './check-vector-contracts.mjs';
 import {checkIdentityContracts} from './check-identity-contracts.mjs';
+import {checkPlanContracts} from './check-plan-contracts.mjs';
 import {checkWriterContracts} from './check-writer-contracts.mjs';
 import {checkNegativeProofEvidence} from './check-negative-proof-evidence.mjs';
 import {checkScalarContracts} from './check-loop-contracts.mjs';
@@ -35,7 +36,7 @@ for(const name of ['Prelude','LoopUtil','Vector','EditAtomic','EditCommit','Edit
   views.set(`Nickel.${name}.fst`,code);
 }
 const original=await fs.readFile(path.join(root,'src/edit.rs'),'utf8');
-const modes=['positive','invalid-forgets-reason','writer-index-collides','native-push-discards-value','native-push-prepends','causal-validator-passes-empty','causal-accepts-missing','causal-call-passes-empty','causal-refuses-present','plan-interprets-uncanonical','scalar-count-loop-bypasses-check','scalar-accepts-invalid','scalar-call-passes-empty','scalar-refuses-valid','canonical-step-refuses','canonical-refuses','plan-keeps-old-tree','plan-passes-old-tree','order-key-ignores-writer','order-chooses-largest','order-discards-canonical','local-return-after','edit-call-passes-old-counter','edit-commit-ignores-counter','receive-error-corrupts-counter','edit-error-corrupts-counter','edit-success-reuses-counter',
+const modes=['positive','plan-ignores-duplicate','plan-swallows-classifier-error','receive-plan-rewrites-counter','invalid-forgets-reason','writer-index-collides','native-push-discards-value','native-push-prepends','causal-validator-passes-empty','causal-accepts-missing','causal-call-passes-empty','causal-refuses-present','plan-interprets-uncanonical','scalar-count-loop-bypasses-check','scalar-accepts-invalid','scalar-call-passes-empty','scalar-refuses-valid','canonical-step-refuses','canonical-refuses','plan-keeps-old-tree','plan-passes-old-tree','order-key-ignores-writer','order-chooses-largest','order-discards-canonical','local-return-after','edit-call-passes-old-counter','edit-commit-ignores-counter','receive-error-corrupts-counter','edit-error-corrupts-counter','edit-success-reuses-counter',
   'local-return-gap','local-stale-tree','receive-success-counter','author-forgets-gap','receive-private-gate',
   'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality',
   'identity-scan-key','identity-birth-equality','identity-writer-equality',
@@ -46,7 +47,7 @@ const modes=['positive','invalid-forgets-reason','writer-index-collides','native
 // `positive-only`, `contracts:<family>` (implies the positive chain) and any
 // mutation modes; `positive` keeps its meaning of positive plus all families.
 const families={counter:checkCounterContracts,push:checkPushContracts,vector:checkVectorContracts,
-  scalar:checkScalarContracts,identity:checkIdentityContracts,writer:checkWriterContracts};
+  scalar:checkScalarContracts,identity:checkIdentityContracts,writer:checkWriterContracts,plan:checkPlanContracts};
 const args=process.argv.slice(3),familyRuns=new Set();let wantPositive=args.length===0,cacheSafety=args.length===0;
 const mutations=[];
 for(const arg of args) {
@@ -63,9 +64,12 @@ if(args.length===0){for(const name of Object.keys(families))familyRuns.add(name)
 // every dependent proof to recheck; only modules independent of it are reused.
 // Each mutation edits exactly one anchored site of the actual Rust source.
 function prepareMutation(mode) {
-  const scopes={'invalid-forgets-reason':'fn invalid(', 'writer-index-collides':'fn writer_index(', 'native-push-discards-value':'fn push<T>','native-push-prepends':'fn push<T>','causal-validator-passes-empty':'fn validate_new(','causal-accepts-missing':'fn validate_after(', 'causal-call-passes-empty':'fn past(', 'causal-refuses-present':'fn validate_after(','plan-interprets-uncanonical':'fn plan(','scalar-count-loop-bypasses-check':'fn validate_new(','scalar-accepts-invalid':'fn validate_scalars(', 'scalar-refuses-valid':'fn validate_scalars(', 'scalar-call-passes-empty':'fn validate_new(','canonical-step-refuses':'fn canonical_step(', 'canonical-refuses':'fn canonical(','plan-keeps-old-tree':'fn with_tree(', 'plan-passes-old-tree':'fn plan(','order-key-ignores-writer':'fn event_lt(','order-chooses-largest':'fn choose_unseen(', 'order-discards-canonical':'fn plan(','edit-commit-ignores-counter':'fn with_counter(', 'edit-success-reuses-counter':'fn next_counter_after(', 'content-changes-whole-fact':'fn clone_selected_fact(', 'content-omits-facts':'fn canonical(', 'accepted-reuses-member':'fn choose_unseen(', 'accepted-wrong-canonical-push':'fn canonical_step(', 'accepted-publication-duplicates':'fn with_tree('};
+  const scopes={'plan-ignores-duplicate':'fn plan(', 'plan-swallows-classifier-error':'fn plan(', 'receive-plan-rewrites-counter':'pub fn receive(', 'invalid-forgets-reason':'fn invalid(', 'writer-index-collides':'fn writer_index(', 'native-push-discards-value':'fn push<T>','native-push-prepends':'fn push<T>','causal-validator-passes-empty':'fn validate_new(','causal-accepts-missing':'fn validate_after(', 'causal-call-passes-empty':'fn past(', 'causal-refuses-present':'fn validate_after(','plan-interprets-uncanonical':'fn plan(','scalar-count-loop-bypasses-check':'fn validate_new(','scalar-accepts-invalid':'fn validate_scalars(', 'scalar-refuses-valid':'fn validate_scalars(', 'scalar-call-passes-empty':'fn validate_new(','canonical-step-refuses':'fn canonical_step(', 'canonical-refuses':'fn canonical(','plan-keeps-old-tree':'fn with_tree(', 'plan-passes-old-tree':'fn plan(','order-key-ignores-writer':'fn event_lt(','order-chooses-largest':'fn choose_unseen(', 'order-discards-canonical':'fn plan(','edit-commit-ignores-counter':'fn with_counter(', 'edit-success-reuses-counter':'fn next_counter_after(', 'content-changes-whole-fact':'fn clone_selected_fact(', 'content-omits-facts':'fn canonical(', 'accepted-reuses-member':'fn choose_unseen(', 'accepted-wrong-canonical-push':'fn canonical_step(', 'accepted-publication-duplicates':'fn with_tree('};
   const start=original.indexOf(scopes[mode]??(mode==='identity-writer-equality'?'impl PartialEq for Writer':mode==='identity-birth-equality'?'impl PartialEq for BirthId':mode==='identity-event-equality'?'impl PartialEq for EventId':mode==='identity-forgets-gap'?'fn fact_equal(':mode.startsWith('identity-')?'fn duplicate(':mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit('));assert(start>=0);
   const edits={
+    'plan-ignores-duplicate':['if Self::duplicate(&self.facts, fact)? {','if Self::duplicate(&self.facts, fact)? && false {'],
+    'plan-swallows-classifier-error':['if Self::duplicate(&self.facts, fact)? {','if match Self::duplicate(&self.facts, fact) { Ok(found) => found, Err(_) => false } {'],
+    'receive-plan-rewrites-counter':['match self.plan(fact) {','let mut offered = (*fact).clone(); offered.id.counter = 1; match self.plan(&offered) {'],
     'native-push-discards-value':['xs.push(value);','let _ = value;'],
     'native-push-prepends':['xs.push(value);','xs.insert(0, value);'],
     'causal-validator-passes-empty':['let selected = past(&facts, &fact.after)?;', 'let selected = past(&facts, &[])?;'],
@@ -115,11 +119,19 @@ function prepareMutation(mode) {
   assert(Object.hasOwn(edits,mode),'mutation without a registered edit: '+mode);
   const [needle,replacement]=edits[mode];const at=original.indexOf(needle,start);assert(at>=start,'mutation anchor not found in scope: '+mode);
   if(mode.startsWith('native-push-')) { const end=original.indexOf('\n}',start)+2;assert(end>start&&at<end);assert.equal(original.slice(start,end).split(needle).length,2,'one actual push-body anchor'); }
+  if(['plan-ignores-duplicate','plan-swallows-classifier-error','receive-plan-rewrites-counter'].includes(mode)) {
+    const next=/\n    (?:pub )?fn /.exec(original.slice(start));
+    const end=next?start+next.index:original.length;
+    assert(at<end);assert.equal(original.slice(start,end).split(needle).length,2,'one actual planner/caller anchor');
+  }
   const mutant=original.slice(0,at)+original.slice(at).replace(needle,replacement);
   assert.notEqual(mutant,original);
   return mutant;
 }
 const theorems={
+  'plan-ignores-duplicate':'EditAtomic.plan_preserves_duplicate_result',
+  'plan-swallows-classifier-error':'EditAtomic.plan_preserves_duplicate_result',
+  'receive-plan-rewrites-counter':'EditCommit.authored_fact_replays_same_commit',
   'native-push-discards-value':'EditAccepted.push_result_is_exact',
   'native-push-prepends':'EditAccepted.push_result_is_exact',
   'causal-validator-passes-empty':'EditWellFormed.successful_validation_has_direct_dependencies',
