@@ -12,7 +12,14 @@ export async function checkPlanContracts({proof,output,fstar,models,modelCache})
   const needle='Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";';
   const pattern=' [SMTPat (Native.impl_Replica__plan before fact)]';
   assert.equal(atomic.split(pattern).length,3);
-  assert.equal(atomic.split(needle).length,2);
+  function withholdShapeAtCaller() {
+    const start=atomic.indexOf('let authored_edit_advances_once ');assert(start>=0);
+    const next=/\nlet (?:rec )?\w+ /.exec(atomic.slice(start+4));
+    const end=next?start+4+next.index:atomic.length;
+    const body=atomic.slice(start,end);assert.equal(body.split(needle).length,2);
+    return atomic.slice(0,start)+body.replace(needle,
+      needle+'\n    Tactics.prune "Nickel.EditAtomic.plan_has_result_shape";')+atomic.slice(end);
+  }
   function withoutPattern(name) {
     const start=atomic.indexOf('let '+name+' ');assert(start>=0);
     const at=atomic.indexOf(pattern,start);assert(at>start);
@@ -21,7 +28,7 @@ export async function checkPlanContracts({proof,output,fstar,models,modelCache})
   }
   const cases=[
     ['plan-without-shape-pattern',atomicFile,withoutPattern('plan_has_result_shape'),atomicFile,'Nickel.EditAtomic.authored_edit_advances_once'],
-    ['plan-without-shape-contract',atomicFile,atomic.replace(needle,needle+'\n    Tactics.prune "Nickel.EditAtomic.plan_has_result_shape";'),atomicFile,'Nickel.EditAtomic.authored_edit_advances_once'],
+    ['plan-without-shape-contract',atomicFile,withholdShapeAtCaller(),atomicFile,'Nickel.EditAtomic.authored_edit_advances_once'],
     ['plan-without-prefix-pattern',atomicFile,withoutPattern('plan_preserves_duplicate_result'),identityFile,'Nickel.EditIdentity.receive_known_identity'],
   ];
   for(const name of ['receive_known_identity','receive_invalid_counter','receive_added_has_fresh_event_id']) {
