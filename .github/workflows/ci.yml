@@ -84,10 +84,13 @@ jobs:
           fi
       # Save even when the check failed or timed out, so finished toolchain
       # paths are not rebuilt next time. The key is new for every run.
-      # One job saves, so parallel shards do not store five copies of the same
-      # toolchain; core-a builds every input the other proof jobs need.
+      # Only pushes to main save, from one job. PRs may restore only their own
+      # or the default branch's caches; when every PR run saved ~3 GB, the
+      # repository held no main cache at all (2026-11-08: 4 PR-scoped caches,
+      # none on main), so each new PR built the toolchain cold. Saving only on
+      # main keeps one warm, shared cache that every PR can restore.
       - name: save Nix store
-        if: always() && matrix.target == 'proofs-core-a'
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.target == 'proofs-core-a'
         uses: nix-community/cache-nix-action/save@v7
         with:
           primary-key: ${{ steps.key.outputs.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}
