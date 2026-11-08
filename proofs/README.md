@@ -703,3 +703,32 @@ They were chosen by adding sites one at a time, keeping each only if the positiv
 `selected_id_is_least`'s reduction can be removed on its own (peak 15.6% to about 22%). Combined with this slice its peak reaches about 34%, so it is kept by the cost rule, as in the previous slice.
 
 The frontier lemma keeps three reductions and `canonical_orders_facts` keeps one, so neither declaration is fenced yet. No statement, pattern or control owner changes. The deleted lists that named `push` or vector models leave implicit model reads; that is cleanup, not callee isolation.
+
+## EditAccepted without normalization
+
+The last nine explicit reductions in EditAccepted are gone, and the whole module
+is now fenced. It no longer imports `FStar.NormSteps`.
+
+- `append_least_preserves_frontier` (3): the `least_choice` and
+  `absent_after_push` openings are deleted. The `push`/vector opening is replaced
+  by one stated equation, `as_slice(next) == as_slice(out) ++ [fact]`, which the
+  patterned `push_result_is_exact` and Vector contracts discharge. Two small lemmas carry the rest:
+  `push_membership_next`, the membership contract stated for a known successful
+  push result, and an explicit `frontier_bounds_unseen` instantiation of the
+  frontier premise.
+- `selected_id_is_least` (1): the loop step is stated once in spec terms
+  (`least_next`, proved by `least_extends`). The owner only matches the native
+  loop body against that step. Its peak falls from 15.5% to 1.5%; `least_extends`
+  itself peaks at 8.4%. Plain deletion passes, but at 33.8%, which the cost rule
+  rejects.
+- `canonical_orders_facts` (1): `empty_is_ordered` supplies the base case, the
+  same way `empty_has_unique_ids` does for unique IDs. The earlier ~34% and 82%
+  costs came from leaving that base case to the solver. Peak 0.43%.
+- `canonical_step_succeeds`, `canonical_succeeds_for_unique_ids`,
+  `plan_publishes_canonical_facts` and `plan_publishes_interpretation` (4): the
+  `Tactics.norm` steps are deleted, and their assertions keep a plain
+  `smt_sync'`. The two `plan_publishes_*` owners still read `plan`'s body
+  implicitly. That is an owner read, not callee isolation.
+
+No statement, pattern or control owner changes. The highest EditAccepted peak is
+now 8.4% (`least_extends`; before this it was 15.5%, `selected_id_is_least`).

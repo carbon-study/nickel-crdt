@@ -27,7 +27,7 @@ export function assertReformedSource(name,source) {
     }
   }
 }
-export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smoke','Vector','EditIdentity']) {
+export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smoke','Vector','EditIdentity','EditAccepted']) {
   for(const name of names)assertReformedSource(name,await fs.readFile(path.join(root,'proofs',name+'.lt'),'utf8'));
   // These scalar boundaries and the declarations below have migrated; other WellFormed proofs remain open.
   const source=await fs.readFile(path.join(root,'proofs','EditWellFormed.lt'),'utf8');
@@ -40,12 +40,5 @@ export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smok
     const match=new RegExp('^proof!? '+name+'[<(]','m').exec(source);assert(match,'missing reformed WellFormed declaration '+name);
     const tail=source.slice(match.index+match[0].length),next=/\n(?:function|proof!?|type|import) /.exec(tail);
     assertReformedSource('EditWellFormed.'+name,source.slice(match.index,next?match.index+match[0].length+next.index:source.length));
-  }
-  const accepted=await fs.readFile(path.join(root,'proofs','EditAccepted.lt'),'utf8');
-  for(const name of ['push_outcome','push_result_is_exact','append_fresh_preserves_unique','append_whole_fact','push_has_exact_contents','push_membership','member_lookup','absent_lookup','event_order_is_key_order','canonical_has_unique_ids','canonical_is_permutation_independent','canonical_selects_whole_facts','canonical_step_preserves_order','canonical_step_preserves_unique','canonical_step_selects_whole_facts','choice_always_returns','empty_has_unique_ids','find_id_position','membership_exact','new_establishes_fact_order','new_establishes_unique_ids','ordered_contents_determine_vector','receive_added_facts_are_ordered','receive_added_has_exact_contents','receive_added_ids_are_unique','receive_added_shared_state_agrees','selected_fact_is_exact','selected_fact_keeps_id','selected_id_is_unseen','shorter_output_has_unseen','strict_nat_pair','successful_plan_pushed_fact','tree_installation_preserves_facts','unique_nat_positions','unique_slice_nat_positions']) {
-    const match=new RegExp('^(?:function!?|proof!?) '+name+'[<(]','m').exec(accepted);assert(match,'missing reformed Accepted declaration '+name);
-    const tail=accepted.slice(match.index+match[0].length),next=/\n(?:function|proof!?|type|import) /.exec(tail);
-    const end=next?match.index+match[0].length+next.index:accepted.length;
-    assertReformedSource('EditAccepted.'+name,accepted.slice(match.index,end));
   }
 }
