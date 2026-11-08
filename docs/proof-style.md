@@ -168,6 +168,11 @@ adapter scaffolding. recursive proofs need an explicit decreasing measure.
 - put visibility changes beside the goal they affect. `prune` withholds named
   definitions from that goal's smt query; it does not discharge the goal. broad
   namespace pruning needs an explained scope, especially in dependency controls.
+- do not prune a patternless project lemma after calling it. without an SMT
+  pattern (`hint`), that lemma is not offered automatically; the explicit call
+  supplies its postcondition. deleting the call is the useful dependency control.
+  pruning a patterned lemma can instead test that an explicit call is needed.
+  keep those two cases distinct and delete visibility controls that do no work.
 - the current reformed queries use `Tactics.smt_sync'(1, 1)` for shallow automatic
   unfolding. the numbers are fuel settings, not a bound on theorem inputs. do not
   scatter solver tuning through callers in place of finding the missing law.
