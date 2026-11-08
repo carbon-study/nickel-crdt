@@ -11,6 +11,7 @@ import {checkPushContracts} from './check-push-contracts.mjs';
 import {checkVectorContracts} from './check-vector-contracts.mjs';
 import {checkIdentityContracts} from './check-identity-contracts.mjs';
 import {checkContainmentContracts} from './check-containment-contracts.mjs';
+import {checkAcceptedContracts} from './check-accepted-contracts.mjs';
 import {checkSpecContracts} from './check-spec-contracts.mjs';
 import {checkPrivateContracts} from './check-private-contracts.mjs';
 import {checkSharedContracts} from './check-shared-contracts.mjs';
@@ -52,7 +53,7 @@ const modes=["tree-publication-uses-private-writer","tree-publication-clears-pri
 // `positive-only`, `contracts:<family>` (implies the positive chain) and any
 // mutation modes; `positive` keeps its meaning of positive plus all families.
 const families={counter:checkCounterContracts,push:checkPushContracts,vector:checkVectorContracts,
-  scalar:checkScalarContracts,identity:checkIdentityContracts,writer:checkWriterContracts,plan:checkPlanContracts,containment:checkContainmentContracts,spec:checkSpecContracts,private:checkPrivateContracts,shared:checkSharedContracts,commit:checkCommitContracts};
+  scalar:checkScalarContracts,identity:checkIdentityContracts,writer:checkWriterContracts,plan:checkPlanContracts,containment:checkContainmentContracts,accepted:checkAcceptedContracts,spec:checkSpecContracts,private:checkPrivateContracts,shared:checkSharedContracts,commit:checkCommitContracts};
 const args=process.argv.slice(3),familyRuns=new Set();let wantPositive=args.length===0,cacheSafety=args.length===0;
 const mutations=[];
 for(const arg of args) {
@@ -161,7 +162,7 @@ const theorems={
   'scalar-refuses-valid':'EditWellFormed.valid_scalar_input_succeeds',
   'canonical-step-refuses':'EditAccepted.canonical_step_succeeds',
   'canonical-refuses':'EditAccepted.canonical_succeeds_for_unique_ids',
-  'plan-keeps-old-tree':'EditAccepted.plan_publishes_interpretation',
+  'plan-keeps-old-tree':'EditAccepted.tree_installation_installs_tree',
   'plan-passes-old-tree':'EditAccepted.plan_publishes_interpretation',
   'plan-interprets-uncanonical':'EditAccepted.plan_publishes_interpretation',
   'order-chooses-largest':'EditAccepted.selected_id_is_least',

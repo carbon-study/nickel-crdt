@@ -48,7 +48,7 @@ every actual-Rust mutation mode. For development, pass any of:
 
 - `positive-only`: the positive chain alone;
 - `contracts:<family>` (`counter`, `push`, `vector`, `scalar`, `identity`,
-  `writer`, `plan`, `containment`, `spec`, `private`, `shared`, `commit`): the positive chain, then that family's dependency controls;
+  `writer`, `plan`, `containment`, `accepted`, `spec`, `private`, `shared`, `commit`): the positive chain, then that family's dependency controls;
 - `positive`: the positive chain and all families (the previous meaning);
 - `cache-safety`: the positive chain, then the cache-reuse self-test;
 - mutation mode names, which run after the positive chain when it is selected.
@@ -844,3 +844,50 @@ They were chosen by adding sites one at a time, keeping each only if the positiv
 `selected_id_is_least`'s reduction can be removed on its own (peak 15.6% to about 22%). Combined with this slice its peak reaches about 34%, so it is kept by the cost rule, as in the previous slice.
 
 The frontier lemma keeps three reductions and `canonical_orders_facts` keeps one, so neither declaration is fenced yet. No statement, pattern or control owner changes. The deleted lists that named `push` or vector models leave implicit model reads; that is cleanup, not callee isolation.
+
+## EditAccepted without normalization
+
+The last nine explicit reductions in EditAccepted are gone, and the whole module
+is fenced. It no longer imports `FStar.NormSteps`. Each affected proof now states
+its conclusion in an assertion that withholds the callee bodies with
+`Tactics.prune`, so it can only pass through the callee contracts. The
+`contracts:accepted` family withholds each of those contracts in turn and
+requires the owner to reject.
+
+| proof | callee bodies withheld | contract it composes |
+| --- | --- | --- |
+| `selected_id_is_least` (owns `choose_unseen`) | `has_fact`, `event_lt`, `fold_range_return` | `least_extends_all` (the loop step in spec terms), `event_order_is_key_order` |
+| `canonical_orders_facts` (owns `canonical`) | `canonical_step`, `choose_unseen`, `push`, `fold_range_return` | `canonical_step_preserves_order` (hinted) |
+| `canonical_succeeds_for_unique_ids` (owns `canonical`) | the same four | `canonical_step_succeeds` + `canonical_step_selects_whole_facts` (hinted) |
+| `canonical_step_succeeds` (owns `canonical_step`) | `choose_unseen`, `push`, `clone_selected_fact`, `has_fact` | `choice_always_returns`, `selected_id_is_least`, an explicit `push_result_is_exact` instance |
+| `append_least_preserves_frontier` (caller of `push`) | `push`; the vector models in its one slice equation | `push_membership`, `push_result_is_exact`, Vector, `frontier_bounds_unseen` |
+| `plan_publishes_canonical_facts` (owns `plan`) | `with_tree`, `canonical`, `interpret`, `duplicate`, `push` | `tree_installation_preserves_facts` (local hint), `canonical`/`interpret` result shapes |
+| `plan_publishes_interpretation` (owns `plan`) | the same five | `tree_installation_preserves_facts` and the new setter contract `tree_installation_installs_tree` (local hints), the result shapes |
+
+New declarations: `least_next`, `least_extends_all`,
+`tree_installation_installs_tree`, `result_shape` and the hinted
+`canonical_has_result_shape` / `interpret_has_result_shape`.
+
+**Why the result shapes exist.** `Tactics.prune` withholds a function's typing
+facts along with its body. Without "`canonical x` is a `Result`", the solver
+cannot rebuild `canonical x == Ok v` from the planner's match, so withholding
+`canonical` failed even though the conclusion only needs congruence. The two
+shape lemmas state only the declared result type, following
+`plan_has_result_shape`. Each is load-bearing: removing its pattern makes
+`plan_publishes_canonical_facts` reject. An equivalent `duplicate` shape turned
+out unnecessary and is not included.
+
+**Owner move:** `plan-keeps-old-tree` now rejects first at the setter contract
+`tree_installation_installs_tree`, which reads `with_tree`'s body, instead of
+at `plan_publishes_interpretation`. The control
+`accepted-interpretation-without-tree-contract` removes the local tree equation's
+SMTPat (not a call), and ties the public theorem to that
+contract. With its callee bodies withheld,
+`canonical_orders_facts` needs no base-case lemma (peak 1.35%). With them
+visible and no reduction, it peaked at about 34% (82% in the earlier sweep). No old statement,
+pattern or control owner changes.
+
+**Note.**
+- Each prune in `canonical_step_succeeds` passes alone. Withholding `push` and
+  `clone_selected_fact` together needs the explicit `push_result_is_exact`
+  instance.
