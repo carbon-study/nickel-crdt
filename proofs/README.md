@@ -649,8 +649,9 @@ rewrite the fact passed from `receive` into `plan`.
 
 `EditIdentity` now has no explicit normalization and its whole authored file is
 fenced. Its duplicate-loop model remains visible: this is not whole-family
-implementation isolation. Other planner callers, including the private-state
-laws in `EditCommit`, still reopen the planner; they need further migration.
+implementation isolation. At that prefix-contract cut, other planner callers still reopened the planner.
+The private/shared/receive compositions below now migrate the Commit callers;
+Accepted publication boundaries and other implicit model/loop reads remain open.
 Neither these prefix laws nor their caller compositions prove successful
 admission, causal replay, or delivery convergence.
 
@@ -675,8 +676,8 @@ What the removed EditAccepted lists named:
   boundary, are still open.
 
 The four WellFormed steps opened `validate_new`, `receive` and `plan` inside the
-scalar-validity and direct-dependency laws for those operations. They are deleted
-here; whether those reads should go through callee contracts is still open work.
+scalar-validity and direct-dependency laws for those operations. Their deletion
+does not establish callee isolation; those implicit reads remain open work.
 
 Kept, with their reductions still needed:
 
