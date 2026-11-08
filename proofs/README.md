@@ -884,9 +884,58 @@ at `plan_publishes_interpretation`. The pattern-removal control
 contract. With its callee bodies withheld,
 `canonical_orders_facts` needs no base-case lemma (peak 1.35%). With them
 visible and no reduction, it peaked at about 34% (82% in the earlier sweep). No old statement or
-pattern changes; the only control-owner change is the recorded setter migration.
+pattern changes; that migration records the setter control-owner change.
 
 **Note.**
 - Each prune in `canonical_step_succeeds` passes alone. Withholding `push` and
   `clone_selected_fact` together needs the explicit `push_result_is_exact`
   instance.
+
+## Result-level Accepted loop callers
+
+Accepted's seven loop owners now supply an invariant, an identity finish map,
+and separate `Ok`/`Err` conditions to `LoopUtil.result_preserve_any`. Their final
+source-linked queries withhold the fold, `step_safe` and `output_safe`; callers
+no longer need the interpreter's internal safety predicates to recover their
+public result property.
+
+| owner | `Ok` condition | `Err` condition |
+| --- | --- | --- |
+| `selected_id_is_unseen` | the choice is absent from the output | unconstrained |
+| `canonical_has_unique_ids` | unique IDs | unconstrained |
+| `canonical_selects_whole_facts` | exact-length whole-fact selection invariant | unconstrained |
+| `selected_id_is_least` | least unseen choice | unconstrained |
+| `canonical_orders_facts` | ordered facts and frontier | unconstrained |
+| `choice_always_returns` | unconstrained | false |
+| `canonical_succeeds_for_unique_ids` | unconstrained | false |
+
+Preservation laws still allow errors; the existing totality laws exclude them.
+Every old theorem type, premise and pattern is unchanged. Each owner has a
+separate default call-removal control requiring an ordinary rejection at that
+owner when its Result-rule call is removed, in addition to the ten existing
+Accepted dependency cases. Four further call-removal checks tie the canonical
+owners to their source frame. These checks extend `contracts:accepted`; the CI
+entry is unchanged.
+
+This closes these loop-interface dependencies, not every callee/model dependency
+in the family. Source-boundary proofs still inspect the function they establish;
+no single-boundary-per-function policy or new semantic claim is introduced.
+
+The canonical owners compose one checked source-frame equation:
+`canonical` starts empty, runs its actual fallible step over the complete
+`0..input.len()` range, then publishes the resulting `Result`. The frame
+equation withholds `canonical_step`; the four public callers withhold
+`canonical` as well as the fold and the two internal predicates. The frame
+is ordinary authored code checked against the fresh native translation, not
+an assumed equation. Its callback remains in this one boundary definition.
+
+Two existing native mutations now reject at
+`EditAccepted.canonical_uses_complete_range`: `content-omits-facts`
+changes the range to `0..0`, and `canonical-refuses` changes the final
+return to an error. Their native patches are unchanged. The first patch also
+changes hax's inferred index type to i32; without the frame it causes an
+unrelated failure at the uniqueness theorem, despite the empty output being
+unique. That failure is not counted. The frame checks the actual range/return
+wiring directly, and its four dependency checks preserve each public theorem's
+connection to that wiring. These are explicit control-owner migrations, with
+no weakened universal theorem or broader admission/convergence claim.

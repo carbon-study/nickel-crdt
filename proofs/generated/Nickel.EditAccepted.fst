@@ -83,7 +83,13 @@ let choice_returned (facts: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) 
   fun result -> match result with | Result.Result_Err _ -> begin Prims.l_True end | Result.Result_Ok choice -> begin choice_safe facts out choice end
 
 let selected_id_is_unseen (facts: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) : Lemma (ensures (choice_returned facts out) (Native.choose_unseen facts out)) =
-  Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (choice_invariant facts out) (choice_post facts out) (choice_returned facts out)
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (choice_invariant facts out) (fun (choice: Option.t_Option usize) -> choice) (choice_post facts out) (fun (_: Native.t_Error) -> Prims.l_True);
+  assert ((choice_returned facts out) (Native.choose_unseen facts out)) by (
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.smt_sync' 1 1
+  )
 
 let push_outcome (#item: Type0) (before: Alloc.Vec.t_Vec item Alloc.Alloc.t_Global) (fact: item) : Alloc.Vec.t_Vec item Alloc.Alloc.t_Global & Result.t_Result unit Native.t_Error =
   if v (Alloc.Vec.impl_1__len before) ==? max_usize then
@@ -129,10 +135,28 @@ let canonical_step_preserves_unique (facts: t_Slice Native.t_Fact) (out: facts_v
 let empty_has_unique_ids () : Lemma (ensures ids_unique (Alloc.Vec.impl__new ())) =
   ()
 
+let canonical_loop_result (input: t_Slice Native.t_Fact) : Result.t_Result (Alloc.Vec.t_Vec Native.t_Fact Alloc.Alloc.t_Global) Native.t_Error =
+  let loop = Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0) (Core_models.Slice.impl__len input) (fun _ _ -> true) (((Alloc.Vec.impl__new ()) <: Alloc.Vec.t_Vec Native.t_Fact Alloc.Alloc.t_Global)) (fun out _ -> match Native.canonical_step input out with | Result.Result_Ok next -> begin Core_models.Ops.Control_flow.ControlFlow_Continue next end | Result.Result_Err error -> begin Core_models.Ops.Control_flow.ControlFlow_Break (Core_models.Ops.Control_flow.ControlFlow_Break (Result.Result_Err error)) end) in
+  match loop with | Core_models.Ops.Control_flow.ControlFlow_Break ret -> begin ret end | Core_models.Ops.Control_flow.ControlFlow_Continue out -> begin Result.Result_Ok out end
+
+let canonical_uses_complete_range (input: t_Slice Native.t_Fact) : Lemma (ensures Native.canonical input == canonical_loop_result input) =
+  assert (Native.canonical input == canonical_loop_result input) by (
+    Tactics.prune "Nickel_crdt.Edit.canonical_step";
+    Tactics.smt_sync' 1 1
+  )
+
 let canonical_has_unique_ids (facts: t_Slice Native.t_Fact) : Lemma (ensures canonical_result_unique (Native.canonical facts)) =
+  canonical_uses_complete_range facts;
   let each_step (out: facts_vec) : Lemma (requires ids_unique out) (ensures canonical_result_unique (Native.canonical_step facts out)) [SMTPat (Native.canonical_step facts out)] = canonical_step_preserves_unique facts out in
   empty_has_unique_ids ();
-  Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) unique_invariant ids_unique canonical_result_unique
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) unique_invariant (fun (out: facts_vec) -> out) ids_unique (fun (_: Native.t_Error) -> Prims.l_True);
+  assert (canonical_result_unique (Native.canonical facts)) by (
+    Tactics.prune "Nickel_crdt.Edit.canonical";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.smt_sync' 1 1
+  )
 
 let tree_installation_installs_tree (state: Native.t_Replica) (tree: Native.t_Tree) : Lemma (ensures (Native.impl_Replica__with_tree state tree).f_tree == tree) =
   ()
@@ -237,8 +261,16 @@ let canonical_content_result (input: t_Slice Native.t_Fact) (result: Result.t_Re
   match result with | Result.Result_Ok out -> begin content_invariant input (v (Nickel.EditIdentity.length input)) out end | _ -> begin Prims.l_True end
 
 let canonical_selects_whole_facts (input: t_Slice Native.t_Fact) : Lemma (ensures canonical_content_result input (Native.canonical input)) =
+  canonical_uses_complete_range input;
   let each_content_step (out: facts_vec) : Lemma (requires selected_whole_facts input out) (ensures content_step_result input (v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice out))) (Native.canonical_step input out)) [SMTPat (Native.canonical_step input out)] = canonical_step_selects_whole_facts input out (v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice out))) in
-  Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (content_invariant input) (content_invariant input (v (Nickel.EditIdentity.length input))) (canonical_content_result input)
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (content_invariant input) (fun (out: facts_vec) -> out) (content_invariant input (v (Nickel.EditIdentity.length input))) (fun (_: Native.t_Error) -> Prims.l_True);
+  assert (canonical_content_result input (Native.canonical input)) by (
+    Tactics.prune "Nickel_crdt.Edit.canonical";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.smt_sync' 1 1
+  )
 
 open FStar.Classical
 
@@ -372,11 +404,13 @@ let least_extends_all (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact
 let selected_id_is_least (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) : Lemma (ensures least_result input out (Native.choose_unseen input out)) =
   let each_order (a: Native.t_EventId) (b: Native.t_EventId) : Lemma (ensures Native.event_lt a b == true <==> event_key a < event_key b) [SMTPat (Native.event_lt a b)] = event_order_is_key_order a b in
   least_extends_all input out;
-  Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (least_choice input out) (least_choice input out (v (Nickel.EditIdentity.length input))) (least_result input out);
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (least_choice input out) (fun (choice: Option.t_Option usize) -> choice) (least_choice input out (v (Nickel.EditIdentity.length input))) (fun (_: Native.t_Error) -> Prims.l_True);
   assert (least_result input out (Native.choose_unseen input out)) by (
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.prune "Nickel_crdt.Edit.has_fact";
     Tactics.prune "Nickel_crdt.Edit.event_lt";
-    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.smt_sync' 1 1
   )
 
@@ -481,13 +515,17 @@ let order_invariant (input: t_Slice Native.t_Fact) (at: nat) (out: facts_vec) : 
   order_frontier input out
 
 let canonical_orders_facts (input: t_Slice Native.t_Fact) : Lemma (ensures order_step_result input (Native.canonical input)) =
+  canonical_uses_complete_range input;
   let each_order_step (out: facts_vec) : Lemma (requires order_frontier input out) (ensures order_step_result input (Native.canonical_step input out)) [SMTPat (Native.canonical_step input out)] = canonical_step_preserves_order input out in
-  Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (order_invariant input) (order_frontier input) (order_step_result input);
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (order_invariant input) (fun (out: facts_vec) -> out) (order_frontier input) (fun (_: Native.t_Error) -> Prims.l_True);
   assert (order_step_result input (Native.canonical input)) by (
+    Tactics.prune "Nickel_crdt.Edit.canonical";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.prune "Nickel_crdt.Edit.canonical_step";
     Tactics.prune "Nickel_crdt.Edit.choose_unseen";
     Tactics.prune "Nickel_crdt.Edit.push";
-    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.smt_sync' 1 1
   )
 
@@ -655,7 +693,13 @@ let choice_bounds (input: t_Slice Native.t_Fact) (at: nat) (choice: Option.t_Opt
   match choice with | Option.Option_None -> begin Prims.l_True end | Option.Option_Some k -> begin Prims.l_and (v k < at) (v k < Seq.length input) end
 
 let choice_always_returns (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) : Lemma (ensures choice_total (Native.choose_unseen input out)) =
-  Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (choice_bounds input) (choice_bounds input (Seq.length input)) choice_total
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (choice_bounds input) (fun (choice: Option.t_Option usize) -> choice) (fun (_: Option.t_Option usize) -> Prims.l_True) (fun (_: Native.t_Error) -> Prims.l_False);
+  assert (choice_total (Native.choose_unseen input out)) by (
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.smt_sync' 1 1
+  )
 
 let find_id_position (input: t_Slice Native.t_Fact) (id: Native.t_EventId{Native.has_fact input id}) : i: nat{Prims.l_and (i < Seq.length input) ((Seq.index input i).f_id == id)} =
   membership_absence_exact input id;
@@ -703,15 +747,19 @@ let progress_invariant (input: t_Slice Native.t_Fact) (at: nat) (out: facts_vec)
   content_invariant input at out
 
 let canonical_succeeds_for_unique_ids (input: t_Slice Native.t_Fact) : Lemma (requires Nickel.EditIdentity.unique_ids input) (ensures canonical_total (Native.canonical input)) =
+  canonical_uses_complete_range input;
   let each_step (out: facts_vec) : Lemma (requires (Seq.length (Alloc.Vec.impl_1__as_slice out) < Seq.length input /\ selected_whole_facts input out)) (ensures Prims.l_and (canonical_total (Native.canonical_step input out)) (match Native.canonical_step input out with | Result.Result_Ok next -> begin progress_invariant input (Seq.length (Alloc.Vec.impl_1__as_slice out) + 1) next end | _ -> begin Prims.l_False end)) [SMTPat (Native.canonical_step input out)] =
     canonical_step_succeeds input out;
     canonical_step_selects_whole_facts input out (v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice out))) in
-  Nickel.LoopUtil.preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (progress_invariant input) (fun out -> Prims.l_True) (fun (result: Result.t_Result facts_vec Native.t_Error) -> Prims.l_False);
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (progress_invariant input) (fun (out: facts_vec) -> out) (fun (_: facts_vec) -> Prims.l_True) (fun (_: Native.t_Error) -> Prims.l_False);
   assert (canonical_total (Native.canonical input)) by (
+    Tactics.prune "Nickel_crdt.Edit.canonical";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.prune "Nickel_crdt.Edit.canonical_step";
     Tactics.prune "Nickel_crdt.Edit.choose_unseen";
     Tactics.prune "Nickel_crdt.Edit.push";
-    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.smt_sync' 1 1
   )
 
