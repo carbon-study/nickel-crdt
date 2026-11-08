@@ -30,3 +30,9 @@ let slice_index (#item: Type0) (items: t_Slice item) (at: usize{v at < Seq.lengt
 
 let empty_vector_contents (#item: Type0) () : Lemma (ensures Alloc.Vec.impl_1__as_slice (((Alloc.Vec.impl__new ()) <: Alloc.Vec.t_Vec item Alloc.Alloc.t_Global)) == Seq.empty) =
   ()
+
+let vector_from_seq_value (#item: Type0) (items: Rust_primitives.Sequence.t_Seq item) : Lemma (ensures ((Alloc.Vec.from_seq items) <: Alloc.Vec.t_Vec item Alloc.Alloc.t_Global) == Alloc.Vec.Vec items ((Core_models.Marker.PhantomData <: Core_models.Marker.t_PhantomData Alloc.Alloc.t_Global))) =
+  ()
+
+let empty_vector_value (#item: Type0) () : Lemma (ensures ((Alloc.Vec.impl__new ()) <: Alloc.Vec.t_Vec item Alloc.Alloc.t_Global) == Alloc.Vec.Vec Seq.empty ((Core_models.Marker.PhantomData <: Core_models.Marker.t_PhantomData Alloc.Alloc.t_Global))) =
+  ()

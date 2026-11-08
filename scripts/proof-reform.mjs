@@ -33,6 +33,7 @@ const commitVisibility=new Set([
 ]);
 // Accepted callers may hide these callee bodies, so their proofs go through the callee contracts.
 const acceptedVisibility=new Set([
+  '"Alloc.Vec.impl__new"','"Nickel_crdt.Edit.impl_Replica__new"',
   '"Nickel_crdt.Edit.canonical_step"','"Nickel_crdt.Edit.choose_unseen"','"Nickel_crdt.Edit.canonical"',
   '"Nickel_crdt.Edit.has_fact"','"Nickel_crdt.Edit.event_lt"','"Nickel_crdt.Edit.clone_selected_fact"','"Nickel_crdt.Edit.interpret"',
 ]);

@@ -52,16 +52,39 @@ let rec member_lookup (facts: t_Slice Native.t_Fact) (id: Native.t_EventId) (at:
   if v at < v (Nickel.EditIdentity.length facts) then
     begin Nickel.LoopUtil.option_run_step (Nickel.EditIdentity.length facts) at () (member_next facts id) member_stop member_done;
     if not ((Rust_primitives.Slice.slice_index facts at).f_id ==? id) then
-      begin member_lookup facts id (at +! mk_int 1) end
+      begin member_lookup facts id (at +! mk_int 1);
+      assert (member_run facts id at == member_value (Nickel.EditIdentity.first_id facts id at)) by (
+        Tactics.prune "Nickel.LoopUtil.option_run";
+        Tactics.prune "Core_models.Slice.impl__len";
+        Tactics.prune "Rust_primitives.Slice.slice_index";
+        Tactics.smt_sync' 1 1
+      ) end
     else
-      begin () end;
-    () end
+      begin assert (member_run facts id at == member_value (Nickel.EditIdentity.first_id facts id at)) by (
+        Tactics.prune "Nickel.LoopUtil.option_run";
+        Tactics.prune "Core_models.Slice.impl__len";
+        Tactics.prune "Rust_primitives.Slice.slice_index";
+        Tactics.smt_sync' 1 1
+      ) end end
   else
-    begin Nickel.LoopUtil.option_run_end (Nickel.EditIdentity.length facts) at () (member_next facts id) member_stop member_done end
+    begin Nickel.LoopUtil.option_run_end (Nickel.EditIdentity.length facts) at () (member_next facts id) member_stop member_done;
+    assert (member_run facts id at == member_value (Nickel.EditIdentity.first_id facts id at)) by (
+      Tactics.prune "Nickel.LoopUtil.option_run";
+      Tactics.prune "Core_models.Slice.impl__len";
+      Tactics.prune "Rust_primitives.Slice.slice_index";
+      Tactics.smt_sync' 1 1
+    ) end
 
 let membership_exact (facts: t_Slice Native.t_Fact) (id: Native.t_EventId) : Lemma (ensures Native.has_fact facts id == member_value (Nickel.EditIdentity.first_id facts id (mk_usize 0))) =
   Nickel.LoopUtil.option_interpret_any (mk_usize 0) (Nickel.EditIdentity.length facts) (member_next facts id) member_stop member_done;
-  member_lookup facts id (mk_usize 0)
+  member_lookup facts id (mk_usize 0);
+  assert (Native.has_fact facts id == member_value (Nickel.EditIdentity.first_id facts id (mk_usize 0))) by (
+    Tactics.prune "Nickel.LoopUtil.option_run";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
+    Tactics.smt_sync' 1 1
+  )
 
 let membership_absent (facts: t_Slice Native.t_Fact) (id: Native.t_EventId) : Lemma (requires Native.has_fact facts id == false) (ensures Nickel.EditIdentity.prefix_absent facts id (mk_usize 0) (Nickel.EditIdentity.length facts)) =
   membership_exact facts id;
@@ -83,8 +106,10 @@ let choice_returned (facts: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) 
   fun result -> match result with | Result.Result_Err _ -> begin Prims.l_True end | Result.Result_Ok choice -> begin choice_safe facts out choice end
 
 let selected_id_is_unseen (facts: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) : Lemma (ensures (choice_returned facts out) (Native.choose_unseen facts out)) =
+  let each_membership_boolean (xs: t_Slice Native.t_Fact) (id: Native.t_EventId) : Lemma (ensures Prims.l_or (Native.has_fact xs id == true) (Native.has_fact xs id == false)) [SMTPat (Native.has_fact xs id)] = () in
   Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (choice_invariant facts out) (fun (choice: Option.t_Option usize) -> choice) (choice_post facts out) (fun (_: Native.t_Error) -> Prims.l_True);
   assert ((choice_returned facts out) (Native.choose_unseen facts out)) by (
+    Tactics.prune "Nickel_crdt.Edit.has_fact";
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
@@ -98,7 +123,29 @@ let push_outcome (#item: Type0) (before: Alloc.Vec.t_Vec item Alloc.Alloc.t_Glob
     begin (Alloc.Vec.from_seq (Seq.append (Alloc.Vec.impl_1__as_slice before) (Seq.create 1 fact)), Result.Result_Ok ()) end
 
 let push_result_is_exact (#item: Type0) (before: Alloc.Vec.t_Vec item Alloc.Alloc.t_Global) (fact: item) : Lemma (ensures Native.push before fact == push_outcome before fact) [SMTPat (Native.push before fact)] =
-  ()
+  let length_value () : Lemma (ensures Alloc.Vec.impl_1__len before == mk_usize (Seq.length (Alloc.Vec.impl_1__as_slice before))) = () in
+  length_value ();
+  if v (Alloc.Vec.impl_1__len before) ==? max_usize then
+    begin assert (Native.push before fact == push_outcome before fact) by (
+      Tactics.prune "Alloc.Vec.from_seq";
+      Tactics.prune "Alloc.Vec.impl_1__as_slice";
+      Tactics.prune "Alloc.Vec.impl_1__len";
+      Tactics.prune "Core_models.Slice.impl__len";
+      Tactics.prune "Rust_primitives.Slice.slice_index";
+      Tactics.prune "Alloc.Vec.impl__new";
+      Tactics.smt_sync' 1 1
+    ) end
+  else
+    begin Nickel.Vector.vector_from_seq_value (Seq.append (Alloc.Vec.impl_1__as_slice before) (Seq.create 1 fact));
+    assert (Native.push before fact == push_outcome before fact) by (
+      Tactics.prune "Alloc.Vec.from_seq";
+      Tactics.prune "Alloc.Vec.impl_1__as_slice";
+      Tactics.prune "Alloc.Vec.impl_1__len";
+      Tactics.prune "Core_models.Slice.impl__len";
+      Tactics.prune "Rust_primitives.Slice.slice_index";
+      Tactics.prune "Alloc.Vec.impl__new";
+      Tactics.smt_sync' 1 1
+    ) end
 
 let push_result_unique (outcome: facts_vec & Result.t_Result unit Native.t_Error) : Type0 =
   match outcome with | (next, Result.Result_Ok _) -> begin ids_unique next end | _ -> begin Prims.l_True end
@@ -133,7 +180,14 @@ let canonical_step_preserves_unique (facts: t_Slice Native.t_Fact) (out: facts_v
     begin () end end | _ -> begin () end
 
 let empty_has_unique_ids () : Lemma (ensures ids_unique (Alloc.Vec.impl__new ())) =
-  ()
+  Nickel.Vector.empty_vector_contents #Native.t_Fact ();
+  assert (ids_unique (Alloc.Vec.impl__new ())) by (
+    Tactics.prune "Alloc.Vec.impl__new";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
+    Tactics.smt_sync' 1 1
+  )
 
 let canonical_loop_result (input: t_Slice Native.t_Fact) : Result.t_Result (Alloc.Vec.t_Vec Native.t_Fact Alloc.Alloc.t_Global) Native.t_Error =
   let loop = Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0) (Core_models.Slice.impl__len input) (fun _ _ -> true) (((Alloc.Vec.impl__new ()) <: Alloc.Vec.t_Vec Native.t_Fact Alloc.Alloc.t_Global)) (fun out _ -> match Native.canonical_step input out with | Result.Result_Ok next -> begin Core_models.Ops.Control_flow.ControlFlow_Continue next end | Result.Result_Err error -> begin Core_models.Ops.Control_flow.ControlFlow_Break (Core_models.Ops.Control_flow.ControlFlow_Break (Result.Result_Err error)) end) in
@@ -147,11 +201,18 @@ let canonical_uses_complete_range (input: t_Slice Native.t_Fact) : Lemma (ensure
 
 let canonical_has_unique_ids (facts: t_Slice Native.t_Fact) : Lemma (ensures canonical_result_unique (Native.canonical facts)) =
   canonical_uses_complete_range facts;
-  let each_step (out: facts_vec) : Lemma (requires ids_unique out) (ensures canonical_result_unique (Native.canonical_step facts out)) [SMTPat (Native.canonical_step facts out)] = canonical_step_preserves_unique facts out in
-  empty_has_unique_ids ();
+  Nickel.Vector.empty_vector_value #Native.t_Fact ();
+  let each_step (out: facts_vec) : Lemma (requires ids_unique out) (ensures canonical_result_unique (Native.canonical_step facts out)) [SMTPat (Native.canonical_step facts out)] =
+    canonical_step_preserves_unique facts out;
+    assert (canonical_result_unique (Native.canonical_step facts out)) by (
+      Tactics.prune "Nickel_crdt.Edit.canonical_step";
+      Tactics.smt_sync' 1 1
+    ) in
   Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) unique_invariant (fun (out: facts_vec) -> out) ids_unique (fun (_: Native.t_Error) -> Prims.l_True);
   assert (canonical_result_unique (Native.canonical facts)) by (
     Tactics.prune "Nickel_crdt.Edit.canonical";
+    Tactics.prune "Alloc.Vec.impl__new";
+    Tactics.prune "Nickel_crdt.Edit.canonical_step";
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
@@ -262,10 +323,18 @@ let canonical_content_result (input: t_Slice Native.t_Fact) (result: Result.t_Re
 
 let canonical_selects_whole_facts (input: t_Slice Native.t_Fact) : Lemma (ensures canonical_content_result input (Native.canonical input)) =
   canonical_uses_complete_range input;
-  let each_content_step (out: facts_vec) : Lemma (requires selected_whole_facts input out) (ensures content_step_result input (v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice out))) (Native.canonical_step input out)) [SMTPat (Native.canonical_step input out)] = canonical_step_selects_whole_facts input out (v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice out))) in
+  Nickel.Vector.empty_vector_value #Native.t_Fact ();
+  let each_content_step (out: facts_vec) : Lemma (requires selected_whole_facts input out) (ensures content_step_result input (v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice out))) (Native.canonical_step input out)) [SMTPat (Native.canonical_step input out)] =
+    canonical_step_selects_whole_facts input out (v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice out)));
+    assert (content_step_result input (v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice out))) (Native.canonical_step input out)) by (
+      Tactics.prune "Nickel_crdt.Edit.canonical_step";
+      Tactics.smt_sync' 1 1
+    ) in
   Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (content_invariant input) (fun (out: facts_vec) -> out) (content_invariant input (v (Nickel.EditIdentity.length input))) (fun (_: Native.t_Error) -> Prims.l_True);
   assert (canonical_content_result input (Native.canonical input)) by (
     Tactics.prune "Nickel_crdt.Edit.canonical";
+    Tactics.prune "Alloc.Vec.impl__new";
+    Tactics.prune "Nickel_crdt.Edit.canonical_step";
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
@@ -421,16 +490,31 @@ let rec absent_lookup (input: t_Slice Native.t_Fact) (id: Native.t_EventId) (at:
     begin () end
 
 let membership_absence_exact (input: t_Slice Native.t_Fact) (id: Native.t_EventId) : Lemma (ensures Native.has_fact input id == false <==> Nickel.EditIdentity.prefix_absent input id (mk_usize 0) (Nickel.EditIdentity.length input)) =
-  membership_exact input id;
-  if Native.has_fact input id then
-    begin () end
-  else
-    begin membership_absent input id end;
   let reverse (dummy: unit) : Lemma (requires Nickel.EditIdentity.prefix_absent input id (mk_usize 0) (Nickel.EditIdentity.length input)) (ensures Native.has_fact input id == false) =
+    membership_exact input id;
     absent_lookup input id (mk_usize 0);
-    () in
+    assert (Native.has_fact input id == false) by (
+      Tactics.prune "Nickel_crdt.Edit.has_fact";
+      Tactics.prune "Core_models.Slice.impl__len";
+      Tactics.prune "Rust_primitives.Slice.slice_index";
+      Tactics.smt_sync' 1 1
+    ) in
   FStar.Classical.move_requires reverse ();
-  ()
+  if Native.has_fact input id then
+    begin assert (Native.has_fact input id == false <==> Nickel.EditIdentity.prefix_absent input id (mk_usize 0) (Nickel.EditIdentity.length input)) by (
+      Tactics.prune "Nickel_crdt.Edit.has_fact";
+      Tactics.prune "Core_models.Slice.impl__len";
+      Tactics.prune "Rust_primitives.Slice.slice_index";
+      Tactics.smt_sync' 1 1
+    ) end
+  else
+    begin membership_absent input id;
+    assert (Native.has_fact input id == false <==> Nickel.EditIdentity.prefix_absent input id (mk_usize 0) (Nickel.EditIdentity.length input)) by (
+      Tactics.prune "Nickel_crdt.Edit.has_fact";
+      Tactics.prune "Core_models.Slice.impl__len";
+      Tactics.prune "Rust_primitives.Slice.slice_index";
+      Tactics.smt_sync' 1 1
+    ) end
 
 let facts_ordered (facts: facts_vec) : Type0 =
   forall(i: usize{v i < v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice facts))}) (j: usize{v j < v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice facts))}). v i < v j ==> event_key (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice facts) i).f_id <= event_key (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice facts) j).f_id
@@ -516,10 +600,12 @@ let order_invariant (input: t_Slice Native.t_Fact) (at: nat) (out: facts_vec) : 
 
 let canonical_orders_facts (input: t_Slice Native.t_Fact) : Lemma (ensures order_step_result input (Native.canonical input)) =
   canonical_uses_complete_range input;
+  Nickel.Vector.empty_vector_value #Native.t_Fact ();
   let each_order_step (out: facts_vec) : Lemma (requires order_frontier input out) (ensures order_step_result input (Native.canonical_step input out)) [SMTPat (Native.canonical_step input out)] = canonical_step_preserves_order input out in
   Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (order_invariant input) (fun (out: facts_vec) -> out) (order_frontier input) (fun (_: Native.t_Error) -> Prims.l_True);
   assert (order_step_result input (Native.canonical input)) by (
     Tactics.prune "Nickel_crdt.Edit.canonical";
+    Tactics.prune "Alloc.Vec.impl__new";
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
@@ -564,7 +650,14 @@ let new_state_ordered (outcome: Result.t_Result Native.t_Replica Native.t_Error)
   match outcome with | Result.Result_Ok state -> begin facts_ordered state.f_facts end | _ -> begin Prims.l_True end
 
 let new_establishes_fact_order (writer: Option.t_Option Native.t_Writer) (limits: Native.t_Limits) : Lemma (ensures new_state_ordered (Native.impl_Replica__new writer limits)) =
-  ()
+  Nickel.EditAtomic.new_has_empty_facts writer limits;
+  assert (new_state_ordered (Native.impl_Replica__new writer limits)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__new";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Core_models.Slice.impl__len";
+    Tactics.prune "Rust_primitives.Slice.slice_index";
+    Tactics.smt_sync' 1 1
+  )
 
 let event_key_identifies_event (a: Native.t_EventId) (b: Native.t_EventId) : Lemma (requires event_key a == event_key b) (ensures a == b) =
   ()
@@ -748,12 +841,14 @@ let progress_invariant (input: t_Slice Native.t_Fact) (at: nat) (out: facts_vec)
 
 let canonical_succeeds_for_unique_ids (input: t_Slice Native.t_Fact) : Lemma (requires Nickel.EditIdentity.unique_ids input) (ensures canonical_total (Native.canonical input)) =
   canonical_uses_complete_range input;
+  Nickel.Vector.empty_vector_value #Native.t_Fact ();
   let each_step (out: facts_vec) : Lemma (requires (Seq.length (Alloc.Vec.impl_1__as_slice out) < Seq.length input /\ selected_whole_facts input out)) (ensures Prims.l_and (canonical_total (Native.canonical_step input out)) (match Native.canonical_step input out with | Result.Result_Ok next -> begin progress_invariant input (Seq.length (Alloc.Vec.impl_1__as_slice out) + 1) next end | _ -> begin Prims.l_False end)) [SMTPat (Native.canonical_step input out)] =
     canonical_step_succeeds input out;
     canonical_step_selects_whole_facts input out (v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice out))) in
   Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (progress_invariant input) (fun (out: facts_vec) -> out) (fun (_: facts_vec) -> Prims.l_True) (fun (_: Native.t_Error) -> Prims.l_False);
   assert (canonical_total (Native.canonical input)) by (
     Tactics.prune "Nickel_crdt.Edit.canonical";
+    Tactics.prune "Alloc.Vec.impl__new";
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";

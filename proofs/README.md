@@ -1001,3 +1001,64 @@ unique. That failure is not counted. The frame checks the actual range/return
 wiring directly, and its four dependency checks preserve each public theorem's
 connection to that wiring. These are explicit control-owner migrations, with
 no weakened universal theorem or broader admission/convergence claim.
+
+## Lookup and empty-state boundaries
+
+The final Accepted lookup bridge composes `option_interpret_any` with
+`member_lookup`, withholding both the fold and `option_run`. Its induction
+uses checked step/end equations with `option_run` withheld in each branch.
+The absence IFF proves its reverse implication first, then closes the two
+boolean cases with the membership implementation hidden. No caller needs to
+recover that implication by expanding the native lookup.
+The final assertions stay inside their branches, where the step/induction facts
+are available; appending one after the conditional was insufficient.
+
+`empty_has_unique_ids` composes the checked empty-vector equation instead of
+reading the constructor model. `new_establishes_fact_order` composes the checked
+`new_has_empty_facts` contract with the native constructor hidden. These two
+contracts come from the remaining-family migration in PR37; this addition is
+for the combined36/37 tree, not a standalone advance of the PR36 base.
+
+Nineteen additional default Accepted controls remove the lookup interpreter,
+lookup induction, its step/end/recursive calls, both directions of the absence
+IFF the Boolean-range hint, both constructor-value equations, two local step calls,
+four canonical initializer calls and the two empty-state contracts
+one at a time. Each requires its own ordinary named rejection. No old theorem
+header, native mutation, native control owner or imported model changes in this
+addition. `contracts:accepted` retains every prior case; the optional selector
+is for focused local checks and defaults to all cases.
+
+Checked Vector value equations describe from_seq and empty construction, beside the existing slice equations. Four loop callers use the empty-value equation with the constructor model hidden. The push boundary uses from_seq_value only after splitting the existing capacity guard: its precondition is invalid on the full-capacity branch. Both unique/content local adapters compose step laws with the native step hidden. The membership Boolean-range hint restores only the declared return type lost by pruning, not membership semantics.
+
+## Independent canonical-frame controls
+
+The Accepted family's default path also tests two ghost-only frame faults:
+`accepted-frame-refuses` must reject at `canonical_succeeds_for_unique_ids`,
+and `accepted-frame-drops-facts` at `canonical_selects_whole_facts`.
+These leave Rust and its extracted translation unchanged. They test the public
+laws independently of the source-to-frame transcription check, which already
+owns the actual malformed-native-loop controls.
+
+Only inside the family's disposable proof copy, the harness replaces the exact
+transcription lemma with a test-only assumed declaration. A healthy frame must
+first verify under that same trust cut. Each fault then changes only the ghost
+`canonical_loop_result` body, preserving all consumer headers and proofs.
+Ordinary named rejection is mandatory; parser/type errors, unrelated failures
+and resource exhaustion are not credited. The original view is restored in
+`finally`, including on compiler failure, and the native source must stay exact.
+
+The assumed declaration is deliberate fault injection, never a production lemma,
+a positive proof result, a new model axiom or certification of the transcription
+boundary. The production source/view/receipts remain unchanged. Existing native
+controls and their source-frame owners are retained; these two tests supplement
+them with independent public progress/content discrimination.
+
+The push boundary additionally composes a local checked length-value equation:
+its vector length equals the usize constructor of its slice cardinality. Both
+final guard branches withhold all six designated vector/slice model operations.
+Removing that explicit contract must reject at push_result_is_exact. A numeric
+length equation alone was insufficient when pruning also removed the result's
+constructor/type facts; the exact typed value restores those facts without
+reopening the model in the caller. The default family therefore retains all21
+prior dependency cases, adds19 (40 in total), then runs the healthy ghost-frame
+fixture and the two independent public progress/content fault cases.
