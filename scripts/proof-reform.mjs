@@ -9,23 +9,11 @@ function tokens(source) {
   return [...source.matchAll(/\/\/[^\n]*|\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|[A-Za-z_][A-Za-z0-9_']*|[^\s]/g)]
     .map(m=>m[0]).filter(t=>!t.startsWith('//')&&!t.startsWith('/*'));
 }
-// Only the public Spec composition may hide these operation/contract facts.
+// Only the public Spec composition may hide these native operation facts.
 const specVisibility=new Set([
   '"Nickel_crdt.Edit.impl_Replica__new"',
-  '"Nickel.EditAccepted.new_establishes_unique_ids"',
-  '"Nickel.EditAccepted.new_establishes_fact_order"',
-  '"Nickel.EditWellFormed.new_establishes_scalar_validity"',
-  '"Nickel.EditWellFormed.new_establishes_causal_closure"',
   '"Nickel_crdt.Edit.impl_Replica__receive"',
-  '"Nickel.EditAccepted.receive_preserves_unique_ids"',
-  '"Nickel.EditAccepted.receive_preserves_fact_order"',
-  '"Nickel.EditWellFormed.receive_preserves_scalar_validity"',
-  '"Nickel.EditWellFormed.receive_preserves_causal_closure"',
   '"Nickel_crdt.Edit.impl_Replica__edit"',
-  '"Nickel.EditAccepted.edit_preserves_unique_ids"',
-  '"Nickel.EditAccepted.edit_preserves_fact_order"',
-  '"Nickel.EditWellFormed.edit_preserves_scalar_validity"',
-  '"Nickel.EditWellFormed.edit_preserves_causal_closure"'
 ]);
 export function assertReformedSource(name,source) {
   const ts=tokens(source),fail=message=>assert.fail(name+' reform: '+message);

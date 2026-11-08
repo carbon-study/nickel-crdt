@@ -666,8 +666,8 @@ Three short checked compositions say that a successful `new` establishes this
 predicate and **every** return of `receive` and `edit` preserves it, given the
 predicate before the call. Rejected offers, empty edits and errors are included.
 Each composition explicitly calls its four existing public contracts; its SMT
-query withholds the native operation and those contracts' global facts. The
-explicit calls supply local postconditions. Removing any one of the twelve
+query withholds the native operation. These contracts have no automatic patterns;
+the explicit calls supply their postconditions. Removing any one of the twelve
 calls must ordinarily reject the corresponding headline theorem.
 
 `contracts:spec` selects these twelve dependency controls; the default full gate

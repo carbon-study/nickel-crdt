@@ -40,10 +40,6 @@ let new_establishes_valid_facts (writer: Option.t_Option Native.t_Writer) (limit
   WellFormed.new_establishes_causal_closure writer limits;
   assert (constructed_facts_valid (Native.impl_Replica__new writer limits)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__new";
-    Tactics.prune "Nickel.EditAccepted.new_establishes_unique_ids";
-    Tactics.prune "Nickel.EditAccepted.new_establishes_fact_order";
-    Tactics.prune "Nickel.EditWellFormed.new_establishes_scalar_validity";
-    Tactics.prune "Nickel.EditWellFormed.new_establishes_causal_closure";
     Tactics.smt_sync' 1 1
   )
 
@@ -54,10 +50,6 @@ let receive_preserves_valid_facts (before: Native.t_Replica) (fact: Native.t_Fac
   WellFormed.receive_preserves_causal_closure before fact;
   assert (received_facts_valid (Native.impl_Replica__receive before fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
-    Tactics.prune "Nickel.EditAccepted.receive_preserves_unique_ids";
-    Tactics.prune "Nickel.EditAccepted.receive_preserves_fact_order";
-    Tactics.prune "Nickel.EditWellFormed.receive_preserves_scalar_validity";
-    Tactics.prune "Nickel.EditWellFormed.receive_preserves_causal_closure";
     Tactics.smt_sync' 1 1
   )
 
@@ -68,9 +60,5 @@ let edit_preserves_valid_facts (before: Native.t_Replica) (gap: usize) (insert: 
   WellFormed.edit_preserves_causal_closure before gap insert delete;
   assert (edited_facts_valid (Native.impl_Replica__edit before gap insert delete)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
-    Tactics.prune "Nickel.EditAccepted.edit_preserves_unique_ids";
-    Tactics.prune "Nickel.EditAccepted.edit_preserves_fact_order";
-    Tactics.prune "Nickel.EditWellFormed.edit_preserves_scalar_validity";
-    Tactics.prune "Nickel.EditWellFormed.edit_preserves_causal_closure";
     Tactics.smt_sync' 1 1
   )
