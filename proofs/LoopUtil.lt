@@ -131,28 +131,28 @@ proof! option_interpret<state: Type0, result: Type0>(start: usize, finish: usize
         assert(next(value, start) == Option.Option_None);
         assert(stop(value, start) == ret);
         assert(option_finish(done, fold_range_return(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)) by {
-      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
-      Tactics.prune("Nickel.LoopUtil.option_run");
-      Tactics.smt_sync'(1, 1)
-    }
+          Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+          Tactics.prune("Nickel.LoopUtil.option_run");
+          Tactics.smt_sync'(1, 1)
+        }
       },
       ControlFlow_Break(ControlFlow_Continue((_, out))) => {
         assert(next(value, start) == Option.Option_None);
         assert(stop(value, start) == done(out));
         assert(option_finish(done, fold_range_return(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)) by {
-      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
-      Tactics.prune("Nickel.LoopUtil.option_run");
-      Tactics.smt_sync'(1, 1)
-    }
+          Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+          Tactics.prune("Nickel.LoopUtil.option_run");
+          Tactics.smt_sync'(1, 1)
+        }
       },
       ControlFlow_Continue(out) => {
         assert(next(value, start) == Option.Option_Some(out));
         option_interpret(start +! mk_int(1), finish, inv, out, f, next, stop, done);
         assert(option_finish(done, fold_range_return(start, finish, inv, value, f)) == option_run(finish, start, value, next, stop, done)) by {
-      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
-      Tactics.prune("Nickel.LoopUtil.option_run");
-      Tactics.smt_sync'(1, 1)
-    }
+          Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+          Tactics.prune("Nickel.LoopUtil.option_run");
+          Tactics.smt_sync'(1, 1)
+        }
       },
     }
   } else {

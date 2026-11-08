@@ -103,11 +103,11 @@ proof! scan_lookup(facts: t_Slice(Native.t_Fact), fact: Native.t_Fact, at: usize
   } else {
     Nickel.LoopUtil.option_run_end(length(facts), at, (), scan_next(facts, fact), scan_stop(facts, fact), scan_done);
     assert(scan_run(facts, fact, at) == classify(first_id(facts, fact.f_id, at), fact)) by {
-        Tactics.prune("Nickel.LoopUtil.option_run");
-        Tactics.prune("Core_models.Slice.impl__len");
-        Tactics.prune("Rust_primitives.Slice.slice_index");
-        Tactics.smt_sync'(1, 1)
-      }
+      Tactics.prune("Nickel.LoopUtil.option_run");
+      Tactics.prune("Core_models.Slice.impl__len");
+      Tactics.prune("Rust_primitives.Slice.slice_index");
+      Tactics.smt_sync'(1, 1)
+    }
   }
 }
 

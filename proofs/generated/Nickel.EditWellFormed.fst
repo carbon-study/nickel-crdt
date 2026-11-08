@@ -340,8 +340,6 @@ let absence_on_whole_facts (facts: t_Slice Native.t_Fact) (id: Native.t_EventId)
       Tactics.prune "Alloc.Vec.from_seq";
       Tactics.prune "Alloc.Vec.impl_1__as_slice";
       Tactics.prune "Alloc.Vec.impl_1__len";
-      Tactics.prune "Core_models.Slice.impl__len";
-      Tactics.prune "Rust_primitives.Slice.slice_index";
       Tactics.smt_sync' 1 1
     ) in
   let reverse (dummy: unit) : Lemma (requires forall(fact: Native.t_Fact). fact_present facts fact ==> Prims.l_not (fact.f_id == id)) (ensures Nickel.EditIdentity.prefix_absent facts id (mk_usize 0) (Nickel.EditIdentity.length facts)) = if Native.has_fact facts id then
