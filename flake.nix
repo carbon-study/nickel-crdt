@@ -44,7 +44,10 @@
           ./proofs/generated ./proofs/Prelude.lt ./proofs/LoopUtil.lt ./proofs/Vector.lt ./proofs/Smoke.lt ./proofs/EditAtomic.lt ./proofs/EditCommit.lt ./proofs/EditIdentity.lt ./proofs/EditAccepted.lt ./proofs/EditWellFormed.lt ./proofs/Spec.lt ./proofs/EditCausal.lt ./scripts
         ];
       };
-      proofCheck = pkgs.runCommand "nickel-proof-smoke" {
+      # One proof derivation per argument list. The full gate (no arguments) stays
+      # the local `nix flake check`; CI builds the core and mode shards in parallel.
+      proofShards = 3;
+      mkProofCheck = name: smoke: args: pkgs.runCommand "nickel-proof-${name}" {
         nativeBuildInputs = tools;
       } ''
         export HOME="$TMPDIR/home"
@@ -55,9 +58,16 @@
         ${modelEnv}
         export NICKEL_HAX_BIN="${haxBin}/bin/cargo-hax"
         export NICKEL_FSTAR_MODEL_CACHE="${models}"
-        node scripts/check-proofs.mjs "$out"
-        node scripts/check-edit-proofs.mjs "$out/edit"
+        ${pkgs.lib.optionalString smoke ''node scripts/check-proofs.mjs "$out"''}
+        node scripts/check-edit-proofs.mjs "$out/edit"${pkgs.lib.optionalString (args != [ ]) " ${pkgs.lib.escapeShellArgs args}"}
       '';
+      proofCheck = mkProofCheck "smoke" true [ ];
+      # Smoke, the positive chain, every contract family and cache safety.
+      proofCore = mkProofCheck "core" true [ "positive" "cache-safety" ];
+      proofShardChecks = builtins.listToAttrs (builtins.genList (i: {
+        name = "proofs-shard-${toString i}";
+        value = mkProofCheck "shard-${toString i}" false [ "shard:${toString i}/${toString proofShards}" ];
+      }) proofShards);
       editReferenceSource = pkgs.lib.fileset.toSource {
         root = ./.;
         fileset = pkgs.lib.fileset.unions [
@@ -87,9 +97,10 @@
         edit-reference = editReference;
         proof-models = models;
         proofs = proofCheck;
+        proofs-core = proofCore;
         hax = haxBin;
         hax-fstar = fstar;
-      };
+      } // proofShardChecks;
       checks.${system} = { inherit native; proofs = proofCheck; edit-reference = editReference; };
       devShells.${system} = {
         default = pkgs.mkShell {
