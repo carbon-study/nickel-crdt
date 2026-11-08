@@ -1062,3 +1062,10 @@ constructor/type facts; the exact typed value restores those facts without
 reopening the model in the caller. The default family therefore retains all21
 prior dependency cases, adds19 (40 in total), then runs the healthy ghost-frame
 fixture and the two independent public progress/content fault cases.
+
+The global `vector_contents` pattern-removal control is owned by
+`push_result_is_exact`: the final length/model-opacity repair makes that
+boundary the first dependent consumer. Its scoped equation-removal counterpart
+still rejects at `append_fresh_preserves_unique`, and the remaining per-caller
+controls remain unchanged. This is a proof-dependency control-owner migration,
+not a native mutation-owner change or a weakened rejection criterion.

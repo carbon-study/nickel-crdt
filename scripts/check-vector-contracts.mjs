@@ -26,9 +26,11 @@ export async function checkVectorContracts({proof, output, fstar, models, modelC
     assert(at > start && end > at && !vector.slice(start, at).includes('\n\n'));
     cases.push({name: 'vector-without-pattern-' + name, file: vectorFile,
       source: vector.slice(0, at) + vector.slice(end),
-      // Slice length is now needed by the earlier isolated duplicate boundary.
-      // Keep the global pattern mutation, and separately test Accepted below.
+      // Global hints reject at their first dependent boundary: vector contents
+      // now serves push_result_is_exact; slice length serves Identity.
+      // Scoped removals below still guard the original Accepted callers.
       theorem: name === 'slice_length' ? 'Nickel.EditIdentity.duplicate_matches_lookup'
+        : name === 'vector_contents' ? 'Nickel.EditAccepted.push_result_is_exact'
         : 'Nickel.EditAccepted.append_fresh_preserves_unique',
       view: name === 'slice_length' ? identity : accepted});
     const scoped = accepted.slice(0, callerStart) + caller.replace(anchor,
@@ -60,7 +62,7 @@ export async function checkVectorContracts({proof, output, fstar, models, modelC
       await fs.writeFile(path.join(output, test.name + '.proof.log'), result.log);
       assert(hasOrdinaryTheoremRejection({status: result.status, log: result.log,
         theorem: test.theorem, view: test.view}),
-        'require ordinary vector-contract dependency rejection: ' + result.log);
+        'require ordinary vector-contract dependency rejection (' + test.name + '): ' + result.log);
       console.log('PASS ' + test.name + ': ordinary rejection at ' + test.theorem);
     } finally {
       await put(vectorFile, vector);
