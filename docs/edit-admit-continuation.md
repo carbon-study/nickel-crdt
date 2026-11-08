@@ -55,8 +55,8 @@ The [proof style guide](proof-style.md) is the authoring and review standard.
 The whole-reform exit also requires that guide to be reviewed and the migrated
 proofs to satisfy its readability checklist, not merely its source fence.
 
-**Scope:** all project-authored proof code: Prelude, LoopUtil, Smoke, EditAtomic,
-EditCommit, EditIdentity, EditAccepted and EditWellFormed, plus the held
+**Scope:** all project-authored proof code: Prelude, LoopUtil, Smoke, Vector,
+EditAtomic, EditCommit, EditIdentity, EditAccepted, EditWellFormed and Spec, plus the held
 EditCausal candidate before that candidate advances. Generated authored F* views,
 receipts and verification roots follow those changes. Imported F*/hax models and
 the private Latte compiler are not a codebase to rewrite or new trust to add.

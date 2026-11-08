@@ -387,10 +387,10 @@ computation, scheduler progress/independence, Fugue refinement or full WF.
 
 The accepted-fact/storage proofs remain in `EditAccepted`. Scalar-domain and
 direct causal-reference contracts live in `EditWellFormed`, which imports
-those checked publication laws. The positive gate verifies the full chain
-through `EditWellFormed`; every non-counter control uses that same root,
-with its original owning theorem (relocated where appropriate). The three
-counter controls still stop at `EditAtomic`.
+those checked publication laws. The positive gate now verifies the full chain
+through `Spec`; non-counter mutation controls retain the `EditWellFormed` root
+and their owning theorems (relocated where appropriate). The three counter
+controls still stop at `EditAtomic`.
 
 This separates cumulative compiler work into semantic modules; it does not
 increase the 60-second compiler cap or solver rlimit100. The split produced eight compiler targets. With the Vector model contracts,
