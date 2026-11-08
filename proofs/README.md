@@ -44,7 +44,7 @@ every actual-Rust mutation mode. For development, pass any of:
 
 - `positive-only`: the positive chain alone;
 - `contracts:<family>` (`counter`, `push`, `vector`, `scalar`, `identity`,
-  `writer`, `plan`): the positive chain, then that family's dependency controls;
+  `writer`, `plan`, `containment`): the positive chain, then that family's dependency controls;
 - `positive`: the positive chain and all families (the previous meaning);
 - `cache-safety`: the positive chain, then the cache-reuse self-test;
 - mutation mode names, which run after the positive chain when it is selected.
@@ -596,18 +596,14 @@ Identity/Accepted theorem signature and pattern is unchanged in this slice.
 
 ## redundant WellFormed reductions
 
-Fifteen explicit reductions in EditWellFormed were removed because they were
-redundant. The scalar-validity and causal-closure laws, the presence lemma and
-the dependency-validation laws now verify without them. Ten opened only
-project spec definitions. The other five named a native function (`new`,
-`validate_after`, `past`) inside that function's own owning boundary proof, so
-no callee implementation is newly read by a caller. The two containment lemmas
-`absence_on_whole_facts` and `presence_survives_containment` keep their five
-reductions; removing them fails the positive chain. Two scalar proofs,
-`successful_validation_has_valid_scalars` and `receive_added_fact_has_valid_scalars`,
-still use `Tactics.norm` inside an assertion and stay outside the fence. The fence
-now covers the other thirteen migrated declarations. No theorem statement, pattern, control or
-budget changes. This is reduction cleanup, not new contract isolation.
+The first cleanup removed fifteen redundant reductions from EditWellFormed's
+scalar-validity, causal-closure, membership and dependency-validation laws.
+Ten opened only project spec definitions. Five named a native function
+(`new`, `validate_after`, `past`) inside its own owning boundary proof.
+That cleanup added no new contract isolation. The subsequent deletion cut below
+removed four `Tactics.norm` steps, and the containment-contract migration removes
+the last five reductions. The whole file is now fenced; implicit model/callee
+reads outside the named contract boundaries still need migration.
 
 ## invalid-result constructor contract
 
@@ -680,7 +676,8 @@ here; whether those reads should go through callee contracts is still open work.
 
 Kept, with their reductions still needed:
 
-- `append_least_preserves_frontier` (6) and the two containment lemmas (5).
+- `append_least_preserves_frontier` (6). The two containment lemmas' five sites
+  were retained at that deletion cut, then removed through the contracts below.
 - `canonical_orders_facts` (2): without them its peak rises from 0.66% to about 34%.
 - The four EditAccepted `Tactics.norm` publication/planner boundaries
   (`plan_publishes_canonical_facts`, `plan_publishes_interpretation`,
@@ -691,3 +688,28 @@ Kept, with their reductions still needed:
 
 The fence now also covers the 26 migrated EditAccepted declarations and the 4
 WellFormed declarations that are free of normalization.
+
+
+## containment through whole-fact witnesses
+
+The last five explicit WellFormed reductions are gone. In
+`absence_on_whole_facts`, a selected whole fact is related to its sequence
+position by the existing checked slice-index and slice-length contracts. The
+model index/length implementations and those contracts' global facts are
+withheld; the two explicit calls supply local facts. Native `has_fact` is also
+withheld in that query.
+
+`presence_survives_containment` chooses one before-fact with the required ID.
+Containment gives the same whole fact in the next slice; the checked absence
+law then rules out absence. There is no second position search, reverse lookup
+or hand-expanded prefix predicate. That caller withholds the prefix predicate
+and native `has_fact`. The absence law has no automatic pattern; its explicit
+call supplies the usable contract.
+
+All21 prior WellFormed theorem signatures, premises and patterns remain exact.
+Three default `contracts:containment` controls remove the two vector calls and
+the absence-law call independently; each must reject ordinarily at its caller.
+The whole WellFormed file is fenced against normalization, and its extra
+visibility prefixes are not allowed in other families. This does not make all
+remaining validators/loop models opaque or close the reform: prior implicit
+callee/model reads outside these two boundaries remain open.

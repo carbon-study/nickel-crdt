@@ -1,8 +1,8 @@
 import Rust_primitives
 import Core_models
 import FStar.Pervasives
-import FStar.NormSteps
 import Nickel.LoopUtil
+import Nickel.Vector
 import Nickel.EditIdentity
 import Native = Nickel_crdt.Edit
 import Result = Core_models.Result
@@ -218,8 +218,16 @@ proof absence_on_whole_facts(facts: t_Slice(Native.t_Fact), id: Native.t_EventId
     gives not (fact.f_id == id)
   {
     const i = find_fact_position(facts, fact);
-    norm_spec([delta_only(["Rust_primitives.Slice.slice_index"]), iota, zeta_full, primops], Rust_primitives.Slice.slice_index(facts, mk_usize(i)));
-    norm_spec([delta_only(["Nickel.EditIdentity.prefix_absent"]), iota, zeta_full], Nickel.EditIdentity.prefix_absent(facts, id, mk_usize(0), Nickel.EditIdentity.length(facts)))
+    Nickel.Vector.slice_index(facts, mk_usize(i));
+    Nickel.Vector.slice_length(facts);
+    assert(not (fact.f_id == id)) by {
+      Tactics.prune("Nickel.Vector.slice_index");
+      Tactics.prune("Nickel.Vector.slice_length");
+      Tactics.prune("Rust_primitives.Slice.slice_index");
+      Tactics.prune("Core_models.Slice.impl__len");
+      Tactics.prune("Nickel_crdt.Edit.has_fact");
+      Tactics.smt_sync'(1, 1)
+    }
   };
   proof reverse(dummy: unit): unit
     takes forall(fact: Native.t_Fact) . fact_present(facts, fact) ==> not (fact.f_id == id)
@@ -244,17 +252,15 @@ proof presence_survives_containment(before: t_Slice(Native.t_Fact), next: t_Slic
 {
   event_membership_is_presence(before, id);
   const i = find_id_position(before, id);
-  assert(fact_present(before, Seq.index(before, i)));
-  norm_spec([delta_only(["Nickel.EditWellFormed.facts_contained"]), iota], facts_contained(before, next));
-  assert(fact_present(next, Seq.index(before, i)));
-  const j = find_fact_position(next, Seq.index(before, i));
-  membership_absence_exact(next, id);
-  if !(Native.has_fact(next, id)) {
-    norm_spec([delta_only(["Rust_primitives.Slice.slice_index"]), iota, zeta_full, primops], Rust_primitives.Slice.slice_index(next, mk_usize(j)));
-    norm_spec([delta_only(["Nickel.EditIdentity.prefix_absent"]), iota, zeta_full], Nickel.EditIdentity.prefix_absent(next, id, mk_usize(0), Nickel.EditIdentity.length(next)));
-    assert(Prims.l_False)
-  } else { () };
-  event_membership_is_presence(next, id)
+  const witness = Seq.index(before, i);
+  assert(fact_present(before, witness));
+  assert(fact_present(next, witness));
+  absence_on_whole_facts(next, id);
+  assert(event_present(next, id)) by {
+    Tactics.prune("Nickel_crdt.Edit.has_fact");
+    Tactics.prune("Nickel.EditIdentity.prefix_absent");
+    Tactics.smt_sync'(1, 1)
+  }
 }
 proof dependencies_survive_containment(before: t_Slice(Native.t_Fact), next: t_Slice(Native.t_Fact), fact: Native.t_Fact): unit
   takes facts_contained(before, next)

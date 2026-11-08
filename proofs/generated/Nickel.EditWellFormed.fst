@@ -9,9 +9,9 @@ open Core_models
 
 open FStar.Pervasives
 
-open FStar.NormSteps
-
 open Nickel.LoopUtil
+
+open Nickel.Vector
 
 open Nickel.EditIdentity
 
@@ -182,8 +182,16 @@ let absence_on_whole_facts (facts: t_Slice Native.t_Fact) (id: Native.t_EventId)
   membership_absence_exact facts id;
   let forward (fact: Native.t_Fact) : Lemma (requires (Nickel.EditIdentity.prefix_absent facts id (mk_usize 0) (Nickel.EditIdentity.length facts) /\ fact_present facts fact)) (ensures Prims.l_not (fact.f_id == id)) =
     let i = find_fact_position facts fact in
-    norm_spec [delta_only ["Rust_primitives.Slice.slice_index"]; iota; zeta_full; primops] (Rust_primitives.Slice.slice_index facts (mk_usize i));
-    norm_spec [delta_only ["Nickel.EditIdentity.prefix_absent"]; iota; zeta_full] (Nickel.EditIdentity.prefix_absent facts id (mk_usize 0) (Nickel.EditIdentity.length facts)) in
+    Nickel.Vector.slice_index facts (mk_usize i);
+    Nickel.Vector.slice_length facts;
+    assert (Prims.l_not (fact.f_id == id)) by (
+      Tactics.prune "Nickel.Vector.slice_index";
+      Tactics.prune "Nickel.Vector.slice_length";
+      Tactics.prune "Rust_primitives.Slice.slice_index";
+      Tactics.prune "Core_models.Slice.impl__len";
+      Tactics.prune "Nickel_crdt.Edit.has_fact";
+      Tactics.smt_sync' 1 1
+    ) in
   let reverse (dummy: unit) : Lemma (requires forall(fact: Native.t_Fact). fact_present facts fact ==> Prims.l_not (fact.f_id == id)) (ensures Nickel.EditIdentity.prefix_absent facts id (mk_usize 0) (Nickel.EditIdentity.length facts)) = if Native.has_fact facts id then
     begin let i = find_id_position facts id in
     assert (fact_present facts (Seq.index facts i));
@@ -197,18 +205,15 @@ let absence_on_whole_facts (facts: t_Slice Native.t_Fact) (id: Native.t_EventId)
 let presence_survives_containment (before: t_Slice Native.t_Fact) (next: t_Slice Native.t_Fact) (id: Native.t_EventId) : Lemma (requires (facts_contained before next /\ event_present before id)) (ensures event_present next id) =
   event_membership_is_presence before id;
   let i = find_id_position before id in
-  assert (fact_present before (Seq.index before i));
-  norm_spec [delta_only ["Nickel.EditWellFormed.facts_contained"]; iota] (facts_contained before next);
-  assert (fact_present next (Seq.index before i));
-  let j = find_fact_position next (Seq.index before i) in
-  membership_absence_exact next id;
-  if not (Native.has_fact next id) then
-    begin norm_spec [delta_only ["Rust_primitives.Slice.slice_index"]; iota; zeta_full; primops] (Rust_primitives.Slice.slice_index next (mk_usize j));
-    norm_spec [delta_only ["Nickel.EditIdentity.prefix_absent"]; iota; zeta_full] (Nickel.EditIdentity.prefix_absent next id (mk_usize 0) (Nickel.EditIdentity.length next));
-    assert Prims.l_False end
-  else
-    begin () end;
-  event_membership_is_presence next id
+  let witness = Seq.index before i in
+  assert (fact_present before witness);
+  assert (fact_present next witness);
+  absence_on_whole_facts next id;
+  assert (event_present next id) by (
+    Tactics.prune "Nickel_crdt.Edit.has_fact";
+    Tactics.prune "Nickel.EditIdentity.prefix_absent";
+    Tactics.smt_sync' 1 1
+  )
 
 let dependencies_survive_containment (before: t_Slice Native.t_Fact) (next: t_Slice Native.t_Fact) (fact: Native.t_Fact) : Lemma (requires (facts_contained before next /\ fact_dependencies_present before fact)) (ensures fact_dependencies_present next fact) =
   let each_id (id: Native.t_EventId) : Lemma (requires event_present before id) (ensures event_present next id) = presence_survives_containment before next id in
