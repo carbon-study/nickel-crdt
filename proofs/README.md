@@ -719,29 +719,45 @@ visibility prefixes are not allowed in other families. This does not make all
 remaining validators/loop models opaque or close the reform: prior implicit
 callee/model reads outside these two boundaries remain open.
 
-## readable storage-contract entry point
+## readable public-contract entry point
 
-[`Spec.lt`](Spec.lt) begins the public proof surface with one explicitly defined
-predicate, `stored_facts_valid`: accepted IDs are unique, their storage order is
-nondecreasing, inserted values are Unicode scalars, and every direct causal
-reference names an accepted fact. It does **not** mean full representation WF,
-acyclicity, correct text interpretation, convergence or admission progress.
+[`Spec.lt`](Spec.lt) presents the 33 established public behavior laws through ten
+checked headlines. Each calls the existing laws explicitly and withholds the
+native operation bodies. The original proofs and their premises stay unchanged.
+Implementation-only boundaries such as `receive_uses_plan` remain in their owning
+families; this is a public behavior surface, not a second implementation layer.
 
-Three short checked compositions say that a successful `new` establishes this
-predicate and **every** return of `receive` and `edit` preserves it, given the
-predicate before the call. Rejected offers, empty edits and errors are included.
-Each composition explicitly calls its four existing public contracts; its SMT
-query withholds the native operation. These contracts have no automatic patterns;
-the explicit calls supply their postconditions. Removing any one of the twelve
-calls must ordinarily reject the corresponding headline theorem.
+| headline | explicit premise | constituent laws |
+| --- | --- | --- |
+| `new_establishes_valid_facts` | none; conclusion is conditional on successful construction | four storage invariants |
+| `receive_preserves_valid_facts` | valid stored facts before | four invariant preservations, every return |
+| `edit_preserves_valid_facts` | valid stored facts before | four invariant preservations, every return |
+| `receive_obeys_contract` | none | neutrality/private state, exact contents, fresh ID, unique/ordered storage, new-fact scalars and direct dependencies (eight laws) |
+| `edit_obeys_contract` | none | neutrality, counter, request, same-commit replay, exact contents, fresh ID, storage order and new-fact scalars (eight laws) |
+| `known_identity_is_classified` | in-bounds member, unique before-IDs, matching ID and valid counter | duplicate/conflict classification |
+| `invalid_counter_is_rejected` | zero or over-domain counter | exact invalid-counter return |
+| `equal_shared_history_gives_same_admission` | equal facts/tree/limits | same admission despite different private writer/counter |
+| `authored_fact_admits_on_equal_shared_history` | equal facts/tree/limits | conditional authored-fact delivery and receiver-private-state preservation |
+| `equal_candidate_contents_give_same_rebuild` | equal candidate whole-fact support and length | identical facts/tree when both receives are Added |
 
-`contracts:spec` selects these twelve dependency controls; the default full gate
-includes them and checks the positive chain through `Nickel.Spec`. Other native
-mutation controls keep their previous roots and owners. The Spec-only visibility
-allowlist does not grant other proof families these new prune prefixes.
-This adds a checked conjunction surface, not new CRDT semantics. Existing public
-proofs stay in their owning families; error neutrality, exact publication and
-cross-replica headline sections still need their own readable surface.
+The four storage invariants are unique IDs, nondecreasing event-key storage
+order, inserted Unicode scalars and direct causal-reference closure. This is
+not full representation WF, causal acyclicity or a text-order semantics theorem.
+The outcome bundles apply with no before-invariant premise; their success-only
+clauses say nothing about a call that errors or returns no authored fact. Their
+neutrality clauses cover those other returns explicitly.
+
+Both same-history premises are visible `takes` lines. Equal candidate contents
+allows permutations and is distinct from equal starting shared state. None of
+these conditional laws proves delivery convergence, admission progress or
+refinement against an independent CRDT semantics. Those remain open.
+
+`contracts:spec` removes each of the 33 public-law calls independently and
+requires ordinary rejection at its headline. Patternless lemmas supply their
+posts by these explicit calls; there are no decorative lemma-name prunes.
+The default positive chain checks through Spec, while native mutation roots
+and owners stay unchanged. The Spec-only native visibility permissions do not
+extend to other families.
 
 ## private state through tree publication
 

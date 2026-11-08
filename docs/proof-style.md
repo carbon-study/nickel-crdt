@@ -249,9 +249,8 @@ reader and for the next author? if not, the readability gate is still open.
 
 ## the public theorem surface
 
-`Spec.lt` implements the first storage-contract section: one explicit invariant
-bundle and short checked constructor/receive/edit compositions. the remaining
-public sections still need predicates, explicit premises and compositions of
-implementation-linked laws. it must not be a parallel set of copied claims or a new unproved model.
+`Spec.lt` presents the established public behavior laws through checked storage,
+outcome, identity and cross-replica compositions. its predicates and explicit
+premises expose what the existing implementation-linked laws actually prove. it must not be a parallel set of copied claims or a new unproved model.
 name partial invariant bundles precisely and surface the hypotheses of
 cross-replica laws. keep the missing semantic/refinement/progress results visible.
