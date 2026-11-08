@@ -179,9 +179,13 @@ The same four push callers withhold `Alloc.Vec.impl_1__as_slice`,
 `Rust_primitives.Slice.slice_index`, as well as native `push`. This uniform block
 is a deliberate visibility boundary, not a claim that each equation is needed
 in every caller.
-Five pattern removals must reject at the first caller. Separately withholding
-all Vector contracts, or just the new `vector_from_seq` equation, in each caller
-must reject at that caller. These are proof-dependency controls, not native bugs.
+Five global pattern removals must reject at their named dependent proof. The
+slice-length removal now reaches the earlier isolated Identity duplicate boundary;
+the others still reach the first Accepted push caller. Each equation is also
+withheld only within that Accepted caller's query, requiring its own rejection
+without disrupting upstream proofs. Separately withholding all Vector contracts,
+or just the `vector_from_seq` equation, in each of the four callers must reject
+at that caller. These are proof-dependency controls, not native bugs.
 Existing actual-Rust controls remain separate.
 
 This gives those four queries an explicit model-function boundary. Other model
