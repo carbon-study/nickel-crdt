@@ -64,13 +64,12 @@ receipts and verification roots follow those changes. Imported F*/hax models and
 the private Latte compiler are not a codebase to rewrite or new trust to add.
 Unproved Rust behavior does not become proved merely by giving it a contract.
 
-**Boundary decision still required:** Ren has requested eliminating the fiddly
-normalization approach throughout the codebase. No exception has been approved
-for source-linking lemmas. Clarify whether zero explicit normalization is required
-even there, or whether a small, explicitly approved boundary may retain it while
-all callers use contracts. Until that answer, do not declare retained boundary
-normalizers compliant or mark the reform complete. The downstream target is
-unambiguous: no hand-maintained implementation unfolding lists in callers.
+**Boundary decision: not needed.** The delivered sources (#35, #38) take the strict
+path: no authored proof module retains explicit normalization, including the
+source-linking lemmas. The proof-reform fence checks every authored module except
+Prelude, which contains no normalization.
+No boundary exception was requested or used. The reform's exit checklist is
+tracked in #40.
 
 ### 0a. map and prove useful function contracts
 
@@ -335,6 +334,12 @@ separate guard. Split a genuinely overgrown compilation unit before publishing
 another timed-out head, and never count resource exhaustion as detection.
 No complete matrix or browser rerun is needed for this documentation plan.
 
-**Immediate next action:** section 0: settle the boundary-normalization policy,
-map current caller needs, and carry the counter contract/pattern slice through
-its actual public wiring and controls. No further causal/scheduler work first.
+**Plan order:** the Rust history cut (#52) starts implementation only after the
+edit-only joint exit (#46). Its decisions (#47, #48, #49, #51, #56) and contract
+preparation may proceed earlier. This is sequencing, not a theorem dependency.
+
+**Status and next action:** the [nickel roadmap board](https://github.com/orgs/carbon-study/projects/2)
+and the repository milestones M1–M4 track status. This document keeps each slice's
+technical acceptance contract. Section 0 landed in #35/#38 (exit checklist #40).
+Section 1's acyclicity is implemented there and pending acceptance (#41). The next
+M1 deliverable is section 2, exact `past` and the replay scheduler (#42).

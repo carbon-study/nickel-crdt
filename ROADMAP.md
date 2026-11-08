@@ -9,7 +9,11 @@ merged; it does not complete the verified slice or history milestone. The
 [post-merge continuation plan](docs/edit-admit-continuation.md) owns the next
 proof slices. Ren now puts whole-proof-codebase contracts/patterns and a simple
 for-loop interface first, as a gate before further semantic work. The larger
-release requirements below remain in force.
+release requirements below remain in force. Status lives on the
+[nickel roadmap board](https://github.com/orgs/carbon-study/projects/2) and the
+milestones M1 (edit-only verified argument), M2 (experimental native crate), M3
+(full profile, continuation and recovery) and M4 (verified v0.1); this document
+keeps the reasoning.
 
 ## the first usable release
 
