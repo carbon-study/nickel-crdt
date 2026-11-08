@@ -11,6 +11,7 @@ import {checkPushContracts} from './check-push-contracts.mjs';
 import {checkVectorContracts} from './check-vector-contracts.mjs';
 import {checkIdentityContracts} from './check-identity-contracts.mjs';
 import {checkContainmentContracts} from './check-containment-contracts.mjs';
+import {checkSpecContracts} from './check-spec-contracts.mjs';
 import {checkPlanContracts} from './check-plan-contracts.mjs';
 import {checkWriterContracts} from './check-writer-contracts.mjs';
 import {checkNegativeProofEvidence} from './check-negative-proof-evidence.mjs';
@@ -28,7 +29,7 @@ await fs.mkdir(output,{recursive:true});
 const identity=JSON.parse(await fs.readFile(path.join(modelCache,'identity.json'),'utf8'));
 assert.equal(identity.models,models);assert.equal(identity.fstar,fstar);
 const views=new Map();
-for(const name of ['Prelude','LoopUtil','Vector','EditAtomic','EditCommit','EditIdentity','EditAccepted','EditWellFormed']) {
+for(const name of ['Prelude','LoopUtil','Vector','EditAtomic','EditCommit','EditIdentity','EditAccepted','EditWellFormed','Spec']) {
   const source=`proofs/${name}.lt`,view=`proofs/generated/Nickel.${name}.fst`;
   const code=await fs.readFile(path.join(root,view),'utf8');
   const receipt=(await fs.readFile(path.join(root,`proofs/generated/${name}.sha256`),'utf8')).trim().split('\n');
@@ -48,7 +49,7 @@ const modes=['positive','plan-ignores-duplicate','plan-swallows-classifier-error
 // `positive-only`, `contracts:<family>` (implies the positive chain) and any
 // mutation modes; `positive` keeps its meaning of positive plus all families.
 const families={counter:checkCounterContracts,push:checkPushContracts,vector:checkVectorContracts,
-  scalar:checkScalarContracts,identity:checkIdentityContracts,writer:checkWriterContracts,plan:checkPlanContracts,containment:checkContainmentContracts};
+  scalar:checkScalarContracts,identity:checkIdentityContracts,writer:checkWriterContracts,plan:checkPlanContracts,containment:checkContainmentContracts,spec:checkSpecContracts};
 const args=process.argv.slice(3),familyRuns=new Set();let wantPositive=args.length===0,cacheSafety=args.length===0;
 const mutations=[];
 for(const arg of args) {

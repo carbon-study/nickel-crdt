@@ -1,0 +1,71 @@
+import Rust_primitives
+import Core_models
+import FStar.Pervasives
+import Native = Nickel_crdt.Edit
+import Result = Core_models.Result
+import Option = Core_models.Option
+import Accepted = Nickel.EditAccepted
+import WellFormed = Nickel.EditWellFormed
+import Tactics = FStar.Tactics.V2
+
+// The four established storage invariants. This does not assert causal
+// acyclicity, text-order semantics, capacity progress or convergence.
+function stored_facts_valid(state: Native.t_Replica): Type0 {
+  Accepted.ids_unique(state.f_facts) and
+  Accepted.facts_ordered(state.f_facts) and
+  WellFormed.facts_scalars_valid(state.f_facts) and
+  WellFormed.facts_causally_closed(state.f_facts)
+}
+function constructed_facts_valid(result: Result.t_Result(Native.t_Replica, Native.t_Error)): Type0 {
+  match result { Result.Result_Ok(state) => stored_facts_valid(state), _ => Prims.l_True }
+}
+function received_facts_valid(result: (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error))): Type0 {
+  match result { (state, _) => stored_facts_valid(state) }
+}
+function edited_facts_valid(result: (Native.t_Replica, Result.t_Result(Native.t_Local, Native.t_Error))): Type0 {
+  match result { (state, _) => stored_facts_valid(state) }
+}
+
+// A successful constructor establishes all four invariants.
+proof new_establishes_valid_facts(writer: Option.t_Option(Native.t_Writer), limits: Native.t_Limits): unit
+  gives constructed_facts_valid(Native.impl_Replica__new(writer, limits))
+{
+  Accepted.new_establishes_unique_ids(writer, limits);
+  Accepted.new_establishes_fact_order(writer, limits);
+  WellFormed.new_establishes_scalar_validity(writer, limits);
+  WellFormed.new_establishes_causal_closure(writer, limits);
+  assert(constructed_facts_valid(Native.impl_Replica__new(writer, limits))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__new");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// Every receive return preserves valid stored facts, including rejected offers.
+proof receive_preserves_valid_facts(before: Native.t_Replica, fact: Native.t_Fact): unit
+  takes stored_facts_valid(before)
+  gives received_facts_valid(Native.impl_Replica__receive(before, fact))
+{
+  Accepted.receive_preserves_unique_ids(before, fact);
+  Accepted.receive_preserves_fact_order(before, fact);
+  WellFormed.receive_preserves_scalar_validity(before, fact);
+  WellFormed.receive_preserves_causal_closure(before, fact);
+  assert(received_facts_valid(Native.impl_Replica__receive(before, fact))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// Every edit return preserves them too, including empty edits and errors.
+proof edit_preserves_valid_facts(before: Native.t_Replica, gap: usize, insert: Alloc.Vec.t_Vec(u32, Alloc.Alloc.t_Global), delete: Alloc.Vec.t_Vec(Native.t_BirthId, Alloc.Alloc.t_Global)): unit
+  takes stored_facts_valid(before)
+  gives edited_facts_valid(Native.impl_Replica__edit(before, gap, insert, delete))
+{
+  Accepted.edit_preserves_unique_ids(before, gap, insert, delete);
+  Accepted.edit_preserves_fact_order(before, gap, insert, delete);
+  WellFormed.edit_preserves_scalar_validity(before, gap, insert, delete);
+  WellFormed.edit_preserves_causal_closure(before, gap, insert, delete);
+  assert(edited_facts_valid(Native.impl_Replica__edit(before, gap, insert, delete))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Replica__edit");
+    Tactics.smt_sync'(1, 1)
+  }
+}

@@ -18,6 +18,10 @@ export function checkProofReformFence() {
   assertReformedSource('EditWellFormed','Tactics.prune("Nickel.EditIdentity.prefix_absent")');
   assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Nickel.EditIdentity.prefix_absent")'),/fixture reform:/);
   assert.throws(()=>assertReformedSource('EditWellFormed','assert_norm(true)'),/EditWellFormed reform:/);
+  assertReformedSource('Spec','Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive")');
+  assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive")'),/fixture reform:/);
+  assert.throws(()=>assertReformedSource('Spec','assert_norm(true)'),/Spec reform:/);
+
   console.log('PASS proof-reform fence: approved direct tactic, normalization/import/alias controls');
 }
 checkProofReformFence();
