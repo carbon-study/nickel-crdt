@@ -27,10 +27,21 @@ jobs:
   # cache.nixos.org; cold, z3 alone builds for ~37 minutes. The store is cached
   # between runs, keyed on the Nix files. Budget: 150 min check + 30 s
   # self-test, under 210 min; setup, restore and save use the remainder.
+  # The proof gate is split across parallel runners. Together the targets are
+  # exactly the full local gate (`nix flake check`): native and the edit
+  # reference; smoke, positive chain, every contract family and cache safety
+  # (proofs-core-a and proofs-core-b, the latter taking every family the former
+  # omits); and every mutation mode, partitioned by index modulo the
+  # shard count (proofs-shard-<i>, see check-edit-proofs.mjs). The shard list
+  # here must match proofShards in flake.nix; the core-a job checks that.
   scaffold:
-    name: native crate and proofs
+    name: ${{ matrix.target }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 210
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [native, proofs-core-a, proofs-core-b, proofs-shard-0, proofs-shard-1, proofs-shard-2]
     # Each run saves its own cache generation and restores the newest one for
     # the same Nix files (else the newest for this OS/arch), so builds finished
     # after a failed or partial run are kept by the next save. A fixed key could
@@ -57,14 +68,29 @@ jobs:
             nix-scaffold-${{ runner.os }}-${{ runner.arch }}-
       - name: wrapper self-test
         run: .github/scripts/check.test.sh
-      # checks.native and checks.proofs. Public checks verify the committed F*
-      # views; Latte emission is private and not regenerated here (proofs/README.md).
-      - name: flake check
-        run: .github/scripts/check.sh flake-check 9000 nix flake check -L
+      # Public checks verify the committed F* views; Latte emission is private
+      # and not regenerated here (proofs/README.md).
+      - name: shard coverage
+        if: matrix.target == 'proofs-core-a'
+        run: |
+          shards=$(nix eval --json .#packages.aarch64-linux --apply 'p: builtins.length (builtins.filter (n: builtins.match "proofs-shard-[0-9]+" n != null) (builtins.attrNames p))')
+          test "$shards" = 3 || { echo "flake exposes $shards proof shards; ci.yml lists 3"; exit 1; }
+      - name: build ${{ matrix.target }}
+        run: |
+          if [ "${{ matrix.target }}" = native ]; then
+            .github/scripts/check.sh native 9000 nix build -L --no-link .#checks.aarch64-linux.native .#checks.aarch64-linux.edit-reference
+          else
+            .github/scripts/check.sh ${{ matrix.target }} 9000 nix build -L --no-link .#packages.aarch64-linux.${{ matrix.target }}
+          fi
       # Save even when the check failed or timed out, so finished toolchain
       # paths are not rebuilt next time. The key is new for every run.
+      # Only pushes to main save, from one job. PRs may restore only their own
+      # or the default branch's caches; when every PR run saved ~3 GB, the
+      # repository held no main cache at all (2026-11-08: 4 PR-scoped caches,
+      # none on main), so each new PR built the toolchain cold. Saving only on
+      # main keeps one warm, shared cache that every PR can restore.
       - name: save Nix store
-        if: always()
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.target == 'proofs-core-a'
         uses: nix-community/cache-nix-action/save@v7
         with:
           primary-key: ${{ steps.key.outputs.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}

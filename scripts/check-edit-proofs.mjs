@@ -53,6 +53,10 @@ const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tre
 // arguments (CI) every mode and every family runs. Development runs may select
 // `positive-only`, `contracts:<family>` (implies the positive chain) and any
 // mutation modes; `positive` keeps its meaning of positive plus all families.
+// `shard:<i>/<n>` selects every mutation mode whose index k has k mod n == i
+// (after the positive chain), so n shards together cover every mode exactly once.
+// `contracts-except:<a>,<b>` runs every family not listed, so a CI job using it
+// also picks up any family added later.
 const families={remaining:checkRemainingContracts,counter:checkCounterContracts,push:checkPushContracts,vector:checkVectorContracts,
   scalar:checkScalarContracts,identity:checkIdentityContracts,writer:checkWriterContracts,plan:checkPlanContracts,containment:checkContainmentContracts,accepted:checkAcceptedContracts,spec:checkSpecContracts,private:checkPrivateContracts,shared:checkSharedContracts,commit:checkCommitContracts};
 const args=process.argv.slice(3),familyRuns=new Set();let wantPositive=args.length===0,cacheSafety=args.length===0;
@@ -61,6 +65,14 @@ for(const arg of args) {
   if(arg==='positive'){wantPositive=true;for(const name of Object.keys(families))familyRuns.add(name);}
   else if(arg==='positive-only')wantPositive=true;
   else if(arg==='cache-safety'){wantPositive=true;cacheSafety=true;}
+  else if(/^shard:\d+\/\d+$/.test(arg)){
+    const [i,n]=arg.slice(6).split('/').map(Number);assert(n>0&&i<n,'shard index out of range '+arg);
+    wantPositive=true;mutations.push(...modes.filter(mode=>mode!=='positive').filter((_,k)=>k%n===i));
+  }
+  else if(arg.startsWith('contracts-except:')){
+    const skip=arg.slice(17).split(',');for(const name of skip)assert(Object.hasOwn(families,name),'unknown contract family '+name);
+    wantPositive=true;for(const name of Object.keys(families))if(!skip.includes(name))familyRuns.add(name);
+  }
   else if(arg.startsWith('contracts:')){const name=arg.slice(10);assert(Object.hasOwn(families,name),'unknown contract family '+name);wantPositive=true;familyRuns.add(name);}
   else {assert(modes.includes(arg),'unknown mode '+arg);mutations.push(arg);}
 }
