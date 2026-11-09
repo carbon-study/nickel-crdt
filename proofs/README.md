@@ -52,6 +52,14 @@ every actual-Rust mutation mode. For development, pass any of:
 - `positive`: the positive chain and all families (the previous meaning);
 - `cache-safety`: the positive chain, then the cache-reuse self-test;
 - mutation mode names, which run after the positive chain when it is selected.
+- `jobs:<n>` (default 1): check up to n selected mutation modes concurrently,
+  after the positive chain and its families. It selects nothing by itself.
+
+Only one invocation may run per checkout: a second one exits with status 75
+before writing anything (`flock` on `.cache/edit-proofs.lock`). Each mode has
+its own workspace and its own Cargo target (`target/edit-proof-check/modes/<mode>`),
+because hax names its metadata by package rather than by source tree: crate
+copies sharing one target, run concurrently, verified each other's extraction.
 
 Each family edits its own copy of the verified positive workspace, so probes
 neither leave the positive cache in a failed state nor see each other's edits.

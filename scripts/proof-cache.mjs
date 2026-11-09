@@ -1,4 +1,4 @@
-import {spawnSync} from 'node:child_process';
+import {spawn,spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {mkdir,readFile,writeFile,rename,readdir,rm,cp} from 'node:fs/promises';
 import {join,basename} from 'node:path';
@@ -74,9 +74,34 @@ export function run(label,bin,args,cwd,{env=process.env,seconds=60}={}) {
   if(r.error)throw r.error;
   return {status:r.status,stdout:r.stdout??'',log:(r.stdout??'')+(r.stderr??''),seconds:elapsed};
 }
+// The same command, timeout and result as run, without blocking the event loop,
+// so independent proof workspaces can be checked concurrently in one process.
+// Like spawnSync's maxBuffer, more than 32 MiB on either stream kills the command
+// and throws.
+export function runAsync(label,bin,args,cwd,{env=process.env,seconds=60}={}) {
+  const start=performance.now(),limit=32*1024*1024;
+  return new Promise((resolve,reject)=>{
+    const child=spawn('timeout',['--kill-after=2s',`${seconds}s`,bin,...args],{cwd,env});
+    const out={stdout:'',stderr:''},bytes={stdout:0,stderr:0};let overflow=false;
+    for(const name of ['stdout','stderr']) {
+      child[name].setEncoding('utf8');
+      child[name].on('data',chunk=>{out[name]+=chunk;bytes[name]+=Buffer.byteLength(chunk);if(bytes[name]>limit&&!overflow){overflow=true;child.kill('SIGTERM');}});
+    }
+    child.stdin.end();
+    child.on('error',reject);
+    child.on('close',(status,signal)=>{
+      const elapsed=(performance.now()-start)/1000;
+      console.log(`[time] ${label}: ${elapsed.toFixed(3)}s (exit ${status ?? signal})`);
+      if(overflow)return reject(Error(label+': output exceeded '+limit+' bytes'));
+      resolve({status,stdout:out.stdout,log:out.stdout+out.stderr,seconds:elapsed});
+    });
+  });
+}
 // Workspace source hashes, not source mtimes, invalidate direct cache entries.
 // Make/F* then propagate invalidation through the actual dependency graph.
-export async function verify({dir,roots,fstar,models,modelCache,seconds,moduleSeconds=60,rlimit=100}) {
+// label (optional) names the workspace in every console line, for concurrent checks.
+export async function verify({dir,roots,fstar,models,modelCache,seconds,moduleSeconds=60,rlimit=100,label}) {
+  const tag=label===undefined?'':' '+label,say=line=>console.log(label===undefined?line:`[${label}] ${line}`);
   if(!Number.isInteger(moduleSeconds)||moduleSeconds<1||moduleSeconds>180)throw Error('moduleSeconds must be an integer from 1 to 180');
   if(modelCache&&moduleSeconds>60)throw Error('project module budget cannot exceed 60 seconds');
   if(seconds!==undefined&&(!Number.isSafeInteger(seconds)||seconds<1))throw Error('invalid aggregate seconds');
@@ -95,7 +120,7 @@ export async function verify({dir,roots,fstar,models,modelCache,seconds,moduleSe
   await put(join(dir,'sources.json'),JSON.stringify(current,null,2)+'\n');
   const flags=[...flagsAt(rlimit),'--cache_checked_modules','--cache_dir',join(dir,'checked'),'--already_cached','+Prims+FStar+LowStar+C+Spec.Loops+TestLib'];
   for(const include of [...modelIncludes(models),...(modelCache?[modelCache]:[]),dir])flags.push('--include',include);
-  const dep=run('F* dependency graph',fstar,[...flags,'--dep','full',...roots],dir);
+  const dep=await runAsync('F* dependency graph'+tag,fstar,[...flags,'--dep','full',...roots],dir);
   if(dep.status!==0)return dep;
   // Project runs may write only project caches, even if a prior run left a
   // model cache here. Missing immutable models are a packaging error.
@@ -118,22 +143,22 @@ export async function verify({dir,roots,fstar,models,modelCache,seconds,moduleSe
   const aggregateSeconds=seconds??derivedSeconds;
   const budget={policy:seconds===undefined?'graph-derived':'explicit',seconds:aggregateSeconds,moduleSeconds,
     compilerKillGraceSeconds,makeMarginSeconds,compilerTargets};
-  console.log(`[budget] make ${aggregateSeconds}s (${budget.policy}); compiler ${moduleSeconds}s + ${compilerKillGraceSeconds}s kill grace; ${compilerTargets?.length??'uncounted'} project targets`);
+  say(`[budget] make ${aggregateSeconds}s (${budget.policy}); compiler ${moduleSeconds}s + ${compilerKillGraceSeconds}s kill grace; ${compilerTargets?.length??'uncounted'} project targets`);
   const makefile=`.DEFAULT_GOAL := verify\n.DELETE_ON_ERROR:\ninclude depend.mk\n${dir}/checked/%.checked:\n\t@echo '[CHECK] $*'\n\t@${command} "$<"\n\t@test -f "$@" && touch "$@"\n.PHONY: verify\nverify: ${targets.join(' ')}\n`;
   await put(join(dir,'Makefile'),makefile);
-  const result=run('F* module checks','make',['--jobs=2','--no-print-directory','-f','Makefile','verify'],dir,{seconds:aggregateSeconds});
+  const result=await runAsync('F* module checks'+tag,'make',['--jobs=2','--no-print-directory','-f','Makefile','verify'],dir,{seconds:aggregateSeconds});
   result.budget=budget;
   result.modules=[...result.log.matchAll(/^\[CHECK\] (.+)$/gm)].map(m=>m[1]);
   await put(join(dir,'last-check.log'),result.log);
   result.stats=proofStats(result.log);
   await put(join(dir,'last-check.stats.json'),JSON.stringify({rlimit,moduleSeconds,seconds:aggregateSeconds,budget,status:result.status,modules:result.modules,declarations:result.stats},null,2)+'\n');
   for(const row of result.stats)if(/^(Nickel\.)/.test(row.name)) {
-    if(!row.queries.length) {console.log(`[theorem] ${row.name}: declaration ${row.declarationMs??'unmeasured'}ms; no SMT query`);continue;}
+    if(!row.queries.length) {say(`[theorem] ${row.name}: declaration ${row.declarationMs??'unmeasured'}ms; no SMT query`);continue;}
     const peak=row.queries.reduce((a,q)=>q.used/q.limit>a.used/a.limit?q:a);
-    console.log(`[theorem] ${row.name}: declaration ${row.declarationMs??'unmeasured'}ms; queries ${row.queries.reduce((n,q)=>n+q.ms,0)}ms; peak ${peak.used}/${peak.limit} (${(100*peak.used/peak.limit).toFixed(2)}%); ${row.queries.some(q=>q.status==='failed')?'failed attempt':'passed'}`);
+    say(`[theorem] ${row.name}: declaration ${row.declarationMs??'unmeasured'}ms; queries ${row.queries.reduce((n,q)=>n+q.ms,0)}ms; peak ${peak.used}/${peak.limit} (${(100*peak.used/peak.limit).toFixed(2)}%); ${row.queries.some(q=>q.status==='failed')?'failed attempt':'passed'}`);
   }
-  if(!result.stats.length)console.log('[theorem] no fresh measurements (checked results reused)');
-  console.log(`[proof] ${result.modules.length} module checks; ${result.status===0?'verified or reused':'failed (see '+join(dir,'last-check.log')+')'}`);
+  if(!result.stats.length)say('[theorem] no fresh measurements (checked results reused)');
+  say(`[proof] ${result.modules.length} module checks; ${result.status===0?'verified or reused':'failed (see '+join(dir,'last-check.log')+')'}`);
   return result;
 }
 export async function seedChecked(from,to) {
