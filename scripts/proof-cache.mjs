@@ -1,5 +1,6 @@
 import {spawn,spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
+import {openSync} from 'node:fs';
 import {mkdir,readFile,writeFile,rename,readdir,rm,cp} from 'node:fs/promises';
 import {join,basename} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -66,9 +67,26 @@ export async function put(path,data) {
   try { if((await readFile(path)).equals(Buffer.from(data)))return false; } catch(e) {if(e.code!=='ENOENT')throw e;}
   await writeFile(path+'.tmp',data);await rename(path+'.tmp',path);return true;
 }
+// Exclusive flock(2) on file for this process and every command run/runAsync
+// start. The lock belongs to the open file description: this process keeps it
+// open and passes it to each command as fd 3, so descendants that outlive this
+// process (timeout, make, F*, cargo, hax) hold the lock until the last exits.
+// Returns false if another holder has it. The file is opened for append and
+// never truncated or unlinked: its inode is the lock.
+let lockFd;
+export function holdLock(file) {
+  if(lockFd!==undefined)throw Error('lock already held');
+  const fd=openSync(file,'a');
+  const r=spawnSync('flock',['--nonblock','--conflict-exit-code','75','3'],{stdio:['ignore','inherit','inherit',fd]});
+  if(r.error)throw r.error;
+  if(r.status===75)return false;
+  if(r.status!==0)throw Error('flock '+file+' exited '+(r.status??r.signal));
+  lockFd=fd;return true;
+}
+const stdio=()=>lockFd===undefined?'pipe':['pipe','pipe','pipe',lockFd];
 export function run(label,bin,args,cwd,{env=process.env,seconds=60}={}) {
   const start=performance.now();
-  const r=spawnSync('timeout',['--kill-after=2s',`${seconds}s`,bin,...args],{cwd,env,encoding:'utf8',maxBuffer:32*1024*1024});
+  const r=spawnSync('timeout',['--kill-after=2s',`${seconds}s`,bin,...args],{cwd,env,stdio:stdio(),encoding:'utf8',maxBuffer:32*1024*1024});
   const elapsed=(performance.now()-start)/1000;
   console.log(`[time] ${label}: ${elapsed.toFixed(3)}s (exit ${r.status ?? r.signal})`);
   if(r.error)throw r.error;
@@ -81,7 +99,7 @@ export function run(label,bin,args,cwd,{env=process.env,seconds=60}={}) {
 export function runAsync(label,bin,args,cwd,{env=process.env,seconds=60}={}) {
   const start=performance.now(),limit=32*1024*1024;
   return new Promise((resolve,reject)=>{
-    const child=spawn('timeout',['--kill-after=2s',`${seconds}s`,bin,...args],{cwd,env});
+    const child=spawn('timeout',['--kill-after=2s',`${seconds}s`,bin,...args],{cwd,env,stdio:stdio()});
     const out={stdout:'',stderr:''},bytes={stdout:0,stderr:0};let overflow=false;
     for(const name of ['stdout','stderr']) {
       child[name].setEncoding('utf8');

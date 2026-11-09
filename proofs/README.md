@@ -56,10 +56,16 @@ every actual-Rust mutation mode. For development, pass any of:
   after the positive chain and its families. It selects nothing by itself.
 
 Only one invocation may run per checkout: a second one exits with status 75
-before writing anything (`flock` on `.cache/edit-proofs.lock`). Each mode has
-its own workspace and its own Cargo target (`target/edit-proof-check/modes/<mode>`),
+before writing anything. The runner takes a `flock` on `.cache/edit-proofs.lock`
+and passes it to every command it starts, so a killed runner's surviving
+commands keep the checkout locked until they exit. Each mode has its own
+workspace and its own Cargo target (`target/edit-proof-check/modes/<mode>`),
 because hax names its metadata by package rather than by source tree: crate
 copies sharing one target, run concurrently, verified each other's extraction.
+Every extraction must also equal a second extraction of the same crate in a
+fresh private target (the generated inventory, byte for byte) before anything
+is verified. A control checks that another mutant's extraction fails this
+identity check, independently of any owner theorem.
 
 Each family edits its own copy of the verified positive workspace, so probes
 neither leave the positive cache in a failed state nor see each other's edits.
