@@ -17,7 +17,9 @@ focused positive and four isolated Rust mutation controls, retaining logs:
 node scripts/check-causal-basis-native.mjs /tmp/nickel-causal-basis
 ```
 
-That control command is a developer check, not a new CI lane. It requires each
+Those four controls are manual developer evidence: CI runs the positive tests,
+but does not run this control command or certify their continued sensitivity.
+The command requires each
 mutation to compile and fail at its intended native assertion; a timeout or
 compilation failure is not detection. It does not modify the checkout.
 

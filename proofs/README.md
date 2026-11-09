@@ -1122,9 +1122,14 @@ node scripts/check-causal-basis-native.mjs /tmp/past-native
 
 The three Rust controls erase the initial roots, invent an unrelated selected
 ID, and make membership always false. Each must fail the actual native test
-and ordinarily reject at its registered source theorem. The two contract
-controls remove the membership loop rule or the source contract used by the
-final ancestry law. A resource failure or unrelated error is not detection.
+and ordinarily reject at its registered source theorem. The three contract
+controls remove the membership loop rule, its membership pattern at the expansion
+caller, or the source contract used by the final ancestry law. A resource failure
+or unrelated error is not detection.
+
+The separate four-control native command above is manual evidence, not part of
+CI; only its positive native fixture is discovered by the workspace gate. Its
+continued mutation sensitivity is not certified by CI.
 
 **Still open in #42:** closure completeness after the bounded passes, successful
 closure computation in its stated domain, and the scheduler's once-only/order/
