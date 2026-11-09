@@ -1085,3 +1085,54 @@ reduced failure reproduces in raw F*, and opt-in native alias transparency
 repairs it at unchanged limits. This is an interop capability, not a claim that
 Latte previously emitted the alias incorrectly; ordinary alias behavior stays
 unchanged.
+
+## causal past: seed retention and no spurious ancestors
+
+`EditPast.lt` connects the actual extracted `past` call to the independently
+stated finite `EditCausal.causal_path` relation. On **every successful return**:
+
+- every root supplied in `after` remains selected;
+- every selected ID has a finite predecessor path from some supplied root
+  (the root itself is the zero-edge case).
+
+The source boundary proves the stronger reusable invariant: if a predicate on
+IDs contains the roots and is closed under the stored facts' direct edges,
+every successful selected vector stays in that predicate and retains the roots.
+It then instantiates that invariant with finite-path ancestry. These are set-membership claims, not multiplicity or output-order claims. No acyclicity or
+unique-ID premise is needed for these soundness/retention laws. They do not
+promise that `past` returns Ok, or that it selects **all** ancestors.
+
+The native membership scan and the two expansion layers use indexed loops.
+`extend_past` expands one selected fact; `past_pass` scans stored facts;
+`past` repeats the scan in the original order. Their source-linked proofs use
+LoopUtil and checked callee contracts. Native membership/push, expansion and
+pass bodies are withheld at their callers; the final ancestry composition
+withholds `past`. Vector/slice models remain visible at these boundaries. No
+iterator semantics, axiom, model or budget is added. This is not a formal
+old/new Rust equivalence proof; the native acceptance fixture supplies bounded
+source-change evidence. Fresh hax extraction is committed and checked exactly.
+
+The positive gate includes EditPast. Focused development commands:
+
+```sh
+node scripts/check-edit-proofs.mjs /tmp/past-proof contracts:past \
+  past-drops-roots past-invents-id past-membership-always-false
+node scripts/check-causal-basis-native.mjs /tmp/past-native
+```
+
+The three Rust controls erase the initial roots, invent an unrelated selected
+ID, and make membership always false. Each must fail the actual native test
+and ordinarily reject at its registered source theorem. The three contract
+controls remove the membership loop rule, its membership pattern at the expansion
+caller, or the source contract used by the final ancestry law. A resource failure
+or unrelated error is not detection.
+
+The separate four-control native command above is manual evidence, not part of
+CI; only its positive native fixture is discovered by the workspace gate. Its
+continued mutation sensitivity is not certified by CI.
+
+**Still open in #42:** closure completeness after the bounded passes, successful
+closure computation in its stated domain, and the scheduler's once-only/order/
+progress and subset-schedule projection laws. In particular, zero expansion can
+preserve these partial soundness/retention conclusions; the bounded native
+closure test detects it, but a universal completeness theorem is still needed.

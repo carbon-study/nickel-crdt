@@ -404,8 +404,8 @@ fn next_counter_after(counter: u64) -> Result<u64, Error> {
     }
 }
 fn has_event(ids: &[EventId], id: EventId) -> bool {
-    for old in ids {
-        if *old == id {
+    for i in 0..ids.len() {
+        if ids[i] == id {
             return true;
         }
     }
@@ -507,19 +507,30 @@ fn validate_after(facts: &[Fact], after: &[EventId]) -> Result<(), Error> {
     }
     Ok(())
 }
+// Each layer has an indexed range so its extracted callback has executable
+// LoopUtil semantics; keep expansion order and ordinary error propagation.
+fn extend_past(fact: &Fact, mut selected: Vec<EventId>) -> Result<Vec<EventId>, Error> {
+    if has_event(&selected, fact.id) {
+        for i in 0..fact.after.len() {
+            let id = fact.after[i];
+            if !has_event(&selected, id) {
+                push(&mut selected, id)?;
+            }
+        }
+    }
+    Ok(selected)
+}
+fn past_pass(facts: &[Fact], mut selected: Vec<EventId>) -> Result<Vec<EventId>, Error> {
+    for i in 0..facts.len() {
+        selected = extend_past(&facts[i], selected)?;
+    }
+    Ok(selected)
+}
 fn past(facts: &[Fact], after: &[EventId]) -> Result<Vec<EventId>, Error> {
     let mut selected = after.to_vec();
     validate_after(facts, after)?;
     for _ in 0..facts.len() {
-        for fact in facts {
-            if has_event(&selected, fact.id) {
-                for id in fact.after.iter() {
-                    if !has_event(&selected, *id) {
-                        push(&mut selected, *id)?;
-                    }
-                }
-            }
-        }
+        selected = past_pass(facts, selected)?;
     }
     Ok(selected)
 }
@@ -804,3 +815,7 @@ impl Replica {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "edit/causal_basis_tests.rs"]
+mod causal_basis_tests;

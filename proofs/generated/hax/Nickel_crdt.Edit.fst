@@ -2511,17 +2511,17 @@ let next_counter_after (counter: u64) : Core_models.Result.t_Result u64 t_Error 
 
 let has_event (ids: t_Slice t_EventId) (id: t_EventId) : bool =
   match
-    Rust_primitives.Hax.Folds.fold_return (Core_models.Iter.Traits.Collect.f_into_iter #(t_Slice
-            t_EventId)
-          #FStar.Tactics.Typeclasses.solve
-          ids
-        <:
-        Core_models.Slice.Iter.t_Iter t_EventId)
-      ()
-      (fun temp_0_ old ->
+    Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
+      (Core_models.Slice.impl__len #t_EventId ids <: usize)
+      (fun temp_0_ temp_1_ ->
           let _:Prims.unit = temp_0_ in
-          let old:t_EventId = old in
-          if old =. id <: bool
+          let _:usize = temp_1_ in
+          true)
+      ()
+      (fun temp_0_ i ->
+          let _:Prims.unit = temp_0_ in
+          let i:usize = i in
+          if (ids.[ i ] <: t_EventId) =. id <: bool
           then
             Core_models.Ops.Control_flow.ControlFlow_Break
             (Core_models.Ops.Control_flow.ControlFlow_Break true
@@ -3428,6 +3428,133 @@ let validate_after (facts: t_Slice t_Fact) (after: t_Slice t_EventId)
     <:
     Core_models.Result.t_Result Prims.unit t_Error
 
+let extend_past (fact: t_Fact) (selected: Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+    : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error =
+  if has_event (Alloc.Vec.impl_1__as_slice selected <: t_Slice t_EventId) fact.f_id
+  then
+    match
+      Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
+        (Alloc.Vec.impl_1__len #t_EventId #Alloc.Alloc.t_Global fact.f_after <: usize)
+        (fun selected temp_1_ ->
+            let selected:Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global = selected in
+            let _:usize = temp_1_ in
+            true)
+        selected
+        (fun selected i ->
+            let selected:Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global = selected in
+            let i:usize = i in
+            let id:t_EventId = fact.f_after.[ i ] in
+            if ~.(has_event (Alloc.Vec.impl_1__as_slice selected <: t_Slice t_EventId) id <: bool)
+            then
+              let
+              (tmp0: Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global),
+              (out: Core_models.Result.t_Result Prims.unit t_Error) =
+                push #t_EventId selected id
+              in
+              let selected:Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global = tmp0 in
+              match out <: Core_models.Result.t_Result Prims.unit t_Error with
+              | Core_models.Result.Result_Ok _ ->
+                Core_models.Ops.Control_flow.ControlFlow_Continue selected
+                <:
+                Core_models.Ops.Control_flow.t_ControlFlow
+                  (Core_models.Ops.Control_flow.t_ControlFlow
+                      (Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+                          t_Error) (Prims.unit & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
+                  (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+              | Core_models.Result.Result_Err err ->
+                Core_models.Ops.Control_flow.ControlFlow_Break
+                (Core_models.Ops.Control_flow.ControlFlow_Break
+                  (Core_models.Result.Result_Err err
+                    <:
+                    Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+                      t_Error)
+                  <:
+                  Core_models.Ops.Control_flow.t_ControlFlow
+                    (Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+                        t_Error) (Prims.unit & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
+                <:
+                Core_models.Ops.Control_flow.t_ControlFlow
+                  (Core_models.Ops.Control_flow.t_ControlFlow
+                      (Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+                          t_Error) (Prims.unit & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
+                  (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+            else
+              Core_models.Ops.Control_flow.ControlFlow_Continue selected
+              <:
+              Core_models.Ops.Control_flow.t_ControlFlow
+                (Core_models.Ops.Control_flow.t_ControlFlow
+                    (Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+                        t_Error) (Prims.unit & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
+                (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
+      <:
+      Core_models.Ops.Control_flow.t_ControlFlow
+        (Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error)
+        (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+    with
+    | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
+    | Core_models.Ops.Control_flow.ControlFlow_Continue selected ->
+      Core_models.Result.Result_Ok selected
+      <:
+      Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error
+  else
+    Core_models.Result.Result_Ok selected
+    <:
+    Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error
+
+let past_pass (facts: t_Slice t_Fact) (selected: Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+    : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error =
+  match
+    Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
+      (Core_models.Slice.impl__len #t_Fact facts <: usize)
+      (fun selected temp_1_ ->
+          let selected:Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global = selected in
+          let _:usize = temp_1_ in
+          true)
+      selected
+      (fun selected i ->
+          let selected:Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global = selected in
+          let i:usize = i in
+          match
+            extend_past (facts.[ i ] <: t_Fact) selected
+            <:
+            Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error
+          with
+          | Core_models.Result.Result_Ok hoist51 ->
+            Core_models.Ops.Control_flow.ControlFlow_Continue hoist51
+            <:
+            Core_models.Ops.Control_flow.t_ControlFlow
+              (Core_models.Ops.Control_flow.t_ControlFlow
+                  (Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+                      t_Error) (Prims.unit & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
+              (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+          | Core_models.Result.Result_Err err ->
+            Core_models.Ops.Control_flow.ControlFlow_Break
+            (Core_models.Ops.Control_flow.ControlFlow_Break
+              (Core_models.Result.Result_Err err
+                <:
+                Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error
+              )
+              <:
+              Core_models.Ops.Control_flow.t_ControlFlow
+                (Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+                    t_Error) (Prims.unit & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
+            <:
+            Core_models.Ops.Control_flow.t_ControlFlow
+              (Core_models.Ops.Control_flow.t_ControlFlow
+                  (Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+                      t_Error) (Prims.unit & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
+              (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
+    <:
+    Core_models.Ops.Control_flow.t_ControlFlow
+      (Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error)
+      (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+  with
+  | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
+  | Core_models.Ops.Control_flow.ControlFlow_Continue selected ->
+    Core_models.Result.Result_Ok selected
+    <:
+    Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error
+
 let past (facts: t_Slice t_Fact) (after: t_Slice t_EventId)
     : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error =
   let selected:Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global =
@@ -3447,160 +3574,29 @@ let past (facts: t_Slice t_Fact) (after: t_Slice t_EventId)
               let selected:Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global = selected in
               let _:usize = temp_1_ in
               match
-                Rust_primitives.Hax.Folds.fold_return (Core_models.Iter.Traits.Collect.f_into_iter #(
-                        t_Slice t_Fact)
-                      #FStar.Tactics.Typeclasses.solve
-                      facts
-                    <:
-                    Core_models.Slice.Iter.t_Iter t_Fact)
-                  selected
-                  (fun selected fact ->
-                      let selected:Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global = selected in
-                      let fact:t_Fact = fact in
-                      if
-                        has_event (Alloc.Vec.impl_1__as_slice selected <: t_Slice t_EventId)
-                          fact.f_id
-                        <:
-                        bool
-                      then
-                        match
-                          Rust_primitives.Hax.Folds.fold_return (Core_models.Iter.Traits.Collect.f_into_iter
-                                #(Core_models.Slice.Iter.t_Iter t_EventId)
-                                #FStar.Tactics.Typeclasses.solve
-                                (Core_models.Slice.impl__iter #t_EventId
-                                    (Alloc.Vec.impl_1__as_slice fact.f_after <: t_Slice t_EventId)
-                                  <:
-                                  Core_models.Slice.Iter.t_Iter t_EventId)
-                              <:
-                              Core_models.Slice.Iter.t_Iter t_EventId)
-                            selected
-                            (fun selected id ->
-                                let selected:Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global =
-                                  selected
-                                in
-                                let id:t_EventId = id in
-                                if
-                                  ~.(has_event (Alloc.Vec.impl_1__as_slice selected
-                                        <:
-                                        t_Slice t_EventId)
-                                      id
-                                    <:
-                                    bool)
-                                  <:
-                                  bool
-                                then
-                                  let
-                                  (tmp0: Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global),
-                                  (out: Core_models.Result.t_Result Prims.unit t_Error) =
-                                    push #t_EventId selected id
-                                  in
-                                  let selected:Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global =
-                                    tmp0
-                                  in
-                                  match out <: Core_models.Result.t_Result Prims.unit t_Error with
-                                  | Core_models.Result.Result_Ok _ ->
-                                    Core_models.Ops.Control_flow.ControlFlow_Continue selected
-                                    <:
-                                    Core_models.Ops.Control_flow.t_ControlFlow
-                                      (Core_models.Ops.Control_flow.t_ControlFlow
-                                          (Core_models.Result.t_Result
-                                              (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
-                                              t_Error)
-                                          (Prims.unit &
-                                            Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
-                                      (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
-                                  | Core_models.Result.Result_Err err ->
-                                    Core_models.Ops.Control_flow.ControlFlow_Break
-                                    (Core_models.Ops.Control_flow.ControlFlow_Break
-                                      (Core_models.Result.Result_Err err
-                                        <:
-                                        Core_models.Result.t_Result
-                                          (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error)
-                                      <:
-                                      Core_models.Ops.Control_flow.t_ControlFlow
-                                        (Core_models.Result.t_Result
-                                            (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error
-                                        )
-                                        (Prims.unit & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global
-                                        ))
-                                    <:
-                                    Core_models.Ops.Control_flow.t_ControlFlow
-                                      (Core_models.Ops.Control_flow.t_ControlFlow
-                                          (Core_models.Result.t_Result
-                                              (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
-                                              t_Error)
-                                          (Prims.unit &
-                                            Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
-                                      (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
-                                else
-                                  Core_models.Ops.Control_flow.ControlFlow_Continue selected
-                                  <:
-                                  Core_models.Ops.Control_flow.t_ControlFlow
-                                    (Core_models.Ops.Control_flow.t_ControlFlow
-                                        (Core_models.Result.t_Result
-                                            (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error
-                                        )
-                                        (Prims.unit & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global
-                                        )) (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
-                          <:
-                          Core_models.Ops.Control_flow.t_ControlFlow
-                            (Core_models.Result.t_Result
-                                (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error)
-                            (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
-                        with
-                        | Core_models.Ops.Control_flow.ControlFlow_Break ret ->
-                          Core_models.Ops.Control_flow.ControlFlow_Break
-                          (Core_models.Ops.Control_flow.ControlFlow_Break ret
-                            <:
-                            Core_models.Ops.Control_flow.t_ControlFlow
-                              (Core_models.Result.t_Result
-                                  (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error)
-                              (Prims.unit & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
-                          <:
-                          Core_models.Ops.Control_flow.t_ControlFlow
-                            (Core_models.Ops.Control_flow.t_ControlFlow
-                                (Core_models.Result.t_Result
-                                    (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error)
-                                (Prims.unit & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
-                            (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
-                        | Core_models.Ops.Control_flow.ControlFlow_Continue loop_res ->
-                          Core_models.Ops.Control_flow.ControlFlow_Continue loop_res
-                          <:
-                          Core_models.Ops.Control_flow.t_ControlFlow
-                            (Core_models.Ops.Control_flow.t_ControlFlow
-                                (Core_models.Result.t_Result
-                                    (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error)
-                                (Prims.unit & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
-                            (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
-                      else
-                        Core_models.Ops.Control_flow.ControlFlow_Continue selected
-                        <:
-                        Core_models.Ops.Control_flow.t_ControlFlow
-                          (Core_models.Ops.Control_flow.t_ControlFlow
-                              (Core_models.Result.t_Result
-                                  (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error)
-                              (Prims.unit & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
-                          (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
+                past_pass facts selected
                 <:
-                Core_models.Ops.Control_flow.t_ControlFlow
-                  (Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
-                      t_Error) (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+                Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error
               with
-              | Core_models.Ops.Control_flow.ControlFlow_Break ret ->
-                Core_models.Ops.Control_flow.ControlFlow_Break
-                (Core_models.Ops.Control_flow.ControlFlow_Break ret
-                  <:
-                  Core_models.Ops.Control_flow.t_ControlFlow
-                    (Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
-                        t_Error) (Prims.unit & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
+              | Core_models.Result.Result_Ok hoist52 ->
+                Core_models.Ops.Control_flow.ControlFlow_Continue hoist52
                 <:
                 Core_models.Ops.Control_flow.t_ControlFlow
                   (Core_models.Ops.Control_flow.t_ControlFlow
                       (Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
                           t_Error) (Prims.unit & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
                   (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
-              | Core_models.Ops.Control_flow.ControlFlow_Continue loop_res ->
-                Core_models.Ops.Control_flow.ControlFlow_Continue loop_res
+              | Core_models.Result.Result_Err err ->
+                Core_models.Ops.Control_flow.ControlFlow_Break
+                (Core_models.Ops.Control_flow.ControlFlow_Break
+                  (Core_models.Result.Result_Err err
+                    <:
+                    Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+                      t_Error)
+                  <:
+                  Core_models.Ops.Control_flow.t_ControlFlow
+                    (Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+                        t_Error) (Prims.unit & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global))
                 <:
                 Core_models.Ops.Control_flow.t_ControlFlow
                   (Core_models.Ops.Control_flow.t_ControlFlow
@@ -4160,7 +4156,7 @@ let interpret (facts: t_Slice t_Fact) : Core_models.Result.t_Result t_Tree t_Err
                                         match
                                           add gap index <: Core_models.Result.t_Result usize t_Error
                                         with
-                                        | Core_models.Result.Result_Ok hoist56 ->
+                                        | Core_models.Result.Result_Ok hoist58 ->
                                           let
                                           (tmp0: t_Tree),
                                           (out: Core_models.Result.t_Result t_Node t_Error) =
@@ -4168,7 +4164,7 @@ let interpret (facts: t_Slice t_Fact) : Core_models.Result.t_Result t_Tree t_Err
                                               id
                                               (event.f_insert.[ index ] <: u32)
                                               (Alloc.Vec.impl_1__as_slice seen <: t_Slice t_BirthId)
-                                              hoist56
+                                              hoist58
                                           in
                                           let author:t_Tree = tmp0 in
                                           (match
@@ -5122,8 +5118,8 @@ let impl_Replica__validate_new (facts: t_Slice t_Fact) (limits: t_Limits) (fact:
                             <:
                             Core_models.Result.t_Result usize t_Error
                           with
-                          | Core_models.Result.Result_Ok hoist72 ->
-                            Core_models.Ops.Control_flow.ControlFlow_Continue hoist72
+                          | Core_models.Result.Result_Ok hoist74 ->
+                            Core_models.Ops.Control_flow.ControlFlow_Continue hoist74
                             <:
                             Core_models.Ops.Control_flow.t_ControlFlow
                               (Core_models.Ops.Control_flow.t_ControlFlow
@@ -5156,8 +5152,8 @@ let impl_Replica__validate_new (facts: t_Slice t_Fact) (limits: t_Limits) (fact:
                       <:
                       Core_models.Result.t_Result usize t_Error
                     with
-                    | Core_models.Result.Result_Ok hoist73 ->
-                      if hoist73 >. limits.f_births
+                    | Core_models.Result.Result_Ok hoist75 ->
+                      if hoist75 >. limits.f_births
                       then
                         Core_models.Result.Result_Err
                         (Error_Capacity (Capacity_Births <: t_Capacity) <: t_Error)
@@ -5435,8 +5431,8 @@ let impl_Replica__plan (self: t_Replica) (fact: t_Fact)
     <:
     Core_models.Result.t_Result bool t_Error
   with
-  | Core_models.Result.Result_Ok hoist82 ->
-    if hoist82
+  | Core_models.Result.Result_Ok hoist84 ->
+    if hoist84
     then
       Core_models.Result.Result_Ok
       (Core_models.Option.Option_None <: Core_models.Option.t_Option t_Replica)
@@ -5469,8 +5465,8 @@ let impl_Replica__plan (self: t_Replica) (fact: t_Fact)
                   <:
                   Core_models.Result.t_Result (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global) t_Error
                 with
-                | Core_models.Result.Result_Ok hoist85 ->
-                  let next:t_Replica = { next with f_facts = hoist85 } <: t_Replica in
+                | Core_models.Result.Result_Ok hoist87 ->
+                  let next:t_Replica = { next with f_facts = hoist87 } <: t_Replica in
                   (match
                       interpret (Alloc.Vec.impl_1__as_slice next.f_facts <: t_Slice t_Fact)
                       <:
