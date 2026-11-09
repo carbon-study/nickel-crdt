@@ -28,7 +28,7 @@ Keys are caller data. A key is not a writer, and nickel never infers one from th
 
 1. **Only edits count.** A write whose value equals its observed value is no edit. It never counts for the visible value or for blocking. It pushes no undo item and leaves the redo stack alone (Ren: q17, follow-up 4).
 2. **Activity.** A counted write is active until its author's undo deactivates it; a redo reactivates it. Only the author toggles it, so activity is a single-writer chain.
-3. **Visible value.** Take the causal maxima among active counted writes. If there are none, the value is the initial one. Otherwise it is the deterministic winner: highest Lamport time, then writer order. Losing concurrent writes stay in the state, so undoing the winner reveals them (q16).
+3. **Visible value.** Take the causal maxima among active counted writes. If there are none, the value is the initial one. Otherwise it is the deterministic winner: highest Lamport time, then writer order. A write's Lamport time is 1 + the highest Lamport time among the **replicated facts** in its causal past. It is carried with the write, so every peer computes the same order. Do-nothing commands are local and never advance it (`lamport` trace). Losing concurrent writes stay in the state, so undoing the winner reveals them (q16).
 4. **Undo** targets the author's latest own item. It does nothing if a later counted write has that item in its causal past, whatever its value, and that write is either still active or by **another user**, even if he has since undone it (q13, q15, follow-ups 5–6). The author's own later writes block only while active, so consecutive own undos work. Otherwise it deactivates the target. A do-nothing undo reports that someone else edited, and **uses up its item**: a later undo does not retry it and reports no item (follow-up 3).
 5. **Redo** reactivates the latest undone item. It does nothing under the same blocking condition, applied to counted writes made after that undo (q14, follow-ups 2 and 7). A do-nothing redo also uses up its entry. That part is **proposed**, by analogy with f3, which Ren answered for undo only. The model does not vary it.
 
@@ -38,7 +38,7 @@ Every rule depends only on the merged causal history and on decisions frozen at 
 
 ## 4. the outcomes these rules must reproduce
 
-All of these are asserted by `adopted.mjs`. The follow-ups are also asserted by `verify-q.mjs` against their alternatives, with per-step values and command reports. Start black.
+All of these are asserted by `adopted.mjs`. f1–f5 are also asserted by `verify-q.mjs` against their alternatives, with per-step values and command reports. That script uses the X-based variants the questions were asked against. f6, f7, `own` and `lamport` are asserted only by `adopted.mjs`, against the adopted Y variants. Start black.
 
 | | history | outcome |
 |---|---|---|
@@ -55,6 +55,7 @@ All of these are asserted by `adopted.mjs`. The follow-ups are also asserted by 
 | f6 | A red; B, seeing it, green; B undoes his green; A undoes | A's undo does nothing; red |
 | f7 | A red; A undoes; B, seeing that, red; B undoes his red; A redoes | A's redo does nothing; black |
 | own | A red; A green; A undoes; A undoes | both work; black |
+| lamport | A red; A undoes; A undoes again (nothing, local); A green; B, seeing A's red and first undo, blue | blue: B's blue ties A's green on Lamport time, and writer order picks B |
 
 f1–f5 are Ren's follow-up answers. f6 and f7 are his answer that an undone edit by another user still blocks ("this is the composing, right? I would assume nothing happens"). `own` is the consequence of keeping that rule to other users.
 

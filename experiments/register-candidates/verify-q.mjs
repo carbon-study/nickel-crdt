@@ -3,7 +3,6 @@
 // options. Exits nonzero on any mismatch. Base = the proposed defaults
 // (X, guarded redo, no-edit writes skip the stacks, clear) with "consume"
 // for f3's still-open choice.
-process.env.MODEL_NO_SEARCH = "1";
 const { evaluate, candidates, W, U, R } = await import("./model.mjs");
 const base = { family: "X", blocked: "consume", redo: "guarded", noEdit: "skip", clear: "clear" };
 const variant = (axis, v) => {

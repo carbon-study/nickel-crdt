@@ -1,6 +1,5 @@
 // The variant adopted in docs/register-contract.md from Ren's 2026-11-08 follow-up answers: re-checks it
 // against q13-q17 and every follow-up story's chosen option.
-process.env.MODEL_NO_SEARCH = "1";
 const { evaluate, candidates, W, U, R } = await import("./model.mjs");
 const quiz = {
   q13: [[W("A","red",[]), W("B","green",[0]), U("A",[0,1])], { 2: "nothing", final: "green" }],
@@ -22,6 +21,9 @@ const quiz = {
 const proposed = {
   f6: [[W("A","red",[]), W("B","green",[0]), U("B",[0,1]), U("A",[0,1,2])], { 3: "nothing", final: "red" }],
   f7: [[W("A","red",[]), U("A",[0]), W("B","red",[0,1]), U("B",[0,1,2]), R("A",[0,1,2,3])], { 4: "nothing", final: "black" }],
+  // Lamport time counts replicated facts only: A's do-nothing undo (local)
+  // must not advance her later write past B's concurrent one (CodeRabbit #71).
+  lamport: [[W("A","red",[]), U("A",[0]), U("A",[0,1]), W("A","green",[0,1,2]), W("B","blue",[0,1])], { 2: "unavailable", final: "blue" }],
   // own later edits block only while active: two own undos in a row work.
   own: [[W("A","red",[]), W("A","green",[0]), U("A",[0,1]), U("A",[0,1,2])], { 2: "undone", 3: "undone", final: "black" }],
   // p3: a blocked redo uses up its entry; retrying after Bo's undo does nothing.
