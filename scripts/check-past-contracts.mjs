@@ -12,11 +12,17 @@ export async function checkPastContracts({proof,output,fstar,models,modelCache})
       /  Nickel\.LoopUtil\.preserve_any[^\n]+;\n/,
       'Nickel.EditPast.event_membership_is_exact'],
     ['past-membership-without-pattern',
-      / \[SMTPat \(Native\.has_event ids id\)\]/,
+      /(?<=let event_membership_is_exact[^\n]*) \[SMTPat \(Native\.has_event ids id\)\]/,
       'Nickel.EditPast.extend_past_preserves'],
     ['past-ancestors-without-source-contract',
       /  past_stays_in_closed_set[^\n]+;\n/,
       'Nickel.EditPast.past_has_only_ancestors_and_keeps_roots'],
+    ['past-depth-without-pass-contract',
+      /    past_pass_covers_edges[^\n]+;\n/,
+      'Nickel.EditPast.past_covers_bounded_predecessor_paths'],
+    ['past-paths-without-depth-contract',
+      /  past_covers_bounded_predecessor_paths[^\n]+;\n/,
+      'Nickel.EditPast.past_contains_short_paths'],
   ];
   for(const [control,pattern,theorem] of controls) {
     assert.equal([...original.matchAll(new RegExp(pattern.source,'g'))].length,1,control+' anchor must be unique');

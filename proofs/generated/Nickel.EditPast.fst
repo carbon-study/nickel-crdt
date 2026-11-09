@@ -155,3 +155,153 @@ let past_has_only_ancestors_and_keeps_roots (facts: facts_vec) (roots: t_Slice N
     Tactics.prune "Nickel_crdt.Edit.past";
     Tactics.smt_sync' 1 1
   )
+
+let expanded_prefix (fact: Native.t_Fact) (finish: nat) (selected: ids_vec) : Type0 =
+  forall(i: usize{v i < Seq.length (Alloc.Vec.impl_1__as_slice fact.f_after)}). v i < finish ==> member (Alloc.Vec.impl_1__as_slice selected) (Seq.index (Alloc.Vec.impl_1__as_slice fact.f_after) (v i))
+
+let expansion_ok (fact: Native.t_Fact) (before: ids_vec) (next: ids_vec) : Type0 =
+  Prims.l_and (retains (Alloc.Vec.impl_1__as_slice before) next) (member (Alloc.Vec.impl_1__as_slice before) fact.f_id ==> expanded_prefix fact (Seq.length (Alloc.Vec.impl_1__as_slice fact.f_after)) next)
+
+let expansion_result (fact: Native.t_Fact) (before: ids_vec) (result: Result.t_Result ids_vec Native.t_Error) : Type0 =
+  match result with | Result.Result_Ok next -> begin expansion_ok fact before next end | _ -> begin Prims.l_True end
+
+let extend_past_covers_predecessors (fact: Native.t_Fact) (before: ids_vec) : Lemma (ensures expansion_result fact before (Native.extend_past fact before)) =
+  let membership_boolean (ids: t_Slice Native.t_EventId) (id: Native.t_EventId) : Lemma (ensures Prims.l_or (Native.has_event ids id == true) (Native.has_event ids id == false)) [SMTPat (Native.has_event ids id)] = () in
+  extend_past_preserves (Alloc.Vec.impl_1__as_slice before) (fun (_: Native.t_EventId) -> Prims.l_True) fact before;
+  let each_push (at: usize{v at < Seq.length (Alloc.Vec.impl_1__as_slice fact.f_after)}) (selected: ids_vec) : Lemma (requires expanded_prefix fact (v at) selected) (ensures ((match Native.push selected (Seq.index (Alloc.Vec.impl_1__as_slice fact.f_after) (v at)) with | (next, Result.Result_Ok _) -> begin expanded_prefix fact (v at + 1) next end | _ -> begin Prims.l_True end) <: Type0)) =
+    push_result_is_exact selected (Seq.index (Alloc.Vec.impl_1__as_slice fact.f_after) (v at));
+    assert (((match Native.push selected (Seq.index (Alloc.Vec.impl_1__as_slice fact.f_after) (v at)) with | (next, Result.Result_Ok _) -> begin expanded_prefix fact (v at + 1) next end | _ -> begin Prims.l_True end) <: Type0)) by (
+      Tactics.prune "Nickel_crdt.Edit.push";
+      Tactics.smt_sync' 1 1
+    ) in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_push);
+  let skip_existing (at: usize{v at < Seq.length (Alloc.Vec.impl_1__as_slice fact.f_after)}) (selected: ids_vec) : Lemma (requires (expanded_prefix fact (v at) selected /\ Native.has_event (Alloc.Vec.impl_1__as_slice selected) (Seq.index (Alloc.Vec.impl_1__as_slice fact.f_after) (v at)) == true)) (ensures expanded_prefix fact (v at + 1) selected) =
+    event_membership_is_exact (Alloc.Vec.impl_1__as_slice selected) (Seq.index (Alloc.Vec.impl_1__as_slice fact.f_after) (v at));
+    () in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 skip_existing);
+  if Native.has_event (Alloc.Vec.impl_1__as_slice before) fact.f_id then
+    begin Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Alloc.Vec.impl_1__len fact.f_after) (fun (at: nat) (selected: ids_vec) -> expanded_prefix fact at selected) (fun (selected: ids_vec) -> selected) (fun (selected: ids_vec) -> expanded_prefix fact (Seq.length (Alloc.Vec.impl_1__as_slice fact.f_after)) selected) (fun (_: Native.t_Error) -> Prims.l_True);
+    assert (expansion_result fact before (Native.extend_past fact before)) by (
+      Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+      Tactics.prune "Nickel_crdt.Edit.has_event";
+      Tactics.prune "Nickel_crdt.Edit.push";
+      Tactics.smt_sync' 1 1
+    ) end
+  else
+    begin assert (expansion_result fact before (Native.extend_past fact before)) by (
+      Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+      Tactics.prune "Nickel_crdt.Edit.has_event";
+      Tactics.prune "Nickel_crdt.Edit.push";
+      Tactics.smt_sync' 1 1
+    ) end
+
+let pass_prefix (facts: t_Slice Native.t_Fact) (before: ids_vec) (finish: nat) (next: ids_vec) : Type0 =
+  Prims.l_and (retains (Alloc.Vec.impl_1__as_slice before) next) (forall(i: usize{v i < Seq.length facts}). v i < finish ==> expansion_ok (Seq.index facts (v i)) before next)
+
+let pass_result (facts: t_Slice Native.t_Fact) (before: ids_vec) (result: Result.t_Result ids_vec Native.t_Error) : Type0 =
+  match result with | Result.Result_Ok next -> begin pass_prefix facts before (Seq.length facts) next end | _ -> begin Prims.l_True end
+
+let retains_member (before: ids_vec) (next: ids_vec) (id: Native.t_EventId) : Lemma (requires (retains (Alloc.Vec.impl_1__as_slice before) next /\ member (Alloc.Vec.impl_1__as_slice before) id)) (ensures member (Alloc.Vec.impl_1__as_slice next) id) =
+  ()
+
+let expansion_composes (facts: t_Slice Native.t_Fact) (before: ids_vec) (at: usize{v at < Seq.length facts}) (selected: ids_vec) (next: ids_vec) : Lemma (requires (pass_prefix facts before (v at) selected /\ expansion_ok (Seq.index facts (v at)) selected next)) (ensures pass_prefix facts before (v at + 1) next) =
+  let each_id (id: Native.t_EventId) : Lemma (requires member (Alloc.Vec.impl_1__as_slice selected) id) (ensures member (Alloc.Vec.impl_1__as_slice next) id) = retains_member selected next id in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires each_id);
+  let prior_member (id: Native.t_EventId) : Lemma (requires member (Alloc.Vec.impl_1__as_slice before) id) (ensures member (Alloc.Vec.impl_1__as_slice selected) id) = retains_member before selected id in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires prior_member);
+  ()
+
+let past_pass_covers_edges (facts: t_Slice Native.t_Fact) (before: ids_vec) : Lemma (ensures pass_result facts before (Native.past_pass facts before)) =
+  let each_extend (selected: ids_vec) (at: usize{v at < Seq.length facts}) : Lemma (requires pass_prefix facts before (v at) selected) (ensures ((match Native.extend_past (Seq.index facts (v at)) selected with | Result.Result_Ok next -> begin pass_prefix facts before (v at + 1) next end | _ -> begin Prims.l_True end) <: Type0)) =
+    extend_past_covers_predecessors (Seq.index facts (v at)) selected;
+    let each_next (next: ids_vec) : Lemma (requires expansion_ok (Seq.index facts (v at)) selected next) (ensures pass_prefix facts before (v at + 1) next) = expansion_composes facts before at selected next in
+    FStar.Classical.forall_intro (FStar.Classical.move_requires each_next);
+    assert (((match Native.extend_past (Seq.index facts (v at)) selected with | Result.Result_Ok next -> begin pass_prefix facts before (v at + 1) next end | _ -> begin Prims.l_True end) <: Type0)) by (
+      Tactics.prune "Nickel_crdt.Edit.extend_past";
+      Tactics.smt_sync' 1 1
+    ) in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_extend);
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len facts) (pass_prefix facts before) (fun (selected: ids_vec) -> selected) (fun (next: ids_vec) -> pass_prefix facts before (Seq.length facts) next) (fun (_: Native.t_Error) -> Prims.l_True);
+  assert (pass_result facts before (Native.past_pass facts before)) by (
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.prune "Nickel_crdt.Edit.extend_past";
+    Tactics.smt_sync' 1 1
+  )
+
+let rec reachable_within (facts: facts_vec) (roots: t_Slice Native.t_EventId) (depth: nat) (id: Native.t_EventId) : Tot Type0 (decreases depth) =
+  Prims.l_or (member roots id) (if depth ==? 0 then
+    begin Prims.l_False end
+  else
+    begin exists(parent: Native.t_EventId). Prims.l_and (reachable_within facts roots (depth - 1) parent) (Nickel.EditCausal.causal_edge facts parent id) end)
+
+let covers_depth (facts: facts_vec) (roots: t_Slice Native.t_EventId) (depth: nat) (selected: ids_vec) : Type0 =
+  forall(id: Native.t_EventId). reachable_within facts roots depth id ==> member (Alloc.Vec.impl_1__as_slice selected) id
+
+let pass_edge_is_covered (facts: facts_vec) (before: ids_vec) (next: ids_vec) (parent: Native.t_EventId) (child: Native.t_EventId) : Lemma (requires (pass_prefix (Alloc.Vec.impl_1__as_slice facts) before (Seq.length (Alloc.Vec.impl_1__as_slice facts)) next /\ member (Alloc.Vec.impl_1__as_slice before) parent /\ Nickel.EditCausal.causal_edge facts parent child)) (ensures member (Alloc.Vec.impl_1__as_slice next) child) =
+  let each_fact (fact: Native.t_Fact) : Lemma (requires (fact_present (Alloc.Vec.impl_1__as_slice facts) fact /\ fact.f_id == parent)) (ensures all_ids (Alloc.Vec.impl_1__as_slice fact.f_after) (fun (id: Native.t_EventId) -> member (Alloc.Vec.impl_1__as_slice next) id)) =
+    let at = find_fact_position (Alloc.Vec.impl_1__as_slice facts) fact in
+    let index = mk_usize at in
+    assert (v index == at);
+    assert (expansion_ok (Seq.index (Alloc.Vec.impl_1__as_slice facts) (v index)) before next);
+    assert (expansion_ok fact before next);
+    () in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires each_fact);
+  ()
+
+let pass_covers_next_depth (facts: facts_vec) (roots: t_Slice Native.t_EventId) (depth: nat) (before: ids_vec) (next: ids_vec) : Lemma (requires (covers_depth facts roots depth before /\ pass_prefix (Alloc.Vec.impl_1__as_slice facts) before (Seq.length (Alloc.Vec.impl_1__as_slice facts)) next)) (ensures covers_depth facts roots (depth + 1) next) =
+  let old_member (id: Native.t_EventId) : Lemma (requires member (Alloc.Vec.impl_1__as_slice before) id) (ensures member (Alloc.Vec.impl_1__as_slice next) id) = retains_member before next id in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires old_member);
+  let each_parent (parent: Native.t_EventId) (child: Native.t_EventId) : Lemma (requires (reachable_within facts roots depth parent /\ Nickel.EditCausal.causal_edge facts parent child)) (ensures member (Alloc.Vec.impl_1__as_slice next) child) = pass_edge_is_covered facts before next parent child in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_parent);
+  let each_id (id: Native.t_EventId) : Lemma (requires reachable_within facts roots (depth + 1) id) (ensures member (Alloc.Vec.impl_1__as_slice next) id) = () in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires each_id);
+  ()
+
+let depth_result (facts: facts_vec) (roots: t_Slice Native.t_EventId) (depth: nat) (result: Result.t_Result ids_vec Native.t_Error) : Type0 =
+  match result with | Result.Result_Ok selected -> begin covers_depth facts roots depth selected end | _ -> begin Prims.l_True end
+
+let past_covers_bounded_predecessor_paths (facts: facts_vec) (roots: t_Slice Native.t_EventId) : Lemma (ensures depth_result facts roots (Seq.length (Alloc.Vec.impl_1__as_slice facts)) (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) =
+  let each_pass (selected: ids_vec) (at: usize{v at < Seq.length (Alloc.Vec.impl_1__as_slice facts)}) : Lemma (requires covers_depth facts roots (v at) selected) (ensures depth_result facts roots (v at + 1) (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected)) =
+    past_pass_covers_edges (Alloc.Vec.impl_1__as_slice facts) selected;
+    assert (pass_result (Alloc.Vec.impl_1__as_slice facts) selected (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected)) by (
+      Tactics.prune "Nickel_crdt.Edit.past_pass";
+      Tactics.smt_sync' 1 1
+    );
+    match Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected with | Result.Result_Ok next -> begin pass_covers_next_depth facts roots (v at) selected next;
+    assert (depth_result facts roots (v at + 1) (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected)) by (
+      Tactics.prune "Nickel_crdt.Edit.past_pass";
+      Tactics.smt_sync' 1 1
+    ) end | Result.Result_Err _ -> begin assert (depth_result facts roots (v at + 1) (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected)) by (
+      Tactics.prune "Nickel_crdt.Edit.past_pass";
+      Tactics.smt_sync' 1 1
+    ) end in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_pass);
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Alloc.Vec.impl_1__len facts) (covers_depth facts roots) (fun (selected: ids_vec) -> selected) (covers_depth facts roots (Seq.length (Alloc.Vec.impl_1__as_slice facts))) (fun (_: Native.t_Error) -> Prims.l_True);
+  assert (depth_result facts roots (Seq.length (Alloc.Vec.impl_1__as_slice facts)) (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) by (
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.prune "Nickel_crdt.Edit.past_pass";
+    Tactics.smt_sync' 1 1
+  )
+
+let rec path_extends_reach (facts: facts_vec) (roots: t_Slice Native.t_EventId) (depth: nat) (start: Native.t_EventId) (steps: Prims.list Native.t_EventId) (finish: Native.t_EventId) : Lemma (requires (reachable_within facts roots depth start /\ Nickel.EditCausal.causal_path facts start steps finish)) (ensures reachable_within facts roots (depth + List.length steps) finish) (decreases steps) =
+  match steps with | Prims.Nil -> begin () end | Prims.Cons next rest -> begin assert (reachable_within facts roots (depth + 1) next);
+  path_extends_reach facts roots (depth + 1) next rest finish end
+
+let rec reach_allows_more_edges (facts: facts_vec) (roots: t_Slice Native.t_EventId) (depth: nat) (extra: nat) (id: Native.t_EventId) : Lemma (requires reachable_within facts roots depth id) (ensures reachable_within facts roots (depth + extra) id) (decreases depth) =
+  if depth ==? 0 then
+    begin () end
+  else
+    begin let each_parent (parent: Native.t_EventId) : Lemma (requires (reachable_within facts roots (depth - 1) parent /\ Nickel.EditCausal.causal_edge facts parent id)) (ensures reachable_within facts roots (depth + extra) id) =
+      reach_allows_more_edges facts roots (depth - 1) extra parent;
+      () in
+    FStar.Classical.forall_intro (FStar.Classical.move_requires each_parent);
+    () end
+
+let past_contains_short_paths (facts: facts_vec) (roots: t_Slice Native.t_EventId) (root: Native.t_EventId) (steps: Prims.list Native.t_EventId) (id: Native.t_EventId) : Lemma (requires (member roots root /\ Nickel.EditCausal.causal_path facts root steps id /\ List.length steps <= Seq.length (Alloc.Vec.impl_1__as_slice facts))) (ensures ((match Native.past (Alloc.Vec.impl_1__as_slice facts) roots with | Result.Result_Ok selected -> begin member (Alloc.Vec.impl_1__as_slice selected) id end | _ -> begin Prims.l_True end) <: Type0)) =
+  path_extends_reach facts roots 0 root steps id;
+  reach_allows_more_edges facts roots (List.length steps) (Seq.length (Alloc.Vec.impl_1__as_slice facts) - List.length steps) id;
+  past_covers_bounded_predecessor_paths facts roots;
+  assert (((match Native.past (Alloc.Vec.impl_1__as_slice facts) roots with | Result.Result_Ok selected -> begin member (Alloc.Vec.impl_1__as_slice selected) id end | _ -> begin Prims.l_True end) <: Type0)) by (
+    Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.smt_sync' 1 1
+  )
