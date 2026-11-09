@@ -1223,8 +1223,9 @@ remain visible; imported models, allocator behavior and hax translation remain
 trust boundaries. This is not an allocation/OOM guarantee.
 
 The root premise is explicit: validation rejects duplicate dependencies before
-calling `past`, but this slice does not yet prove that rejection's equivalence
-to `unique_selection` or establish the full public admission-progress chain.
+calling `past`. The duplicate-scan bridge below proves that scan's exact
+equivalence to `unique_selection`; the full public admission-progress chain is
+still not established.
 For arbitrary duplicate roots, only the earlier successful-result theorem is
 claimed. No scheduler, output-order, tree-refinement, full admission-progress
 or #42/M1 completion follows from this slice.
@@ -1249,3 +1250,28 @@ receipt manifest, source fence and seven totality-control owners include the new
 module; the seven earlier controls retain their original owners. The existing
 graph-derived driver allowance counts the additional module; compiler and solver
 limits, the fourteen-control family and mutation-shard partition are unchanged.
+
+### the public duplicate scan and unique roots
+
+`duplicate_scan_is_exact` proves, over the actual nested `duplicate_events`
+loops with their early return, that `duplicate_events(ids) == false` exactly
+when `unique_selection(ids)` holds.
+- The outer invariant says no two earlier rows repeat.
+- The inner invariant, quantified per row, says the current row differs from
+  every earlier position.
+- Both use `Fin.under` positions, matching `unique_selection`.
+
+`scanned_roots_compute_exact_past` then replaces #76's uniqueness premise with
+the public scan's result. It withholds the scan and `past` bodies, and uses
+only the exact law and `fitting_past_is_total_and_exact`. This connects the
+validation scan to `past`'s premise. It does not prove the rest of admission.
+
+Controls:
+- **Rust mutant:** the default `duplicate-scan-skips-pairs` replaces the scan's
+  comparison with `false`. Native `repeated_dependency_is_rejected_before_closure`
+  must fail, because the mutant admits a fact that names one dependency twice,
+  and the proof must reject ordinarily at `duplicate_scan_is_exact`.
+- **Contract removal:** `past-scan-without-exact-law` removes the exact-law
+  call from the composition, and must reject at
+  `scanned_roots_compute_exact_past`.
+- **Fence:** it admits the `duplicate_events` prune for EditPastTotal only.

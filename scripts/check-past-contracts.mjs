@@ -35,6 +35,7 @@ export async function checkPastContracts({proof,output,fstar,models,modelCache})
     ['past-pass-without-total-extend', /^ +extend_stored_selection_succeeds[^\n]+;\n/m, 'Nickel.EditPastTotal.stored_pass_succeeds'],
     ['past-total-without-total-pass', /^ +stored_pass_succeeds[^\n]+;\n/m, 'Nickel.EditPastTotal.fitting_closed_history_computes_past'],
     ['past-exact-without-totality', /  fitting_closed_history_computes_past[^\n]+;\n/, 'Nickel.EditPastTotal.fitting_past_is_total_and_exact'],
+    ['past-scan-without-exact-law', /  duplicate_scan_is_exact roots;\n/, 'Nickel.EditPastTotal.scanned_roots_compute_exact_past'],
   ];
   for(const [control,pattern,theorem,replacement=''] of controls) {
     const name=theorem.split('.').slice(0,2).join('.')+'.fst';

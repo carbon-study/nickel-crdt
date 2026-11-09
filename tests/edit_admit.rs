@@ -389,3 +389,20 @@ fn direct_dependency_guard_checks_later_ids_and_keeps_missing_retry_exact() {
     assert_causally_closed(&a);
     assert_causally_closed(&b);
 }
+#[test]
+fn repeated_dependency_is_rejected_before_closure() {
+    // Bo's fact names Alice's root twice: public validation must reject it as a
+    // duplicate dependency, leaving the receiver unchanged.
+    let (a, root) = edit(new(Some(Writer::Alice)), 0, "a", vec![]);
+    let b = receive(new(Some(Writer::Bo)), &root);
+    let (_, reply) = edit(b, 1, "b", vec![]);
+    assert_eq!(reply.after, vec![root.id], "fixture expects one direct dependency");
+    let mut repeated = reply.clone();
+    repeated.after = vec![root.id, root.id];
+    let before = a.clone();
+    let (a, result) = a.receive(&repeated);
+    assert_eq!(result, Err(Error::Invalid(Invalid::DependencyDuplicate)));
+    assert_eq!(a, before);
+    // The single-dependency fact is still admitted.
+    receive(a, &reply);
+}

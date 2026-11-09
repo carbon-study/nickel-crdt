@@ -49,7 +49,7 @@ const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tre
   'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality',
   'identity-scan-key','identity-birth-equality','identity-writer-equality',
   'accepted-reuses-member','accepted-wrong-canonical-push','accepted-publication-duplicates',
-  'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes','past-refuses-closure'];
+  'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes','past-refuses-closure','duplicate-scan-skips-pairs'];
 // Contract-dependency families run after the positive chain verifies. With no
 // arguments (CI) every mode and every family runs. Development runs may select
 // `positive-only`, `contracts:<family>` (implies the positive chain) and any
@@ -85,7 +85,7 @@ if(args.length===0){for(const name of Object.keys(families))familyRuns.add(name)
 // Each mutation edits exactly one anchored site of the actual Rust source.
 function prepareMutation(mode) {
   const scopes={
-'past-refuses-closure':'fn past(', 'past-skips-passes':'fn past(', 'past-skips-predecessors':'fn extend_past(', 'past-drops-roots':'fn past(', 'past-invents-id':'fn extend_past(', 'past-membership-always-false':'fn has_event(',
+'duplicate-scan-skips-pairs':'fn duplicate_events(', 'past-refuses-closure':'fn past(', 'past-skips-passes':'fn past(', 'past-skips-predecessors':'fn extend_past(', 'past-drops-roots':'fn past(', 'past-invents-id':'fn extend_past(', 'past-membership-always-false':'fn has_event(',
 'plan-skips-validation':'fn plan(',
 "tree-publication-uses-private-writer":"fn with_tree(",
 "tree-publication-clears-private-counter":"fn with_tree(",
@@ -104,6 +104,7 @@ function prepareMutation(mode) {
     'native-push-discards-value':['xs.push(value);','let _ = value;'],
     'native-push-prepends':['xs.push(value);','xs.insert(0, value);'],
     'past-refuses-closure':['Ok(selected)', 'Err(Error::Internal)'],
+    'duplicate-scan-skips-pairs':['if xs[i] == xs[j] {', 'if false {'],
     'past-skips-passes':['for _ in 0..facts.len() {', 'for _ in 0..0 {'],
     'past-skips-predecessors':['if has_event(&selected, fact.id) {', 'if false {'],
     'past-drops-roots':['let mut selected = after.to_vec();','let mut selected = Vec::new();'],
@@ -155,6 +156,7 @@ function prepareMutation(mode) {
   assert(start>=0,'mutation scope not found: '+mode);
   assert(Object.hasOwn(edits,mode),'mutation without a registered edit: '+mode);
   const [needle,replacement]=edits[mode];const at=original.indexOf(needle,start);assert(at>=start,'mutation anchor not found in scope: '+mode);
+  if(mode==='duplicate-scan-skips-pairs') { const end=original.indexOf('\n}',start)+2;assert(end>start&&at<end);assert.equal(original.slice(start,end).split(needle).length,2,'one actual duplicate-scan anchor'); }
   if(mode.startsWith('native-push-')) { const end=original.indexOf('\n}',start)+2;assert(end>start&&at<end);assert.equal(original.slice(start,end).split(needle).length,2,'one actual push-body anchor'); }
   if(['plan-skips-validation','tree-publication-uses-private-writer','tree-publication-clears-private-counter','plan-clears-private-counter','plan-ignores-duplicate','plan-swallows-classifier-error','receive-plan-rewrites-counter'].includes(mode)) {
     const next=/\n    (?:pub )?fn /.exec(original.slice(start));
@@ -179,6 +181,7 @@ const theorems={
   'causal-validator-passes-empty':'EditWellFormed.successful_validation_has_direct_dependencies',
   'causal-accepts-missing':'EditWellFormed.dependency_validation_is_sound',
   'past-refuses-closure':'EditPastTotal.fitting_closed_history_computes_past',
+  'duplicate-scan-skips-pairs':'EditPastTotal.duplicate_scan_is_exact',
   'past-skips-passes':'EditPast.past_stays_in_closed_set',
   'past-skips-predecessors':'EditPast.extend_past_covers_predecessors',
   'past-drops-roots':'EditPast.past_stays_in_closed_set',
@@ -279,7 +282,7 @@ for(const mode of [...(wantPositive?['positive']:[]),...mutations]) {
   const extractionChanged=recorded['Nickel_crdt.Edit.fst']!==digest(code);
   // Counter calculation/installation/wiring controls need only their owning module. The positive path still
   // checks both the public Spec surface and the existing ghost causal-rank family.
-  const proofRoot=mode==='positive'?'Nickel.Spec.fst':mode==='past-refuses-closure'?'Nickel.EditPastTotal.fst':mode.startsWith('past-')?'Nickel.EditPast.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
+  const proofRoot=mode==='positive'?'Nickel.Spec.fst':['past-refuses-closure','duplicate-scan-skips-pairs'].includes(mode)?'Nickel.EditPastTotal.fst':mode.startsWith('past-')?'Nickel.EditPast.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
   const checked=await verify({dir:proof,roots:(mode==='positive'?['Nickel.Spec.fst','Nickel.EditCausal.fst','Nickel.EditPastTotal.fst']:[proofRoot]).map(name=>path.join(proof,name)),fstar,models,modelCache});
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {
