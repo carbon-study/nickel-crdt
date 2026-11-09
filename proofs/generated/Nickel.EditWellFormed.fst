@@ -326,7 +326,7 @@ let receive_added_has_direct_dependencies (before: Native.t_Replica) (fact: Nati
 let facts_contained (before: t_Slice Native.t_Fact) (next: t_Slice Native.t_Fact) : Type0 =
   forall(fact: Native.t_Fact). fact_present before fact ==> fact_present next fact
 
-let absence_on_whole_facts (facts: t_Slice Native.t_Fact) (id: Native.t_EventId) : Lemma (ensures Nickel.EditIdentity.prefix_absent facts id (mk_usize 0) (Nickel.EditIdentity.length facts) <==> forall(fact: Native.t_Fact). fact_present facts fact ==> Prims.l_not (fact.f_id == id)) =
+let absence_on_whole_facts (facts: t_Slice Native.t_Fact) (id: Native.t_EventId) : Lemma (ensures Nickel.EditIdentity.prefix_absent facts id (mk_usize 0) (Nickel.EditIdentity.length facts) <==> (forall(fact: Native.t_Fact). fact_present facts fact ==> Prims.l_not (fact.f_id == id))) =
   membership_absence_exact facts id;
   let forward (fact: Native.t_Fact) : Lemma (requires (Nickel.EditIdentity.prefix_absent facts id (mk_usize 0) (Nickel.EditIdentity.length facts) /\ fact_present facts fact)) (ensures Prims.l_not (fact.f_id == id)) =
     let i = find_fact_position facts fact in

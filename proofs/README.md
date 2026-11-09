@@ -588,7 +588,7 @@ and lookup cleanup, not completion of the identity family or whole-codebase refo
 ## shared writer-code contract
 
 `writer_index_is_exact` checks the actual native helper against the two-case
-`writer_code` mapping (Alice → 0, Bo → 1). Both `writer_equality_exact` and
+inline writer-code mapping (Alice → 0, Bo → 1). Both `writer_equality_exact` and
 `event_order_is_key_order` withhold the native helper; neither may reconstruct
 that mapping by opening its body. The helper contract has a deliberate pattern.
 Three default dependency controls remove that pattern at the first caller or
@@ -1069,3 +1069,19 @@ boundary the first dependent consumer. Its scoped equation-removal counterpart
 still rejects at `append_fresh_preserves_unique`, and the remaining per-caller
 controls remain unchanged. This is a proof-dependency control-owner migration,
 not a native mutation-owner change or a weakened rejection criterion.
+
+## compiler-workaround cleanup candidate
+
+The recorded private emitter revision fixes binary control-expression grouping.
+The writer-code law now uses its two-case match directly, and break_step no
+longer needs a state ascription solely to preserve match parentheses. The Vector
+constructor laws use the already-supported positional native implicit arguments
+instead of result ascriptions to select the allocator. The allocator remains
+explicit: removing that information would change the SMT-pattern boundary.
+The re-emitted containment law gains grouping around its quantified right side.
+No normalization, admitted axiom, native/model change or proof-budget change is
+introduced. The loop frame uses facts_vec again with an explicit transparent alias. The
+reduced failure reproduces in raw F*, and opt-in native alias transparency
+repairs it at unchanged limits. This is an interop capability, not a claim that
+Latte previously emitted the alias incorrectly; ordinary alias behavior stays
+unchanged.
