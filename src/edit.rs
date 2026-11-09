@@ -804,3 +804,7 @@ impl Replica {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "edit/causal_basis_tests.rs"]
+mod causal_basis_tests;
