@@ -46,5 +46,4 @@ The last must change an origin/parent in the actual public-admission fixture.
 An append-only version of that fixture let the control survive; concurrent
 insertion at the same leading gap supplies the distinguishing observation.
 
-All tests are `cfg(test)` only. No runtime behavior, public API, theorem or trust
-boundary is changed. The source-linked universal laws still need to be proved.
+The tests are `cfg(test)` only. The accompanying [past proof](../proofs/README.md#causal-past-seed-retention-and-no-spurious-ancestors) uses indexed native loops and establishes successful seed retention and ancestor soundness. It does not yet establish closure completeness, progress or scheduler projection. The independent native oracle is acceptance evidence, not a replacement for those laws.

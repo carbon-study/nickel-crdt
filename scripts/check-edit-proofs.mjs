@@ -21,6 +21,7 @@ import {checkPlanContracts} from './check-plan-contracts.mjs';
 import {checkWriterContracts} from './check-writer-contracts.mjs';
 import {checkNegativeProofEvidence} from './check-negative-proof-evidence.mjs';
 import {checkScalarContracts} from './check-loop-contracts.mjs';
+import {checkPastContracts} from './check-past-contracts.mjs';
 import {checkCounterContracts} from './check-counter-contracts.mjs';
 import {checkCacheSafety} from './check-cache-safety.mjs';
 import './check-proof-reform.mjs';
@@ -34,7 +35,7 @@ await fs.mkdir(output,{recursive:true});
 const identity=JSON.parse(await fs.readFile(path.join(modelCache,'identity.json'),'utf8'));
 assert.equal(identity.models,models);assert.equal(identity.fstar,fstar);
 const views=new Map();
-for(const name of ['Prelude','LoopUtil','Vector','EditAtomic','EditCommit','EditIdentity','EditAccepted','EditWellFormed','Spec','EditCausal']) {
+for(const name of ['Prelude','LoopUtil','Vector','EditAtomic','EditCommit','EditIdentity','EditAccepted','EditWellFormed','Spec','EditCausal','EditPast']) {
   const source=`proofs/${name}.lt`,view=`proofs/generated/Nickel.${name}.fst`;
   const code=await fs.readFile(path.join(root,view),'utf8');
   const receipt=(await fs.readFile(path.join(root,`proofs/generated/${name}.sha256`),'utf8')).trim().split('\n');
@@ -48,7 +49,7 @@ const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tre
   'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality',
   'identity-scan-key','identity-birth-equality','identity-writer-equality',
   'accepted-reuses-member','accepted-wrong-canonical-push','accepted-publication-duplicates',
-  'content-changes-whole-fact','content-omits-facts'];
+  'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false'];
 // Contract-dependency families run after the positive chain verifies. With no
 // arguments (CI) every mode and every family runs. Development runs may select
 // `positive-only`, `contracts:<family>` (implies the positive chain) and any
@@ -57,7 +58,7 @@ const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tre
 // (after the positive chain), so n shards together cover every mode exactly once.
 // `contracts-except:<a>,<b>` runs every family not listed, so a CI job using it
 // also picks up any family added later.
-const families={remaining:checkRemainingContracts,counter:checkCounterContracts,push:checkPushContracts,vector:checkVectorContracts,
+const families={past:checkPastContracts,remaining:checkRemainingContracts,counter:checkCounterContracts,push:checkPushContracts,vector:checkVectorContracts,
   scalar:checkScalarContracts,identity:checkIdentityContracts,writer:checkWriterContracts,plan:checkPlanContracts,containment:checkContainmentContracts,accepted:checkAcceptedContracts,spec:checkSpecContracts,private:checkPrivateContracts,shared:checkSharedContracts,commit:checkCommitContracts};
 const args=process.argv.slice(3),familyRuns=new Set();let wantPositive=args.length===0,cacheSafety=args.length===0;
 const mutations=[];
@@ -84,6 +85,7 @@ if(args.length===0){for(const name of Object.keys(families))familyRuns.add(name)
 // Each mutation edits exactly one anchored site of the actual Rust source.
 function prepareMutation(mode) {
   const scopes={
+'past-drops-roots':'fn past(', 'past-invents-id':'fn extend_past(', 'past-membership-always-false':'fn has_event(',
 'plan-skips-validation':'fn plan(',
 "tree-publication-uses-private-writer":"fn with_tree(",
 "tree-publication-clears-private-counter":"fn with_tree(",
@@ -101,6 +103,9 @@ function prepareMutation(mode) {
     'receive-plan-rewrites-counter':['match self.plan(fact) {','let mut offered = (*fact).clone(); offered.id.counter = 1; match self.plan(&offered) {'],
     'native-push-discards-value':['xs.push(value);','let _ = value;'],
     'native-push-prepends':['xs.push(value);','xs.insert(0, value);'],
+    'past-drops-roots':['let mut selected = after.to_vec();','let mut selected = Vec::new();'],
+    'past-invents-id':['push(&mut selected, id)?;', 'push(&mut selected, EventId { writer: Writer::Alice, counter: 0 })?;'],
+    'past-membership-always-false':['if ids[i] == id {','if false {'],
     'causal-validator-passes-empty':['let selected = past(&facts, &fact.after)?;', 'let selected = past(&facts, &[])?;'],
     'causal-accepts-missing':['if !has_fact(facts, after[i]) {','if false {'],
     'causal-call-passes-empty':['validate_after(facts, after)?;', 'validate_after(facts, &[])?;'],
@@ -170,6 +175,9 @@ const theorems={
   'native-push-prepends':'EditAccepted.push_result_is_exact',
   'causal-validator-passes-empty':'EditWellFormed.successful_validation_has_direct_dependencies',
   'causal-accepts-missing':'EditWellFormed.dependency_validation_is_sound',
+  'past-drops-roots':'EditPast.past_stays_in_closed_set',
+  'past-invents-id':'EditPast.extend_past_preserves',
+  'past-membership-always-false':'EditPast.event_membership_is_exact',
   'causal-call-passes-empty':'EditWellFormed.successful_past_has_direct_dependencies',
   'causal-refuses-present':'EditWellFormed.present_dependencies_pass_guard',
   'scalar-count-loop-bypasses-check':'EditWellFormed.successful_validation_has_valid_scalars',
@@ -231,7 +239,8 @@ for(const mode of [...(wantPositive?['positive']:[]),...mutations]) {
     await fs.writeFile(path.join(crate,'src/edit.rs'),prepared.get(mode));
   }
   const env={...process.env,CARGO_TARGET_DIR:path.join(root,'target','edit-proof-check')};
-  const native=run('edit native '+mode,'cargo',['test','--offline','--locked','-p','nickel-crdt','--test','edit_admit'],crate,{env});
+  const nativeArgs=['test','--offline','--locked','-p','nickel-crdt',...(mode.startsWith('past-')?['--lib','causal_basis_tests']:['--test','edit_admit'])];
+  const native=run('edit native '+mode,'cargo',nativeArgs,crate,{env});
   await fs.writeFile(path.join(output,mode+'.native.log'),native.log);
   if(mode==='positive')assert.equal(native.status,0,native.log);
   else {assert.equal(native.status,101,native.log);assert.match(native.log,/test result: FAILED/);}
@@ -264,8 +273,8 @@ for(const mode of [...(wantPositive?['positive']:[]),...mutations]) {
   const extractionChanged=recorded['Nickel_crdt.Edit.fst']!==digest(code);
   // Counter calculation/installation/wiring controls need only their owning module. The positive path still
   // checks both the public Spec surface and the existing ghost causal-rank family.
-  const proofRoot=mode==='positive'?'Nickel.Spec.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
-  const checked=await verify({dir:proof,roots:(mode==='positive'?['Nickel.Spec.fst','Nickel.EditCausal.fst']:[proofRoot]).map(name=>path.join(proof,name)),fstar,models,modelCache});
+  const proofRoot=mode==='positive'?'Nickel.Spec.fst':mode.startsWith('past-')?'Nickel.EditPast.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
+  const checked=await verify({dir:proof,roots:(mode==='positive'?['Nickel.Spec.fst','Nickel.EditCausal.fst','Nickel.EditPast.fst']:[proofRoot]).map(name=>path.join(proof,name)),fstar,models,modelCache});
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {
     assert.equal(checked.status,0,checked.log);

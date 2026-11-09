@@ -12,7 +12,7 @@ const output = path.resolve(process.argv[2]);
 await fs.mkdir(output, {recursive: true});
 const original = await fs.readFile(path.join(root, 'src/edit.rs'), 'utf8');
 const cases = [
-  ['past-no-expansion', 'for _ in 0..facts.len() {\n        for fact in facts {', 'for _ in 0..0 {\n        for fact in facts {', 'exact_past_on_all_four_vertex_dags_and_storage_permutations', 'assertion `left == right` failed'],
+  ['past-no-expansion', 'for _ in 0..facts.len() {\n        selected = past_pass', 'for _ in 0..0 {\n        selected = past_pass', 'exact_past_on_all_four_vertex_dags_and_storage_permutations', 'assertion `left == right` failed'],
   ['past-skips-root-check', '    validate_after(facts, after)?;', '    // skipped direct validation', 'past_roots_missing_and_transitive_domain_boundary', 'assertion `left == right` failed'],
   ['ready-ignores-missing', 'if !has_event(done, *id) {', 'if false {', 'readiness_is_exact_direct_inclusion', 'assertion `left == right` failed'],
   ['receiver-contaminates-author', 'if has_event(&selected, id) {', 'if true {', 'receiver_extras_preserve_exact_author_placements_through_public_admission', 'author basis changed with receiver extras'],

@@ -1,0 +1,30 @@
+// Load-bearing connections for the new actual-past soundness boundary.
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {put,verify} from './proof-cache.mjs';
+import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
+export async function checkPastContracts({proof,output,fstar,models,modelCache}) {
+  const name='Nickel.EditPast.fst';
+  const original=await fs.readFile(path.join(proof,name),'utf8');
+  const controls=[
+    ['past-membership-without-loop-rule',
+      /  Nickel\.LoopUtil\.preserve_any[^\n]+;\n/,
+      'Nickel.EditPast.event_membership_is_exact'],
+    ['past-ancestors-without-source-contract',
+      /  past_stays_in_closed_set[^\n]+;\n/,
+      'Nickel.EditPast.past_has_only_ancestors_and_keeps_roots'],
+  ];
+  for(const [control,pattern,theorem] of controls) {
+    assert.equal([...original.matchAll(new RegExp(pattern.source,'g'))].length,1,control+' anchor must be unique');
+    const dir=path.join(path.dirname(proof),control);
+    await fs.rm(dir,{recursive:true,force:true});
+    await fs.cp(proof,dir,{recursive:true,preserveTimestamps:true});
+    const view=original.replace(pattern,'');await put(path.join(dir,name),view);
+    const result=await verify({dir,roots:[path.join(dir,name)],fstar,models,modelCache});
+    await fs.writeFile(path.join(output,control+'.proof.log'),result.log);
+    assert(hasOrdinaryTheoremRejection({status:result.status,log:result.log,theorem,view}),
+      'require ordinary owning theorem rejection for '+control+': '+result.log);
+    console.log('PASS '+control+': source/loop contract is load-bearing');
+  }
+}

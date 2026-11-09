@@ -1,0 +1,225 @@
+import Rust_primitives
+import Core_models
+import FStar.Pervasives
+import FStar.Classical
+import Nickel.Vector
+import Nickel.LoopUtil
+import Nickel.EditAccepted
+import Nickel.EditCausal
+import List = FStar.List.Tot
+import Native = Nickel_crdt.Edit
+import Result = Core_models.Result
+import Seq = FStar.Seq
+
+// Prefix absence is independent of the implementation's membership scan.
+function absent_prefix(ids: t_Slice(Native.t_EventId), id: Native.t_EventId, finish: nat): Type0 {
+  forall(i: usize where v(i) < Seq.length(ids)) . v(i) < finish ==> Seq.index(ids, v(i)) =!= id
+}
+function member(ids: t_Slice(Native.t_EventId), id: Native.t_EventId): Type0 {
+  not absent_prefix(ids, id, Seq.length(ids))
+}
+proof event_membership_is_exact(ids: t_Slice(Native.t_EventId), id: Native.t_EventId): unit
+  gives Native.has_event(ids, id) == true <==> member(ids, id)
+  hint Native.has_event(ids, id)
+{
+  Nickel.LoopUtil.preserve_any(mk_usize(0), Core_models.Slice.impl__len(ids),
+    ((at: nat, _: unit) => absent_prefix(ids, id, at)),
+    ((_: unit) => not member(ids, id)),
+    ((b: bool) => b == true and member(ids, id)));
+  assert(Native.has_event(ids, id) == true <==> member(ids, id)) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+unfold type ids_vec = Alloc.Vec.t_Vec(Native.t_EventId, Alloc.Alloc.t_Global)
+function all_ids(ids: t_Slice(Native.t_EventId), p: Native.t_EventId => Type0): Type0 {
+  forall(i: usize where v(i) < Seq.length(ids)) . p(Seq.index(ids, v(i)))
+}
+function retains(roots: t_Slice(Native.t_EventId), selected: ids_vec): Type0 {
+  forall(i: usize where v(i) < Seq.length(roots)) . member(Alloc.Vec.impl_1__as_slice(selected), Seq.index(roots, v(i)))
+}
+function selection_ok(roots: t_Slice(Native.t_EventId), p: Native.t_EventId => Type0, selected: ids_vec): Type0 {
+  all_ids(Alloc.Vec.impl_1__as_slice(selected), p) and retains(roots, selected)
+}
+function selection_result(roots: t_Slice(Native.t_EventId), p: Native.t_EventId => Type0, result: Result.t_Result(ids_vec, Native.t_Error)): Type0 {
+  match result { Result.Result_Ok(selected) => selection_ok(roots, p, selected), _ => Prims.l_True }
+}
+proof member_satisfies(ids: t_Slice(Native.t_EventId), p: Native.t_EventId => Type0, id: Native.t_EventId): unit
+  takes all_ids(ids, p)
+  takes member(ids, id)
+  gives p(id)
+{ () }
+function push_selection_result(roots: t_Slice(Native.t_EventId), p: Native.t_EventId => Type0, outcome: (ids_vec, Result.t_Result(unit, Native.t_Error))): Type0 {
+  match outcome { (next, Result.Result_Ok(_)) => selection_ok(roots, p, next), _ => Prims.l_True }
+}
+proof selected_push_preserves(roots: t_Slice(Native.t_EventId), p: Native.t_EventId => Type0, before: ids_vec, id: Native.t_EventId): unit
+  takes selection_ok(roots, p, before)
+  takes p(id)
+  gives push_selection_result(roots, p, Native.push(before, id))
+{
+  push_result_is_exact(before, id);
+  assert(push_selection_result(roots, p, Native.push(before, id))) by {
+    Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+function fact_closed(fact: Native.t_Fact, p: Native.t_EventId => Type0): Type0 {
+  p(fact.f_id) ==> all_ids(Alloc.Vec.impl_1__as_slice(fact.f_after), p)
+}
+proof extend_past_preserves(roots: t_Slice(Native.t_EventId), p: Native.t_EventId => Type0, fact: Native.t_Fact, before: ids_vec): unit
+  takes selection_ok(roots, p, before)
+  takes fact_closed(fact, p)
+  gives selection_result(roots, p, Native.extend_past(fact, before))
+{
+  proof each_push(selected: ids_vec, id: Native.t_EventId): unit
+    takes selection_ok(roots, p, selected)
+    takes p(id)
+    gives push_selection_result(roots, p, Native.push(selected, id))
+  { selected_push_preserves(roots, p, selected, id) };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_push));
+  if Native.has_event(Alloc.Vec.impl_1__as_slice(before), fact.f_id) {
+    member_satisfies(Alloc.Vec.impl_1__as_slice(before), p, fact.f_id);
+    assert(all_ids(Alloc.Vec.impl_1__as_slice(fact.f_after), p));
+    Nickel.LoopUtil.result_preserve_any(mk_usize(0), Alloc.Vec.impl_1__len(fact.f_after),
+      ((_: nat, selected: ids_vec) => selection_ok(roots, p, selected)),
+      ((selected: ids_vec) => selected), selection_ok(roots, p), ((_: Native.t_Error) => Prims.l_True));
+    assert(selection_result(roots, p, Native.extend_past(fact, before))) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.prune("Nickel_crdt.Edit.has_event");
+      Tactics.prune("Nickel_crdt.Edit.push");
+      Tactics.smt_sync'(1, 1)
+    }
+  } else {
+    assert(selection_result(roots, p, Native.extend_past(fact, before))) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.prune("Nickel_crdt.Edit.has_event");
+      Tactics.prune("Nickel_crdt.Edit.push");
+      Tactics.smt_sync'(1, 1)
+    }
+  }
+}
+
+function facts_closed(facts: t_Slice(Native.t_Fact), p: Native.t_EventId => Type0): Type0 {
+  forall(i: usize where v(i) < Seq.length(facts)) . fact_closed(Seq.index(facts, v(i)), p)
+}
+proof past_pass_preserves(roots: t_Slice(Native.t_EventId), p: Native.t_EventId => Type0, facts: t_Slice(Native.t_Fact), before: ids_vec): unit
+  takes selection_ok(roots, p, before)
+  takes facts_closed(facts, p)
+  gives selection_result(roots, p, Native.past_pass(facts, before))
+{
+  proof each_extend(selected: ids_vec, i: usize where v(i) < Seq.length(facts)): unit
+    takes selection_ok(roots, p, selected)
+    gives selection_result(roots, p, Native.extend_past(Seq.index(facts, v(i)), selected))
+  { extend_past_preserves(roots, p, Seq.index(facts, v(i)), selected) };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_extend));
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
+    ((_: nat, selected: ids_vec) => selection_ok(roots, p, selected)),
+    ((selected: ids_vec) => selected), selection_ok(roots, p), ((_: Native.t_Error) => Prims.l_True));
+  assert(selection_result(roots, p, Native.past_pass(facts, before))) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.prune("Nickel_crdt.Edit.extend_past");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof initial_selection_is_valid(roots: t_Slice(Native.t_EventId), p: Native.t_EventId => Type0): unit
+  takes all_ids(roots, p)
+  gives selection_ok(roots, p, Alloc.Slice.impl__to_vec(roots))
+{ () }
+
+// Universal source-linked soundness and seed retention. p may be ANY set of
+// IDs containing the roots and closed under this history's direct edges.
+// Completeness (the result itself is closed after N passes) is a separate law.
+proof past_stays_in_closed_set(facts: t_Slice(Native.t_Fact), roots: t_Slice(Native.t_EventId), p: Native.t_EventId => Type0): unit
+  takes all_ids(roots, p)
+  takes facts_closed(facts, p)
+  gives selection_result(roots, p, Native.past(facts, roots))
+{
+  initial_selection_is_valid(roots, p);
+  proof each_pass(selected: ids_vec): unit
+    takes selection_ok(roots, p, selected)
+    gives selection_result(roots, p, Native.past_pass(facts, selected))
+  { past_pass_preserves(roots, p, facts, selected) };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(each_pass));
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
+    ((_: nat, selected: ids_vec) => selection_ok(roots, p, selected)),
+    ((selected: ids_vec) => selected), selection_ok(roots, p), ((_: Native.t_Error) => Prims.l_True));
+  assert(selection_result(roots, p, Native.past(facts, roots))) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.prune("Nickel_crdt.Edit.past_pass");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+
+// Reuse the independently stated finite-edge path, not the closure scan.
+function ancestor(facts: facts_vec, roots: t_Slice(Native.t_EventId), id: Native.t_EventId): Type0 {
+  exists(root: Native.t_EventId, steps: Prims.list(Native.t_EventId)) .
+    member(roots, root) and Nickel.EditCausal.causal_path(facts, root, steps, id)
+}
+proof! append_path_edge(facts: facts_vec, root: Native.t_EventId, steps: Prims.list(Native.t_EventId), parent: Native.t_EventId, child: Native.t_EventId): unit
+  decreases steps
+  takes Nickel.EditCausal.causal_path(facts, root, steps, parent)
+  takes Nickel.EditCausal.causal_edge(facts, parent, child)
+  gives Nickel.EditCausal.causal_path(facts, root, List.append(steps, Prims.Cons(child, Prims.Nil)), child)
+{
+  match steps {
+    Prims.Nil => (),
+    Prims.Cons(next, rest) => append_path_edge(facts, next, rest, parent, child)
+  }
+}
+proof ancestor_follows_edge(facts: facts_vec, roots: t_Slice(Native.t_EventId), parent: Native.t_EventId, child: Native.t_EventId): unit
+  takes ancestor(facts, roots, parent)
+  takes Nickel.EditCausal.causal_edge(facts, parent, child)
+  gives ancestor(facts, roots, child)
+{
+  proof each_path(root: Native.t_EventId, steps: Prims.list(Native.t_EventId)): unit
+    takes member(roots, root)
+    takes Nickel.EditCausal.causal_path(facts, root, steps, parent)
+    gives ancestor(facts, roots, child)
+  {
+    append_path_edge(facts, root, steps, parent, child);
+    assert(member(roots, root) and Nickel.EditCausal.causal_path(facts, root, List.append(steps, Prims.Cons(child, Prims.Nil)), child));
+    ()
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_path));
+  ()
+}
+proof ancestor_roots_and_edges(facts: facts_vec, roots: t_Slice(Native.t_EventId)): unit
+  gives all_ids(roots, ancestor(facts, roots)) and facts_closed(Alloc.Vec.impl_1__as_slice(facts), ancestor(facts, roots))
+{
+  proof each_root(i: usize where v(i) < Seq.length(roots)): unit
+    gives ancestor(facts, roots, Seq.index(roots, v(i)))
+  {
+    assert(member(roots, Seq.index(roots, v(i))));
+    assert(Nickel.EditCausal.causal_path(facts, Seq.index(roots, v(i)), Prims.Nil, Seq.index(roots, v(i))));
+    ()
+  };
+  FStar.Classical.forall_intro(each_root);
+  proof each_fact(i: usize where v(i) < Seq.length(Alloc.Vec.impl_1__as_slice(facts))): unit
+    gives fact_closed(Seq.index(Alloc.Vec.impl_1__as_slice(facts), v(i)), ancestor(facts, roots))
+  {
+    const fact = Seq.index(Alloc.Vec.impl_1__as_slice(facts), v(i));
+    proof each_child(j: usize where v(j) < Seq.length(Alloc.Vec.impl_1__as_slice(fact.f_after))): unit
+      takes ancestor(facts, roots, fact.f_id)
+      gives ancestor(facts, roots, Seq.index(Alloc.Vec.impl_1__as_slice(fact.f_after), v(j)))
+    {
+      assert(Nickel.EditCausal.causal_edge(facts, fact.f_id, Seq.index(Alloc.Vec.impl_1__as_slice(fact.f_after), v(j))));
+      ancestor_follows_edge(facts, roots, fact.f_id, Seq.index(Alloc.Vec.impl_1__as_slice(fact.f_after), v(j)))
+    };
+    FStar.Classical.forall_intro(FStar.Classical.move_requires(each_child));
+    ()
+  };
+  FStar.Classical.forall_intro(each_fact);
+  ()
+}
+proof past_has_only_ancestors_and_keeps_roots(facts: facts_vec, roots: t_Slice(Native.t_EventId)): unit
+  gives selection_result(roots, ancestor(facts, roots), Native.past(Alloc.Vec.impl_1__as_slice(facts), roots))
+{
+  ancestor_roots_and_edges(facts, roots);
+  past_stays_in_closed_set(Alloc.Vec.impl_1__as_slice(facts), roots, ancestor(facts, roots));
+  assert(selection_result(roots, ancestor(facts, roots), Native.past(Alloc.Vec.impl_1__as_slice(facts), roots))) by {
+    Tactics.prune("Nickel_crdt.Edit.past");
+    Tactics.smt_sync'(1, 1)
+  }
+}
