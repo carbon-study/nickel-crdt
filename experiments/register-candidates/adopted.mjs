@@ -15,17 +15,20 @@ const quiz = {
   f4: [[W("A","red",[]), W("A","red",[0]), U("A",[0,1])], { final: "black" }],
   f5: [[W("A","red",[]), W("B","green",[0]), W("C","red",[0,1]), U("B",[0,1]), U("A",[0,1,2,3])], { 4: "nothing" }],
 };
-// Proposed extensions (not asked of Ren): a later write its author has undone
-// no longer blocks, for undo (rule 4) and redo (rule 5) alike.
+// Ren, 2026-11-08 ("this is the composing, right? I would assume nothing
+// happens"): another user's later edit still blocks after he undoes it, for
+// undo and redo alike. p3 (a blocked redo is used up) remains a proposal.
 const proposed = {
-  p1: [[W("A","red",[]), U("A",[0]), W("B","red",[0,1]), U("B",[0,1,2]), R("A",[0,1,2,3])], { 4: "redone", final: "red" }],
-  p2: [[W("A","red",[]), W("B","green",[0]), U("B",[0,1]), U("A",[0,1,2])], { 3: "undone", final: "black" }],
+  f6: [[W("A","red",[]), W("B","green",[0]), U("B",[0,1]), U("A",[0,1,2])], { 3: "nothing", final: "red" }],
+  f7: [[W("A","red",[]), U("A",[0]), W("B","red",[0,1]), U("B",[0,1,2]), R("A",[0,1,2,3])], { 4: "nothing", final: "black" }],
+  // own later edits block only while active: two own undos in a row work.
+  own: [[W("A","red",[]), W("A","green",[0]), U("A",[0,1]), U("A",[0,1,2])], { 2: "undone", 3: "undone", final: "black" }],
   // p3: a blocked redo uses up its entry; retrying after Bo's undo does nothing.
   p3: [[W("A","red",[]), U("A",[0]), W("B","red",[0,1]), R("A",[0,1,2]), U("B",[0,1,2]), R("A",[0,1,2,3,4])], { 3: "nothing", 5: "nothing", final: "black" }],
 };
 Object.assign(quiz, proposed);
 let bad = 0;
-for (const name of ["X/consume/guarded/skip/clear", "X/consume/guarded/skip/keep"]) {
+for (const name of ["Y/consume/guarded/skip/clear", "Y/consume/guarded/skip/keep"]) {
   const c = candidates.find(x => x.name === name);
   for (const [q, [h, want]] of Object.entries(quiz)) {
     const got = evaluate(h, c);
@@ -36,6 +39,8 @@ for (const name of ["X/consume/guarded/skip/clear", "X/consume/guarded/skip/keep
 // which survivors match ALL answers?
 const all = candidates.filter(c => Object.values(quiz).every(([h, want]) => { const g = evaluate(h, c); return Object.entries(want).every(([k, v]) => g[k] === v); }));
 console.log("candidates matching every answer: " + all.map(c => c.name).join(", "));
-const expected = ["X/consume/guarded/skip/clear", "X/consume/guarded/skip/keep"];
+// consume/retain: under Y the blocking edit never stops blocking, so a retried
+// undo does nothing either way (only its report differs); clear/keep is held.
+const expected = ["Y/consume/guarded/skip/clear", "Y/consume/guarded/skip/keep", "Y/retain/guarded/skip/clear", "Y/retain/guarded/skip/keep"];
 if (JSON.stringify(all.map(c => c.name).sort()) !== JSON.stringify(expected)) { bad++; console.log("FAIL matching set differs from " + expected.join(", ")); }
 process.exit(bad ? 1 : 0);

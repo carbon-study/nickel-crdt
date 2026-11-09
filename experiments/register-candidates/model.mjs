@@ -38,6 +38,11 @@ const INITIAL = "black";
 const families = {
   X: { idempotent: true, block: "laterCounted", cascade: false },
   X2: { idempotent: true, block: "laterDifferent", cascade: false },
+  // Y: as X, but another user's later counted write keeps blocking even after
+  // he undoes it (Ren, 2026-11-08: undos are not composed across users). The
+  // author's own later writes block only while active, so consecutive own
+  // undos still work.
+  Y: { idempotent: true, block: "laterCountedOthersEver", cascade: false },
   E: { idempotent: false, block: "laterDifferent", cascade: true },
   P: { idempotent: false, block: "laterCounted", cascade: false },
 };
@@ -90,9 +95,12 @@ function evaluate(history, cand) {
       const w = st.undo.at(-1);
       if (w === undefined) { op.targets = null; say("unavailable"); continue; }
       const later = S.filter(e => ops[e].kind === "write" && e !== w && before(w, e) && active(e, S));
-      const blocking = later.filter(e => cand.block === "laterDifferent"
-        ? ops[e].value !== ops[w].value && (!cand.idempotent || ops[e].effective)
-        : counts(e, S));
+      const othersEver = e => ops[e].kind === "write" && (!cand.idempotent || ops[e].effective) && (active(e, S) || ops[e].author !== op.author);
+      const blocking = cand.block === "laterCountedOthersEver"
+        ? S.filter(e => e !== w && before(w, e) && othersEver(e))
+        : later.filter(e => cand.block === "laterDifferent"
+          ? ops[e].value !== ops[w].value && (!cand.idempotent || ops[e].effective)
+          : counts(e, S));
       if (blocking.length) {
         op.targets = null; say("nothing");
         if (cand.blocked === "consume") st.undo.pop();
@@ -105,7 +113,10 @@ function evaluate(history, cand) {
     } else {
       const u = st.redo.at(-1);
       if (u === undefined) { op.targets = null; say("nothing"); continue; }
-      if (cand.redo === "guarded" && S.some(e => before(u, e) && counts(e, S))) { op.targets = null; say("nothing"); st.redo.pop(); continue; }
+      const redoBlocks = e => cand.block === "laterCountedOthersEver"
+        ? ops[e].kind === "write" && (!cand.idempotent || ops[e].effective) && (active(e, S) || ops[e].author !== op.author)
+        : counts(e, S);
+      if (cand.redo === "guarded" && S.some(e => before(u, e) && redoBlocks(e))) { op.targets = null; say("nothing"); st.redo.pop(); continue; }
       op.targets = ops[u].targets;
       st.redo.pop(); st.undo.push(ops[u].targets[0]);
       say("redone");
