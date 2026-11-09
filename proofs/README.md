@@ -1134,5 +1134,36 @@ continued mutation sensitivity is not certified by CI.
 **Still open in #42:** closure completeness after the bounded passes, successful
 closure computation in its stated domain, and the scheduler's once-only/order/
 progress and subset-schedule projection laws. In particular, zero expansion can
-preserve these partial soundness/retention conclusions; the bounded native
-closure test detects it, but a universal completeness theorem is still needed.
+preserve these partial soundness/retention conclusions. The coverage extension
+below adds a proof control for zero expansion, but unbounded closure
+completeness still needs its graph-theoretic bridge.
+
+### bounded predecessor-path coverage
+
+`past_contains_short_paths` adds the converse direction for every independently
+stated `EditCausal.causal_path` with at most `facts.len()` edges: **if actual
+`past` returns `Ok`, the path's endpoint is selected**. Its root must belong to
+the offered roots. No uniqueness or acyclicity premise is needed for this law.
+
+The proof follows the actual nested loops: expansion covers every predecessor
+of a selected fact, one pass covers edges from its initial selection, and each
+outer pass increases the covered path depth by one. Checked callee contracts
+are used with their native bodies withheld. A checked Boolean-range lemma keeps
+membership's declared type available under that withholding; it is not a new
+membership axiom. The path bridge uses the independent finite-list relation.
+
+The `past` contract family also removes the pass contract at the outer caller
+and the depth contract at the finite-path caller. New default Rust controls
+skip predecessor expansion and skip all outer passes. They must fail the
+native fixture and ordinarily reject at their registered owners. Skipping
+predecessors reaches the new expansion-coverage law. Skipping outer passes
+reaches the pre-existing `past_stays_in_closed_set` loop frame first: that is
+structural frame detection, not a semantic counterexample to soundness and not
+credited as an independent coverage-law rejection.
+
+This is a bounded-path coverage law, **not yet unbounded closure completeness**:
+the graph-theoretic argument that every reachable ID has a short enough path
+is still to be checked and composed. Successful closure computation (absence
+of `Err` on valid fitting inputs), scheduler progress/order and #42 remain open.
+There is no Rust, hax snapshot, model, compiler pin or budget change in this
+coverage extension.
