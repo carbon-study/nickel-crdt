@@ -25,7 +25,7 @@ open Nickel.Vector
 
 module Seq = FStar.Seq
 
-type facts_vec = Alloc.Vec.t_Vec Native.t_Fact Alloc.Alloc.t_Global
+unfold type facts_vec = Alloc.Vec.t_Vec Native.t_Fact Alloc.Alloc.t_Global
 
 let ids_unique (facts: facts_vec) : Type0 =
   Nickel.EditIdentity.unique_ids (Alloc.Vec.impl_1__as_slice facts)
@@ -189,8 +189,8 @@ let empty_has_unique_ids () : Lemma (ensures ids_unique (Alloc.Vec.impl__new ())
     Tactics.smt_sync' 1 1
   )
 
-let canonical_loop_result (input: t_Slice Native.t_Fact) : Result.t_Result (Alloc.Vec.t_Vec Native.t_Fact Alloc.Alloc.t_Global) Native.t_Error =
-  let loop = Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0) (Core_models.Slice.impl__len input) (fun _ _ -> true) (((Alloc.Vec.impl__new ()) <: Alloc.Vec.t_Vec Native.t_Fact Alloc.Alloc.t_Global)) (fun out _ -> match Native.canonical_step input out with | Result.Result_Ok next -> begin Core_models.Ops.Control_flow.ControlFlow_Continue next end | Result.Result_Err error -> begin Core_models.Ops.Control_flow.ControlFlow_Break (Core_models.Ops.Control_flow.ControlFlow_Break (Result.Result_Err error)) end) in
+let canonical_loop_result (input: t_Slice Native.t_Fact) : Result.t_Result facts_vec Native.t_Error =
+  let loop = Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0) (Core_models.Slice.impl__len input) (fun _ _ -> true) (((Alloc.Vec.impl__new ()) <: facts_vec)) (fun out _ -> match Native.canonical_step input out with | Result.Result_Ok next -> begin Core_models.Ops.Control_flow.ControlFlow_Continue next end | Result.Result_Err error -> begin Core_models.Ops.Control_flow.ControlFlow_Break (Core_models.Ops.Control_flow.ControlFlow_Break (Result.Result_Err error)) end) in
   match loop with | Core_models.Ops.Control_flow.ControlFlow_Break ret -> begin ret end | Core_models.Ops.Control_flow.ControlFlow_Continue out -> begin Result.Result_Ok out end
 
 let canonical_uses_complete_range (input: t_Slice Native.t_Fact) : Lemma (ensures Native.canonical input == canonical_loop_result input) =

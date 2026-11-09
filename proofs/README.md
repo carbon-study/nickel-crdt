@@ -1080,5 +1080,8 @@ instead of result ascriptions to select the allocator. The allocator remains
 explicit: removing that information would change the SMT-pattern boundary.
 The re-emitted containment law gains grouping around its quantified right side.
 No normalization, admitted axiom, native/model change or proof-budget change is
-introduced. The type-alias/SMT loop-frame observation remains a separate unresolved
-interaction, not a compiler fix claimed by this candidate.
+introduced. The loop frame uses facts_vec again with an explicit transparent alias. The
+reduced failure reproduces in raw F*, and opt-in native alias transparency
+repairs it at unchanged limits. This is an interop capability, not a claim that
+Latte previously emitted the alias incorrectly; ordinary alias behavior stays
+unchanged.

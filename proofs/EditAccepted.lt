@@ -11,7 +11,7 @@ import Nickel.Vector
 import Seq = FStar.Seq
 
 // Accepted-ID uniqueness and exact successful fact contents, not full edit WF.
-type facts_vec = Alloc.Vec.t_Vec(Native.t_Fact, Alloc.Alloc.t_Global)
+unfold type facts_vec = Alloc.Vec.t_Vec(Native.t_Fact, Alloc.Alloc.t_Global)
 function ids_unique(facts: facts_vec): Type0 { Nickel.EditIdentity.unique_ids(Alloc.Vec.impl_1__as_slice(facts)) }
 function member_next(facts: t_Slice(Native.t_Fact), id: Native.t_EventId): Nickel.LoopUtil.transition(unit, Nickel.EditIdentity.length(facts)) {
   (_, at) => if Rust_primitives.Slice.slice_index(facts, at).f_id ==? id { Option.Option_None } else { Option.Option_Some(()) }
@@ -207,12 +207,11 @@ proof empty_has_unique_ids(): unit
 }
 // Exact loop frame: source-bound range, initial state and one fallible step.
 // Keep the interpreter encoding here; the owners below use its Result rule.
-// Spell the state type directly: the facts_vec variant fails this shallow
-// equation; the direct spelling below verifies without raising solver settings.
-function canonical_loop_result(input: t_Slice(Native.t_Fact)): Result.t_Result(Alloc.Vec.t_Vec(Native.t_Fact, Alloc.Alloc.t_Global), Native.t_Error) {
+// The transparent alias keeps the loop result type aligned with native code.
+function canonical_loop_result(input: t_Slice(Native.t_Fact)): Result.t_Result(facts_vec, Native.t_Error) {
   const loop = Rust_primitives.Hax.Folds.fold_range_return(mk_usize(0), Core_models.Slice.impl__len(input),
     ((_, _) => true),
-    (Alloc.Vec.impl__new(()) : Alloc.Vec.t_Vec(Native.t_Fact, Alloc.Alloc.t_Global)),
+    (Alloc.Vec.impl__new(()) : facts_vec),
     ((out, _) => match Native.canonical_step(input, out) {
       Result.Result_Ok(next) => Core_models.Ops.Control_flow.ControlFlow_Continue(next),
       Result.Result_Err(error) => Core_models.Ops.Control_flow.ControlFlow_Break(Core_models.Ops.Control_flow.ControlFlow_Break(Result.Result_Err(error))),
