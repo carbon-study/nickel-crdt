@@ -9,7 +9,7 @@ function tokens(source) {
   return [...source.matchAll(/\/\/[^\n]*|\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|[A-Za-z_][A-Za-z0-9_']*|[^\s]/g)]
     .map(m=>m[0]).filter(t=>!t.startsWith('//')&&!t.startsWith('/*'));
 }
-const pastVisibility=new Set(['"Nickel_crdt.Edit.has_event"','"Nickel_crdt.Edit.extend_past"','"Nickel_crdt.Edit.past_pass"','"Nickel_crdt.Edit.past"']);
+const pastVisibility=new Set(['"Nickel_crdt.Edit.validate_after"','"Nickel_crdt.Edit.has_event"','"Nickel_crdt.Edit.extend_past"','"Nickel_crdt.Edit.past_pass"','"Nickel_crdt.Edit.past"']);
 const causalVisibility=new Set([
   '"Nickel.EditIdentity.prefix_absent"','"Nickel_crdt.Edit.has_fact"','"Nickel_crdt.Edit.impl_Replica__new"','"Nickel_crdt.Edit.impl_Replica__receive"','"Nickel_crdt.Edit.impl_Replica__edit"']);
 const atomicVisibility=new Set([

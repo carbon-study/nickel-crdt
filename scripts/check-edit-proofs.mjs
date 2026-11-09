@@ -49,7 +49,7 @@ const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tre
   'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality',
   'identity-scan-key','identity-birth-equality','identity-writer-equality',
   'accepted-reuses-member','accepted-wrong-canonical-push','accepted-publication-duplicates',
-  'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes'];
+  'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes','past-refuses-closure'];
 // Contract-dependency families run after the positive chain verifies. With no
 // arguments (CI) every mode and every family runs. Development runs may select
 // `positive-only`, `contracts:<family>` (implies the positive chain) and any
@@ -85,7 +85,7 @@ if(args.length===0){for(const name of Object.keys(families))familyRuns.add(name)
 // Each mutation edits exactly one anchored site of the actual Rust source.
 function prepareMutation(mode) {
   const scopes={
-'past-skips-passes':'fn past(', 'past-skips-predecessors':'fn extend_past(', 'past-drops-roots':'fn past(', 'past-invents-id':'fn extend_past(', 'past-membership-always-false':'fn has_event(',
+'past-refuses-closure':'fn past(', 'past-skips-passes':'fn past(', 'past-skips-predecessors':'fn extend_past(', 'past-drops-roots':'fn past(', 'past-invents-id':'fn extend_past(', 'past-membership-always-false':'fn has_event(',
 'plan-skips-validation':'fn plan(',
 "tree-publication-uses-private-writer":"fn with_tree(",
 "tree-publication-clears-private-counter":"fn with_tree(",
@@ -103,6 +103,7 @@ function prepareMutation(mode) {
     'receive-plan-rewrites-counter':['match self.plan(fact) {','let mut offered = (*fact).clone(); offered.id.counter = 1; match self.plan(&offered) {'],
     'native-push-discards-value':['xs.push(value);','let _ = value;'],
     'native-push-prepends':['xs.push(value);','xs.insert(0, value);'],
+    'past-refuses-closure':['Ok(selected)', 'Err(Error::Internal)'],
     'past-skips-passes':['for _ in 0..facts.len() {', 'for _ in 0..0 {'],
     'past-skips-predecessors':['if has_event(&selected, fact.id) {', 'if false {'],
     'past-drops-roots':['let mut selected = after.to_vec();','let mut selected = Vec::new();'],
@@ -177,6 +178,7 @@ const theorems={
   'native-push-prepends':'EditAccepted.push_result_is_exact',
   'causal-validator-passes-empty':'EditWellFormed.successful_validation_has_direct_dependencies',
   'causal-accepts-missing':'EditWellFormed.dependency_validation_is_sound',
+  'past-refuses-closure':'EditPast.fitting_closed_history_computes_past',
   'past-skips-passes':'EditPast.past_stays_in_closed_set',
   'past-skips-predecessors':'EditPast.extend_past_covers_predecessors',
   'past-drops-roots':'EditPast.past_stays_in_closed_set',

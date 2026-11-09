@@ -26,7 +26,7 @@ export function checkProofReformFence() {
   assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive")'),/fixture reform:/);
   assert.throws(()=>assertReformedSource('EditCommit','assert_norm(true)'),/EditCommit reform:/);
 
-  for(const namespace of ['Nickel_crdt.Edit.has_event','Nickel_crdt.Edit.extend_past','Nickel_crdt.Edit.past_pass','Nickel_crdt.Edit.past']) {
+  for(const namespace of ['Nickel_crdt.Edit.validate_after','Nickel_crdt.Edit.has_event','Nickel_crdt.Edit.extend_past','Nickel_crdt.Edit.past_pass','Nickel_crdt.Edit.past']) {
     assertReformedSource('EditPast','Tactics.prune('+JSON.stringify(namespace)+')');
     assert.throws(()=>assertReformedSource('fixture','Tactics.prune('+JSON.stringify(namespace)+')'),/fixture reform:/);
   }
