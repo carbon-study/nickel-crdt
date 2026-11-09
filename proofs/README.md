@@ -905,6 +905,10 @@ of nonempty causal cycles. This covers finite public-call continuations from
 states need not admit such a certificate. Derived Clone preserves the existing
 certificate through hax's identity-refined Clone signature; it grants no writer
 lease. Ghost-only rank/edge controls are separate from native mutations.
+The public receive/edit outcome queries keep `causal_rank` opaque: they consume
+the complete certificate supplied by their checked contracts rather than
+rediscovering its quantified definition. Removing the extension contract must
+produce an ordinary owner rejection, not solver-resource exhaustion.
 
 
 ## EditAccepted without normalization

@@ -15,6 +15,9 @@ export function checkProofReformFence() {
     "let solve = Tactics.smt_sync'", "Tactics.smt_sync'(4, 4)",
     'Tactics.set_options("--fuel 100")', 'Tactics.prune("Other")', 'let hide = Tactics.prune',
   ])assert.throws(()=>assertReformedSource('fixture',bad),/fixture reform:/,bad);
+  assertReformedSource('EditCausal','Tactics.prune("Nickel.EditCausal.causal_rank")');
+  for(const name of ['fixture','EditSchedule','EditPast','EditWellFormed'])
+    assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EditCausal.causal_rank")'),new RegExp(name+' reform:'));
   assertReformedSource('EditWellFormed','Tactics.prune("Nickel.EditIdentity.prefix_absent")');
   assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Nickel.EditIdentity.prefix_absent")'),/fixture reform:/);
   assert.throws(()=>assertReformedSource('EditWellFormed','assert_norm(true)'),/EditWellFormed reform:/);
