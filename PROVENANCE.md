@@ -12,7 +12,7 @@ The loop source was renamed from `Light` to `Nickel`. The proof-cache/bootstrap 
 The committed Prelude, LoopUtil, Vector, Smoke, EditAtomic, EditCommit, EditIdentity,
 EditAccepted, EditWellFormed, Spec and EditCausal views were re-emitted and compared byte-for-byte using local
 `carbon-study/latte-nursery` revision
-`0729bf34e2a7d9538604d951edc44d376d1b8ced` and its locked `.#cli` package. The
+`707c937a04c6bcf45388f277b0340cf8a37191d0` and its locked `.#cli` package. The
 clean local checkout's CLI output matches the installed emitter used for that
 comparison. An authorized local checkout can repeat the emission check with:
 

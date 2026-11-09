@@ -166,7 +166,7 @@ let plain_interpret_any (#state: Type0) (#result: Type0) (start: usize) (finish:
 let break_agrees (#state: Type0) (#result: Type0) (start: usize) (finish: usize) (f: break_callback state start finish) (next: transition state finish) (stop: state -> (i: usize{v i < v finish}) -> result) (done: state -> result) : Type0 =
   forall(value: state) (at: position start finish). ((match f value at with | ControlFlow_Break (_, out) -> begin Prims.l_and (next value at == Option.Option_None) (stop value at == done out) end | ControlFlow_Continue out -> begin next value at == Option.Option_Some out end) <: Type0)
 
-let break_step (#state: Type0) (start: usize) (finish: usize{v start < v finish}) (inv: total_invariant state start finish) (value: state) (f: break_callback state start finish) : Lemma (ensures fold_range_cf start finish inv value f == ((match f value start with | ControlFlow_Break (_, out) -> begin out end | ControlFlow_Continue out -> begin fold_range_cf (start +! mk_int 1) finish inv out f end) <: state)) =
+let break_step (#state: Type0) (start: usize) (finish: usize{v start < v finish}) (inv: total_invariant state start finish) (value: state) (f: break_callback state start finish) : Lemma (ensures fold_range_cf start finish inv value f == (match f value start with | ControlFlow_Break (_, out) -> begin out end | ControlFlow_Continue out -> begin fold_range_cf (start +! mk_int 1) finish inv out f end)) =
   ()
 
 let break_end (#state: Type0) (start: usize) (finish: usize{v start == v finish}) (inv: total_invariant state start finish) (value: state) (f: break_callback state start finish) : Lemma (ensures fold_range_cf start finish inv value f == value) =

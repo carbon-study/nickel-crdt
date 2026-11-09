@@ -267,7 +267,7 @@ proof break_step<state: Type0>(start: usize, finish: usize where v(start) < v(fi
     (match f(value, start) {
       ControlFlow_Break((_, out)) => out,
       ControlFlow_Continue(out) => fold_range_cf(start +! mk_int(1), finish, inv, out, f),
-    } : state)
+    })
 { () }
 proof break_end<state: Type0>(start: usize, finish: usize where v(start) == v(finish),
   inv: total_invariant(state, start, finish), value: state, f: break_callback(state, start, finish)): unit

@@ -23,10 +23,7 @@ module Result = Core_models.Result
 
 module Option = Core_models.Option
 
-let writer_code (writer: Native.t_Writer) : u8 =
-  match writer with | Native.Writer_Alice -> begin mk_u8 0 end | Native.Writer_Bo -> begin mk_u8 1 end
-
-let writer_index_is_exact (writer: Native.t_Writer) : Lemma (ensures Native.writer_index writer == writer_code writer) [SMTPat (Native.writer_index writer)] =
+let writer_index_is_exact (writer: Native.t_Writer) : Lemma (ensures Native.writer_index writer == (match writer with | Native.Writer_Alice -> begin mk_u8 0 end | Native.Writer_Bo -> begin mk_u8 1 end)) [SMTPat (Native.writer_index writer)] =
   ()
 
 let writer_equality_exact (a: Native.t_Writer) (b: Native.t_Writer) : Lemma (ensures Native.impl_1.f_eq a b == (a ==? b)) =
