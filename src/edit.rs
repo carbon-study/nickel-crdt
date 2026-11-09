@@ -476,12 +476,25 @@ fn deletes(facts: &[Fact], id: BirthId) -> bool {
     false
 }
 fn ready(after: &[EventId], done: &[EventId]) -> bool {
-    for id in after {
-        if !has_event(done, *id) {
+    for i in 0..after.len() {
+        if has_event(done, after[i]) {
+            // This predecessor has run; keep checking.
+        } else {
             return false;
         }
     }
     true
+}
+// Return the first eligible stored event; interpret uses this same scan.
+fn choose_ready(facts: &[Fact], done: &[EventId]) -> Option<usize> {
+    for i in 0..facts.len() {
+        if has_event(done, facts[i].id) {
+            // Already scheduled.
+        } else if ready(&facts[i].after, done) {
+            return Some(i);
+        }
+    }
+    None
 }
 fn frontier(facts: &[Fact]) -> Result<Vec<EventId>, Error> {
     let mut out = Vec::new();
@@ -554,14 +567,7 @@ fn interpret(facts: &[Fact]) -> Result<Tree, Error> {
     let mut done: Vec<EventId> = Vec::new();
     let mut operations: Vec<(EventId, Vec<Node>)> = Vec::new();
     for _ in 0..facts.len() {
-        let mut chosen = None;
-        for i in 0..facts.len() {
-            if !has_event(&done, facts[i].id) && ready(&facts[i].after, &done) {
-                chosen = Some(i);
-                break;
-            }
-        }
-        let index = chosen.ok_or(Error::Internal)?;
+        let index = choose_ready(facts, &done).ok_or(Error::Internal)?;
         if index >= facts.len() {
             return Err(Error::Internal);
         }

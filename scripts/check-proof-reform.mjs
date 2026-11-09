@@ -31,11 +31,15 @@ export function checkProofReformFence() {
     assertReformedSource('EditPastTotal','Tactics.prune('+JSON.stringify(namespace)+')');
     assert.throws(()=>assertReformedSource('fixture','Tactics.prune('+JSON.stringify(namespace)+')'),/fixture reform:/);
   }
+  for(const native of ['has_event','ready','choose_ready']) {
+    assertReformedSource('EditSchedule','Tactics.prune("Nickel_crdt.Edit.'+native+'")');
+    assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Nickel_crdt.Edit.'+native+'")'),/fixture reform:/);
+  }
   assertReformedSource('EditPastTotal','Tactics.prune("Nickel_crdt.Edit.validate_after")');
   assertReformedSource('EditPastTotal','Tactics.prune("Nickel_crdt.Edit.duplicate_events")');
   assert.throws(()=>assertReformedSource('EditPast','Tactics.prune("Nickel_crdt.Edit.duplicate_events")'),/EditPast reform:/);
   assert.throws(()=>assertReformedSource('EditPast','Tactics.prune("Nickel_crdt.Edit.validate_after")'),/EditPast reform:/);
-  for(const name of ['EditCausal','EditAtomic','EditWellFormed','EditPast','EditPastTotal']) {
+  for(const name of ['EditCausal','EditAtomic','EditWellFormed','EditPast','EditPastTotal','EditSchedule']) {
     assert.throws(()=>assertReformedSource(name,'assert_norm(true)'),new RegExp(name+' reform:'));
   }
   assertReformedSource('LoopUtil','Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf")');

@@ -3264,27 +3264,27 @@ let deletes (facts: t_Slice t_Fact) (id: t_BirthId) : bool =
 
 let ready (after done: t_Slice t_EventId) : bool =
   match
-    Rust_primitives.Hax.Folds.fold_return (Core_models.Iter.Traits.Collect.f_into_iter #(t_Slice
-            t_EventId)
-          #FStar.Tactics.Typeclasses.solve
-          after
-        <:
-        Core_models.Slice.Iter.t_Iter t_EventId)
-      ()
-      (fun temp_0_ id ->
+    Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
+      (Core_models.Slice.impl__len #t_EventId after <: usize)
+      (fun temp_0_ temp_1_ ->
           let _:Prims.unit = temp_0_ in
-          let id:t_EventId = id in
-          if ~.(has_event done id <: bool) <: bool
+          let _:usize = temp_1_ in
+          true)
+      ()
+      (fun temp_0_ i ->
+          let _:Prims.unit = temp_0_ in
+          let i:usize = i in
+          if has_event done (after.[ i ] <: t_EventId) <: bool
           then
-            Core_models.Ops.Control_flow.ControlFlow_Break
-            (Core_models.Ops.Control_flow.ControlFlow_Break false
-              <:
-              Core_models.Ops.Control_flow.t_ControlFlow bool (Prims.unit & Prims.unit))
+            Core_models.Ops.Control_flow.ControlFlow_Continue ()
             <:
             Core_models.Ops.Control_flow.t_ControlFlow
               (Core_models.Ops.Control_flow.t_ControlFlow bool (Prims.unit & Prims.unit)) Prims.unit
           else
-            Core_models.Ops.Control_flow.ControlFlow_Continue ()
+            Core_models.Ops.Control_flow.ControlFlow_Break
+            (Core_models.Ops.Control_flow.ControlFlow_Break false
+              <:
+              Core_models.Ops.Control_flow.t_ControlFlow bool (Prims.unit & Prims.unit))
             <:
             Core_models.Ops.Control_flow.t_ControlFlow
               (Core_models.Ops.Control_flow.t_ControlFlow bool (Prims.unit & Prims.unit)) Prims.unit
@@ -3294,6 +3294,57 @@ let ready (after done: t_Slice t_EventId) : bool =
   with
   | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
   | Core_models.Ops.Control_flow.ControlFlow_Continue _ -> true
+
+let choose_ready (facts: t_Slice t_Fact) (done: t_Slice t_EventId)
+    : Core_models.Option.t_Option usize =
+  match
+    Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
+      (Core_models.Slice.impl__len #t_Fact facts <: usize)
+      (fun temp_0_ temp_1_ ->
+          let _:Prims.unit = temp_0_ in
+          let _:usize = temp_1_ in
+          true)
+      ()
+      (fun temp_0_ i ->
+          let _:Prims.unit = temp_0_ in
+          let i:usize = i in
+          if has_event done (facts.[ i ] <: t_Fact).f_id <: bool
+          then
+            Core_models.Ops.Control_flow.ControlFlow_Continue ()
+            <:
+            Core_models.Ops.Control_flow.t_ControlFlow
+              (Core_models.Ops.Control_flow.t_ControlFlow (Core_models.Option.t_Option usize)
+                  (Prims.unit & Prims.unit)) Prims.unit
+          else
+            if
+              ready (Alloc.Vec.impl_1__as_slice (facts.[ i ] <: t_Fact).f_after <: t_Slice t_EventId
+                )
+                done
+              <:
+              bool
+            then
+              Core_models.Ops.Control_flow.ControlFlow_Break
+              (Core_models.Ops.Control_flow.ControlFlow_Break
+                (Core_models.Option.Option_Some i <: Core_models.Option.t_Option usize)
+                <:
+                Core_models.Ops.Control_flow.t_ControlFlow (Core_models.Option.t_Option usize)
+                  (Prims.unit & Prims.unit))
+              <:
+              Core_models.Ops.Control_flow.t_ControlFlow
+                (Core_models.Ops.Control_flow.t_ControlFlow (Core_models.Option.t_Option usize)
+                    (Prims.unit & Prims.unit)) Prims.unit
+            else
+              Core_models.Ops.Control_flow.ControlFlow_Continue ()
+              <:
+              Core_models.Ops.Control_flow.t_ControlFlow
+                (Core_models.Ops.Control_flow.t_ControlFlow (Core_models.Option.t_Option usize)
+                    (Prims.unit & Prims.unit)) Prims.unit)
+    <:
+    Core_models.Ops.Control_flow.t_ControlFlow (Core_models.Option.t_Option usize) Prims.unit
+  with
+  | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
+  | Core_models.Ops.Control_flow.ControlFlow_Continue _ ->
+    Core_models.Option.Option_None <: Core_models.Option.t_Option usize
 
 let frontier (facts: t_Slice t_Fact)
     : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error =
@@ -3519,8 +3570,8 @@ let past_pass (facts: t_Slice t_Fact) (selected: Alloc.Vec.t_Vec t_EventId Alloc
             <:
             Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error
           with
-          | Core_models.Result.Result_Ok hoist51 ->
-            Core_models.Ops.Control_flow.ControlFlow_Continue hoist51
+          | Core_models.Result.Result_Ok hoist52 ->
+            Core_models.Ops.Control_flow.ControlFlow_Continue hoist52
             <:
             Core_models.Ops.Control_flow.t_ControlFlow
               (Core_models.Ops.Control_flow.t_ControlFlow
@@ -3578,8 +3629,8 @@ let past (facts: t_Slice t_Fact) (after: t_Slice t_EventId)
                 <:
                 Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error
               with
-              | Core_models.Result.Result_Ok hoist52 ->
-                Core_models.Ops.Control_flow.ControlFlow_Continue hoist52
+              | Core_models.Result.Result_Ok hoist53 ->
+                Core_models.Ops.Control_flow.ControlFlow_Continue hoist53
                 <:
                 Core_models.Ops.Control_flow.t_ControlFlow
                   (Core_models.Ops.Control_flow.t_ControlFlow
@@ -3769,57 +3820,18 @@ let interpret (facts: t_Slice t_Fact) : Core_models.Result.t_Result t_Tree t_Err
             temp_0_
           in
           let _:usize = temp_1_ in
-          let chosen:Core_models.Option.t_Option usize =
-            Core_models.Option.Option_None <: Core_models.Option.t_Option usize
-          in
-          let chosen:Core_models.Option.t_Option usize =
-            Rust_primitives.Hax.Folds.fold_range_cf (mk_usize 0)
-              (Core_models.Slice.impl__len #t_Fact facts <: usize)
-              (fun chosen temp_1_ ->
-                  let chosen:Core_models.Option.t_Option usize = chosen in
-                  let _:usize = temp_1_ in
-                  true)
-              chosen
-              (fun chosen i ->
-                  let chosen:Core_models.Option.t_Option usize = chosen in
-                  let i:usize = i in
-                  if
-                    (~.(has_event (Alloc.Vec.impl_1__as_slice done <: t_Slice t_EventId)
-                          (facts.[ i ] <: t_Fact).f_id
-                        <:
-                        bool)
-                      <:
-                      bool) &&
-                    (ready (Alloc.Vec.impl_1__as_slice (facts.[ i ] <: t_Fact).f_after
-                          <:
-                          t_Slice t_EventId)
-                        (Alloc.Vec.impl_1__as_slice done <: t_Slice t_EventId)
-                      <:
-                      bool)
-                  then
-                    let chosen:Core_models.Option.t_Option usize =
-                      Core_models.Option.Option_Some i <: Core_models.Option.t_Option usize
-                    in
-                    Core_models.Ops.Control_flow.ControlFlow_Break
-                    ((), chosen <: (Prims.unit & Core_models.Option.t_Option usize))
-                    <:
-                    Core_models.Ops.Control_flow.t_ControlFlow
-                      (Prims.unit & Core_models.Option.t_Option usize)
-                      (Core_models.Option.t_Option usize)
-                  else
-                    Core_models.Ops.Control_flow.ControlFlow_Continue chosen
-                    <:
-                    Core_models.Ops.Control_flow.t_ControlFlow
-                      (Prims.unit & Core_models.Option.t_Option usize)
-                      (Core_models.Option.t_Option usize))
-          in
           match
-            Core_models.Option.impl__ok_or #usize #t_Error chosen (Error_Internal <: t_Error)
+            Core_models.Option.impl__ok_or #usize
+              #t_Error
+              (choose_ready facts (Alloc.Vec.impl_1__as_slice done <: t_Slice t_EventId)
+                <:
+                Core_models.Option.t_Option usize)
+              (Error_Internal <: t_Error)
             <:
             Core_models.Result.t_Result usize t_Error
           with
           | Core_models.Result.Result_Ok index ->
-            if index >=. (Core_models.Slice.impl__len #t_Fact facts <: usize)
+            if index >=. (Core_models.Slice.impl__len #t_Fact facts <: usize) <: bool
             then
               Core_models.Ops.Control_flow.ControlFlow_Break
               (Core_models.Ops.Control_flow.ControlFlow_Break

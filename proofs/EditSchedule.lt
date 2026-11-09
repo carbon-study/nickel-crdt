@@ -1,0 +1,69 @@
+import Rust_primitives
+import Core_models
+import FStar.Pervasives
+import Nickel.Vector
+import Nickel.LoopUtil
+import Nickel.EditPast
+import Native = Nickel_crdt.Edit
+import Seq = FStar.Seq
+import Option = Core_models.Option
+
+// A dependency is ready exactly when every direct predecessor has run.
+function ready_prefix(after: t_Slice(Native.t_EventId), done: t_Slice(Native.t_EventId), finish: nat): Type0 {
+  forall(i: usize where v(i) < Seq.length(after)) . v(i) < finish ==> member(done, Seq.index(after, v(i)))
+}
+proof readiness_is_exact(after: t_Slice(Native.t_EventId), done: t_Slice(Native.t_EventId)): unit
+  gives Native.ready(after, done) == true <==> all_ids(after, member(done))
+  hint Native.ready(after, done)
+{
+  Nickel.LoopUtil.preserve_any(mk_usize(0), Core_models.Slice.impl__len(after),
+    ((at: nat, _: unit) => ready_prefix(after, done, at)),
+    ((_: unit) => all_ids(after, member(done))),
+    ((b: bool) => b == false and not all_ids(after, member(done))));
+  assert(Native.ready(after, done) == true <==> all_ids(after, member(done))) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.prune("Nickel_crdt.Edit.has_event");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+function eligible(facts: t_Slice(Native.t_Fact), done: t_Slice(Native.t_EventId), i: nat where i < Seq.length(facts)): Type0 {
+  not member(done, Seq.index(facts, i).f_id) and
+  all_ids(Alloc.Vec.impl_1__as_slice(Seq.index(facts, i).f_after), member(done))
+}
+function no_eligible_prefix(facts: t_Slice(Native.t_Fact), done: t_Slice(Native.t_EventId), finish: nat): Type0 {
+  forall(i: usize where v(i) < Seq.length(facts)) . v(i) < finish ==> not eligible(facts, done, v(i))
+}
+function chosen_is_first(facts: t_Slice(Native.t_Fact), done: t_Slice(Native.t_EventId), result: Option.t_Option(usize)): Type0 {
+  match result {
+    Option.Option_None => no_eligible_prefix(facts, done, Seq.length(facts)),
+    Option.Option_Some(i) => v(i) < Seq.length(facts) and
+      (v(i) < Seq.length(facts) ==> eligible(facts, done, v(i)) and no_eligible_prefix(facts, done, v(i)))
+  }
+}
+proof scheduler_choice_is_exact(facts: t_Slice(Native.t_Fact), done: t_Slice(Native.t_EventId)): unit
+  gives chosen_is_first(facts, done, Native.choose_ready(facts, done))
+{
+  Nickel.LoopUtil.preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
+    ((at: nat, _: unit) => no_eligible_prefix(facts, done, at)),
+    ((_: unit) => no_eligible_prefix(facts, done, Seq.length(facts))),
+    chosen_is_first(facts, done));
+  assert(chosen_is_first(facts, done, Native.choose_ready(facts, done))) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.prune("Nickel_crdt.Edit.has_event");
+    Tactics.prune("Nickel_crdt.Edit.ready");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// The caller's None/Internal branch is excluded if any eligible fact exists.
+// This is conditional scan progress, not existence of an eligible fact in a DAG.
+proof available_event_is_chosen(facts: t_Slice(Native.t_Fact), done: t_Slice(Native.t_EventId), available: usize where v(available) < Seq.length(facts)): unit
+  takes eligible(facts, done, v(available))
+  gives not (Native.choose_ready(facts, done) == Option.Option_None)
+{
+  scheduler_choice_is_exact(facts, done);
+  assert(not (Native.choose_ready(facts, done) == Option.Option_None)) by {
+    Tactics.prune("Nickel_crdt.Edit.choose_ready");
+    Tactics.smt_sync'(1, 1)
+  }
+}
