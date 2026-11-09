@@ -1,10 +1,9 @@
 # register contract (#67, phase 1)
 
-**Status: proposed contract for review. Nothing is implemented.** It fixes the register behaviour that #67's phase 2 will implement and prove. Ren chose every outcome stated below:
-- the undo questionnaire's q13–q17
-- five follow-up continuations, answered on 2026-11-08
-
-One choice is held, for the sequence undo stack (§5). Executable evidence: [experiments/register-candidates](../experiments/register-candidates/README.md).
+**Status: proposed contract for review. Nothing is implemented.** It fixes the register behaviour that #67's phase 2 will implement and prove.
+- **Answered by Ren:** the outcomes in §4's main table, from the undo questionnaire's q13–q17 and five follow-up continuations answered on 2026-11-08.
+- **Proposed extensions, not yet confirmed (§5):** two rule details those answers don't decide.
+- **Held:** one choice, for the sequence undo stack (§5). Executable evidence: [experiments/register-candidates](../experiments/register-candidates/README.md).
 
 ## 1. what a register is
 
@@ -31,7 +30,7 @@ Keys are caller data. A key is not a writer, and nickel never infers one from th
 2. **Activity.** A counted write is active until its author's undo deactivates it; a redo reactivates it. Only the author toggles it, so activity is a single-writer chain.
 3. **Visible value.** Take the causal maxima among active counted writes. If there are none, the value is the initial one. Otherwise it is the deterministic winner: highest Lamport time, then writer order. Losing concurrent writes stay in the state, so undoing the winner reveals them (q16).
 4. **Undo** targets the author's latest own item. It does nothing if any active counted write has that item in its causal past, whatever its value (q13, q15, follow-up 5). Otherwise it deactivates the target. A do-nothing undo reports that someone else edited, and **uses up its item**: trying again later does not retry it (follow-up 3).
-5. **Redo** reactivates the latest undone item. It does nothing, and uses up its redo entry, if a counted write was made after that undo (q14, follow-up 2).
+5. **Redo** reactivates the latest undone item. It does nothing, and uses up its redo entry, if an active counted write was made after that undo (q14, follow-up 2). "Active" matches rule 4. A later write that its author has since undone no longer blocks: that part is a proposed extension (§5).
 
 **Principle (Ren, 2026-11-08): undos are not composed across users.** A user's undo or redo is decided once, against that user's own captured past. Another user's later undo never revives, re-enables or re-targets it. Rules 4 and 5 ("uses up") and the frozen decisions of §2 are this principle; f2, f3 and f5 are its witnesses.
 
@@ -60,7 +59,7 @@ All of these are asserted by `adopted.mjs`. The follow-ups are also asserted by 
 - **X2:** only a later *different*-valued write blocks. It fails f5.
 - **X:** the one adopted here.
 
-The stack choices f2, f3 and f4 rule out the other X variants. Exactly one variant matches everything, apart from the held choice below.
+The stack choices f2, f3 and f4 rule out the other X variants. Exactly one variant matches everything, apart from the held choice below. `adopted.mjs` asserts that set, so another matching variant fails it.
 
 **Coverage:**
 - **Full search:** all 1,474,110 histories of up to 5 commands, with three independently named writers and two values.
@@ -68,11 +67,20 @@ The stack choices f2, f3 and f4 rule out the other X variants. Exactly one varia
 
 Within these variants, f1–f5 were the only value-changing differences found. That is evidence, not a completeness proof.
 
-## 5. held: redo clearing
+## 5. proposed extensions and the held choice
+
+**Proposed extensions.** These are not answered by Ren. They are asserted in `adopted.mjs` as proposals:
+- **p1, an undone later edit no longer blocks a redo.** A red; A undoes; B, seeing that, red; B undoes his red; A redoes → A's redo works; red. f2 answered the first redo while Bo's red was active, not this case.
+- **p2, an undone later edit no longer blocks an undo.** A red; B, seeing it, green; B undoes his green; A undoes → A's undo works; black. q13 and f5 have the blocking write still active.
+- **p3, a blocked redo uses up its entry**, so a retry after the blocking edit is undone does nothing. f3 answered this for a blocked **undo**, not for redo.
+
+Each follows rules 4–5 as written, and each decision is made once, against its author's own view. But in p1 and p2, Bo's undo changes what Alice's later command does. Whether that counts as composing undos across users is Ren's call. The alternative, where any counted write made after the item blocks even once undone, gives p1 black and p2 red, and would change rules 4 and 5 together. They need Ren's confirmation before they count as ratified.
+
+### held: redo clearing
 
 Whether a new own counted write clears the redo stack is the pending sequence undo decision, and it should be decided there. Both register variants (clear or keep) match every answer above. Two notes for that decision:
 - **Redo can't win over a newer write.** Under these rules a redo never makes a write visible over a newer own write, because the newer write dominates causally. So keeping the redo stack only shows when a later undo exposes the redone write.
-- **Side effect not transferred.** A guarded redo that does nothing uses up its entry (rule 5). That is part of this register contract and is not assumed for sequences.
+- **Side effect not transferred.** A guarded redo that does nothing uses up its entry (p3). That is proposed for registers only and is not assumed for sequences.
 
 ## 6. phase 2 obligations (#67)
 
