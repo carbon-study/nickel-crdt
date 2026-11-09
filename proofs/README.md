@@ -1117,12 +1117,13 @@ The positive gate includes EditPast. Focused development commands:
 ```sh
 node scripts/check-edit-proofs.mjs /tmp/past-proof contracts:past \
   past-drops-roots past-invents-id past-membership-always-false \
-  past-skips-predecessors past-skips-passes
+  past-skips-predecessors past-skips-passes past-refuses-closure
 node scripts/check-causal-basis-native.mjs /tmp/past-native
 ```
 
 The Rust controls erase the roots, invent an unrelated ID, make membership
-always false, skip predecessor expansion, or skip the outer passes. Each must
+always false, skip predecessor expansion, skip the outer passes, or refuse a
+computed closure. Each must
 fail the native fixture and ordinarily reject at its registered owner (the
 outer-pass frame attribution is qualified below). The `past` contract family
 checks the membership, soundness, bounded-coverage and exact-closure caller
@@ -1134,8 +1135,9 @@ continued mutation sensitivity is not certified by CI.
 
 This soundness law alone does not establish closure completeness. The following
 coverage and finite-graph components establish exact membership on success.
-Successful computation (no `Err` in the stated domain) and the scheduler's
-once-only/order/progress and subset-schedule projection laws remain open in #42.
+The totality component below adds successful computation in an explicit closed,
+unique-root domain. The scheduler's once-only/order/progress and subset-schedule
+projection laws remain open in #42.
 
 ### bounded predecessor-path coverage
 
@@ -1161,8 +1163,8 @@ structural frame detection, not a semantic counterexample to soundness and not
 credited as an independent coverage-law rejection.
 
 This bounded-path law alone does not establish unbounded closure completeness;
-the finite-graph bridge below supplies that step. Successful computation
-(absence of `Err` on valid fitting inputs), scheduler progress/order and #42
+the finite-graph bridge below supplies that step. The totality section supplies
+absence of `Err` under its stated domain; scheduler progress/order and #42
 remain open.
 There is no Rust, hax snapshot, model, compiler pin or budget change in this
 coverage extension.
@@ -1196,3 +1198,54 @@ law, withholding actual `past` at the composition boundary. Two additional
 require ordinary rejection at their callers. Prior theorem statements and
 source/view prefixes are retained; no native source, hax snapshot, axiom,
 compiler/model pin or limit changes.
+
+### total exact past for closed histories and unique roots
+
+`EditPastTotal.lt` imports the accepted success-only `EditPast.lt` surface.
+`causally_closed_history_computes_exact_past` uses the existing
+`EditWellFormed.facts_causally_closed` component, roots naming stored facts
+(`dependencies_present`), and pairwise-distinct roots (`unique_selection`).
+Under these premises the **actual** `past` returns `Ok`, with a unique
+selection contained in the stored facts and exact finite-path ID membership.
+There is no extra numeric slack, fact-ID uniqueness, acyclicity or path-length
+premise. Even a representable history of maximum usize length is covered:
+a push happens only for an absent stored ID, so its unique selection is then
+strictly shorter than the stored history and cannot have maximum length.
+
+A finite pigeonhole argument establishes that capacity fact. If one stored ID
+is absent, map the unique selection plus that ID to stored-fact positions. If
+the selection were at least as long as the history, two positions would collide,
+contradicting either uniqueness or absence. This works with duplicate fact IDs. The checked push law therefore
+returns `Ok` and preserves uniqueness and containment. This composes through
+the actual predecessor loop, history pass, outer loop and direct-root guard.
+Callee bodies and the loop fold are withheld at callers. Vector/slice models
+remain visible; imported models, allocator behavior and hax translation remain
+trust boundaries. This is not an allocation/OOM guarantee.
+
+The root premise is explicit: validation rejects duplicate dependencies before
+calling `past`, but this slice does not yet prove that rejection's equivalence
+to `unique_selection` or establish the full public admission-progress chain.
+For arbitrary duplicate roots, only the earlier successful-result theorem is
+claimed. No scheduler, output-order, tree-refinement, full admission-progress
+or #42/M1 completion follows from this slice.
+
+Five new call removals cover room before push, successful push, extension, pass
+and totality composition. A presence-view pattern removal checks the ID/whole-
+fact bridge into the existing dependency guard. Positive empty/singleton and
+distinct-pair root witnesses and a regression restoring a formerly impossible uniqueness predicate
+keep the new domain from becoming vacuous. The default native
+`past-refuses-closure` control returns `Internal` instead of publishing the computed
+closure; it must fail the actual native fixture and ordinarily
+reject at `fitting_closed_history_computes_past`. This distinguishes absence of
+errors from the earlier success-only claims. No Rust/hax snapshot, axiom, pin,
+solver/compiler limit or error classifier changes.
+
+The totality component is checked in its own `EditPastTotal` module: the combined
+`EditPast` positive exceeded the unchanged 60-second per-compiler limit on ARM.
+The split restores the earlier accepted `EditPast` source/view/receipt exactly,
+and moves the totality contracts without changing their statements or bodies,
+apart from adding the explicit distinct-pair corollary. The positive roots,
+receipt manifest, source fence and seven totality-control owners include the new
+module; the seven earlier controls retain their original owners. The existing
+graph-derived driver allowance counts the additional module; compiler and solver
+limits, the fourteen-control family and mutation-shard partition are unchanged.

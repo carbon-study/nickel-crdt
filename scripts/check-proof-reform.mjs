@@ -28,9 +28,12 @@ export function checkProofReformFence() {
 
   for(const namespace of ['Nickel_crdt.Edit.has_event','Nickel_crdt.Edit.extend_past','Nickel_crdt.Edit.past_pass','Nickel_crdt.Edit.past']) {
     assertReformedSource('EditPast','Tactics.prune('+JSON.stringify(namespace)+')');
+    assertReformedSource('EditPastTotal','Tactics.prune('+JSON.stringify(namespace)+')');
     assert.throws(()=>assertReformedSource('fixture','Tactics.prune('+JSON.stringify(namespace)+')'),/fixture reform:/);
   }
-  for(const name of ['EditCausal','EditAtomic','EditWellFormed','EditPast']) {
+  assertReformedSource('EditPastTotal','Tactics.prune("Nickel_crdt.Edit.validate_after")');
+  assert.throws(()=>assertReformedSource('EditPast','Tactics.prune("Nickel_crdt.Edit.validate_after")'),/EditPast reform:/);
+  for(const name of ['EditCausal','EditAtomic','EditWellFormed','EditPast','EditPastTotal']) {
     assert.throws(()=>assertReformedSource(name,'assert_norm(true)'),new RegExp(name+' reform:'));
   }
   assertReformedSource('LoopUtil','Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf")');

@@ -10,7 +10,7 @@ The generic loop library and prelude were extracted, with Ren's explicit authori
 The loop source was renamed from `Light` to `Nickel`. The proof-cache/bootstrap helpers and smoke proof also adapt Lynn's existing harness and loop-shape work. This extraction does not redistribute the Dark application or the Latte compiler. The scaffold's authored code is offered under MIT; upstream toolchains retain their own licenses.
 
 The committed Prelude, LoopUtil, Vector, Smoke, EditAtomic, EditCommit, EditIdentity,
-EditAccepted, EditWellFormed, Spec, EditCausal and EditPast views were re-emitted and compared byte-for-byte using local
+EditAccepted, EditWellFormed, Spec, EditCausal, EditPast and EditPastTotal views were re-emitted and compared byte-for-byte using local
 `carbon-study/latte-nursery` revision
 `569c0c805cf117b836c78f51e4ba9529eca8ffc8` and its locked `.#cli` package. The
 clean local checkout's CLI output matches the installed emitter used for that
@@ -19,7 +19,7 @@ comparison. An authorized local checkout can repeat the emission check with:
 ```sh
 emitter=$(nix build --no-link --print-out-paths /path/to/latte-nursery#cli)
 temporary=$(mktemp -d)
-for name in Prelude LoopUtil Vector Smoke EditAtomic EditCommit EditIdentity EditAccepted EditWellFormed Spec EditCausal EditPast; do
+for name in Prelude LoopUtil Vector Smoke EditAtomic EditCommit EditIdentity EditAccepted EditWellFormed Spec EditCausal EditPast EditPastTotal; do
   "$emitter/bin/latte" emit-fstar "$PWD/proofs/$name.lt" > "$temporary/Nickel.$name.fst"
   cmp "$temporary/Nickel.$name.fst" "proofs/generated/Nickel.$name.fst" || exit 1
 done
