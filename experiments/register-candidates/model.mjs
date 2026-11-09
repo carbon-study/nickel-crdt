@@ -15,7 +15,12 @@
 //
 // usage: node model.mjs [maxOps]
 
+import { pathToFileURL } from "node:url";
 const INITIAL = "black";
+// Importing this module (adopted.mjs, verify-q.mjs, check-claims.mjs) runs no
+// report or search; only `node model.mjs` does.
+const isMain = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const log = isMain ? console.log : () => {};
 
 // Choices:
 // family   X : a write equal to the value its author saw is no edit (it never
@@ -67,7 +72,9 @@ function evaluate(history, cand) {
     // facts it has seen. Do-nothing commands of other authors are invisible.
     const S = op.seen.filter(j => ops[j].author === op.author || replicated(j));
     op.view = S;
-    op.lamport = 1 + Math.max(0, ...S.map(j => ops[j].lamport));
+    // Lamport time from replicated facts only: a peer can't see this author's
+    // do-nothing commands, so they must not advance it (CodeRabbit, #71).
+    op.lamport = 1 + Math.max(0, ...S.filter(replicated).map(j => ops[j].lamport));
     const before = (a, b) => ops[b].view.includes(a);
     const active = (w, within) => {
       let last;
@@ -157,12 +164,12 @@ for (const cand of candidates) {
   }
   (fails.length ? failed : survivors).push([cand, fails]);
 }
-console.log(`${candidates.length} candidates; ${survivors.length} reproduce q13-q17`);
+log(`${candidates.length} candidates; ${survivors.length} reproduce q13-q17`);
 const failedFamilies = new Map();
 for (const [c, f] of failed) failedFamilies.set(c.family, (failedFamilies.get(c.family) ?? new Set()).add(f.join(";")));
-for (const [fam, s] of failedFamilies) console.log(`  ${fam}: ${[...s].length === 1 ? "all variants fail " + [...s][0] : "some variants fail: " + [...s].join(" | ")}`);
+for (const [fam, s] of failedFamilies) log(`  ${fam}: ${[...s].length === 1 ? "all variants fail " + [...s][0] : "some variants fail: " + [...s].join(" | ")}`);
 const surv = survivors.map(([c]) => c);
-console.log("  surviving families: " + [...new Set(surv.map(c => c.family))].join(", "));
+log("  surviving families: " + [...new Set(surv.map(c => c.family))].join(", "));
 
 // ---- targeted 6-command history from Lynn's review ------------------------
 // alice red -> bo green -> cara red; bo undoes without seeing cara; everyone
@@ -170,7 +177,7 @@ console.log("  surviving families: " + [...new Set(surv.map(c => c.family))].joi
 const lynn6 = [W("A", "red", []), W("B", "green", [0]), W("C", "red", [0, 1]), U("B", [0, 1]), U("A", [0, 1, 2, 3]), U("C", [0, 1, 2, 3, 4])];
 
 // ---- bounded search: all writer labelings, <= maxOps commands --------------
-const maxOps = process.env.MODEL_NO_SEARCH ? 0 : Number(process.argv[2] ?? 4);
+const maxOps = isMain ? Number(process.argv[2] ?? 4) : 0;
 const authors = ["A", "B", "C"], values = ["red", "green"];
 function closedSubsets(history, author) {
   const n = history.length, out = [];
@@ -210,11 +217,11 @@ for (const history of extend([])) {
     if (!byAxis.has(key) || byAxis.get(key).score > score) byAxis.set(key, { score, history, a: `${c.name}=${finals.get(c.name)}`, b: `${d.name}=${finals.get(d.name)}` });
   }
 }
-console.log(`\nsearched ${count} histories (<= ${maxOps} commands, writers A-C enumerated independently, values red/green, initial ${INITIAL})`);
-console.log("single-choice value separations (shortest each):");
-for (const [key, v] of [...byAxis].sort((x, y) => x[1].score - y[1].score)) console.log(`\n[${key}]\n  ${show(v.history)}\n  ${v.a}   ${v.b}`);
+log(`\nsearched ${count} histories (<= ${maxOps} commands, writers A-C enumerated independently, values red/green, initial ${INITIAL})`);
+log("single-choice value separations (shortest each):");
+for (const [key, v] of [...byAxis].sort((x, y) => x[1].score - y[1].score)) log(`\n[${key}]\n  ${show(v.history)}\n  ${v.a}   ${v.b}`);
 const none = AXES.flatMap(a => axisValues[a].flatMap(x => axisValues[a].filter(y => y > x).map(y => `${a}: ${x} vs ${y}`))).filter(k => { const [axis, rest] = k.split(": "); const [x, y] = rest.split(" vs "); return !byAxis.has(k) && surv.some(c => c[axis] === x && partner(c, axis, y)); });
-console.log(`\nno value separation within this bound: ${none.join("; ") || "(none)"}`);
-console.log("\nLynn's 6-command history: " + show(lynn6));
-for (const name of ["X/consume/free/push/clear", "X2/consume/free/push/clear"]) console.log(`  ${name}: ${JSON.stringify(evaluate(lynn6, index.get(name)))}`);
+log(`\nno value separation within this bound: ${none.join("; ") || "(none)"}`);
+log("\nLynn's 6-command history: " + show(lynn6));
+for (const name of ["X/consume/free/push/clear", "X2/consume/free/push/clear"]) { const c = index.get(name); log(`  ${name}: ${c ? JSON.stringify(evaluate(lynn6, c)) : "(not a survivor)"}`); }
 export { evaluate, candidates, W, U, R };

@@ -1,7 +1,6 @@
 // Checks claims in docs/register-contract.md: f2 and f4 rule out the other Y
 // stack variants, and f3's consume/retain difference is in the report only.
 // Blocked-redo retention is not a model variant, so no claim is made about it.
-process.env.MODEL_NO_SEARCH = "1";
 const { evaluate, candidates, W, U, R } = await import("./model.mjs");
 const c = n => candidates.find(x => x.name === n);
 let bad = 0; const check = (ok, msg) => { if (!ok) bad++; console.log(`${ok ? "ok  " : "FAIL"} ${msg}`); };

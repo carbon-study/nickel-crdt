@@ -10,7 +10,7 @@ node adopted.mjs      # asserts that exactly the adopted Y variants match q13–
 node check-claims.mjs # asserts the contract's claims about the Y stack variants
 ```
 
-All four scripts exit nonzero on a failed assertion.
+`verify-q.mjs`, `adopted.mjs` and `check-claims.mjs` assert, and exit nonzero on a failure. `model.mjs` only reports: a candidate failing q13–q17 is listed, not a script failure. Importing `model.mjs` runs nothing.
 
 - **Model:** a history lists commands in creation order. Each command records its author and what it has seen. Replicated facts are writes, and undo/redo commands that take effect. A do-nothing undo/redo stays local. Decisions are frozen against the author's captured past.
 - **Variant names:** `family/blocked/redo/noEdit/clear`. See the header of `model.mjs`.
