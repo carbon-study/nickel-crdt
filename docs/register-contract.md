@@ -33,6 +33,8 @@ Keys are caller data. A key is not a writer, and nickel never infers one from th
 4. **Undo** targets the author's latest own item. It does nothing if any active counted write has that item in its causal past, whatever its value (q13, q15, follow-up 5). Otherwise it deactivates the target. A do-nothing undo reports that someone else edited, and **uses up its item**: trying again later does not retry it (follow-up 3).
 5. **Redo** reactivates the latest undone item. It does nothing, and uses up its redo entry, if a counted write was made after that undo (q14, follow-up 2).
 
+**Principle (Ren, 2026-11-08): undos are not composed across users.** A user's undo or redo is decided once, against that user's own captured past. Another user's later undo never revives, re-enables or re-targets it. Rules 4 and 5 ("uses up") and the frozen decisions of §2 are this principle; f2, f3 and f5 are its witnesses.
+
 Every rule depends only on the merged causal history and on decisions frozen at creation. So replicas that admit the same facts expose the same value.
 
 ## 4. the outcomes these rules must reproduce
