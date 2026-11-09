@@ -20,7 +20,7 @@ Executable evidence: [experiments/collection-candidates](../experiments/collecti
 
 ## 2. rules (proposed; one of them answered)
 
-1. **Removal sees only what it saw.** A remove deletes exactly the puts in its causal past. Any put it did not see keeps the entry, whether it creates the entry or writes a field (answered, K1).
+1. **Removal sees only what it saw.** A remove deletes exactly the puts in its causal past. Any **counted** put it did not see keeps the entry, whether it creates the entry or writes a field (answered, K1). An unseen equal-valued put is no edit (§1) and does **not** keep a removed entry (proposed, by analogy with Ren's register f1, where a concurrent same-value tap didn't count; `equalUnseen` trace).
    - One rule covers both fresh records and caller keys. That coupling is proposed design, from the unified put.
    - Sequence analogy: q09, where a deletion doesn't remove a character it didn't see.
 2. **Undo of your own put or remove** follows the register undo rule. It does nothing if another user's later counted command on the entry exists, even if since undone. The author's own later commands block only while active.
@@ -49,6 +49,7 @@ All of these, plus a `lamport` trace (Lamport time counts replicated facts only,
 | equalPut | A puts red; B puts red again; A undoes | absent: B's equal put is no edit |
 | K1 | A red → A green; B, having seen only red, removes | green |
 | K1′ | A puts; B removes; A, unaware, puts again | the entry stays (A's new value) |
+| equalUnseen | A puts red; B removes; C, having seen only A's put, puts red | absent: C's equal put is no edit (proposed) |
 | K2 | A adds red; B writes green; A undoes | A's undo does nothing; green |
 | K2+ | then B undoes his write | red |
 
@@ -62,7 +63,7 @@ Ren: "both your guesses seem right to me".
 - `removeMode`: `observed` or `removeWins`
 - `undoCreate`: `blocked`, `allowed` or `removes`
 
-K1 rules out `removeWins`, and K2/K2+ rule out `allowed` and `removes`. `adopted.mjs` asserts that exactly `observed/blocked` matches. Removing K1 lets `removeWins/blocked` match too, and the script then fails.
+K1 rules out `removeWins`, and K2/K2+ rule out `allowed` and `removes`. `adopted.mjs` asserts that exactly `observed/blocked` matches. Removing both K1 and K1′ lets `removeWins/blocked` match too, and the script then fails. Removing either one alone doesn't, because the other still excludes it.
 
 ## 5. phase 2 obligations (#68)
 

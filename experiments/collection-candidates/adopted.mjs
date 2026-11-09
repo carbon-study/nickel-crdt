@@ -9,6 +9,9 @@ const traces = {
   restoreHidden: [[P("A","red",[]), X("B",[0]), P("C","green",[0]), T("A",[0,1,2])], { final: "green" }],
   q13: [[P("A","red",[]), P("A","blue",[0]), P("B","green",[0,1]), U("A",[0,1,2])], { 3: "nothing", final: "green" }],
   equalPut: [[P("A","red",[]), P("B","red",[0]), U("A",[0,1])], { 2: "undone", final: ABSENT }],
+  // proposed: an unseen equal-valued put is no edit, so it doesn't keep a
+  // removed entry (by analogy with register f1; CodeRabbit #72).
+  equalUnseen: [[P("A","red",[]), X("B",[0]), P("C","red",[0])], { final: ABSENT }],
   // Lamport time counts replicated facts only: A's do-nothing undo must not
   // advance her later put past B's concurrent one.
   lamport: [[P("A","red",[]), U("A",[0]), U("A",[0,1]), P("A","green",[0,1,2]), P("B","blue",[0,1])], { 2: "unavailable", final: "blue" }],
