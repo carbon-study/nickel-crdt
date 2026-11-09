@@ -483,3 +483,206 @@ proof past_contains_short_paths(facts: facts_vec, roots: t_Slice(Native.t_EventI
     Result.Result_Ok(selected) => member(Alloc.Vec.impl_1__as_slice(selected), id), _ => Prims.l_True
   } : Type0)) by { Tactics.prune("Nickel_crdt.Edit.past"); Tactics.smt_sync'(1, 1) }
 }
+
+// Cut a repeated-parent loop from an independent causal walk.
+import FStar.Fin
+function! path_node(start: Native.t_EventId, steps: Prims.list(Native.t_EventId), at: nat where at <= List.length(steps)): Native.t_EventId
+  decreases steps
+{
+  match steps {
+    Prims.Nil => start,
+    Prims.Cons(next, rest) => if at ==? 0 { start } else { path_node(next, rest, at - 1) }
+  }
+}
+function! drop_edges(steps: Prims.list(Native.t_EventId), count: nat where count <= List.length(steps)): Prims.list(Native.t_EventId)
+  decreases steps
+{
+  if count ==? 0 { steps } else {
+    match steps { Prims.Nil => Prims.Nil, Prims.Cons(_, rest) => drop_edges(rest, count - 1) }
+  }
+}
+function! cut_path_loop(steps: Prims.list(Native.t_EventId), first: nat, last: nat where first < last and last <= List.length(steps)): Prims.list(Native.t_EventId)
+  decreases steps
+{
+  if first ==? 0 { drop_edges(steps, last) } else {
+    match steps {
+      Prims.Nil => Prims.Nil,
+      Prims.Cons(next, rest) => Prims.Cons(next, cut_path_loop(rest, first - 1, last - 1))
+    }
+  }
+}
+proof! dropped_edge_count(steps: Prims.list(Native.t_EventId), count: nat where count <= List.length(steps)): unit
+  decreases steps
+  gives List.length(drop_edges(steps, count)) == List.length(steps) - count
+{
+  if count ==? 0 { () } else {
+    match steps { Prims.Nil => (), Prims.Cons(_, rest) => dropped_edge_count(rest, count - 1) }
+  }
+}
+proof! cut_path_is_shorter(steps: Prims.list(Native.t_EventId), first: nat, last: nat where first < last and last <= List.length(steps)): unit
+  decreases steps
+  gives List.length(cut_path_loop(steps, first, last)) == List.length(steps) - last + first and
+    List.length(cut_path_loop(steps, first, last)) < List.length(steps)
+{
+  if first ==? 0 { dropped_edge_count(steps, last) } else {
+    match steps { Prims.Nil => (), Prims.Cons(_, rest) => cut_path_is_shorter(rest, first - 1, last - 1) }
+  }
+}
+proof! dropped_path_starts_at_node(facts: facts_vec, start: Native.t_EventId, steps: Prims.list(Native.t_EventId), finish: Native.t_EventId,
+  count: nat where count <= List.length(steps)): unit
+  decreases steps
+  takes Nickel.EditCausal.causal_path(facts, start, steps, finish)
+  gives Nickel.EditCausal.causal_path(facts, path_node(start, steps, count), drop_edges(steps, count), finish)
+{
+  if count ==? 0 { () } else {
+    match steps {
+      Prims.Nil => (),
+      Prims.Cons(next, rest) => dropped_path_starts_at_node(facts, next, rest, finish, count - 1)
+    }
+  }
+}
+proof! cutting_repeated_node_preserves_path(facts: facts_vec, start: Native.t_EventId, steps: Prims.list(Native.t_EventId), finish: Native.t_EventId,
+  first: nat, last: nat where first < last and last <= List.length(steps)): unit
+  decreases steps
+  takes Nickel.EditCausal.causal_path(facts, start, steps, finish)
+  takes path_node(start, steps, first) == path_node(start, steps, last)
+  gives Nickel.EditCausal.causal_path(facts, start, cut_path_loop(steps, first, last), finish)
+{
+  if first ==? 0 { dropped_path_starts_at_node(facts, start, steps, finish, last) } else {
+    match steps {
+      Prims.Nil => (),
+      Prims.Cons(next, rest) => cutting_repeated_node_preserves_path(facts, next, rest, finish, first - 1, last - 1)
+    }
+  }
+}
+function fact_id_present(facts: facts_vec, id: Native.t_EventId): Type0 {
+  exists(fact: Native.t_Fact) . fact_present(Alloc.Vec.impl_1__as_slice(facts), fact) and fact.f_id == id
+}
+proof! path_parent_is_present(facts: facts_vec, start: Native.t_EventId, steps: Prims.list(Native.t_EventId), finish: Native.t_EventId,
+  at: nat where at < List.length(steps)): unit
+  decreases steps
+  takes Nickel.EditCausal.causal_path(facts, start, steps, finish)
+  gives fact_id_present(facts, path_node(start, steps, at))
+{
+  match steps {
+    Prims.Nil => (),
+    Prims.Cons(next, rest) => if at ==? 0 { () } else { path_parent_is_present(facts, next, rest, finish, at - 1) }
+  }
+}
+function parent_fact_position(facts: facts_vec, id: Native.t_EventId where fact_id_present(facts, id)): i: nat where
+  i < Seq.length(Alloc.Vec.impl_1__as_slice(facts)) and Seq.index(Alloc.Vec.impl_1__as_slice(facts), i).f_id == id
+{
+  match FStar.Fin.find(Alloc.Vec.impl_1__as_slice(facts), ((fact: Native.t_Fact) => fact.f_id ==? id), 0) {
+    Some(i) => i,
+    None => 0
+  }
+}
+function path_parent_position(facts: facts_vec, start: Native.t_EventId, finish: Native.t_EventId,
+  steps: Prims.list(Native.t_EventId) where Nickel.EditCausal.causal_path(facts, start, steps, finish),
+  at: nat where at < List.length(steps)): position: FStar.Fin.under(Seq.length(Alloc.Vec.impl_1__as_slice(facts))) where
+    Seq.index(Alloc.Vec.impl_1__as_slice(facts), position).f_id == path_node(start, steps, at)
+{
+  path_parent_is_present(facts, start, steps, finish, at);
+  parent_fact_position(facts, path_node(start, steps, at))
+}
+proof! every_path_has_short_path(facts: facts_vec, start: Native.t_EventId, steps: Prims.list(Native.t_EventId), finish: Native.t_EventId): unit
+  decreases List.length(steps)
+  takes Nickel.EditCausal.causal_path(facts, start, steps, finish)
+  gives exists(short: Prims.list(Native.t_EventId)) .
+    List.length(short) <= Seq.length(Alloc.Vec.impl_1__as_slice(facts)) and Nickel.EditCausal.causal_path(facts, start, short, finish)
+{
+  const count = Seq.length(Alloc.Vec.impl_1__as_slice(facts));
+  if List.length(steps) <= count {
+    assert(List.length(steps) <= count and Nickel.EditCausal.causal_path(facts, start, steps, finish));
+    ()
+  } else {
+    if count ==? 0 {
+      path_parent_is_present(facts, start, steps, finish, 0);
+      const position = parent_fact_position(facts, start);
+      assert(position < count);
+      ()
+    } else {
+      const position = path_parent_position(facts, start, finish, steps);
+      const positions = Seq.init(count + 1, position);
+      Seq.lemma_init_len(count + 1, position);
+      Seq.init_index(count + 1, position);
+      match FStar.Fin.pigeonhole(positions) {
+        (i, j) => {
+          assert(i < j and j < count + 1);
+          assert(position(i) == position(j));
+          assert(path_node(start, steps, i) == path_node(start, steps, j));
+          cutting_repeated_node_preserves_path(facts, start, steps, finish, i, j);
+          cut_path_is_shorter(steps, i, j);
+          const shorter = cut_path_loop(steps, i, j);
+          every_path_has_short_path(facts, start, shorter, finish)
+        }
+      }
+    }
+  }
+}
+proof past_contains_every_causal_path(facts: facts_vec, roots: t_Slice(Native.t_EventId), root: Native.t_EventId,
+  steps: Prims.list(Native.t_EventId), id: Native.t_EventId): unit
+  takes member(roots, root)
+  takes Nickel.EditCausal.causal_path(facts, root, steps, id)
+  gives (match Native.past(Alloc.Vec.impl_1__as_slice(facts), roots) {
+    Result.Result_Ok(selected) => member(Alloc.Vec.impl_1__as_slice(selected), id), _ => Prims.l_True
+  } : Type0)
+{
+  every_path_has_short_path(facts, root, steps, id);
+  proof each_short(short: Prims.list(Native.t_EventId)): unit
+    takes List.length(short) <= Seq.length(Alloc.Vec.impl_1__as_slice(facts))
+    takes Nickel.EditCausal.causal_path(facts, root, short, id)
+    gives (match Native.past(Alloc.Vec.impl_1__as_slice(facts), roots) {
+      Result.Result_Ok(selected) => member(Alloc.Vec.impl_1__as_slice(selected), id), _ => Prims.l_True
+    } : Type0)
+  { past_contains_short_paths(facts, roots, root, short, id) };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(each_short));
+  assert((match Native.past(Alloc.Vec.impl_1__as_slice(facts), roots) {
+    Result.Result_Ok(selected) => member(Alloc.Vec.impl_1__as_slice(selected), id), _ => Prims.l_True
+  } : Type0)) by { Tactics.prune("Nickel_crdt.Edit.past"); Tactics.smt_sync'(1, 1) }
+}
+function exact_past_result(facts: facts_vec, roots: t_Slice(Native.t_EventId), result: Result.t_Result(ids_vec, Native.t_Error)): Type0 {
+  match result {
+    Result.Result_Ok(selected) => forall(id: Native.t_EventId) . member(Alloc.Vec.impl_1__as_slice(selected), id) <==> ancestor(facts, roots, id),
+    _ => Prims.l_True
+  }
+}
+proof successful_past_is_exact_closure(facts: facts_vec, roots: t_Slice(Native.t_EventId)): unit
+  gives exact_past_result(facts, roots, Native.past(Alloc.Vec.impl_1__as_slice(facts), roots))
+{
+  past_has_only_ancestors_and_keeps_roots(facts, roots);
+  match Native.past(Alloc.Vec.impl_1__as_slice(facts), roots) {
+    Result.Result_Ok(selected) => {
+      proof each_id(id: Native.t_EventId): unit
+        gives member(Alloc.Vec.impl_1__as_slice(selected), id) <==> ancestor(facts, roots, id)
+      {
+        proof each_selected(): unit
+          takes member(Alloc.Vec.impl_1__as_slice(selected), id)
+          gives ancestor(facts, roots, id)
+        { member_satisfies(Alloc.Vec.impl_1__as_slice(selected), ancestor(facts, roots), id) };
+        FStar.Classical.move_requires(each_selected, ());
+        proof each_path(root: Native.t_EventId, steps: Prims.list(Native.t_EventId)): unit
+          takes member(roots, root)
+          takes Nickel.EditCausal.causal_path(facts, root, steps, id)
+          gives member(Alloc.Vec.impl_1__as_slice(selected), id)
+        {
+          past_contains_every_causal_path(facts, roots, root, steps, id);
+          assert(member(Alloc.Vec.impl_1__as_slice(selected), id)) by {
+            Tactics.prune("Nickel_crdt.Edit.past"); Tactics.smt_sync'(1, 1)
+          }
+        };
+        FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_path));
+        ()
+      };
+      FStar.Classical.forall_intro(each_id);
+      assert(exact_past_result(facts, roots, Native.past(Alloc.Vec.impl_1__as_slice(facts), roots))) by {
+        Tactics.prune("Nickel_crdt.Edit.past"); Tactics.smt_sync'(1, 1)
+      }
+    },
+    Result.Result_Err(_) => {
+      assert(exact_past_result(facts, roots, Native.past(Alloc.Vec.impl_1__as_slice(facts), roots))) by {
+        Tactics.prune("Nickel_crdt.Edit.past"); Tactics.smt_sync'(1, 1)
+      }
+    }
+  }
+}
