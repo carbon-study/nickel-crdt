@@ -1201,6 +1201,7 @@ compiler/model pin or limit changes.
 
 ### total exact past for closed histories and unique roots
 
+`EditPastTotal.lt` imports the accepted success-only `EditPast.lt` surface.
 `causally_closed_history_computes_exact_past` uses the existing
 `EditWellFormed.facts_causally_closed` component, roots naming stored facts
 (`dependencies_present`), and pairwise-distinct roots (`unique_selection`).
@@ -1230,11 +1231,21 @@ or #42/M1 completion follows from this slice.
 
 Five new call removals cover room before push, successful push, extension, pass
 and totality composition. A presence-view pattern removal checks the ID/whole-
-fact bridge into the existing dependency guard. Positive empty/singleton root
-witnesses and a regression restoring a formerly impossible uniqueness predicate
+fact bridge into the existing dependency guard. Positive empty/singleton and
+distinct-pair root witnesses and a regression restoring a formerly impossible uniqueness predicate
 keep the new domain from becoming vacuous. The default native
 `past-refuses-closure` control returns `Internal` instead of publishing the computed
 closure; it must fail the actual native fixture and ordinarily
 reject at `fitting_closed_history_computes_past`. This distinguishes absence of
 errors from the earlier success-only claims. No Rust/hax snapshot, axiom, pin,
 solver/compiler limit or error classifier changes.
+
+The totality component is checked in its own `EditPastTotal` module: the combined
+`EditPast` positive exceeded the unchanged 60-second per-compiler limit on ARM.
+The split restores the earlier accepted `EditPast` source/view/receipt exactly,
+and moves the totality contracts without changing their statements or bodies,
+apart from adding the explicit distinct-pair corollary. The positive roots,
+receipt manifest, source fence and seven totality-control owners include the new
+module; the seven earlier controls retain their original owners. The existing
+graph-derived driver allowance counts the additional module; compiler and solver
+limits, the fourteen-control family and mutation-shard partition are unchanged.
