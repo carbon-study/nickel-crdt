@@ -99,7 +99,7 @@ export async function checkCanonicalFrameControls({proof,output,fstar,models,mod
   const trustCut='// TEST-ONLY: assume the transcription equation, never a consumer theorem.\nassume val canonical_uses_complete_range : input:t_Slice Native.t_Fact -> Lemma (ensures Native.canonical input == canonical_loop_result input)\n';
   const healthy=original.slice(0,a)+trustCut+original.slice(b);
   const[c,d]=bounds(healthy,'canonical_loop_result'),header=healthy.slice(c,d).split('\n')[0];
-  assert.equal(header,'let canonical_loop_result (input: t_Slice Native.t_Fact) : Result.t_Result (Alloc.Vec.t_Vec Native.t_Fact Alloc.Alloc.t_Global) Native.t_Error =');
+  assert.equal(header,'let canonical_loop_result (input: t_Slice Native.t_Fact) : Result.t_Result facts_vec Native.t_Error =');
   try {
     await put(file,healthy);
     const positive=await verify({dir:proof,roots:[file],fstar,models,modelCache});
