@@ -1,7 +1,8 @@
 # register contract (#67, phase 1)
 
 **Status: proposed contract for review. Nothing is implemented.** It fixes the register behaviour that #67's phase 2 will implement and prove.
-- **Answered by Ren:** the outcomes in §4's main table, from the undo questionnaire's q13–q17 and five follow-up continuations answered on 2026-11-08.
+- **Answered by Ren:** the outcomes in §4's table: the undo questionnaire's q13–q17, plus follow-ups f1–f7 answered on 2026-11-08. The `own` trace is a consequence of those answers, not one of them.
+- **Proposed:** a do-nothing redo uses up its entry (rule 5).
 - **Held:** one choice, for the sequence undo stack (§5). Executable evidence: [experiments/register-candidates](../experiments/register-candidates/README.md).
 
 ## 1. what a register is
@@ -28,8 +29,8 @@ Keys are caller data. A key is not a writer, and nickel never infers one from th
 1. **Only edits count.** A write whose value equals its observed value is no edit. It never counts for the visible value or for blocking. It pushes no undo item and leaves the redo stack alone (Ren: q17, follow-up 4).
 2. **Activity.** A counted write is active until its author's undo deactivates it; a redo reactivates it. Only the author toggles it, so activity is a single-writer chain.
 3. **Visible value.** Take the causal maxima among active counted writes. If there are none, the value is the initial one. Otherwise it is the deterministic winner: highest Lamport time, then writer order. Losing concurrent writes stay in the state, so undoing the winner reveals them (q16).
-4. **Undo** targets the author's latest own item. It does nothing if a later counted write has that item in its causal past, whatever its value, and that write is either still active or by **another user**, even if he has since undone it (q13, q15, follow-ups 5–6). The author's own later writes block only while active, so consecutive own undos work. Otherwise it deactivates the target. A do-nothing undo reports that someone else edited.
-5. **Redo** reactivates the latest undone item. It does nothing under the same condition, applied to counted writes made after that undo (q14, follow-ups 2 and 7).
+4. **Undo** targets the author's latest own item. It does nothing if a later counted write has that item in its causal past, whatever its value, and that write is either still active or by **another user**, even if he has since undone it (q13, q15, follow-ups 5–6). The author's own later writes block only while active, so consecutive own undos work. Otherwise it deactivates the target. A do-nothing undo reports that someone else edited, and **uses up its item**: a later undo does not retry it and reports no item (follow-up 3).
+5. **Redo** reactivates the latest undone item. It does nothing under the same blocking condition, applied to counted writes made after that undo (q14, follow-ups 2 and 7). A do-nothing redo also uses up its entry. That part is **proposed**, by analogy with f3, which Ren answered for undo only. The model does not vary it.
 
 **Principle (Ren, 2026-11-08): undos are not composed across users.** A user's undo or redo is decided once, against that user's own captured past. Another user's later undo never revives, re-enables or re-targets it. Rule 4's "another user, even if since undone", rule 5 and the frozen decisions of §2 are this principle. f2, f3 and f5–f7 are its witnesses.
 
@@ -48,7 +49,7 @@ All of these are asserted by `adopted.mjs`. The follow-ups are also asserted by 
 | q17 | A red; B sees it, red again; sync; A undoes | black |
 | f1 | A red; B sees it, red again; A undoes without seeing B's red | black |
 | f2 | A red; A undoes; B, seeing that, red; A redoes; B undoes | A's redo does nothing; black |
-| f3 | A red; B green; A undoes (nothing); B undoes; A undoes again | A's second undo does nothing; red |
+| f3 | A red; B green; A undoes (nothing); B undoes; A undoes again | A's first undo was used up, so the second finds no item; red |
 | f4 | A red; A red again; A undoes | black |
 | f5 | A red; B green; C, seeing green, red; B undoes without seeing C's red; sync; A undoes | A's undo does nothing |
 | f6 | A red; B, seeing it, green; B undoes his green; A undoes | A's undo does nothing; red |
@@ -64,7 +65,7 @@ f1–f5 are Ren's follow-up answers. f6 and f7 are his answer that an undone edi
 - **X:** only an *active* later edit blocks. It fails f6 and f7.
 - **Y:** the one adopted here.
 
-f2 and f4 rule out the other Y stack variants. `adopted.mjs` asserts that exactly the expected Y variants match, so another matching variant fails it. Removing f6 and f7 lets X match, and the script then fails.
+f2, f3 (by its report) and f4 rule out the other Y stack variants. `adopted.mjs` asserts that exactly the expected Y variants match, so another matching variant fails it. Removing f6 and f7 lets X match, and the script then fails.
 
 **Coverage:**
 - **Full search:** all 1,474,110 histories of up to 5 commands, with three independently named writers and two values. It ran over the first 48 variants, before Y was added.
@@ -77,7 +78,7 @@ Within the swept variants, f1–f5 were the only value-changing differences foun
 
 Whether a new own counted write clears the redo stack is the pending sequence undo decision, and it should be decided there. Both register variants (clear or keep) match every answer above. A note for that decision: under these rules a redo never makes a write visible over a newer own write, because the newer write dominates causally. So keeping the redo stack only shows when a later undo exposes the redone write.
 
-**Not a choice under these rules: whether a do-nothing undo or redo uses up its item.** Under rule 4 another user's blocking edit never stops blocking, so a retry does nothing either way. f3 and its redo twin (A red; A undoes; B red; A redoes, nothing; B undoes; A redoes) end the same, and only the command's report differs ("no item" vs "nothing"). The model keeps both variants, and `adopted.mjs` accepts both.
+**Retention of do-nothing commands.** Under rule 4, another user's blocking edit never stops blocking. So in f3 a retained undo would also do nothing: the colour matches, but the report differs ("nothing" instead of "no item"). Ren's answer was that it is used up, so the contract keeps consume, and `adopted.mjs` asserts the "no item" report. For redo, using up the entry is a proposal (rule 5). The model has no retained-redo variant, so no equivalence is claimed.
 
 ## 6. phase 2 obligations (#67)
 

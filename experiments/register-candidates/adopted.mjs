@@ -11,7 +11,8 @@ const quiz = {
   q17: [[W("A","red",[]), W("B","red",[0]), U("A",[0,1])], { final: "black" }],
   f1: [[W("A","red",[]), W("B","red",[0]), U("A",[0])], { final: "black" }],
   f2: [[W("A","red",[]), U("A",[0]), W("B","red",[0,1]), R("A",[0,1,2]), U("B",[0,1,2,3])], { 3: "nothing", final: "black" }],
-  f3: [[W("A","red",[]), W("B","green",[0]), U("A",[0,1]), U("B",[0,1]), U("A",[0,1,2,3])], { final: "red" }],
+  // f3: "red (it was used up)": the retry finds no item.
+  f3: [[W("A","red",[]), W("B","green",[0]), U("A",[0,1]), U("B",[0,1]), U("A",[0,1,2,3])], { 4: "unavailable", final: "red" }],
   f4: [[W("A","red",[]), W("A","red",[0]), U("A",[0,1])], { final: "black" }],
   f5: [[W("A","red",[]), W("B","green",[0]), W("C","red",[0,1]), U("B",[0,1]), U("A",[0,1,2,3])], { 4: "nothing" }],
 };
@@ -39,8 +40,7 @@ for (const name of ["Y/consume/guarded/skip/clear", "Y/consume/guarded/skip/keep
 // which survivors match ALL answers?
 const all = candidates.filter(c => Object.values(quiz).every(([h, want]) => { const g = evaluate(h, c); return Object.entries(want).every(([k, v]) => g[k] === v); }));
 console.log("candidates matching every answer: " + all.map(c => c.name).join(", "));
-// consume/retain: under Y the blocking edit never stops blocking, so a retried
-// undo does nothing either way (only its report differs); clear/keep is held.
-const expected = ["Y/consume/guarded/skip/clear", "Y/consume/guarded/skip/keep", "Y/retain/guarded/skip/clear", "Y/retain/guarded/skip/keep"];
+// f3's report (used up -> no item) excludes retain; clear/keep is held.
+const expected = ["Y/consume/guarded/skip/clear", "Y/consume/guarded/skip/keep"];
 if (JSON.stringify(all.map(c => c.name).sort()) !== JSON.stringify(expected)) { bad++; console.log("FAIL matching set differs from " + expected.join(", ")); }
 process.exit(bad ? 1 : 0);
