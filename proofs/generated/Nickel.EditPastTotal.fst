@@ -220,6 +220,7 @@ let causally_closed_history_computes_exact_past (facts: facts_vec) (roots: t_Sli
     Tactics.prune "Nickel_crdt.Edit.past";
     Tactics.smt_sync' 1 1
   )
+
 let earlier_differs (ids: t_Slice Native.t_EventId) (row: nat{row < Seq.length ids}) (finish: nat) : Type0 =
   forall(j: FStar.Fin.under (Seq.length ids)). j < finish ==> Prims.l_not (Seq.index ids row == Seq.index ids j)
 
