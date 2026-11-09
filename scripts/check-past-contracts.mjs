@@ -23,9 +23,15 @@ export async function checkPastContracts({proof,output,fstar,models,modelCache})
     ['past-paths-without-depth-contract',
       /  past_covers_bounded_predecessor_paths[^\n]+;\n/,
       'Nickel.EditPast.past_contains_short_paths'],
+    ['past-every-path-without-shortening',
+      /  every_path_has_short_path[^\n]+;\n/,
+      'Nickel.EditPast.past_contains_every_causal_path'],
+    ['past-exact-without-path-contract',
+      /^ +past_contains_every_causal_path[^\n]+;\n/m,
+      'Nickel.EditPast.successful_past_is_exact_closure'],
   ];
   for(const [control,pattern,theorem] of controls) {
-    assert.equal([...original.matchAll(new RegExp(pattern.source,'g'))].length,1,control+' anchor must be unique');
+    assert.equal([...original.matchAll(new RegExp(pattern.source,pattern.flags.includes('g')?pattern.flags:pattern.flags+'g'))].length,1,control+' anchor must be unique');
     const dir=path.join(path.dirname(proof),control);
     await fs.rm(dir,{recursive:true,force:true});
     await fs.cp(proof,dir,{recursive:true,preserveTimestamps:true});

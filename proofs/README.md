@@ -1116,27 +1116,26 @@ The positive gate includes EditPast. Focused development commands:
 
 ```sh
 node scripts/check-edit-proofs.mjs /tmp/past-proof contracts:past \
-  past-drops-roots past-invents-id past-membership-always-false
+  past-drops-roots past-invents-id past-membership-always-false \
+  past-skips-predecessors past-skips-passes
 node scripts/check-causal-basis-native.mjs /tmp/past-native
 ```
 
-The three Rust controls erase the initial roots, invent an unrelated selected
-ID, and make membership always false. Each must fail the actual native test
-and ordinarily reject at its registered source theorem. The three contract
-controls remove the membership loop rule, its membership pattern at the expansion
-caller, or the source contract used by the final ancestry law. A resource failure
-or unrelated error is not detection.
+The Rust controls erase the roots, invent an unrelated ID, make membership
+always false, skip predecessor expansion, or skip the outer passes. Each must
+fail the native fixture and ordinarily reject at its registered owner (the
+outer-pass frame attribution is qualified below). The `past` contract family
+checks the membership, soundness, bounded-coverage and exact-closure caller
+connections. A resource failure or unrelated error is not detection.
 
 The separate four-control native command above is manual evidence, not part of
 CI; only its positive native fixture is discovered by the workspace gate. Its
 continued mutation sensitivity is not certified by CI.
 
-**Still open in #42:** closure completeness after the bounded passes, successful
-closure computation in its stated domain, and the scheduler's once-only/order/
-progress and subset-schedule projection laws. In particular, zero expansion can
-preserve these partial soundness/retention conclusions. The coverage extension
-below adds a proof control for zero expansion, but unbounded closure
-completeness still needs its graph-theoretic bridge.
+This soundness law alone does not establish closure completeness. The following
+coverage and finite-graph components establish exact membership on success.
+Successful computation (no `Err` in the stated domain) and the scheduler's
+once-only/order/progress and subset-schedule projection laws remain open in #42.
 
 ### bounded predecessor-path coverage
 
@@ -1161,9 +1160,39 @@ reaches the pre-existing `past_stays_in_closed_set` loop frame first: that is
 structural frame detection, not a semantic counterexample to soundness and not
 credited as an independent coverage-law rejection.
 
-This is a bounded-path coverage law, **not yet unbounded closure completeness**:
-the graph-theoretic argument that every reachable ID has a short enough path
-is still to be checked and composed. Successful closure computation (absence
-of `Err` on valid fitting inputs), scheduler progress/order and #42 remain open.
+This bounded-path law alone does not establish unbounded closure completeness;
+the finite-graph bridge below supplies that step. Successful computation
+(absence of `Err` on valid fitting inputs), scheduler progress/order and #42
+remain open.
 There is no Rust, hax snapshot, model, compiler pin or budget change in this
 coverage extension.
+
+### exact causal ID closure on success
+
+`successful_past_is_exact_closure` proves, for arbitrary stored facts and roots:
+if actual `past` returns `Ok(selected)`, then for every event ID,
+
+```text
+member(selected, id) iff
+  some root belongs to roots and has a finite causal_path to id
+```
+
+There is **no path-length, uniqueness or acyclicity premise**. This is exact
+set membership, not vector order or multiplicity, and not a guarantee of `Ok`.
+
+The finite-graph bridge is constructive. Every edge's parent has a stored fact.
+In a walk with more than `facts.len()` edges, map its first `facts.len()+1`
+parents to stored-fact positions. The checked finite pigeonhole principle finds
+two equal positions, hence equal IDs. Cutting out the intervening loop preserves
+the endpoint and strictly shortens the walk. Recursion produces a path of at
+most `facts.len()` edges. The endpoint itself need not have a stored fact;
+only the edge-bearing parents are counted. Duplicate fact IDs and cycles do
+not invalidate the argument.
+
+`past_contains_every_causal_path` composes that bridge with bounded coverage.
+The final exactness theorem composes it with the earlier no-spurious-ancestor
+law, withholding actual `past` at the composition boundary. Two additional
+`past` controls remove the shortening and unbounded-path contract calls and
+require ordinary rejection at their callers. Prior theorem statements and
+source/view prefixes are retained; no native source, hax snapshot, axiom,
+compiler/model pin or limit changes.

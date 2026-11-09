@@ -305,3 +305,121 @@ let past_contains_short_paths (facts: facts_vec) (roots: t_Slice Native.t_EventI
     Tactics.prune "Nickel_crdt.Edit.past";
     Tactics.smt_sync' 1 1
   )
+
+open FStar.Fin
+
+let rec path_node (start: Native.t_EventId) (steps: Prims.list Native.t_EventId) (at: nat{at <= List.length steps}) : Tot Native.t_EventId (decreases steps) =
+  match steps with | Prims.Nil -> begin start end | Prims.Cons next rest -> begin if at ==? 0 then
+    begin start end
+  else
+    begin path_node next rest (at - 1) end end
+
+let rec drop_edges (steps: Prims.list Native.t_EventId) (count: nat{count <= List.length steps}) : Tot (Prims.list Native.t_EventId) (decreases steps) =
+  if count ==? 0 then
+    begin steps end
+  else
+    begin match steps with | Prims.Nil -> begin Prims.Nil end | Prims.Cons _ rest -> begin drop_edges rest (count - 1) end end
+
+let rec cut_path_loop (steps: Prims.list Native.t_EventId) (first: nat) (last: nat{Prims.l_and (first < last) (last <= List.length steps)}) : Tot (Prims.list Native.t_EventId) (decreases steps) =
+  if first ==? 0 then
+    begin drop_edges steps last end
+  else
+    begin match steps with | Prims.Nil -> begin Prims.Nil end | Prims.Cons next rest -> begin Prims.Cons next (cut_path_loop rest (first - 1) (last - 1)) end end
+
+let rec dropped_edge_count (steps: Prims.list Native.t_EventId) (count: nat{count <= List.length steps}) : Lemma (ensures List.length (drop_edges steps count) == List.length steps - count) (decreases steps) =
+  if count ==? 0 then
+    begin () end
+  else
+    begin match steps with | Prims.Nil -> begin () end | Prims.Cons _ rest -> begin dropped_edge_count rest (count - 1) end end
+
+let rec cut_path_is_shorter (steps: Prims.list Native.t_EventId) (first: nat) (last: nat{Prims.l_and (first < last) (last <= List.length steps)}) : Lemma (ensures Prims.l_and (List.length (cut_path_loop steps first last) == List.length steps - last + first) (List.length (cut_path_loop steps first last) < List.length steps)) (decreases steps) =
+  if first ==? 0 then
+    begin dropped_edge_count steps last end
+  else
+    begin match steps with | Prims.Nil -> begin () end | Prims.Cons _ rest -> begin cut_path_is_shorter rest (first - 1) (last - 1) end end
+
+let rec dropped_path_starts_at_node (facts: facts_vec) (start: Native.t_EventId) (steps: Prims.list Native.t_EventId) (finish: Native.t_EventId) (count: nat{count <= List.length steps}) : Lemma (requires Nickel.EditCausal.causal_path facts start steps finish) (ensures Nickel.EditCausal.causal_path facts (path_node start steps count) (drop_edges steps count) finish) (decreases steps) =
+  if count ==? 0 then
+    begin () end
+  else
+    begin match steps with | Prims.Nil -> begin () end | Prims.Cons next rest -> begin dropped_path_starts_at_node facts next rest finish (count - 1) end end
+
+let rec cutting_repeated_node_preserves_path (facts: facts_vec) (start: Native.t_EventId) (steps: Prims.list Native.t_EventId) (finish: Native.t_EventId) (first: nat) (last: nat{Prims.l_and (first < last) (last <= List.length steps)}) : Lemma (requires (Nickel.EditCausal.causal_path facts start steps finish /\ path_node start steps first == path_node start steps last)) (ensures Nickel.EditCausal.causal_path facts start (cut_path_loop steps first last) finish) (decreases steps) =
+  if first ==? 0 then
+    begin dropped_path_starts_at_node facts start steps finish last end
+  else
+    begin match steps with | Prims.Nil -> begin () end | Prims.Cons next rest -> begin cutting_repeated_node_preserves_path facts next rest finish (first - 1) (last - 1) end end
+
+let fact_id_present (facts: facts_vec) (id: Native.t_EventId) : Type0 =
+  exists(fact: Native.t_Fact). Prims.l_and (fact_present (Alloc.Vec.impl_1__as_slice facts) fact) (fact.f_id == id)
+
+let rec path_parent_is_present (facts: facts_vec) (start: Native.t_EventId) (steps: Prims.list Native.t_EventId) (finish: Native.t_EventId) (at: nat{at < List.length steps}) : Lemma (requires Nickel.EditCausal.causal_path facts start steps finish) (ensures fact_id_present facts (path_node start steps at)) (decreases steps) =
+  match steps with | Prims.Nil -> begin () end | Prims.Cons next rest -> begin if at ==? 0 then
+    begin () end
+  else
+    begin path_parent_is_present facts next rest finish (at - 1) end end
+
+let parent_fact_position (facts: facts_vec) (id: Native.t_EventId{fact_id_present facts id}) : i: nat{Prims.l_and (i < Seq.length (Alloc.Vec.impl_1__as_slice facts)) ((Seq.index (Alloc.Vec.impl_1__as_slice facts) i).f_id == id)} =
+  match FStar.Fin.find (Alloc.Vec.impl_1__as_slice facts) (fun (fact: Native.t_Fact) -> fact.f_id ==? id) 0 with | Some i -> begin i end | None -> begin 0 end
+
+let path_parent_position (facts: facts_vec) (start: Native.t_EventId) (finish: Native.t_EventId) (steps: Prims.list Native.t_EventId{Nickel.EditCausal.causal_path facts start steps finish}) (at: nat{at < List.length steps}) : position: FStar.Fin.under (Seq.length (Alloc.Vec.impl_1__as_slice facts)){(Seq.index (Alloc.Vec.impl_1__as_slice facts) position).f_id == path_node start steps at} =
+  path_parent_is_present facts start steps finish at;
+  parent_fact_position facts (path_node start steps at)
+
+let rec every_path_has_short_path (facts: facts_vec) (start: Native.t_EventId) (steps: Prims.list Native.t_EventId) (finish: Native.t_EventId) : Lemma (requires Nickel.EditCausal.causal_path facts start steps finish) (ensures exists(short: Prims.list Native.t_EventId). Prims.l_and (List.length short <= Seq.length (Alloc.Vec.impl_1__as_slice facts)) (Nickel.EditCausal.causal_path facts start short finish)) (decreases List.length steps) =
+  let count = Seq.length (Alloc.Vec.impl_1__as_slice facts) in
+  if List.length steps <= count then
+    begin assert (Prims.l_and (List.length steps <= count) (Nickel.EditCausal.causal_path facts start steps finish));
+    () end
+  else
+    begin if count ==? 0 then
+      begin path_parent_is_present facts start steps finish 0;
+      let position = parent_fact_position facts start in
+      assert (position < count);
+      () end
+    else
+      begin let position = path_parent_position facts start finish steps in
+      let positions = Seq.init (count + 1) position in
+      Seq.lemma_init_len (count + 1) position;
+      Seq.init_index (count + 1) position;
+      match FStar.Fin.pigeonhole positions with | (i, j) -> begin assert (Prims.l_and (i < j) (j < count + 1));
+      assert (position i == position j);
+      assert (path_node start steps i == path_node start steps j);
+      cutting_repeated_node_preserves_path facts start steps finish i j;
+      cut_path_is_shorter steps i j;
+      let shorter = cut_path_loop steps i j in
+      every_path_has_short_path facts start shorter finish end end end
+
+let past_contains_every_causal_path (facts: facts_vec) (roots: t_Slice Native.t_EventId) (root: Native.t_EventId) (steps: Prims.list Native.t_EventId) (id: Native.t_EventId) : Lemma (requires (member roots root /\ Nickel.EditCausal.causal_path facts root steps id)) (ensures ((match Native.past (Alloc.Vec.impl_1__as_slice facts) roots with | Result.Result_Ok selected -> begin member (Alloc.Vec.impl_1__as_slice selected) id end | _ -> begin Prims.l_True end) <: Type0)) =
+  every_path_has_short_path facts root steps id;
+  let each_short (short: Prims.list Native.t_EventId) : Lemma (requires (List.length short <= Seq.length (Alloc.Vec.impl_1__as_slice facts) /\ Nickel.EditCausal.causal_path facts root short id)) (ensures ((match Native.past (Alloc.Vec.impl_1__as_slice facts) roots with | Result.Result_Ok selected -> begin member (Alloc.Vec.impl_1__as_slice selected) id end | _ -> begin Prims.l_True end) <: Type0)) = past_contains_short_paths facts roots root short id in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires each_short);
+  assert (((match Native.past (Alloc.Vec.impl_1__as_slice facts) roots with | Result.Result_Ok selected -> begin member (Alloc.Vec.impl_1__as_slice selected) id end | _ -> begin Prims.l_True end) <: Type0)) by (
+    Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.smt_sync' 1 1
+  )
+
+let exact_past_result (facts: facts_vec) (roots: t_Slice Native.t_EventId) (result: Result.t_Result ids_vec Native.t_Error) : Type0 =
+  match result with | Result.Result_Ok selected -> begin forall(id: Native.t_EventId). member (Alloc.Vec.impl_1__as_slice selected) id <==> ancestor facts roots id end | _ -> begin Prims.l_True end
+
+let successful_past_is_exact_closure (facts: facts_vec) (roots: t_Slice Native.t_EventId) : Lemma (ensures exact_past_result facts roots (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) =
+  past_has_only_ancestors_and_keeps_roots facts roots;
+  match Native.past (Alloc.Vec.impl_1__as_slice facts) roots with | Result.Result_Ok selected -> begin let each_id (id: Native.t_EventId) : Lemma (ensures member (Alloc.Vec.impl_1__as_slice selected) id <==> ancestor facts roots id) =
+    let each_selected () : Lemma (requires member (Alloc.Vec.impl_1__as_slice selected) id) (ensures ancestor facts roots id) = member_satisfies (Alloc.Vec.impl_1__as_slice selected) (ancestor facts roots) id in
+    FStar.Classical.move_requires each_selected ();
+    let each_path (root: Native.t_EventId) (steps: Prims.list Native.t_EventId) : Lemma (requires (member roots root /\ Nickel.EditCausal.causal_path facts root steps id)) (ensures member (Alloc.Vec.impl_1__as_slice selected) id) =
+      past_contains_every_causal_path facts roots root steps id;
+      assert (member (Alloc.Vec.impl_1__as_slice selected) id) by (
+        Tactics.prune "Nickel_crdt.Edit.past";
+        Tactics.smt_sync' 1 1
+      ) in
+    FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_path);
+    () in
+  FStar.Classical.forall_intro each_id;
+  assert (exact_past_result facts roots (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) by (
+    Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Err _ -> begin assert (exact_past_result facts roots (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) by (
+    Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.smt_sync' 1 1
+  ) end
