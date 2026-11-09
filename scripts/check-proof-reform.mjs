@@ -32,6 +32,8 @@ export function checkProofReformFence() {
     assert.throws(()=>assertReformedSource('fixture','Tactics.prune('+JSON.stringify(namespace)+')'),/fixture reform:/);
   }
   assertReformedSource('EditPastTotal','Tactics.prune("Nickel_crdt.Edit.validate_after")');
+  assertReformedSource('EditPastTotal','Tactics.prune("Nickel_crdt.Edit.duplicate_events")');
+  assert.throws(()=>assertReformedSource('EditPast','Tactics.prune("Nickel_crdt.Edit.duplicate_events")'),/EditPast reform:/);
   assert.throws(()=>assertReformedSource('EditPast','Tactics.prune("Nickel_crdt.Edit.validate_after")'),/EditPast reform:/);
   for(const name of ['EditCausal','EditAtomic','EditWellFormed','EditPast','EditPastTotal']) {
     assert.throws(()=>assertReformedSource(name,'assert_norm(true)'),new RegExp(name+' reform:'));

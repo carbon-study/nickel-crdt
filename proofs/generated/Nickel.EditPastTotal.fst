@@ -220,3 +220,30 @@ let causally_closed_history_computes_exact_past (facts: facts_vec) (roots: t_Sli
     Tactics.prune "Nickel_crdt.Edit.past";
     Tactics.smt_sync' 1 1
   )
+
+let earlier_differs (ids: t_Slice Native.t_EventId) (row: nat{row < Seq.length ids}) (finish: nat) : Type0 =
+  forall(j: FStar.Fin.under (Seq.length ids)). j < finish ==> Prims.l_not (Seq.index ids row == Seq.index ids j)
+
+let rows_differ (ids: t_Slice Native.t_EventId) (finish: nat) : Type0 =
+  forall(i: FStar.Fin.under (Seq.length ids)). i < finish ==> earlier_differs ids i i
+
+let scan_found (ids: t_Slice Native.t_EventId) (found: bool) : Type0 =
+  Prims.l_and (found == true) (Prims.l_not (unique_selection ids))
+
+let duplicate_scan_is_exact (ids: t_Slice Native.t_EventId) : Lemma (ensures Native.duplicate_events ids == false <==> unique_selection ids) =
+  let each_row (i: usize{v i < Seq.length ids}) : Lemma (ensures forall(inv: Nickel.LoopUtil.invariant unit (mk_usize 0) i) (value: unit) (f: Nickel.LoopUtil.callback unit bool (mk_usize 0) i). Prims.l_and (Prims.l_and (earlier_differs ids (v i) 0) (forall(s: unit) (j: Nickel.LoopUtil.position (mk_usize 0) i). earlier_differs ids (v i) (v j) ==> Nickel.LoopUtil.step_safe (fun (at: nat) (_: unit) -> earlier_differs ids (v i) at) (fun (_: unit) -> earlier_differs ids (v i) (v i)) (scan_found ids) (v j) (f s j))) (forall(s: unit). earlier_differs ids (v i) (v i) ==> earlier_differs ids (v i) (v i)) ==> Nickel.LoopUtil.output_safe (fun (_: unit) -> earlier_differs ids (v i) (v i)) (scan_found ids) (Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0) i inv value f)) = Nickel.LoopUtil.preserve_any (mk_usize 0) i (fun (at: nat) (_: unit) -> earlier_differs ids (v i) at) (fun (_: unit) -> earlier_differs ids (v i) (v i)) (scan_found ids) in
+  FStar.Classical.forall_intro each_row;
+  Nickel.LoopUtil.preserve_any (mk_usize 0) (Core_models.Slice.impl__len ids) (fun (at: nat) (_: unit) -> rows_differ ids at) (fun (_: unit) -> rows_differ ids (Seq.length ids)) (scan_found ids);
+  assert (Native.duplicate_events ids == false <==> unique_selection ids) by (
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.smt_sync' 1 1
+  )
+
+let scanned_roots_compute_exact_past (facts: facts_vec) (roots: t_Slice Native.t_EventId) : Lemma (requires (history_references_present facts /\ Native.duplicate_events roots == false /\ all_ids roots (fact_id_present facts))) (ensures Prims.l_and (stored_result facts (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) (exact_past_result facts roots (Native.past (Alloc.Vec.impl_1__as_slice facts) roots))) =
+  duplicate_scan_is_exact roots;
+  fitting_past_is_total_and_exact facts roots;
+  assert (Prims.l_and (stored_result facts (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) (exact_past_result facts roots (Native.past (Alloc.Vec.impl_1__as_slice facts) roots))) by (
+    Tactics.prune "Nickel_crdt.Edit.duplicate_events";
+    Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.smt_sync' 1 1
+  )
