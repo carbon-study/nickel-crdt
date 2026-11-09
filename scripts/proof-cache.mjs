@@ -103,7 +103,11 @@ export function runAsync(label,bin,args,cwd,{env=process.env,seconds=60}={}) {
     const out={stdout:'',stderr:''},bytes={stdout:0,stderr:0};let overflow=false;
     for(const name of ['stdout','stderr']) {
       child[name].setEncoding('utf8');
-      child[name].on('data',chunk=>{out[name]+=chunk;bytes[name]+=Buffer.byteLength(chunk);if(bytes[name]>limit&&!overflow){overflow=true;child.kill('SIGTERM');}});
+      child[name].on('data',chunk=>{
+        if(overflow)return; // stop collecting once the command has been told to stop
+        out[name]+=chunk;bytes[name]+=Buffer.byteLength(chunk);
+        if(bytes[name]>limit){overflow=true;child.kill('SIGTERM');}
+      });
     }
     child.stdin.end();
     child.on('error',reject);
