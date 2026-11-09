@@ -1,5 +1,4 @@
 // Asserts the collection stories in docs/collection-contract.md under every option.
-process.env.MODEL_NO_SEARCH = "1";
 const { evaluate, candidates, P, X, U, T, ABSENT } = await import("./model.mjs");
 const base = { removeMode: "observed", undoCreate: "blocked" };
 const variant = (axis, v) => candidates.find(c => c.name === Object.values({ ...base, [axis]: v }).join("/"));

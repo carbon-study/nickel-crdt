@@ -8,7 +8,7 @@ node verify-k.mjs   # asserts the K1/K2 stories under every option, plus the res
 node adopted.mjs    # asserts that exactly the adopted variant matches the constraints and Ren's answers
 ```
 
-All three scripts exit nonzero on a failed assertion.
+`verify-k.mjs` and `adopted.mjs` assert, and exit nonzero on a failure. `model.mjs` only reports. Importing `model.mjs` runs nothing.
 
 - **Model:** one entry key, one field, writers A–C. The commands are put (create-or-write), remove, undo, and restore. A command that does nothing stays local. Decisions are frozen against the author's captured past. Redo is not modelled.
 - **Variant names:** `removeMode/undoCreate` (see the header of `model.mjs`).

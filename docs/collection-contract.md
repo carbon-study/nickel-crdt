@@ -37,7 +37,7 @@ Every rule depends only on the merged causal history and on decisions frozen at 
 
 ## 3. outcomes the rules must reproduce
 
-All of these are asserted by `adopted.mjs`. The answered stories are also asserted under every option by `verify-k.mjs`.
+All of these, plus a `lamport` trace (Lamport time counts replicated facts only, as in the register contract), are asserted by `adopted.mjs`. The answered stories are also asserted under every option by `verify-k.mjs`.
 
 | | history | outcome |
 |---|---|---|

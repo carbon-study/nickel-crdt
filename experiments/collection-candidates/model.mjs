@@ -34,6 +34,10 @@
 //
 // usage: node model.mjs [maxOps]
 
+import { pathToFileURL } from "node:url";
+// Importing this module runs no report or search; only `node model.mjs` does.
+const isMain = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const log = isMain ? console.log : () => {};
 const AXES = { removeMode: ["observed", "removeWins"], undoCreate: ["blocked", "allowed", "removes"] };
 const candidates = [];
 for (const removeMode of AXES.removeMode) for (const undoCreate of AXES.undoCreate)
@@ -64,7 +68,8 @@ function evaluate(history, cand) {
   }
   for (const op of ops) {
     op.view = op.seen.filter(j => ops[j].author === op.author || !ops[j].noop);
-    op.lamport = 1 + Math.max(0, ...op.view.map(j => ops[j].lamport));
+    // Lamport time from replicated facts only (own do-nothing commands are local)
+    op.lamport = 1 + Math.max(0, ...op.view.filter(j => !ops[j].noop).map(j => ops[j].lamport));
     const st = stacks[op.author] ??= [];
     const say = v => { outcome[op.label ?? op.i] = v; };
     const now = state(op.view);
@@ -129,12 +134,12 @@ for (const cand of candidates) {
     const got = evaluate(history, cand);
     for (const [k, v] of Object.entries(expect)) if (got[k] !== v) fails.push(`${q}.${k}=${got[k]}`);
   }
-  console.log(`${cand.name.padEnd(22)} ${fails.length ? "FAILS " + fails.join("; ") : "ok"}`);
+  log(`${cand.name.padEnd(22)} ${fails.length ? "FAILS " + fails.join("; ") : "ok"}`);
   if (!fails.length) survivors.push(cand);
 }
 
 // ---- bounded search ---------------------------------------------------------
-const maxOps = process.env.MODEL_NO_SEARCH ? 0 : Number(process.argv[2] ?? 4);
+const maxOps = isMain ? Number(process.argv[2] ?? 4) : 0;
 const authors = ["A", "B", "C"], values = ["red", "green"];
 function closedSubsets(history, author) {
   const n = history.length, out = [];
@@ -171,7 +176,7 @@ if (maxOps) {
       if (!byAxis.has(axis) || byAxis.get(axis).score > score) byAxis.set(axis, { score, history, a: `${c.name}=${finals.get(c.name)}`, b: `${d.name}=${finals.get(d.name)}` });
     }
   }
-  console.log(`\nsearched ${count} histories (<= ${maxOps} commands, writers A-C, values red/green)`);
-  for (const axis of Object.keys(AXES)) { const v = byAxis.get(axis); console.log(v ? `\n[${axis}]\n  ${show(v.history)}\n  ${v.a}   ${v.b}` : `\n[${axis}] no value separation within the bound`); }
+  log(`\nsearched ${count} histories (<= ${maxOps} commands, writers A-C, values red/green)`);
+  for (const axis of Object.keys(AXES)) { const v = byAxis.get(axis); log(v ? `\n[${axis}]\n  ${show(v.history)}\n  ${v.a}   ${v.b}` : `\n[${axis}] no value separation within the bound`); }
 }
 export { evaluate, candidates, P, X, U, T, ABSENT };
