@@ -400,3 +400,48 @@ let successful_execution_orders_its_exact_past_cut (facts: facts_vec) (roots: t_
     Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
     Tactics.smt_sync' 1 1
   )
+
+let tree_work_failed (facts: facts_vec) (error: Native.t_Error) : Type0 =
+  exists(done: ids_vec) (operations: operations_vec) (tree: Native.t_Tree) (index: FStar.Fin.under (Seq.length (Alloc.Vec.impl_1__as_slice facts))). Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Seq.length (Alloc.Vec.impl_1__as_slice done) < Seq.length (Alloc.Vec.impl_1__as_slice facts)) (Seq.length (Alloc.Vec.impl_1__as_slice operations) == Seq.length (Alloc.Vec.impl_1__as_slice done))) (unique_selection (Alloc.Vec.impl_1__as_slice done))) (causal_trace (Alloc.Vec.impl_1__as_slice facts) (Alloc.Vec.impl_1__as_slice done))) (eligible (Alloc.Vec.impl_1__as_slice facts) (Alloc.Vec.impl_1__as_slice done) index)) (Native.interpret_event (Alloc.Vec.impl_1__as_slice facts) (Seq.index (Alloc.Vec.impl_1__as_slice facts) index) (Alloc.Vec.impl_1__as_slice operations) tree == Result.Result_Err error)
+
+unfold type operation_pair = Native.t_EventId & Alloc.Vec.t_Vec Native.t_Node Alloc.Alloc.t_Global
+
+let schedule_progress_invariant (facts: t_Slice Native.t_Fact) (at: nat) (state: schedule_state) : Type0 =
+  Prims.l_and (schedule_invariant facts at state) (match state with | (_, operations, _) -> begin Seq.length (Alloc.Vec.impl_1__as_slice operations) == at end)
+
+let ranked_outer_errors_come_from_tree_work (facts: facts_vec) (rank: Native.t_EventId -> nat) (bound: nat) : Lemma (requires (causal_rank facts rank bound /\ ids_unique facts)) (ensures Nickel.LoopUtil.result_safe (complete_causal_trace (Alloc.Vec.impl_1__as_slice facts)) (tree_work_failed facts) (Native.interpret_scheduled (Alloc.Vec.impl_1__as_slice facts))) =
+  let input = Alloc.Vec.impl_1__as_slice facts in
+  let progress (done: t_Slice Native.t_EventId) : Lemma (requires Seq.length done < Seq.length input) (ensures Prims.l_and (Prims.l_not (Native.choose_ready input done == Option.Option_None)) (chosen_is_first input done (Native.choose_ready input done))) [SMTPat (Native.choose_ready input done)] =
+    ranked_incomplete_scan_progress facts done rank bound;
+    scheduler_choice_is_exact input done;
+    assert (Prims.l_and (Prims.l_not (Native.choose_ready input done == Option.Option_None)) (chosen_is_first input done (Native.choose_ready input done))) by (
+      Tactics.prune "Nickel_crdt.Edit.choose_ready";
+      Tactics.smt_sync' 1 1
+    ) in
+  let choice_shape (done: t_Slice Native.t_EventId) : Lemma (ensures Prims.l_or (Native.choose_ready input done == Option.Option_None) (exists(index: usize). Native.choose_ready input done == Option.Option_Some index)) [SMTPat (Native.choose_ready input done)] = () in
+  let event_shape (event: Native.t_Fact) (operations: t_Slice (Native.t_EventId & Alloc.Vec.t_Vec Native.t_Node Alloc.Alloc.t_Global)) (tree: Native.t_Tree) : Lemma (ensures result_shape (Native.interpret_event input event operations tree)) [SMTPat (Native.interpret_event input event operations tree)] = () in
+  empty_trace_is_valid input;
+  Nickel.Vector.empty_vector_contents #Native.t_EventId ();
+  Nickel.Vector.empty_vector_contents #operation_pair ();
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len input) (schedule_progress_invariant input) schedule_done (complete_causal_trace input) (tree_work_failed facts);
+  assert (Nickel.LoopUtil.result_safe (complete_causal_trace input) (tree_work_failed facts) (Native.interpret_scheduled input)) by (
+    Tactics.prune "Nickel.EditSchedule.causal_trace";
+    Tactics.prune "Nickel_crdt.Edit.interpret_event";
+    Tactics.prune "Nickel_crdt.Edit.choose_ready";
+    Tactics.prune "Nickel_crdt.Edit.push";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.smt_sync' 1 1
+  )
+
+let interpret_errors_come_from_tree_work (facts: facts_vec) (rank: Native.t_EventId -> nat) (bound: nat) (error: Native.t_Error) : Lemma (requires (causal_rank facts rank bound /\ ids_unique facts /\ Native.interpret (Alloc.Vec.impl_1__as_slice facts) == Result.Result_Err error)) (ensures tree_work_failed facts error) =
+  ranked_outer_errors_come_from_tree_work facts rank bound;
+  interpret_erases_only_schedule (Alloc.Vec.impl_1__as_slice facts);
+  let shape () : Lemma (ensures result_shape (Native.interpret_scheduled (Alloc.Vec.impl_1__as_slice facts))) = () in
+  shape ();
+  assert (tree_work_failed facts error) by (
+    Tactics.prune "Nickel_crdt.Edit.interpret";
+    Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
+    Tactics.smt_sync' 1 1
+  )

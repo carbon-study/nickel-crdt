@@ -536,3 +536,37 @@ fn actual_past_cut_retains_the_actual_execution_order() {
     }
     assert_eq!(cases, 24979);
 }
+
+#[test]
+fn outer_errors_have_a_concrete_event_work_witness() {
+    let first = Fact {
+        id: id(0), after: vec![], insert: vec!['x' as u32],
+        delete: vec![], gap: Some(0),
+    };
+    let mut cases = 0;
+    for gap in [None, Some(2), Some(usize::MAX)] {
+        let bad = Fact {
+            id: id(1), after: vec![first.id], insert: vec!['y' as u32],
+            delete: vec![], gap,
+        };
+        let mut facts = vec![first.clone(), bad.clone()];
+        permutations(&mut facts, 0, &mut |stored| {
+            // This witnesses the actual failing helper call after a successful
+            // first event. No public admission success is claimed for bad gaps.
+            let (tree, ops) = interpret_event(stored, &first, &[], Tree::default())
+                .expect("first event fits");
+            let done = vec![first.id];
+            let operations = vec![(first.id, ops)];
+            assert_complete_causal_trace(&[first.clone()], &done);
+            assert_eq!(operations.len(), done.len());
+            assert!(done.len() < stored.len());
+            assert!(bad.after.iter().all(|id| done.contains(id)));
+            let error = interpret_event(stored, &bad, &operations, tree)
+                .expect_err("bad gap fails inside event work");
+            assert_eq!(interpret_scheduled(stored), Err(error.clone()));
+            assert_eq!(interpret(stored), Err(error));
+            cases += 1;
+        });
+    }
+    assert_eq!(cases, 6);
+}

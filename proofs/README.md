@@ -1458,3 +1458,33 @@ actual separate subset execution. The last comparison is deliberately stronger
 **finite evidence**, not a universal equality theorem. Four new dependency
 controls cut the actual past, actual execution, order-composition and path-edge
 links. Production Rust, extraction and all prior theorem bodies stay unchanged.
+
+### ranked outer errors have an event-work witness
+
+`EditSchedule.lt` now carries scan progress through the actual outer loop's
+error branches. Given the existing `causal_rank` certificate and distinct
+stored IDs, `ranked_outer_errors_come_from_tree_work` establishes both the
+existing successful causal trace and an error refinement: every returned error
+has a `tree_work_failed` witness. The ordinary `interpret` wrapper preserves
+that error witness through `interpret_errors_come_from_tree_work`.
+
+The witness names a unique causal `done` prefix, an equally long operations
+vector, an in-bounds eligible event and a tree for which the actual
+`interpret_event` call returns that same error. The loop invariant now also
+counts operations. Checked scan progress excludes `None`, the choice contract
+excludes the out-of-bounds guard, and prefix lengths leave space for both actual
+bookkeeping pushes. No helper success is assumed by these error-refinement laws.
+
+This is a source-linked compositional boundary, not complete interpretation
+progress. The existential witness does not specify the contents of its operations
+or establish equality of its tree with an independent replay. It does not prove
+`interpret_event` succeeds on valid fitting inputs, full tree refinement,
+projection, public admission progress or M1 completion. Those obligations remain.
+
+Six default schedule dependency controls remove progress, eligibility, operations
+counting, the loop interface, or either public composition link. The default Rust
+mode `scheduler-invents-bookkeeping-error` injects an `Internal` return after a
+successful event call with no operations. It must fail the native fixture and
+reject ordinarily at the new outer error-refinement law. A native six-case
+fixture also supplies concrete event-work failure witnesses for bad gaps in both
+storage orders; it does not admit those bad facts through the public API.

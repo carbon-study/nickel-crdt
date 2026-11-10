@@ -29,6 +29,12 @@ export async function checkScheduleContracts({proof,output,fstar,models,modelCac
     ['cut-final-without-execution',/  successful_interpretation_has_causal_schedule \(Alloc\.Vec\.impl_1__as_slice facts\) tree;\n/,'successful_execution_orders_its_exact_past_cut','successful_execution_orders_its_exact_past_cut'],
     ['cut-final-without-order',/    full_execution_orders_exact_cut facts roots selected done;\n/,'successful_execution_orders_its_exact_past_cut','successful_execution_orders_its_exact_past_cut'],
     ['cut-closed-without-edge-law',/    ancestor_follows_edge facts roots fact\.f_id id;\n/,'exact_cut_keeps_dependencies','exact_cut_keeps_dependencies'],
+    ['error-origin-without-progress',/ranked_incomplete_scan_progress facts done rank bound/,'ranked_outer_errors_come_from_tree_work','ranked_outer_errors_come_from_tree_work','()'],
+    ['error-origin-without-eligibility',/scheduler_choice_is_exact input done/,'ranked_outer_errors_come_from_tree_work','ranked_outer_errors_come_from_tree_work','()'],
+    ['error-origin-without-operation-count',/Seq\.length \(Alloc\.Vec\.impl_1__as_slice operations\) == at/,'ranked_outer_errors_come_from_tree_work','schedule_progress_invariant','Prims.l_True'],
+    ['error-origin-without-loop',/  Nickel\.LoopUtil\.result_preserve_any [^\n]+;\n/,'ranked_outer_errors_come_from_tree_work','ranked_outer_errors_come_from_tree_work'],
+    ['error-public-without-origin',/  ranked_outer_errors_come_from_tree_work facts rank bound;\n/,'interpret_errors_come_from_tree_work','interpret_errors_come_from_tree_work'],
+    ['error-public-without-erasure',/  interpret_erases_only_schedule \(Alloc\.Vec\.impl_1__as_slice facts\);\n/,'interpret_errors_come_from_tree_work','interpret_errors_come_from_tree_work'],
   ];
   for(const [control,pattern,owner,scope,replacement=''] of controls) {
     let start=0,end=original.length;
