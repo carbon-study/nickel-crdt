@@ -1,3 +1,4 @@
+import {checkBasisContracts} from './check-basis-contracts.mjs';
 // Actual edit/admit extraction: return paths, commit coherence and identity laws.
 // This gate does not prove valid-fact acceptance, convergence or FugueMax.
 import assert from 'node:assert/strict';
@@ -50,7 +51,7 @@ await fs.mkdir(output,{recursive:true});
 const identity=JSON.parse(await fs.readFile(path.join(modelCache,'identity.json'),'utf8'));
 assert.equal(identity.models,models);assert.equal(identity.fstar,fstar);
 const views=new Map();
-for(const name of ['Prelude','LoopUtil','Vector','EditAtomic','EditCommit','EditIdentity','EditAccepted','EditWellFormed','Spec','EditCausal','EditPast','EditPastTotal','EditSchedule']) {
+for(const name of ['Prelude','LoopUtil','Vector','EditAtomic','EditCommit','EditIdentity','EditAccepted','EditWellFormed','Spec','EditCausal','EditPast','EditPastTotal','EditSchedule','EditBasis']) {
   const source=`proofs/${name}.lt`,view=`proofs/generated/Nickel.${name}.fst`;
   const code=await fs.readFile(path.join(root,view),'utf8');
   const receipt=(await fs.readFile(path.join(root,`proofs/generated/${name}.sha256`),'utf8')).trim().split('\n');
@@ -64,7 +65,7 @@ const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tre
   'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality',
   'identity-scan-key','identity-birth-equality','identity-writer-equality',
   'accepted-reuses-member','accepted-wrong-canonical-push','accepted-publication-duplicates',
-  'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes','past-refuses-closure','duplicate-scan-skips-pairs','scheduler-ready-skips-dependency','scheduler-reselects-done','scheduler-refuses-ready','scheduler-checks-empty-after','scheduler-records-wrong-id','scheduler-stops-early','scheduler-erases-wrong-trace','scheduler-invents-bookkeeping-error'];
+  'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes','past-refuses-closure','duplicate-scan-skips-pairs','scheduler-ready-skips-dependency','scheduler-reselects-done','scheduler-refuses-ready','scheduler-checks-empty-after','scheduler-records-wrong-id','scheduler-stops-early','scheduler-erases-wrong-trace','scheduler-invents-bookkeeping-error','basis-includes-unselected','basis-omits-selected','basis-event-ignores-roots'];
 // Contract-dependency families run after the positive chain verifies. With no
 // arguments (CI) every mode and every family runs. Development runs may select
 // `positive-only`, `contracts:<family>` (implies the positive chain) and any
@@ -75,7 +76,7 @@ const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tre
 // also picks up any family added later. `jobs:<n>` (default 1) checks up to n
 // selected mutation modes concurrently, after the positive chain and its
 // families; it selects nothing by itself.
-const families={schedule:checkScheduleContracts,past:checkPastContracts,remaining:checkRemainingContracts,counter:checkCounterContracts,push:checkPushContracts,vector:checkVectorContracts,
+const families={basis:checkBasisContracts,schedule:checkScheduleContracts,past:checkPastContracts,remaining:checkRemainingContracts,counter:checkCounterContracts,push:checkPushContracts,vector:checkVectorContracts,
   scalar:checkScalarContracts,identity:checkIdentityContracts,writer:checkWriterContracts,plan:checkPlanContracts,containment:checkContainmentContracts,accepted:checkAcceptedContracts,spec:checkSpecContracts,private:checkPrivateContracts,shared:checkSharedContracts,commit:checkCommitContracts};
 const jobArgs=process.argv.slice(3).filter(arg=>arg.startsWith('jobs:')),args=process.argv.slice(3).filter(arg=>!arg.startsWith('jobs:'));
 assert(jobArgs.length<=1&&jobArgs.every(arg=>/^jobs:[1-9]\d*$/.test(arg)),'use at most one jobs:<n> with n >= 1');
@@ -105,6 +106,7 @@ if(args.length===0){for(const name of Object.keys(families))familyRuns.add(name)
 // Each mutation edits exactly one anchored site of the actual Rust source.
 function prepareMutation(mode) {
   const scopes={
+'basis-includes-unselected':'fn select_basis(', 'basis-omits-selected':'fn select_basis(', 'basis-event-ignores-roots':'fn event_basis(',
 'duplicate-scan-skips-pairs':'fn duplicate_events(', 'past-refuses-closure':'fn past(', 'past-skips-passes':'fn past(', 'past-skips-predecessors':'fn extend_past(', 'past-drops-roots':'fn past(', 'past-invents-id':'fn extend_past(', 'past-membership-always-false':'fn has_event(',
 'scheduler-records-wrong-id':'fn interpret_scheduled(', 'scheduler-stops-early':'fn interpret_scheduled(', 'scheduler-erases-wrong-trace':'fn interpret(', 'scheduler-invents-bookkeeping-error':'fn interpret_scheduled(',
 'scheduler-ready-skips-dependency':'fn ready(', 'scheduler-reselects-done':'fn choose_ready(', 'scheduler-refuses-ready':'fn choose_ready(', 'scheduler-checks-empty-after':'fn choose_ready(',
@@ -115,6 +117,9 @@ function prepareMutation(mode) {
 'plan-ignores-duplicate':'fn plan(', 'plan-swallows-classifier-error':'fn plan(', 'receive-plan-rewrites-counter':'pub fn receive(', 'invalid-forgets-reason':'fn invalid(', 'writer-index-collides':'fn writer_index(', 'native-push-discards-value':'fn push<T>','native-push-prepends':'fn push<T>','causal-validator-passes-empty':'fn validate_new(','causal-accepts-missing':'fn validate_after(', 'causal-call-passes-empty':'fn past(', 'causal-refuses-present':'fn validate_after(','plan-interprets-uncanonical':'fn plan(','scalar-count-loop-bypasses-check':'fn validate_new(','scalar-accepts-invalid':'fn validate_scalars(', 'scalar-refuses-valid':'fn validate_scalars(', 'scalar-call-passes-empty':'fn validate_new(','canonical-step-refuses':'fn canonical_step(', 'canonical-refuses':'fn canonical(','plan-keeps-old-tree':'fn with_tree(', 'plan-passes-old-tree':'fn plan(','order-key-ignores-writer':'fn event_lt(','order-chooses-largest':'fn choose_unseen(', 'order-discards-canonical':'fn plan(','edit-commit-ignores-counter':'fn with_counter(', 'edit-success-reuses-counter':'fn next_counter_after(', 'content-changes-whole-fact':'fn clone_selected_fact(', 'content-omits-facts':'fn canonical(', 'accepted-reuses-member':'fn choose_unseen(', 'accepted-wrong-canonical-push':'fn canonical_step(', 'accepted-publication-duplicates':'fn with_tree('};
   const start=original.indexOf(scopes[mode]??(mode==='identity-writer-equality'?'impl PartialEq for Writer':mode==='identity-birth-equality'?'impl PartialEq for BirthId':mode==='identity-event-equality'?'impl PartialEq for EventId':mode==='identity-forgets-gap'?'fn fact_equal(':mode.startsWith('identity-')?'fn duplicate(':mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit('));assert(start>=0);
   const edits={
+    'basis-includes-unselected':['if has_event(selected, fact.id) {','if true {'],
+    'basis-omits-selected':['if has_event(selected, fact.id) {','if false {'],
+    'basis-event-ignores-roots':['past(facts, &event.after)?','past(facts, &[])?'],
     'scheduler-records-wrong-id':['push(&mut done, event.id)?;', 'push(&mut done, EventId { writer: Writer::Alice, counter: 0 })?;'],
     'scheduler-stops-early':['for _ in 0..facts.len() {', 'for _ in 0..0 {'],
     'scheduler-erases-wrong-trace':['let pair = interpret_scheduled(facts)?;', 'let pair = interpret_scheduled(&[])?;'],
@@ -199,6 +204,9 @@ function prepareMutation(mode) {
   return mutant;
 }
 const theorems={
+  'basis-includes-unselected':'EditBasis.actual_basis_is_exact_filter',
+  'basis-omits-selected':'EditBasis.actual_basis_is_exact_filter',
+  'basis-event-ignores-roots':'EditBasis.closed_event_basis_is_exact',
   'scheduler-ready-skips-dependency':'EditSchedule.readiness_is_exact',
   'scheduler-reselects-done':'EditSchedule.scheduler_choice_is_exact',
   'scheduler-refuses-ready':'EditSchedule.scheduler_choice_is_exact',
@@ -305,7 +313,7 @@ async function check(mode) {
   // Each mode has its own Cargo target: hax names its metadata by package, not by
   // source tree, so crate copies sharing a target read each other's extraction.
   const env={...process.env,CARGO_TARGET_DIR:path.join(root,'target','edit-proof-check','modes',mode)};
-  const nativeArgs=['test','--offline','--locked','-p','nickel-crdt',...((mode.startsWith('past-')||mode.startsWith('scheduler-'))?['--lib','causal_basis_tests']:['--test','edit_admit'])];
+  const nativeArgs=['test','--offline','--locked','-p','nickel-crdt',...(mode.startsWith('basis-')?['--lib','basis_filter_tests']:((mode.startsWith('past-')||mode.startsWith('scheduler-'))?['--lib','causal_basis_tests']:['--test','edit_admit']))];
   const native=await runAsync('edit native '+mode,'cargo',nativeArgs,crate,{env});
   await fs.writeFile(path.join(output,mode+'.native.log'),native.log);
   if(mode==='positive')assert.equal(native.status,0,native.log);
@@ -340,8 +348,8 @@ async function check(mode) {
   const extractionChanged=recorded['Nickel_crdt.Edit.fst']!==digest(code);
   // Counter calculation/installation/wiring controls need only their owning module. The positive path still
   // checks both the public Spec surface and the existing ghost causal-rank family.
-  const proofRoot=mode==='positive'?'Nickel.Spec.fst':mode.startsWith('scheduler-')?'Nickel.EditSchedule.fst':['past-refuses-closure','duplicate-scan-skips-pairs'].includes(mode)?'Nickel.EditPastTotal.fst':mode.startsWith('past-')?'Nickel.EditPast.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
-  const checked=await verify({label:mode,dir:proof,roots:(mode==='positive'?['Nickel.Spec.fst','Nickel.EditCausal.fst','Nickel.EditPastTotal.fst','Nickel.EditSchedule.fst']:[proofRoot]).map(name=>path.join(proof,name)),fstar,models,modelCache});
+  const proofRoot=mode==='positive'?'Nickel.Spec.fst':mode.startsWith('basis-')?'Nickel.EditBasis.fst':mode.startsWith('scheduler-')?'Nickel.EditSchedule.fst':['past-refuses-closure','duplicate-scan-skips-pairs'].includes(mode)?'Nickel.EditPastTotal.fst':mode.startsWith('past-')?'Nickel.EditPast.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
+  const checked=await verify({label:mode,dir:proof,roots:(mode==='positive'?['Nickel.Spec.fst','Nickel.EditCausal.fst','Nickel.EditPastTotal.fst','Nickel.EditSchedule.fst','Nickel.EditBasis.fst']:[proofRoot]).map(name=>path.join(proof,name)),fstar,models,modelCache});
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {
     assert.equal(checked.status,0,checked.log);

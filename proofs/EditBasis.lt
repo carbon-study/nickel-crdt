@@ -1,0 +1,117 @@
+import Rust_primitives
+import Core_models
+import FStar.Pervasives
+import FStar.Classical
+import Nickel.Vector
+import Nickel.LoopUtil
+import Nickel.EditAccepted
+import Nickel.EditPast
+import Native = Nickel_crdt.Edit
+import Seq = FStar.Seq
+import Result = Core_models.Result
+
+// An independent storage-order filter, preserving the entire fact value.
+function! selected_prefix(facts: t_Slice(Native.t_Fact), selected: t_Slice(Native.t_EventId),
+  finish: nat where finish <= Seq.length(facts), output: Seq.seq(Native.t_Fact)): Type0
+  decreases finish
+{
+  if finish ==? 0 { output == Seq.empty }
+  else {
+    const fact = Seq.index(facts, finish - 1);
+    (member(selected, fact.f_id) and
+      (exists(before: Seq.seq(Native.t_Fact)) .
+        selected_prefix(facts, selected, finish - 1, before) and
+        output == Seq.append(before, Seq.create(1, fact)))) or
+    (not member(selected, fact.f_id) and selected_prefix(facts, selected, finish - 1, output))
+  }
+}
+function basis_prefix(facts: t_Slice(Native.t_Fact), selected: t_Slice(Native.t_EventId),
+  at: nat, basis: facts_vec): Type0 {
+  at <= Seq.length(facts) and
+  (at <= Seq.length(facts) ==> selected_prefix(facts, selected, at, Alloc.Vec.impl_1__as_slice(basis))) and
+  Seq.length(Alloc.Vec.impl_1__as_slice(basis)) <= at
+}
+proof actual_basis_is_exact_filter(facts: t_Slice(Native.t_Fact), selected: t_Slice(Native.t_EventId)): unit
+  gives Nickel.LoopUtil.result_safe(
+    ((basis: facts_vec) => selected_prefix(facts, selected, Seq.length(facts), Alloc.Vec.impl_1__as_slice(basis))),
+    ((_: Native.t_Error) => Prims.l_False), Native.select_basis(facts, selected))
+{
+  proof clone(fact: Native.t_Fact): unit
+    gives Native.clone_selected_fact(fact) == fact
+    hint Native.clone_selected_fact(fact)
+  {
+    selected_fact_is_exact(fact);
+    assert(Native.clone_selected_fact(fact) == fact) by {
+      Tactics.prune("Nickel_crdt.Edit.clone_selected_fact");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  Nickel.Vector.empty_vector_contents<#Native.t_Fact>();
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
+    basis_prefix(facts, selected), ((basis: facts_vec) => basis),
+    ((basis: facts_vec) => selected_prefix(facts, selected, Seq.length(facts), Alloc.Vec.impl_1__as_slice(basis))),
+    ((_: Native.t_Error) => Prims.l_False));
+  assert(Nickel.LoopUtil.result_safe(
+    ((basis: facts_vec) => selected_prefix(facts, selected, Seq.length(facts), Alloc.Vec.impl_1__as_slice(basis))),
+    ((_: Native.t_Error) => Prims.l_False), Native.select_basis(facts, selected))) by {
+    Tactics.prune("Nickel_crdt.Edit.clone_selected_fact");
+    Tactics.prune("Nickel_crdt.Edit.has_event");
+    Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.prune("Nickel.LoopUtil.step_safe");
+    Tactics.prune("Nickel.LoopUtil.output_safe");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+import Nickel.EditPastTotal
+function exact_event_basis(facts: facts_vec, roots: t_Slice(Native.t_EventId),
+  result: Result.t_Result((ids_vec, facts_vec), Native.t_Error)): Type0 {
+  match result {
+    Result.Result_Ok((selected, basis)) =>
+      exact_past_result(facts, roots, Result.Result_Ok(selected)) and
+      selected_prefix(Alloc.Vec.impl_1__as_slice(facts), Alloc.Vec.impl_1__as_slice(selected),
+        Seq.length(Alloc.Vec.impl_1__as_slice(facts)), Alloc.Vec.impl_1__as_slice(basis)),
+    Result.Result_Err(_) => Prims.l_False
+  }
+}
+// This is the actual first stage called by interpret_event, not a second
+// implementation of past or a selection assumption supplied by the caller.
+proof closed_event_basis_is_exact(facts: facts_vec, event: Native.t_Fact): unit
+  takes history_references_present(facts)
+  takes Native.duplicate_events(Alloc.Vec.impl_1__as_slice(event.f_after)) == false
+  takes all_ids(Alloc.Vec.impl_1__as_slice(event.f_after), fact_id_present(facts))
+  gives exact_event_basis(facts, Alloc.Vec.impl_1__as_slice(event.f_after),
+    Native.event_basis(Alloc.Vec.impl_1__as_slice(facts), event))
+{
+  const input = Alloc.Vec.impl_1__as_slice(facts);
+  const roots = Alloc.Vec.impl_1__as_slice(event.f_after);
+  proof shape(): unit
+    gives result_shape(Native.past(input, roots))
+  { () };
+  shape();
+  scanned_roots_compute_exact_past(facts, roots);
+  proof each(selected: ids_vec): unit
+    gives result_shape(Native.select_basis(input, Alloc.Vec.impl_1__as_slice(selected))) and Nickel.LoopUtil.result_safe(
+      ((basis: facts_vec) => selected_prefix(input, Alloc.Vec.impl_1__as_slice(selected), Seq.length(input), Alloc.Vec.impl_1__as_slice(basis))),
+      ((_: Native.t_Error) => Prims.l_False), Native.select_basis(input, Alloc.Vec.impl_1__as_slice(selected)))
+    hint Native.select_basis(input, Alloc.Vec.impl_1__as_slice(selected))
+  {
+    actual_basis_is_exact_filter(input, Alloc.Vec.impl_1__as_slice(selected));
+    proof shape(): unit
+      gives result_shape(Native.select_basis(input, Alloc.Vec.impl_1__as_slice(selected)))
+    { () };
+    shape();
+    assert(result_shape(Native.select_basis(input, Alloc.Vec.impl_1__as_slice(selected))) and Nickel.LoopUtil.result_safe(
+      ((basis: facts_vec) => selected_prefix(input, Alloc.Vec.impl_1__as_slice(selected), Seq.length(input), Alloc.Vec.impl_1__as_slice(basis))),
+      ((_: Native.t_Error) => Prims.l_False), Native.select_basis(input, Alloc.Vec.impl_1__as_slice(selected)))) by {
+      Tactics.prune("Nickel_crdt.Edit.select_basis");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  assert(exact_event_basis(facts, roots, Native.event_basis(input, event))) by {
+    Tactics.prune("Nickel_crdt.Edit.past");
+    Tactics.prune("Nickel_crdt.Edit.select_basis");
+    Tactics.smt_sync'(1, 1)
+  }
+}
