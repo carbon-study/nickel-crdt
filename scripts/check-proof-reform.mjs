@@ -47,6 +47,13 @@ export function checkProofReformFence() {
     assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EditSchedule.causal_trace")'),new RegExp(name+' reform:'));
   for(const name of ['fixture','EditCausal','EditPast'])
     assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EditSchedule.no_eligible_prefix")'),new RegExp(name+' reform:'));
+  for(const ghost of ['Nickel.EditPast.ancestor','Nickel.EditPast.fact_id_present','Nickel.EditPast.exact_past_result','Nickel.EditPastTotal.shared_ancestry','Nickel.EditPastTotal.same_members']) {
+    assertReformedSource('EditPastTotal','Tactics.prune('+JSON.stringify(ghost)+')');
+    // EditSchedule may also prune `ancestor` (its cut-order boundary, #83); every
+    // other ghost here is EditPastTotal-only.
+    for(const name of ['fixture','EditPast','EditSchedule','EditCausal'].filter(name=>!(name==='EditSchedule'&&ghost==='Nickel.EditPast.ancestor')))
+      assert.throws(()=>assertReformedSource(name,'Tactics.prune('+JSON.stringify(ghost)+')'),new RegExp(name+' reform:'));
+  }
   for(const native of ['has_event','ready','choose_ready','interpret','interpret_event','interpret_scheduled']) {
     assertReformedSource('EditSchedule','Tactics.prune("Nickel_crdt.Edit.'+native+'")');
     assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Nickel_crdt.Edit.'+native+'")'),/fixture reform:/);

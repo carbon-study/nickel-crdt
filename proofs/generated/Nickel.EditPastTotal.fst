@@ -247,3 +247,120 @@ let scanned_roots_compute_exact_past (facts: facts_vec) (roots: t_Slice Native.t
     Tactics.prune "Nickel_crdt.Edit.past";
     Tactics.smt_sync' 1 1
   )
+let same_parents (into: facts_vec) (other: facts_vec) (id: Native.t_EventId) : Type0 =
+  forall (older: Native.t_EventId) . Nickel.EditCausal.causal_edge into id older <==> Nickel.EditCausal.causal_edge other id older
+
+let shared_ancestry (into: facts_vec) (other: facts_vec) (roots: t_Slice Native.t_EventId) : Type0 =
+  forall (id: Native.t_EventId) . ancestor into roots id ==> same_parents into other id
+
+let rec shared_path_stays_shared (into: facts_vec) (other: facts_vec) (roots: t_Slice Native.t_EventId) (start: Native.t_EventId) (steps: Prims.list Native.t_EventId) (finish: Native.t_EventId) : Lemma (requires (shared_ancestry into other roots /\ ancestor into roots start /\ ancestor other roots start /\ (Nickel.EditCausal.causal_path into start steps finish \/ Nickel.EditCausal.causal_path other start steps finish))) (ensures (ancestor into roots finish /\ ancestor other roots finish)) (decreases steps) =
+  match steps with | Prims.Nil -> begin () end | Prims.Cons next rest -> begin
+    assert (Nickel.EditCausal.causal_edge into start next /\ Nickel.EditCausal.causal_edge other start next) by (
+      Tactics.prune "Nickel.EditPast.ancestor";
+      Tactics.smt_sync' 1 1
+    );
+    ancestor_follows_edge into roots start next;
+    ancestor_follows_edge other roots start next;
+    assert (ancestor into roots next /\ ancestor other roots next /\ (Nickel.EditCausal.causal_path into next rest finish \/ Nickel.EditCausal.causal_path other next rest finish)) by (
+      Tactics.prune "Nickel.EditPast.ancestor";
+      Tactics.prune "Nickel.EditPastTotal.shared_ancestry";
+      Tactics.smt_sync' 1 1
+    );
+    shared_path_stays_shared into other roots next rest finish;
+    assert (ancestor into roots finish /\ ancestor other roots finish) by (
+      Tactics.prune "Nickel.EditPast.ancestor";
+      Tactics.prune "Nickel.EditPastTotal.shared_ancestry";
+      Tactics.smt_sync' 1 1
+    )
+  end
+
+let shared_ancestry_agrees (into: facts_vec) (other: facts_vec) (roots: t_Slice Native.t_EventId) : Lemma (requires (shared_ancestry into other roots)) (ensures (forall (id: Native.t_EventId) . ancestor into roots id <==> ancestor other roots id)) =
+  let each_path (root: Native.t_EventId) (steps: Prims.list Native.t_EventId) (id: Native.t_EventId) : Lemma (requires (member roots root /\ (Nickel.EditCausal.causal_path into root steps id \/ Nickel.EditCausal.causal_path other root steps id))) (ensures (ancestor into roots id /\ ancestor other roots id)) =
+    assert (Nickel.EditCausal.causal_path into root Prims.Nil root);
+    assert (Nickel.EditCausal.causal_path other root Prims.Nil root);
+    shared_path_stays_shared into other roots root steps id;
+    assert (ancestor into roots id /\ ancestor other roots id) by (
+      Tactics.prune "Nickel.EditPast.ancestor";
+      Tactics.smt_sync' 1 1
+    )
+  in
+  FStar.Classical.forall_intro_3 (FStar.Classical.move_requires_3 each_path)
+
+// Receiver-facing premise: every fact in into's past of roots is also stored in other.
+let shared_past_facts (into: facts_vec) (other: facts_vec) (roots: t_Slice Native.t_EventId) : Type0 =
+  forall (fact: Native.t_Fact) . fact_present (Alloc.Vec.impl_1__as_slice into) fact /\ ancestor into roots fact.f_id ==> fact_present (Alloc.Vec.impl_1__as_slice other) fact
+
+let rec path_end_is_present (facts: facts_vec) (start: Native.t_EventId) (steps: Prims.list Native.t_EventId) (finish: Native.t_EventId) : Lemma (requires (history_references_present facts /\ fact_id_present facts start /\ Nickel.EditCausal.causal_path facts start steps finish)) (ensures fact_id_present facts finish) (decreases steps) =
+  match steps with | Prims.Nil -> begin () end | Prims.Cons next rest -> begin
+    assert (fact_id_present facts next);
+    path_end_is_present facts next rest finish;
+    assert (fact_id_present facts finish) by (
+      Tactics.prune "Nickel.EditPast.fact_id_present";
+      Tactics.smt_sync' 1 1
+    )
+  end
+
+let ancestor_is_present (facts: facts_vec) (roots: t_Slice Native.t_EventId) (id: Native.t_EventId) : Lemma (requires (history_references_present facts /\ all_ids roots (fact_id_present facts) /\ ancestor facts roots id)) (ensures fact_id_present facts id) =
+  let each_path (root: Native.t_EventId) (steps: Prims.list Native.t_EventId) : Lemma (requires (member roots root /\ Nickel.EditCausal.causal_path facts root steps id)) (ensures fact_id_present facts id) =
+    path_end_is_present facts root steps id;
+    assert (fact_id_present facts id) by (
+      Tactics.prune "Nickel.EditPast.fact_id_present";
+      Tactics.smt_sync' 1 1
+    )
+  in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_path)
+
+let unique_present_facts_agree (facts: facts_vec) (left: Native.t_Fact) (right: Native.t_Fact) : Lemma (requires (ids_unique facts /\ fact_present (Alloc.Vec.impl_1__as_slice facts) left /\ fact_present (Alloc.Vec.impl_1__as_slice facts) right /\ left.f_id == right.f_id)) (ensures left == right) =
+  let each (i: nat) (j: nat) : Lemma (requires (i < Seq.length (Alloc.Vec.impl_1__as_slice facts) /\ j < Seq.length (Alloc.Vec.impl_1__as_slice facts) /\ Seq.index (Alloc.Vec.impl_1__as_slice facts) i == left /\ Seq.index (Alloc.Vec.impl_1__as_slice facts) j == right)) (ensures left == right) =
+    unique_slice_nat_positions (Alloc.Vec.impl_1__as_slice facts) i j
+  in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each)
+
+let whole_facts_give_shared_ancestry (into: facts_vec) (other: facts_vec) (roots: t_Slice Native.t_EventId) : Lemma (requires (history_references_present into /\ all_ids roots (fact_id_present into) /\ ids_unique other /\ shared_past_facts into other roots)) (ensures shared_ancestry into other roots) =
+  let each (id: Native.t_EventId) (older: Native.t_EventId) : Lemma (requires (ancestor into roots id)) (ensures (Nickel.EditCausal.causal_edge into id older <==> Nickel.EditCausal.causal_edge other id older)) =
+    ancestor_is_present into roots id;
+    assert (fact_id_present into id) by (
+      Tactics.prune "Nickel.EditPast.fact_id_present";
+      Tactics.smt_sync' 1 1
+    );
+    let backward (fact: Native.t_Fact) (stored: Native.t_Fact) : Lemma (requires (fact_present (Alloc.Vec.impl_1__as_slice other) fact /\ fact.f_id == id /\ fact_present (Alloc.Vec.impl_1__as_slice into) stored /\ stored.f_id == id)) (ensures fact == stored) =
+      unique_present_facts_agree other fact stored
+    in
+    FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 backward)
+  in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each)
+
+let same_members (left: Result.t_Result ids_vec Native.t_Error) (right: Result.t_Result ids_vec Native.t_Error) : Type0 =
+  match (left, right) with | (Result.Result_Ok l, Result.Result_Ok r) -> begin forall (id: Native.t_EventId) . member (Alloc.Vec.impl_1__as_slice l) id <==> member (Alloc.Vec.impl_1__as_slice r) id end | _ -> begin Prims.l_True end
+
+let both_ok (left: Result.t_Result ids_vec Native.t_Error) (right: Result.t_Result ids_vec Native.t_Error) : Type0 =
+  match (left, right) with | (Result.Result_Ok _, Result.Result_Ok _) -> begin Prims.l_True end | _ -> begin Prims.l_False end
+
+let shared_ancestry_selects_same_past (into: facts_vec) (other: facts_vec) (roots: t_Slice Native.t_EventId) : Lemma (requires (shared_ancestry into other roots)) (ensures same_members (Native.past (Alloc.Vec.impl_1__as_slice into) roots) (Native.past (Alloc.Vec.impl_1__as_slice other) roots)) =
+  successful_past_is_exact_closure into roots;
+  successful_past_is_exact_closure other roots;
+  shared_ancestry_agrees into other roots;
+  assert (exact_past_result into roots (Native.past (Alloc.Vec.impl_1__as_slice into) roots) /\ exact_past_result other roots (Native.past (Alloc.Vec.impl_1__as_slice other) roots) /\ (forall (id: Native.t_EventId) . ancestor into roots id <==> ancestor other roots id)) by (
+    Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.prune "Nickel.EditPast.exact_past_result";
+    Tactics.prune "Nickel.EditPast.ancestor";
+    Tactics.smt_sync' 1 1
+  )
+
+// Selected-ID agreement only: interpreted placement equality remains a separate obligation.
+let two_closed_receivers_select_same_past (into: facts_vec) (other: facts_vec) (roots: t_Slice Native.t_EventId) : Lemma (requires (Nickel.EditWellFormed.facts_causally_closed into /\ Nickel.EditWellFormed.facts_causally_closed other /\ Nickel.EditWellFormed.dependencies_present (Alloc.Vec.impl_1__as_slice into) roots /\ Nickel.EditWellFormed.dependencies_present (Alloc.Vec.impl_1__as_slice other) roots /\ unique_selection roots /\ ids_unique other /\ shared_past_facts into other roots)) (ensures (both_ok (Native.past (Alloc.Vec.impl_1__as_slice into) roots) (Native.past (Alloc.Vec.impl_1__as_slice other) roots) /\ same_members (Native.past (Alloc.Vec.impl_1__as_slice into) roots) (Native.past (Alloc.Vec.impl_1__as_slice other) roots))) =
+  assert (history_references_present into);
+  assert (all_ids roots (fact_id_present into));
+  whole_facts_give_shared_ancestry into other roots;
+  assert (shared_ancestry into other roots) by (
+    Tactics.prune "Nickel.EditPastTotal.shared_ancestry";
+    Tactics.smt_sync' 1 1
+  );
+  causally_closed_history_computes_exact_past into roots;
+  causally_closed_history_computes_exact_past other roots;
+  shared_ancestry_selects_same_past into other roots;
+  assert (both_ok (Native.past (Alloc.Vec.impl_1__as_slice into) roots) (Native.past (Alloc.Vec.impl_1__as_slice other) roots) /\ same_members (Native.past (Alloc.Vec.impl_1__as_slice into) roots) (Native.past (Alloc.Vec.impl_1__as_slice other) roots)) by (
+    Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.prune "Nickel.EditPastTotal.same_members";
+    Tactics.smt_sync' 1 1
+  )

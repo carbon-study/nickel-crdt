@@ -1294,6 +1294,56 @@ Controls:
   `scanned_roots_compute_exact_past`.
 - **Fence:** it admits the `duplicate_events` prune for EditPastTotal only.
 
+### two receivers select the same past
+
+`two_closed_receivers_select_same_past` proves that two receivers holding
+different extra history select the same IDs from the actual `past` for the same
+roots. The premises are explicit:
+- both fact vectors are causally closed, and the roots are present in both;
+- the roots are unique;
+- every fact in the first receiver's past of the roots is stored, as a whole
+  fact, in the second receiver (`shared_past_facts`);
+- event IDs are unique in the second receiver.
+
+It does not assume equal ancestor sets. Under these premises both `past` calls
+succeed and their selections have the same members.
+
+The proof has three layers:
+- **Transfer (edge level).** `shared_path_stays_shared` and
+  `shared_ancestry_agrees`: if every ancestor in the first history has the same
+  `causal_edge` successors in the second, then `ancestor` agrees on both. The
+  induction runs along the path in either history.
+- **Whole facts to edges.** `whole_facts_give_shared_ancestry` derives that edge
+  premise. An ancestor is stored in the first history (`ancestor_is_present`, by
+  causal closure). Its fact is then stored in the second, and uniqueness there
+  makes it the only fact with that ID (`unique_present_facts_agree`). Only the
+  second receiver's uniqueness is needed.
+- **Actual `past`.** `shared_ancestry_selects_same_past` uses
+  `successful_past_is_exact_closure` for each receiver with the `past` body
+  withheld. `causally_closed_history_computes_exact_past` supplies success.
+
+Boundary: this is the **selected-ID** part of author reconstruction only.
+`interpret` also filters whole facts into the basis and rebuilds the author tree.
+Equal selected sets do not establish equal interpreted placements or node
+observations. That remainder and #42's schedule projection stay open.
+
+Controls:
+- **Contract removal:** 14 `past-shared-*`, `past-agreement-*`, `past-path-end-*`,
+  `past-ancestor-presence-*`, `past-unique-facts-*`, `past-whole-facts-*`,
+  `past-selection-*` and `past-receivers-*` cases. Each removes one link and
+  must reject ordinarily at that link's owner.
+- **Native:** `two_receivers_with_different_extras_select_the_same_past` builds
+  receivers through public admission, covering four extra sets and every causal
+  delivery order. It compares each actual `past(e.after)` with the independent
+  worklist closure, not only with the other receiver. It also checks the
+  contamination witness: the extras are stored but never selected. Under the
+  existing `past-*` Rust mutants this test fails while authoring its fixture,
+  because admission itself calls `past`. It is therefore not counted as
+  discriminating those mutants; exact `past` keeps its existing owners.
+- **Fence:** EditPastTotal alone may prune `ancestor`, `fact_id_present`,
+  `exact_past_result`, `shared_ancestry` and `same_members`, at query-local
+  composition steps, so a removed link cannot be rediscovered by unfolding.
+
 ### first eligible event in the causal scheduler
 
 `EditSchedule.lt` connects two actual native calls to their selection contracts:
