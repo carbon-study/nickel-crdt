@@ -35,12 +35,21 @@ export function checkProofReformFence() {
     assert.throws(()=>assertReformedSource('fixture','Tactics.prune('+JSON.stringify(namespace)+')'),/fixture reform:/);
   }
   assertReformedSource('EditSchedule','Tactics.prune("Nickel.EditSchedule.no_eligible_prefix")');
+  assertReformedSource('EditSchedule','Tactics.prune("Nickel.EditSchedule.causal_trace")');
+  assertReformedSource('EditSchedule','Tactics.prune("Nickel.EditPastTotal.unique_selection")');
+  for(const name of ['fixture','EditCausal','EditPast'])
+    assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EditPastTotal.unique_selection")'),new RegExp(name+' reform:'));
+  for(const name of ['fixture','EditCausal','EditPast'])
+    assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EditSchedule.causal_trace")'),new RegExp(name+' reform:'));
   for(const name of ['fixture','EditCausal','EditPast'])
     assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EditSchedule.no_eligible_prefix")'),new RegExp(name+' reform:'));
-  for(const native of ['has_event','ready','choose_ready']) {
+  for(const native of ['has_event','ready','choose_ready','interpret','interpret_event','interpret_scheduled']) {
     assertReformedSource('EditSchedule','Tactics.prune("Nickel_crdt.Edit.'+native+'")');
     assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Nickel_crdt.Edit.'+native+'")'),/fixture reform:/);
   }
+  for(const native of ['interpret_event','interpret_scheduled'])
+    for(const name of ['EditCausal','EditPast'])
+      assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel_crdt.Edit.'+native+'")'),new RegExp(name+' reform:'));
   assertReformedSource('EditPastTotal','Tactics.prune("Nickel_crdt.Edit.validate_after")');
   assertReformedSource('EditPastTotal','Tactics.prune("Nickel_crdt.Edit.duplicate_events")');
   assert.throws(()=>assertReformedSource('EditPast','Tactics.prune("Nickel_crdt.Edit.duplicate_events")'),/EditPast reform:/);

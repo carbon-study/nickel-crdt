@@ -229,3 +229,260 @@ proof ranked_incomplete_scan_progress(facts: facts_vec, done: t_Slice(Native.t_E
     Tactics.smt_sync'(1, 1)
   }
 }
+
+import Nickel.EditPastTotal
+// The event at each trace position comes from storage; every direct predecessor
+// occurs at a strictly earlier position. This records order, not just closure.
+function causal_position(facts: t_Slice(Native.t_Fact), ids: t_Slice(Native.t_EventId), at: FStar.Fin.under(Seq.length(ids))): Type0 {
+    exists(index: FStar.Fin.under(Seq.length(facts))) .
+      Seq.index(facts, index).f_id == Seq.index(ids, at) and
+      all_ids(Alloc.Vec.impl_1__as_slice(Seq.index(facts, index).f_after),
+        ((id: Native.t_EventId) => not absent_prefix(ids, id, at)))
+}
+function causal_trace(facts: t_Slice(Native.t_Fact), ids: t_Slice(Native.t_EventId)): Type0 {
+  forall(at: FStar.Fin.under(Seq.length(ids))) . causal_position(facts, ids, at)
+}
+proof append_retains_earlier(before: t_Slice(Native.t_EventId), id: Native.t_EventId, wanted: Native.t_EventId, finish: nat where finish <= Seq.length(before)): unit
+  takes Seq.length(before) < max_usize
+  takes not absent_prefix(before, wanted, finish)
+  gives not absent_prefix(Seq.append(before, Seq.create(1, id)), wanted, finish)
+{
+  const next = Seq.append(before, Seq.create(1, id));
+  proof impossible(dummy: unit): unit
+    takes absent_prefix(next, wanted, finish)
+    gives Prims.l_False
+  {
+    proof each(i: usize where v(i) < Seq.length(before)): unit
+      gives v(i) < finish ==> not (Seq.index(before, v(i)) == wanted)
+    {
+      assert(v(i) < Seq.length(next));
+      assert(Seq.index(next, v(i)) == Seq.index(before, v(i)));
+      ()
+    };
+    FStar.Classical.forall_intro(each);
+    assert(absent_prefix(before, wanted, finish));
+    ()
+  };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(impossible));
+  ()
+}
+proof eligible_append_keeps_causal_trace(facts: t_Slice(Native.t_Fact), before: t_Slice(Native.t_EventId), index: nat where index < Seq.length(facts)): unit
+  takes Seq.length(before) < max_usize
+  takes causal_trace(facts, before)
+  takes eligible(facts, before, index)
+  gives causal_trace(facts, Seq.append(before, Seq.create(1, Seq.index(facts, index).f_id)))
+{
+  const fact = Seq.index(facts, index);
+  const next = Seq.append(before, Seq.create(1, fact.f_id));
+  proof position(at: FStar.Fin.under(Seq.length(next))): unit
+    gives causal_position(facts, next, at)
+  {
+    if at < Seq.length(before) {
+      assert(causal_position(facts, before, at));
+      proof transfer(k: FStar.Fin.under(Seq.length(facts))): unit
+        takes Seq.index(facts, k).f_id == Seq.index(before, at)
+        takes all_ids(Alloc.Vec.impl_1__as_slice(Seq.index(facts, k).f_after),
+          ((id: Native.t_EventId) => not absent_prefix(before, id, at)))
+        gives Seq.index(facts, k).f_id == Seq.index(next, at) and
+          all_ids(Alloc.Vec.impl_1__as_slice(Seq.index(facts, k).f_after),
+            ((id: Native.t_EventId) => not absent_prefix(next, id, at)))
+      {
+        proof dependency(j: usize where v(j) < Seq.length(Alloc.Vec.impl_1__as_slice(Seq.index(facts, k).f_after))): unit
+          gives not absent_prefix(next, Seq.index(Alloc.Vec.impl_1__as_slice(Seq.index(facts, k).f_after), v(j)), at)
+        {
+          append_retains_earlier(before, fact.f_id, Seq.index(Alloc.Vec.impl_1__as_slice(Seq.index(facts, k).f_after), v(j)), at)
+        };
+        FStar.Classical.forall_intro(dependency);
+        ()
+      };
+      FStar.Classical.forall_intro(FStar.Classical.move_requires(transfer));
+      ()
+    } else {
+      assert(at == Seq.length(before));
+      proof dependency(j: usize where v(j) < Seq.length(Alloc.Vec.impl_1__as_slice(fact.f_after))): unit
+        gives not absent_prefix(next, Seq.index(Alloc.Vec.impl_1__as_slice(fact.f_after), v(j)), at)
+      {
+        append_retains_earlier(before, fact.f_id, Seq.index(Alloc.Vec.impl_1__as_slice(fact.f_after), v(j)), at)
+      };
+      FStar.Classical.forall_intro(dependency);
+      assert(Seq.index(facts, index).f_id == Seq.index(next, at));
+      assert(all_ids(Alloc.Vec.impl_1__as_slice(Seq.index(facts, index).f_after),
+        ((id: Native.t_EventId) => not absent_prefix(next, id, at))));
+      ()
+    }
+  };
+  FStar.Classical.forall_intro(position);
+  ()
+}
+
+import Result = Core_models.Result
+unfold type operations_vec = Alloc.Vec.t_Vec((Native.t_EventId, Alloc.Vec.t_Vec(Native.t_Node, Alloc.Alloc.t_Global)), Alloc.Alloc.t_Global)
+unfold type schedule_state = (ids_vec, operations_vec, Native.t_Tree)
+function schedule_done(state: schedule_state): (Native.t_Tree, ids_vec) {
+  match state { (done, _, tree) => (tree, done) }
+}
+function schedule_invariant(facts: t_Slice(Native.t_Fact), at: nat, state: schedule_state): Type0 {
+  match state { (done, _, _) => Seq.length(Alloc.Vec.impl_1__as_slice(done)) == at and unique_selection(Alloc.Vec.impl_1__as_slice(done)) and causal_trace(facts, Alloc.Vec.impl_1__as_slice(done)) }
+}
+function complete_causal_trace(facts: t_Slice(Native.t_Fact), pair: (Native.t_Tree, ids_vec)): Type0 {
+  match pair { (_, done) => Seq.length(Alloc.Vec.impl_1__as_slice(done)) == Seq.length(facts) and unique_selection(Alloc.Vec.impl_1__as_slice(done)) and causal_trace(facts, Alloc.Vec.impl_1__as_slice(done)) }
+}
+// This contract describes exactly the append used by the outer loop.
+function choice_keeps_trace(facts: t_Slice(Native.t_Fact), before: t_Slice(Native.t_EventId) where Seq.length(before) < max_usize): Type0 {
+match Native.choose_ready(facts, before) {
+    Option.Option_None => Prims.l_True,
+    Option.Option_Some(index) => v(index) < Seq.length(facts) and
+      (v(index) < Seq.length(facts) ==> unique_selection(Seq.append(before, Seq.create(1, Seq.index(facts, v(index)).f_id))) and
+        causal_trace(facts, Seq.append(before, Seq.create(1, Seq.index(facts, v(index)).f_id))))
+  }
+}
+proof chosen_append_keeps_trace(facts: t_Slice(Native.t_Fact), before: t_Slice(Native.t_EventId)): unit
+  takes Seq.length(before) < max_usize
+  takes unique_selection(before) and causal_trace(facts, before)
+  gives choice_keeps_trace(facts, before)
+  hint Native.choose_ready(facts, before)
+{
+  scheduler_choice_is_exact(facts, before);
+  match Native.choose_ready(facts, before) {
+    Option.Option_None => (),
+    Option.Option_Some(index) => if v(index) < Seq.length(facts) {
+      eligible_append_keeps_causal_trace(facts, before, v(index));
+      fresh_append_is_unique(before, Seq.index(facts, v(index)).f_id)
+    } else { () }
+  }
+}
+proof empty_trace_is_valid(facts: t_Slice(Native.t_Fact)): unit
+  gives unique_selection(Seq.empty) and causal_trace(facts, Seq.empty)
+{ () }
+proof successful_schedule_is_once_only_and_causal(facts: t_Slice(Native.t_Fact)): unit
+  gives Nickel.LoopUtil.result_safe(complete_causal_trace(facts), ((_: Native.t_Error) => Prims.l_True), Native.interpret_scheduled(facts))
+{
+  proof event_shape(event: Native.t_Fact, operations: t_Slice((Native.t_EventId, Alloc.Vec.t_Vec(Native.t_Node, Alloc.Alloc.t_Global))), tree: Native.t_Tree): unit
+    gives result_shape(Native.interpret_event(facts, event, operations, tree))
+    hint Native.interpret_event(facts, event, operations, tree)
+  { () };
+  proof choice_shape(done: t_Slice(Native.t_EventId)): unit
+    gives Native.choose_ready(facts, done) == Option.Option_None or (exists(i: usize) . Native.choose_ready(facts, done) == Option.Option_Some(i))
+    hint Native.choose_ready(facts, done)
+  { () };
+  empty_trace_is_valid(facts);
+  Nickel.Vector.empty_vector_contents<#Native.t_EventId>();
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
+    schedule_invariant(facts), schedule_done, complete_causal_trace(facts), ((_: Native.t_Error) => Prims.l_True));
+  assert(Nickel.LoopUtil.result_safe(complete_causal_trace(facts), ((_: Native.t_Error) => Prims.l_True), Native.interpret_scheduled(facts))) by {
+    Tactics.prune("Nickel.EditSchedule.causal_trace");
+    Tactics.prune("Nickel_crdt.Edit.interpret_event");
+    Tactics.prune("Nickel_crdt.Edit.choose_ready");
+    Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.prune("Nickel.LoopUtil.step_safe");
+    Tactics.prune("Nickel.LoopUtil.output_safe");
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+proof causal_trace_uses_stored_ids(facts: facts_vec, done: ids_vec): unit
+  takes causal_trace(Alloc.Vec.impl_1__as_slice(facts), Alloc.Vec.impl_1__as_slice(done))
+  gives all_ids(Alloc.Vec.impl_1__as_slice(done), fact_id_present(facts))
+{
+  const input = Alloc.Vec.impl_1__as_slice(facts);
+  const ids = Alloc.Vec.impl_1__as_slice(done);
+  proof each(at: usize where v(at) < Seq.length(ids)): unit
+    gives fact_id_present(facts, Seq.index(ids, v(at)))
+  {
+    assert(causal_position(input, ids, v(at)));
+    assert(exists(index: FStar.Fin.under(Seq.length(input))) . Seq.index(input, index).f_id == Seq.index(ids, v(at)) and
+      all_ids(Alloc.Vec.impl_1__as_slice(Seq.index(input, index).f_after),
+        ((id: Native.t_EventId) => not absent_prefix(ids, id, v(at)))));
+    assert(exists(index: FStar.Fin.under(Seq.length(input))) . Seq.index(input, index).f_id == Seq.index(ids, v(at)));
+    proof stored(index: FStar.Fin.under(Seq.length(input))): unit
+      takes Seq.index(input, index).f_id == Seq.index(ids, v(at))
+      gives fact_id_present(facts, Seq.index(ids, v(at)))
+    {
+      assert(fact_present(input, Seq.index(input, index)));
+      ()
+    };
+    FStar.Classical.forall_intro(FStar.Classical.move_requires(stored));
+    ()
+  };
+  FStar.Classical.forall_intro(each);
+  ()
+}
+proof full_trace_covers_storage(facts: t_Slice(Native.t_Fact), done: ids_vec): unit
+  takes Seq.length(Alloc.Vec.impl_1__as_slice(done)) == Seq.length(facts)
+  takes unique_selection(Alloc.Vec.impl_1__as_slice(done))
+  takes causal_trace(facts, Alloc.Vec.impl_1__as_slice(done))
+  gives forall(i: FStar.Fin.under(Seq.length(facts))) . member(Alloc.Vec.impl_1__as_slice(done), Seq.index(facts, i).f_id)
+{
+  const stored = Alloc.Vec.from_seq<#Native.t_Fact, #Alloc.Alloc.t_Global>(facts);
+  Nickel.Vector.vector_from_seq<#Native.t_Fact>(facts);
+  causal_trace_uses_stored_ids(stored, done);
+  proof each(i: FStar.Fin.under(Seq.length(facts))): unit
+    gives member(Alloc.Vec.impl_1__as_slice(done), Seq.index(facts, i).f_id)
+  {
+    const id = Seq.index(facts, i).f_id;
+    assert(fact_present(facts, Seq.index(facts, i)));
+    assert(fact_id_present(stored, id));
+    if Native.has_event(Alloc.Vec.impl_1__as_slice(done), id) { () } else {
+      missing_stored_id_leaves_room(stored, done, id);
+      assert(Prims.l_False) by {
+        Tactics.prune("Nickel.EditSchedule.causal_trace");
+        Tactics.prune("Nickel.EditPastTotal.unique_selection");
+        Tactics.smt_sync'(1, 1)
+      }
+    }
+  };
+  FStar.Classical.forall_intro(each);
+  ()
+}
+function erase_schedule(out: Result.t_Result((Native.t_Tree, ids_vec), Native.t_Error)): Result.t_Result(Native.t_Tree, Native.t_Error) {
+  match out { Result.Result_Err(error) => Result.Result_Err(error), Result.Result_Ok((tree, _)) => Result.Result_Ok(tree) }
+}
+proof interpret_erases_only_schedule(facts: t_Slice(Native.t_Fact)): unit
+  gives Native.interpret(facts) == erase_schedule(Native.interpret_scheduled(facts))
+{
+  proof shape(): unit
+    gives result_shape(Native.interpret_scheduled(facts))
+  { () };
+  shape();
+  assert(Native.interpret(facts) == erase_schedule(Native.interpret_scheduled(facts))) by {
+    Tactics.prune("Nickel_crdt.Edit.interpret_scheduled");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// Successful interpretation through the wrapper has this actual trace, without
+// assuming tree-building helpers succeed. This does not assert total interpret.
+function interpretation_schedule(facts: t_Slice(Native.t_Fact), tree: Native.t_Tree): Type0 {
+  exists(done: ids_vec) . Native.interpret_scheduled(facts) == Result.Result_Ok((tree, done)) and
+    complete_causal_trace(facts, (tree, done)) and
+    (forall(i: FStar.Fin.under(Seq.length(facts))) . member(Alloc.Vec.impl_1__as_slice(done), Seq.index(facts, i).f_id))
+}
+proof successful_interpretation_has_causal_schedule(facts: t_Slice(Native.t_Fact), tree: Native.t_Tree): unit
+  takes Native.interpret(facts) == Result.Result_Ok(tree)
+  gives interpretation_schedule(facts, tree)
+{
+  successful_schedule_is_once_only_and_causal(facts);
+  interpret_erases_only_schedule(facts);
+  proof each(done: ids_vec): unit
+    takes Native.interpret_scheduled(facts) == Result.Result_Ok((tree, done))
+    takes complete_causal_trace(facts, (tree, done))
+    gives interpretation_schedule(facts, tree)
+  {
+    full_trace_covers_storage(facts, done);
+    assert(interpretation_schedule(facts, tree)) by {
+      Tactics.prune("Nickel_crdt.Edit.interpret");
+      Tactics.prune("Nickel_crdt.Edit.interpret_scheduled");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(each));
+  proof shape(): unit
+    gives result_shape(Native.interpret_scheduled(facts))
+  { () };
+  shape();
+  assert(interpretation_schedule(facts, tree)) by {
+    Tactics.prune("Nickel_crdt.Edit.interpret");
+    Tactics.prune("Nickel_crdt.Edit.interpret_scheduled");
+    Tactics.smt_sync'(1, 1)
+  }
+}

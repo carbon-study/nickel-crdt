@@ -254,3 +254,137 @@ fn receiver_extras_preserve_exact_author_placements_through_public_admission() {
 fn seen_in(facts: &[Fact], id: EventId) -> bool {
     facts.iter().any(|f| f.id == id)
 }
+
+// Frozen pre-refactor implementation: checks error values and full Tree, not
+// just the visible text or the extracted schedule. Test-only, never extracted.
+fn interpret_before_schedule_refactor(facts: &[Fact]) -> Result<Tree, Error> {
+    let mut result = Tree::default();
+    let mut done: Vec<EventId> = Vec::new();
+    let mut operations: Vec<(EventId, Vec<Node>)> = Vec::new();
+    for _ in 0..facts.len() {
+        let index = choose_ready(facts, &done).ok_or(Error::Internal)?;
+        if index >= facts.len() {
+            return Err(Error::Internal);
+        }
+        let event = &facts[index];
+        let selected = past(facts, &event.after)?;
+        let mut basis = Vec::new();
+        for f in facts {
+            if has_event(&selected, f.id) {
+                push(&mut basis, f.clone())?;
+            }
+        }
+        let mut author = Tree::default();
+        for i in 0..operations.len() {
+            let pair: (EventId, Vec<Node>) = operations[i].clone();
+            let (id, ops) = pair;
+            if has_event(&selected, id) {
+                for j in 0..ops.len() {
+                    author.add(ops[j].clone())?;
+                }
+            }
+        }
+        let mut seen = visible(&basis)?;
+        let mut ops = Vec::new();
+        if !event.insert.is_empty() {
+            let gap = event.gap.ok_or(Error::Internal)?;
+            for index in 0..event.insert.len() {
+                let id = BirthId {
+                    event: event.id,
+                    index,
+                };
+                let op = author.insert(id, event.insert[index], &seen, add(gap, index)?)?;
+                push(&mut ops, op)?;
+                push(&mut seen, id)?;
+            }
+        }
+        for i in 0..ops.len() {
+            result.add(ops[i].clone())?;
+        }
+        push(&mut done, event.id)?;
+        push(&mut operations, (event.id, ops))?;
+    }
+    Ok(result)
+}
+
+#[test]
+fn actual_outer_schedule_is_once_only_causal_and_refactor_preserves_results() {
+    let mut cases = 0;
+    for n in 0usize..=4 {
+        for edges in 0usize..(1 << (n * n.saturating_sub(1) / 2)) {
+            let mut bit = 0;
+            let mut facts = Vec::new();
+            for i in 0..n {
+                let mut after = Vec::new();
+                for j in 0..i {
+                    if edges & (1 << bit) != 0 {
+                        after.push(id(j));
+                    }
+                    bit += 1;
+                }
+                facts.push(Fact {
+                    id: id(i),
+                    after,
+                    insert: vec![],
+                    delete: vec![],
+                    gap: None,
+                });
+            }
+            permutations(&mut facts, 0, &mut |stored| {
+                let (tree, trace) =
+                    interpret_scheduled(stored).expect("closed empty-effect DAG fits");
+                assert_eq!(interpret(stored), Ok(tree));
+                assert_eq!(
+                    interpret(stored),
+                    interpret_before_schedule_refactor(stored)
+                );
+                let mut seen = BTreeSet::new();
+                for event in trace {
+                    let fact = stored
+                        .iter()
+                        .find(|fact| fact.id == event)
+                        .expect("stored event");
+                    assert!(
+                        fact.after.iter().all(|id| seen.contains(id)),
+                        "predecessor not yet run"
+                    );
+                    // Independent oracle chooses the least eligible storage index.
+                    let expected = stored
+                        .iter()
+                        .find(|f| {
+                            !seen.contains(&f.id) && f.after.iter().all(|id| seen.contains(id))
+                        })
+                        .unwrap();
+                    assert_eq!(event, expected.id);
+                    assert!(seen.insert(event), "event ran twice");
+                }
+                assert_eq!(seen, stored.iter().map(|fact| fact.id).collect());
+                // Nonempty insertions and invalid gaps exercise the moved helper's
+                // success/error paths, still comparing the entire returned Tree.
+                for gap in [None, Some(0), Some(1), Some(usize::MAX)] {
+                    let mut changed = stored.to_vec();
+                    for fact in &mut changed {
+                        fact.insert = vec!['x' as u32];
+                        fact.gap = gap;
+                    }
+                    assert_eq!(
+                        interpret(&changed),
+                        interpret_before_schedule_refactor(&changed)
+                    );
+                }
+                cases += 1;
+            });
+        }
+    }
+    assert_eq!(cases, 1590);
+    let nonempty = Fact {
+        id: id(0),
+        after: vec![],
+        insert: vec!['x' as u32],
+        delete: vec![],
+        gap: Some(0),
+    };
+    let (tree, done) = interpret_scheduled(&[nonempty]).expect("one text event succeeds");
+    assert_eq!(done, vec![id(0)]);
+    assert_eq!(tree.nodes.len(), 1);
+}

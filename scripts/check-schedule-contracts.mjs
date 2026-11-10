@@ -18,6 +18,13 @@ export async function checkScheduleContracts({proof,output,fstar,models,modelCac
     ['schedule-progress-without-existence',/  ranked_incomplete_has_eligible facts done rank bound;\n/,'ranked_incomplete_scan_progress','ranked_incomplete_scan_progress'],
     ['schedule-progress-without-choice',/  scheduler_choice_is_exact input done;\n/,'ranked_incomplete_scan_progress','ranked_incomplete_scan_progress'],
     ['schedule-count-without-collision',/FStar\.Fin\.pigeonhole positions/,'shorter_done_is_unfinished','shorter_done_is_unfinished','(0, 0)'],
+    ['schedule-outer-without-loop',/  Nickel\.LoopUtil\.result_preserve_any [^\n]+;\n/,'successful_schedule_is_once_only_and_causal','successful_schedule_is_once_only_and_causal'],
+    ['schedule-outer-without-choice-trace',/ \[SMTPat \(Native\.choose_ready facts before\)\]/,'successful_schedule_is_once_only_and_causal','chosen_append_keeps_trace'],
+    ['schedule-trace-without-choice',/  scheduler_choice_is_exact facts before;\n/,'chosen_append_keeps_trace','chosen_append_keeps_trace'],
+    ['schedule-public-without-outer',/  successful_schedule_is_once_only_and_causal facts;\n/,'successful_interpretation_has_causal_schedule','successful_interpretation_has_causal_schedule'],
+    ['schedule-public-without-erasure',/  interpret_erases_only_schedule facts;\n/,'successful_interpretation_has_causal_schedule','successful_interpretation_has_causal_schedule'],
+    ['schedule-public-without-coverage',/full_trace_covers_storage facts done;\n/,'successful_interpretation_has_causal_schedule','successful_interpretation_has_causal_schedule'],
+    ['schedule-full-without-capacity',/missing_stored_id_leaves_room stored done id;\n/,'full_trace_covers_storage','full_trace_covers_storage'],
   ];
   for(const [control,pattern,owner,scope,replacement=''] of controls) {
     let start=0,end=original.length;

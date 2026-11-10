@@ -1312,8 +1312,9 @@ These statements have no causal-closure, ID-uniqueness or acyclicity premise.
 They do **not** establish that an eligible event exists in every unfinished
 reachable state, that the outer interpreter schedules each event exactly once,
 that replay projects to a causal subset, or that tree rebuilding succeeds.
-Those remain the scheduler/admission continuation, not consequences of this
-conditional scan-progress law.
+The later sections add ranked existence and a successful outer-loop trace.
+Subset projection and tree/admission progress remain separate; none follows
+from this conditional scan-progress law alone.
 
 The interpreter calls this same extracted scan with its actual facts and `done`
 vector. The source refactor preserves the former first-match behavior; it does
@@ -1381,3 +1382,45 @@ witness/count existence links, and each final composition call. Replacing the
 finite pigeonhole collision with `(0, 0)` must reject at the count law. These
 controls require ordinary named rejections under the unchanged limits; no new
 Rust mutation or full local matrix is needed for this proof-only extension.
+
+### actual outer scheduling on successful interpretation
+
+`interpret_scheduled` runs the actual outer interpreter and returns its existing
+`done` vector alongside the tree. `interpret` erases that vector; it does not run
+a second scheduler or allocate a second trace. The former event-building body is
+`interpret_event`, which cannot modify `done`. Its success is **not** assumed:
+all its errors, and both following push errors, still propagate in their original
+order. This private decomposition adds no public API or admission policy.
+
+`successful_schedule_is_once_only_and_causal` proves, through the actual outer
+Result loop, that every successful trace has exactly `facts.len()` distinct IDs.
+At each trace position an actual stored fact supplies that ID, and every direct
+predecessor occurs at a strictly earlier position. The loop uses the checked
+choice/append contracts with `choose_ready`, `push`, the event helper and the
+fold hidden. `full_trace_covers_storage` uses the existing finite capacity lemma
+to derive coverage, rather than assuming all stored events were chosen.
+`interpret_erases_only_schedule` binds the wrapper's actual call argument and
+return value. `successful_interpretation_has_causal_schedule` consequently gives
+an actual full, once-only, causal scheduling witness for successful `interpret`.
+
+This is a success-conditional statement, **not total interpretation**. Scan
+progress from the causal-rank certificate is established separately; past,
+visible-content, gap, tree-insertion and representation failures still need
+their remaining progress/refinement obligations. No subset projection,
+interpreted-placement agreement, cache adoption or M1 completion follows here.
+
+The native gate checks 1,590 storage permutations of all topologically labelled
+DAGs through four vertices against an independent least-eligible oracle and
+checks the complete returned tree/error against the frozen pre-refactor
+interpreter, including nonempty insertions and invalid gaps. This is finite
+regression evidence, not a universal Rust-refactor equivalence proof. The hax
+snapshot is freshly extracted. Three default source controls record a wrong ID,
+stop the actual outer loop early, and feed the wrapper an empty input instead of
+its argument. Dependency controls cut the loop, choice, public composition and
+finite-coverage links.
+
+```sh
+node scripts/check-edit-proofs.mjs /tmp/outer-schedule-check \
+  contracts:schedule scheduler-records-wrong-id scheduler-stops-early \
+  scheduler-erases-wrong-trace jobs:3
+```
