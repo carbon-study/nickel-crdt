@@ -79,6 +79,14 @@ Reuse is checked, not assumed:
 
 - Every selected mutation must have an owning theorem, an anchored edit and a
   resolvable scope before any native test, extraction or compiler starts.
+- Every registered mutation, selected or not, must name an item header that occurs
+  exactly once and an anchor that occurs exactly once inside that item's
+  brace-matched body (`scripts/mutation-scope.mjs`). Braces in comments and in
+  string, char, byte and raw-string literals do not move the boundary; source the
+  scanner cannot classify is refused. Controls run through the same preparation
+  path: a moved anchor, a duplicated anchor, a missing or duplicated header, braces
+  in comments/literals and an unclassifiable quote. This guarantees exactly one
+  edit inside the intended item, not that the edit is still the named fault.
 - Each hax run writes into a staging directory and is installed as an inventory:
   project sources that are neither authored views nor part of the fresh extraction
   are removed before verification.
