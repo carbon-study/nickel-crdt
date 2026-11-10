@@ -402,3 +402,78 @@ fn actual_outer_schedule_is_once_only_causal_and_refactor_preserves_results() {
     assert_eq!(done, vec![id(0)]);
     assert_eq!(tree.nodes.len(), 1);
 }
+
+// Exercise the moved visible-basis and gap+index paths using only public
+// author/admit calls, with real deletions and distinct multi-scalar inserts.
+#[test]
+fn authored_delete_and_multi_scalar_histories_preserve_full_interpretation() {
+    fn check(replica: &Replica) {
+        let (tree, trace) = interpret_scheduled(replica.facts()).expect("authored history fits");
+        assert_complete_causal_trace(replica.facts(), &trace);
+        assert_eq!(
+            Ok(tree.clone()),
+            interpret_before_schedule_refactor(replica.facts())
+        );
+        assert_eq!(tree, replica.tree);
+    }
+    let mut authored = 0;
+    let mut deleting = 0;
+    let mut multi_scalar = 0;
+    let mut checked = 0;
+    for seed in 0u64..24 {
+        let mut state = seed + 1;
+        let mut replicas = [
+            Replica::new(Some(Writer::Alice), Limits::default()).unwrap(),
+            Replica::new(Some(Writer::Bo), Limits::default()).unwrap(),
+        ];
+        let mut facts = Vec::new();
+        for step in 0..12 {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let actor = ((state >> 32) & 1) as usize;
+            let visible = replicas[actor].observe().unwrap();
+            let gap = ((state >> 16) as usize) % (visible.len() + 1);
+            let delete = if step % 3 == 0 && !visible.is_empty() {
+                vec![visible[(state as usize) % visible.len()].0]
+            } else {
+                vec![]
+            };
+            let count = 1 + (step + seed as usize) % 3;
+            let insert = ['A' as u32, 'ß' as u32, '🦀' as u32][..count].to_vec();
+            let (next, result) = replicas[actor].clone().edit(gap, insert, delete);
+            let Local::Authored(fact) = result.expect("bounded public edit") else {
+                panic!("nonempty edit")
+            };
+            authored += 1;
+            deleting += usize::from(!fact.delete.is_empty());
+            multi_scalar += usize::from(fact.insert.len() > 1);
+            facts.push(fact);
+            replicas[actor] = next;
+            check(&replicas[actor]);
+            checked += 1;
+            if step % 2 == 1 {
+                for replica in &mut replicas {
+                    for fact in &facts {
+                        let (next, outcome) = replica.clone().receive(fact);
+                        assert!(matches!(
+                            outcome,
+                            Ok(Admission::Added | Admission::Duplicate)
+                        ));
+                        *replica = next;
+                    }
+                    check(replica);
+                    checked += 1;
+                }
+            }
+        }
+        let mut union = Replica::new(None, Limits::default()).unwrap();
+        for fact in &facts {
+            union = receive_added(union, fact);
+        }
+        check(&union);
+        checked += 1;
+    }
+    assert_eq!(
+        (authored, deleting, multi_scalar, checked),
+        (288, 72, 192, 600)
+    );
+}
