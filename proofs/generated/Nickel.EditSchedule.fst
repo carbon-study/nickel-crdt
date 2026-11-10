@@ -401,13 +401,47 @@ let successful_execution_orders_its_exact_past_cut (facts: facts_vec) (roots: t_
     Tactics.smt_sync' 1 1
   )
 
-let tree_work_failed (facts: facts_vec) (error: Native.t_Error) : Type0 =
-  exists(done: ids_vec) (operations: operations_vec) (tree: Native.t_Tree) (index: FStar.Fin.under (Seq.length (Alloc.Vec.impl_1__as_slice facts))). Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Seq.length (Alloc.Vec.impl_1__as_slice done) < Seq.length (Alloc.Vec.impl_1__as_slice facts)) (Seq.length (Alloc.Vec.impl_1__as_slice operations) == Seq.length (Alloc.Vec.impl_1__as_slice done))) (unique_selection (Alloc.Vec.impl_1__as_slice done))) (causal_trace (Alloc.Vec.impl_1__as_slice facts) (Alloc.Vec.impl_1__as_slice done))) (eligible (Alloc.Vec.impl_1__as_slice facts) (Alloc.Vec.impl_1__as_slice done) index)) (Native.interpret_event (Alloc.Vec.impl_1__as_slice facts) (Seq.index (Alloc.Vec.impl_1__as_slice facts) index) (Alloc.Vec.impl_1__as_slice operations) tree == Result.Result_Err error)
-
 unfold type operation_pair = Native.t_EventId & Alloc.Vec.t_Vec Native.t_Node Alloc.Alloc.t_Global
 
+unfold type node_vec = Alloc.Vec.t_Vec Native.t_Node Alloc.Alloc.t_Global
+
+unfold type event_work_step = ids_vec & operations_vec & Native.t_Tree & node_vec & usize
+
+let prefix_step_valid (facts: t_Slice Native.t_Fact) (done: ids_vec) (operations: operations_vec) (tree: Native.t_Tree) (step: event_work_step) : Type0 =
+  match step with | (previous_done, previous_operations, previous_tree, new_operations, index) -> begin if v index < Seq.length facts then
+    begin Prims.l_and (Prims.l_and (Prims.l_and (Native.choose_ready facts (Alloc.Vec.impl_1__as_slice previous_done) == Option.Option_Some index) (Native.interpret_event facts (Seq.index facts (v index)) (Alloc.Vec.impl_1__as_slice previous_operations) previous_tree == Result.Result_Ok (tree, new_operations))) (Alloc.Vec.impl_1__as_slice done == Seq.append (Alloc.Vec.impl_1__as_slice previous_done) (Seq.create 1 (Seq.index facts (v index)).f_id))) (Alloc.Vec.impl_1__as_slice operations == Seq.append (Alloc.Vec.impl_1__as_slice previous_operations) (Seq.create 1 ((Seq.index facts (v index)).f_id, new_operations))) end
+  else
+    begin Prims.l_False end end
+
+let rec event_work_prefix (facts: t_Slice Native.t_Fact) (count: nat) (done: ids_vec) (operations: operations_vec) (tree: Native.t_Tree) : Tot Type0 (decreases count) =
+  if count ==? 0 then
+    begin Prims.l_and (Prims.l_and (Alloc.Vec.impl_1__as_slice done == Seq.empty) (Alloc.Vec.impl_1__as_slice operations == Seq.empty)) (tree == Core_models.Default.f_default #Native.t_Tree #Native.impl_5 ()) end
+  else
+    begin exists(step: event_work_step). Prims.l_and (match step with | (previous_done, previous_operations, previous_tree, _, _) -> begin event_work_prefix facts (count - 1) previous_done previous_operations previous_tree end) (prefix_step_valid facts done operations tree step) end
+
+let prefix_can_extend_at (facts: t_Slice Native.t_Fact) (count: nat) (done: ids_vec) (operations: operations_vec) (tree: Native.t_Tree) (index: usize{v index < Seq.length facts}) : Type0 =
+  forall(next_tree: Native.t_Tree) (new_operations: node_vec) (next_done: ids_vec) (next_operations: operations_vec). Prims.l_and (Prims.l_and (Prims.l_and (Native.choose_ready facts (Alloc.Vec.impl_1__as_slice done) == Option.Option_Some index) (Native.interpret_event facts (Seq.index facts (v index)) (Alloc.Vec.impl_1__as_slice operations) tree == Result.Result_Ok (next_tree, new_operations))) (Alloc.Vec.impl_1__as_slice next_done == Seq.append (Alloc.Vec.impl_1__as_slice done) (Seq.create 1 (Seq.index facts (v index)).f_id))) (Alloc.Vec.impl_1__as_slice next_operations == Seq.append (Alloc.Vec.impl_1__as_slice operations) (Seq.create 1 ((Seq.index facts (v index)).f_id, new_operations))) ==> event_work_prefix facts (count + 1) next_done next_operations next_tree
+
+let prefix_extension_is_actual_work (facts: t_Slice Native.t_Fact) (count: nat) (done: ids_vec) (operations: operations_vec) (tree: Native.t_Tree) (index: usize{v index < Seq.length facts}) : Lemma (requires event_work_prefix facts count done operations tree) (ensures prefix_can_extend_at facts count done operations tree index) =
+  let next (next_tree: Native.t_Tree) (new_operations: node_vec) (next_done: ids_vec) (next_operations: operations_vec) : Lemma (requires (Native.choose_ready facts (Alloc.Vec.impl_1__as_slice done) == Option.Option_Some index /\ Native.interpret_event facts (Seq.index facts (v index)) (Alloc.Vec.impl_1__as_slice operations) tree == Result.Result_Ok (next_tree, new_operations) /\ Alloc.Vec.impl_1__as_slice next_done == Seq.append (Alloc.Vec.impl_1__as_slice done) (Seq.create 1 (Seq.index facts (v index)).f_id) /\ Alloc.Vec.impl_1__as_slice next_operations == Seq.append (Alloc.Vec.impl_1__as_slice operations) (Seq.create 1 ((Seq.index facts (v index)).f_id, new_operations)))) (ensures event_work_prefix facts (count + 1) next_done next_operations next_tree) =
+    let witness = ((done, operations, tree, new_operations, index) <: event_work_step) in
+    assert (prefix_step_valid facts next_done next_operations next_tree witness);
+    FStar.Classical.exists_intro (fun (step: event_work_step) -> Prims.l_and (match step with | (previous_done, previous_operations, previous_tree, _, _) -> begin event_work_prefix facts count previous_done previous_operations previous_tree end) (prefix_step_valid facts next_done next_operations next_tree step)) witness;
+    assert (event_work_prefix facts (count + 1) next_done next_operations next_tree) by (
+      Tactics.prune "Nickel_crdt.Edit.interpret_event";
+      Tactics.prune "Nickel_crdt.Edit.choose_ready";
+      Tactics.smt_sync' 1 1
+    ) in
+  FStar.Classical.forall_intro_4 (FStar.Classical.move_requires_4 next)
+
+let prefix_starts_at_actual_empty (facts: t_Slice Native.t_Fact) : Lemma (ensures event_work_prefix facts 0 (Alloc.Vec.impl__new #Native.t_EventId ()) (Alloc.Vec.impl__new #operation_pair ()) (Core_models.Default.f_default #Native.t_Tree #Native.impl_5 ())) =
+  ()
+
+let tree_work_failed (facts: facts_vec) (error: Native.t_Error) : Type0 =
+  exists(done: ids_vec) (operations: operations_vec) (tree: Native.t_Tree) (index: FStar.Fin.under (Seq.length (Alloc.Vec.impl_1__as_slice facts))). Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Seq.length (Alloc.Vec.impl_1__as_slice done) < Seq.length (Alloc.Vec.impl_1__as_slice facts)) (Seq.length (Alloc.Vec.impl_1__as_slice operations) == Seq.length (Alloc.Vec.impl_1__as_slice done))) (unique_selection (Alloc.Vec.impl_1__as_slice done))) (causal_trace (Alloc.Vec.impl_1__as_slice facts) (Alloc.Vec.impl_1__as_slice done))) (eligible (Alloc.Vec.impl_1__as_slice facts) (Alloc.Vec.impl_1__as_slice done) index)) (event_work_prefix (Alloc.Vec.impl_1__as_slice facts) (Seq.length (Alloc.Vec.impl_1__as_slice done)) done operations tree)) (Native.choose_ready (Alloc.Vec.impl_1__as_slice facts) (Alloc.Vec.impl_1__as_slice done) == Option.Option_Some (mk_usize index))) (Native.interpret_event (Alloc.Vec.impl_1__as_slice facts) (Seq.index (Alloc.Vec.impl_1__as_slice facts) index) (Alloc.Vec.impl_1__as_slice operations) tree == Result.Result_Err error)
+
 let schedule_progress_invariant (facts: t_Slice Native.t_Fact) (at: nat) (state: schedule_state) : Type0 =
-  Prims.l_and (schedule_invariant facts at state) (match state with | (_, operations, _) -> begin Seq.length (Alloc.Vec.impl_1__as_slice operations) == at end)
+  Prims.l_and (schedule_invariant facts at state) (match state with | (done, operations, tree) -> begin Prims.l_and (Seq.length (Alloc.Vec.impl_1__as_slice operations) == at) (event_work_prefix facts at done operations tree) end)
 
 let ranked_outer_errors_come_from_tree_work (facts: facts_vec) (rank: Native.t_EventId -> nat) (bound: nat) : Lemma (requires (causal_rank facts rank bound /\ ids_unique facts)) (ensures Nickel.LoopUtil.result_safe (complete_causal_trace (Alloc.Vec.impl_1__as_slice facts)) (tree_work_failed facts) (Native.interpret_scheduled (Alloc.Vec.impl_1__as_slice facts))) =
   let input = Alloc.Vec.impl_1__as_slice facts in
@@ -420,11 +454,23 @@ let ranked_outer_errors_come_from_tree_work (facts: facts_vec) (rank: Native.t_E
     ) in
   let choice_shape (done: t_Slice Native.t_EventId) : Lemma (ensures Prims.l_or (Native.choose_ready input done == Option.Option_None) (exists(index: usize). Native.choose_ready input done == Option.Option_Some index)) [SMTPat (Native.choose_ready input done)] = () in
   let event_shape (event: Native.t_Fact) (operations: t_Slice (Native.t_EventId & Alloc.Vec.t_Vec Native.t_Node Alloc.Alloc.t_Global)) (tree: Native.t_Tree) : Lemma (ensures result_shape (Native.interpret_event input event operations tree)) [SMTPat (Native.interpret_event input event operations tree)] = () in
+  let extend_at_call (done: ids_vec) (operations: operations_vec) (tree: Native.t_Tree) (index: usize{v index < Seq.length input}) : Lemma (requires (event_work_prefix input (Seq.length (Alloc.Vec.impl_1__as_slice done)) done operations tree /\ Seq.length (Alloc.Vec.impl_1__as_slice done) < Seq.length input)) (ensures prefix_can_extend_at input (Seq.length (Alloc.Vec.impl_1__as_slice done)) done operations tree index) [SMTPat (Native.choose_ready input (Alloc.Vec.impl_1__as_slice done)); SMTPat (Native.interpret_event input (Seq.index input (v index)) (Alloc.Vec.impl_1__as_slice operations) tree)] =
+    prefix_extension_is_actual_work input (Seq.length (Alloc.Vec.impl_1__as_slice done)) done operations tree index;
+    assert (prefix_can_extend_at input (Seq.length (Alloc.Vec.impl_1__as_slice done)) done operations tree index) by (
+      Tactics.prune "Nickel.EditCausal.causal_rank";
+      Tactics.prune "Nickel.EditSchedule.event_work_prefix";
+      Tactics.prune "Nickel_crdt.Edit.interpret_event";
+      Tactics.prune "Nickel_crdt.Edit.choose_ready";
+      Tactics.smt_sync' 0 0
+    ) in
+  prefix_starts_at_actual_empty input;
   empty_trace_is_valid input;
   Nickel.Vector.empty_vector_contents #Native.t_EventId ();
   Nickel.Vector.empty_vector_contents #operation_pair ();
   Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len input) (schedule_progress_invariant input) schedule_done (complete_causal_trace input) (tree_work_failed facts);
   assert (Nickel.LoopUtil.result_safe (complete_causal_trace input) (tree_work_failed facts) (Native.interpret_scheduled input)) by (
+    Tactics.prune "Nickel.EditSchedule.event_work_prefix";
+    Tactics.prune "Nickel.EditCausal.causal_rank";
     Tactics.prune "Nickel.EditSchedule.causal_trace";
     Tactics.prune "Nickel_crdt.Edit.interpret_event";
     Tactics.prune "Nickel_crdt.Edit.choose_ready";

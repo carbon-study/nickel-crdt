@@ -35,6 +35,8 @@ export async function checkScheduleContracts({proof,output,fstar,models,modelCac
     ['error-origin-without-loop',/  Nickel\.LoopUtil\.result_preserve_any [^\n]+;\n/,'ranked_outer_errors_come_from_tree_work','ranked_outer_errors_come_from_tree_work'],
     ['error-public-without-origin',/  ranked_outer_errors_come_from_tree_work facts rank bound;\n/,'interpret_errors_come_from_tree_work','interpret_errors_come_from_tree_work'],
     ['error-public-without-erasure',/  interpret_erases_only_schedule \(Alloc\.Vec\.impl_1__as_slice facts\);\n/,'interpret_errors_come_from_tree_work','interpret_errors_come_from_tree_work'],
+    ['error-prefix-without-empty',/  prefix_starts_at_actual_empty input;\n/,'ranked_outer_errors_come_from_tree_work','ranked_outer_errors_come_from_tree_work'],
+    ['error-prefix-without-extension',/    prefix_extension_is_actual_work input \(Seq\.length \(Alloc\.Vec\.impl_1__as_slice done\)\) done operations tree index;\n/,'ranked_outer_errors_come_from_tree_work','ranked_outer_errors_come_from_tree_work'],
   ];
   for(const [control,pattern,owner,scope,replacement=''] of controls) {
     let start=0,end=original.length;

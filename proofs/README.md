@@ -1521,23 +1521,37 @@ existing successful causal trace and an error refinement: every returned error
 has a `tree_work_failed` witness. The ordinary `interpret` wrapper preserves
 that error witness through `interpret_errors_come_from_tree_work`.
 
-The witness names a unique causal `done` prefix, an equally long operations
-vector, an in-bounds eligible event and a tree for which the actual
-`interpret_event` call returns that same error. The loop invariant now also
-counts operations. Checked scan progress excludes `None`, the choice contract
-excludes the out-of-bounds guard, and prefix lengths leave space for both actual
-bookkeeping pushes. No helper success is assumed by these error-refinement laws.
+The witness names a unique causal done prefix, an equally long operations
+vector, the actual next chosen event and a tree. Its tree and operations must
+satisfy event_work_prefix: start at the actual default tree and empty vectors,
+then repeatedly use actual choose_ready and successful interpret_event calls,
+recording the returned operations and tree. The failing helper call returns
+that same error at the next chosen event. Arbitrary adversarial trees or
+operation vectors are no longer admissible witnesses.
 
-This is a source-linked compositional boundary, not complete interpretation
-progress. The existential witness does not specify the contents of its operations
-or establish equality of its tree with an independent replay. It does not prove
-`interpret_event` succeeds on valid fitting inputs, full tree refinement,
-projection, public admission progress or M1 completion. Those obligations remain.
+The loop invariant counts operations and carries this replay relation. Checked
+scan progress excludes None, exact choice excludes the index guard, and prefix
+lengths leave space for both actual bookkeeping pushes. The recursive relation
+has checked empty/extension contracts, consumed with its body withheld. No
+helper success is assumed by the error-refinement laws. The Schedule fence
+admits withholding `event_work_prefix` and `causal_rank`; the local extension
+postcondition uses zero fuel/ifuel to consume its checked constructor contract.
 
-Six default schedule dependency controls remove progress, eligibility, operations
-counting, the loop interface, or either public composition link. The default Rust
+This is an existential witness along the deterministic event-work replay, not
+an instrumented record of a failure position or an independent text/tree
+semantics. It does not prove interpret_event succeeds on valid fitting inputs,
+full tree refinement, universal subset projection, public admission progress or
+M1 completion. Those obligations remain.
+
+Eight default schedule dependency controls remove progress, eligibility, operations
+counting, the loop interface, either public composition link or either replay
+constructor contract. The default Rust
 mode `scheduler-invents-bookkeeping-error` injects an `Internal` return after a
 successful event call with no operations. It must fail the native fixture and
 reject ordinarily at the new outer error-refinement law. A native six-case
 fixture also supplies concrete event-work failure witnesses for bad gaps in both
-storage orders; it does not admit those bad facts through the public API.
+storage orders; it does not admit those bad facts through the public API. A
+reviewer counterexample also checks that B fails on a fabricated tree containing
+B already, while every reachable helper-prefix call for [empty A, inserting B]
+succeeds. The invented outer error fails that replay-witness oracle, rather
+than merely a particular proof strategy.
