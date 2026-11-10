@@ -878,3 +878,7 @@ mod basis_filter_tests;
 #[cfg(test)]
 #[path = "edit/author_replay_tests.rs"]
 mod author_replay_tests;
+
+#[cfg(test)]
+#[path = "edit/operation_provenance_tests.rs"]
+mod operation_provenance_tests;

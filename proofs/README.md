@@ -1641,3 +1641,41 @@ uses the actual `Tree.add` function; independent tree/Fugue refinement and
 success on valid fitting inputs remain open. Thus it is not universal runtime
 subset replay, tree-work totality, public admission progress or M1 completion.
 The existing hax/model/compiler trust boundary remains unchanged.
+
+### completed event-work provenance
+
+`successful_interpretation_has_operation_provenance` connects a successful
+actual `interpret` result to the completed `event_work_prefix` replay. That
+replay starts at the actual default tree and empty vectors. Each step uses the
+actual `choose_ready` result and passes the previous operation groups and tree
+to `interpret_event`; the helper's returned tree and nodes supply the next step.
+There is one labelled group per scheduled event, including empty groups, with
+labels in exactly the returned causal trace's order. The trace is once-only and
+covers every stored fact. The witness ends at the tree returned by the actual
+interpreter. No causal-rank, closed-history or helper-success premise is added
+to this conditional-on-success theorem.
+
+`successful_schedule_has_complete_event_work` carries that replay through the
+actual outer loop. `actual_prefix_groups_match_trace` proves label alignment by
+induction over the anchored replay, and the public composition uses the existing
+wrapper-erasure and storage-coverage contracts. The `operation` dependency
+family runs through `contracts:operation`; CI's existing complementary-family
+job discovers it automatically. The `scheduler-forgets-completed-tree` Rust
+control replaces only the completed tree with the default tree. Its literal
+native fixture reaches an exact tree comparison, and its proof owner is the new
+successful-schedule contract. Positive runs also require a nonzero passing
+`operation_provenance_tests` baseline.
+
+This is a ghost helper-replay witness, not an instrumented physical trace or a
+new public operation log. The native fixture separately drives helper calls
+with an independent first-ready scan across all 24 storage permutations of four
+facts (multi-scalar insertion, deletion-only empty group, concurrent insertion
+and a joined continuation), then compares the actual interpreter's tree/trace.
+It is finite evidence, not a universal schedule-independence result.
+
+This closes completed helper-group provenance, not independent semantics of
+those helpers. Equality with a separately interpreted subset, event-node
+production/placement refinement, tree-work totality and public valid-fitting
+admission remain open. No cache is enabled, and runtime bodies, hax snapshot,
+compiler/model pins, theorem-rejection classification and proof limits are
+unchanged.

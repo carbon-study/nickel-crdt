@@ -826,3 +826,147 @@ proof interpret_errors_come_from_tree_work(facts: facts_vec, rank: Native.t_Even
     Tactics.smt_sync'(1, 1)
   }
 }
+
+// The completed run retains all helper-produced groups, including empty ones.
+// This is actual execution provenance, not independent document semantics.
+function complete_event_work(facts: t_Slice(Native.t_Fact), pair: (Native.t_Tree, ids_vec)): Type0 {
+  match pair { (tree, done) =>
+    complete_causal_trace(facts, pair) and
+    exists(operations: operations_vec) .
+      Seq.length(Alloc.Vec.impl_1__as_slice(operations)) == Seq.length(facts) and
+      event_work_prefix(facts, Seq.length(facts), done, operations, tree)
+  }
+}
+proof successful_schedule_has_complete_event_work(facts: t_Slice(Native.t_Fact)): unit
+  gives Nickel.LoopUtil.result_safe(complete_event_work(facts), ((_: Native.t_Error) => Prims.l_True), Native.interpret_scheduled(facts))
+{
+  proof choice_shape(done: t_Slice(Native.t_EventId)): unit
+    gives Native.choose_ready(facts, done) == Option.Option_None or (exists(i: usize) . Native.choose_ready(facts, done) == Option.Option_Some(i))
+    hint Native.choose_ready(facts, done)
+  { () };
+  proof event_shape(event: Native.t_Fact, operations: t_Slice(operation_pair), tree: Native.t_Tree): unit
+    gives result_shape(Native.interpret_event(facts, event, operations, tree))
+    hint Native.interpret_event(facts, event, operations, tree)
+  { () };
+  proof extend_at_call(done: ids_vec, operations: operations_vec, tree: Native.t_Tree,
+    index: usize where v(index) < Seq.length(facts)): unit
+    takes event_work_prefix(facts, Seq.length(Alloc.Vec.impl_1__as_slice(done)), done, operations, tree)
+    takes Seq.length(Alloc.Vec.impl_1__as_slice(done)) < Seq.length(facts)
+    gives prefix_can_extend_at(facts, Seq.length(Alloc.Vec.impl_1__as_slice(done)), done, operations, tree, index)
+    hint Native.choose_ready(facts, Alloc.Vec.impl_1__as_slice(done)),
+      Native.interpret_event(facts, Seq.index(facts, v(index)), Alloc.Vec.impl_1__as_slice(operations), tree)
+  {
+    prefix_extension_is_actual_work(facts, Seq.length(Alloc.Vec.impl_1__as_slice(done)), done, operations, tree, index);
+    assert(prefix_can_extend_at(facts, Seq.length(Alloc.Vec.impl_1__as_slice(done)), done, operations, tree, index)) by {
+      Tactics.prune("Nickel.EditSchedule.event_work_prefix");
+      Tactics.prune("Nickel_crdt.Edit.interpret_event");
+      Tactics.prune("Nickel_crdt.Edit.choose_ready");
+      Tactics.smt_sync'(0, 0)
+    }
+  };
+  prefix_starts_at_actual_empty(facts);
+  empty_trace_is_valid(facts);
+  Nickel.Vector.empty_vector_contents<#Native.t_EventId>();
+  Nickel.Vector.empty_vector_contents<#operation_pair>();
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
+    schedule_progress_invariant(facts), schedule_done, complete_event_work(facts), ((_: Native.t_Error) => Prims.l_True));
+  assert(Nickel.LoopUtil.result_safe(complete_event_work(facts), ((_: Native.t_Error) => Prims.l_True), Native.interpret_scheduled(facts))) by {
+    Tactics.prune("Nickel.EditSchedule.event_work_prefix");
+    Tactics.prune("Nickel.EditSchedule.causal_trace");
+    Tactics.prune("Nickel_crdt.Edit.interpret_event");
+    Tactics.prune("Nickel_crdt.Edit.choose_ready");
+    Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.prune("Nickel.LoopUtil.step_safe");
+    Tactics.prune("Nickel.LoopUtil.output_safe");
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+function operation_labels_match(done: ids_vec, operations: operations_vec): Type0 {
+  const ids = Alloc.Vec.impl_1__as_slice(done);
+  const groups = Alloc.Vec.impl_1__as_slice(operations);
+  Seq.length(ids) == Seq.length(groups) and
+  (forall(i: FStar.Fin.under(Seq.length(ids))) .
+    (match Seq.index(groups, i) { (id, _) => id }) == Seq.index(ids, i))
+}
+proof! actual_prefix_groups_match_trace(facts: t_Slice(Native.t_Fact), count: nat,
+  done: ids_vec, operations: operations_vec, tree: Native.t_Tree): unit
+  decreases count
+  takes event_work_prefix(facts, count, done, operations, tree)
+  gives operation_labels_match(done, operations)
+{
+  if count ==? 0 { () } else {
+    proof transfer(step: event_work_step): unit
+      takes (match step { (previous_done, previous_operations, previous_tree, _, _) =>
+        event_work_prefix(facts, count - 1, previous_done, previous_operations, previous_tree) })
+      takes prefix_step_valid(facts, done, operations, tree, step)
+      gives operation_labels_match(done, operations)
+    {
+      match step { (previous_done, previous_operations, previous_tree, new_operations, index) =>
+        if v(index) < Seq.length(facts) {
+          actual_prefix_groups_match_trace(facts, count - 1, previous_done, previous_operations, previous_tree);
+          assert(operation_labels_match(previous_done, previous_operations)) by {
+            Tactics.prune("Nickel.EditSchedule.event_work_prefix");
+            Tactics.prune("Nickel_crdt.Edit.interpret_event");
+            Tactics.prune("Nickel_crdt.Edit.choose_ready");
+            Tactics.smt_sync'(0, 0)
+          };
+          ()
+        } else { () }
+      }
+    };
+    FStar.Classical.forall_intro(FStar.Classical.move_requires(transfer));
+    assert(operation_labels_match(done, operations)) by {
+      Tactics.prune("Nickel_crdt.Edit.interpret_event");
+      Tactics.prune("Nickel_crdt.Edit.choose_ready");
+      Tactics.smt_sync'(1, 1)
+    }
+  }
+}
+
+function interpretation_event_work(facts: t_Slice(Native.t_Fact), tree: Native.t_Tree): Type0 {
+  exists(done: ids_vec, operations: operations_vec) .
+    Native.interpret_scheduled(facts) == Result.Result_Ok((tree, done)) and
+    complete_causal_trace(facts, (tree, done)) and
+    (forall(i: FStar.Fin.under(Seq.length(facts))) . member(Alloc.Vec.impl_1__as_slice(done), Seq.index(facts, i).f_id)) and
+    Seq.length(Alloc.Vec.impl_1__as_slice(operations)) == Seq.length(facts) and
+    operation_labels_match(done, operations) and
+    event_work_prefix(facts, Seq.length(facts), done, operations, tree)
+}
+// The wrapper erases storage for the groups; it does not weaken their provenance.
+// No rank, causal-closure or helper-success premise is needed for this conditional.
+proof successful_interpretation_has_operation_provenance(facts: t_Slice(Native.t_Fact), tree: Native.t_Tree): unit
+  takes Native.interpret(facts) == Result.Result_Ok(tree)
+  gives interpretation_event_work(facts, tree)
+{
+  successful_schedule_has_complete_event_work(facts);
+  interpret_erases_only_schedule(facts);
+  proof each(done: ids_vec, operations: operations_vec): unit
+    takes Native.interpret_scheduled(facts) == Result.Result_Ok((tree, done))
+    takes complete_causal_trace(facts, (tree, done))
+    takes Seq.length(Alloc.Vec.impl_1__as_slice(operations)) == Seq.length(facts)
+    takes event_work_prefix(facts, Seq.length(facts), done, operations, tree)
+    gives interpretation_event_work(facts, tree)
+  {
+    full_trace_covers_storage(facts, done);
+    actual_prefix_groups_match_trace(facts, Seq.length(facts), done, operations, tree);
+    assert(interpretation_event_work(facts, tree)) by {
+      Tactics.prune("Nickel.EditSchedule.event_work_prefix");
+      Tactics.prune("Nickel_crdt.Edit.interpret_scheduled");
+      Tactics.prune("Nickel_crdt.Edit.interpret");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each));
+  proof shape(): unit
+    gives result_shape(Native.interpret_scheduled(facts))
+  { () };
+  shape();
+  assert(interpretation_event_work(facts, tree)) by {
+    Tactics.prune("Nickel.EditSchedule.event_work_prefix");
+    Tactics.prune("Nickel_crdt.Edit.interpret_scheduled");
+    Tactics.prune("Nickel_crdt.Edit.interpret");
+    Tactics.smt_sync'(1, 1)
+  }
+}
