@@ -1579,7 +1579,10 @@ Four dependency removals cover the filter loop, whole-fact clone contract,
 exact-past composition and filter composition. Three fresh Rust modes include
 unselected facts, omit selected facts, or pass empty roots to `past`; each must
 fail the actual native tests and reject ordinarily at its owning basis law.
-The `basis` family and `EditBasis` positive root run in the existing gate. Native
+The `basis` family and `EditBasis` positive root run in the existing gate. The
+positive run also requires a discovered, passing native basis-test baseline,
+alongside the existing `edit_admit` run. Selecting a `basis-*` mode requests that
+positive baseline too. Native
 fixtures use an independent worklist closure and exact whole-fact/order checks,
 plus an actual interpreter continuation with an unseen concurrent deletion.
 Separate test/fence fixture files keep this slice out of the append-heavy shared

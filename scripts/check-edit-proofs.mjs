@@ -96,7 +96,7 @@ for(const arg of args) {
     wantPositive=true;for(const name of Object.keys(families))if(!skip.includes(name))familyRuns.add(name);
   }
   else if(arg.startsWith('contracts:')){const name=arg.slice(10);assert(Object.hasOwn(families,name),'unknown contract family '+name);wantPositive=true;familyRuns.add(name);}
-  else {assert(modes.includes(arg),'unknown mode '+arg);mutations.push(arg);}
+  else {assert(modes.includes(arg),'unknown mode '+arg);if(arg.startsWith('basis-'))wantPositive=true;mutations.push(arg);}
 }
 if(args.length===0){for(const name of Object.keys(families))familyRuns.add(name);mutations.push(...modes.filter(mode=>mode!=='positive'));}
 // A fresh mutation workspace starts from the verified positive workspace: same
@@ -316,7 +316,13 @@ async function check(mode) {
   const nativeArgs=['test','--offline','--locked','-p','nickel-crdt',...(mode.startsWith('basis-')?['--lib','basis_filter_tests']:((mode.startsWith('past-')||mode.startsWith('scheduler-'))?['--lib','causal_basis_tests']:['--test','edit_admit']))];
   const native=await runAsync('edit native '+mode,'cargo',nativeArgs,crate,{env});
   await fs.writeFile(path.join(output,mode+'.native.log'),native.log);
-  if(mode==='positive')assert.equal(native.status,0,native.log);
+  if(mode==='positive') {
+    assert.equal(native.status,0,native.log);
+    const basisNative=await runAsync('edit basis native baseline','cargo',['test','--offline','--locked','-p','nickel-crdt','--lib','basis_filter_tests'],crate,{env});
+    await fs.writeFile(path.join(output,'positive.basis-native.log'),basisNative.log);
+    assert.equal(basisNative.status,0,basisNative.log);
+    assert.match(basisNative.log,/test result: ok\. [1-9]\d* passed;/,'basis native baseline must discover and pass tests: '+basisNative.log);
+  }
   else {assert.equal(native.status,101,native.log);assert.match(native.log,/test result: FAILED/);}
   const extract=path.join(work,'extract');await fs.rm(extract,{recursive:true,force:true});await fs.mkdir(extract,{recursive:true});
   const extracted=await runAsync('edit hax '+mode,hax,haxArgs(extract),crate,{env});

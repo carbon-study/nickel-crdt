@@ -449,6 +449,7 @@ let ranked_outer_errors_come_from_tree_work (facts: facts_vec) (rank: Native.t_E
     ranked_incomplete_scan_progress facts done rank bound;
     scheduler_choice_is_exact input done;
     assert (Prims.l_and (Prims.l_not (Native.choose_ready input done == Option.Option_None)) (chosen_is_first input done (Native.choose_ready input done))) by (
+      Tactics.prune "Nickel.EditCausal.causal_rank";
       Tactics.prune "Nickel_crdt.Edit.choose_ready";
       Tactics.smt_sync' 1 1
     ) in
