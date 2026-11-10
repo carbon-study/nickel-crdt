@@ -1330,3 +1330,40 @@ node scripts/check-edit-proofs.mjs /tmp/schedule-check \
 
 The standard no-argument gate includes this family and all four source modes;
 the existing dynamic shard partition includes each new mode exactly once.
+
+### progress of the scan on an unfinished ranked history
+
+`ranked_incomplete_scan_progress` removes the supplied-eligible-index premise.
+It requires the existing `causal_rank` certificate, stored-ID uniqueness, and
+`done.len() < facts.len()`. Under those conditions the actual `choose_ready`
+cannot return `None`. Combined with `scheduler_choice_is_exact`, its result is
+an in-bounds, not-yet-done event whose direct predecessors are done. The final
+composition withholds the native scan body.
+
+The independent existence argument has two parts:
+
+- If no event is eligible, induction on natural rank shows every stored event
+  below each rank cutoff is done. Each predecessor is stored (causal closure)
+  and strictly lower ranked. The public rank bound then covers all stored IDs.
+  `ranked_unfinished_has_eligible` also exposes the witness form: one stored ID
+  absent from done suffices, without stored-ID uniqueness.
+- Distinct stored IDs cannot all fit in a shorter done vector. A checked finite
+  pigeonhole argument maps each stored ID to a position in done and forces two
+  distinct stored positions to have the same ID. This direction needs neither
+  uniqueness of done nor that done is a subset of facts.
+
+These are ghost proofs over the existing rank and uniqueness components,
+composed with the actual extracted Rust scan. They do not prove the outer
+interpreter maintains its done-vector invariant, runs each event once, projects
+replay to a causal subset, or succeeds at later tree/admission work. Arbitrary
+causally closed histories with cycles do not meet the rank premise.
+
+The induction-membership queries withhold `no_eligible_prefix`: lower-rank
+membership must come from the induction contract, not a fresh attempt to solve
+the whole deadlock argument. The fence permits this only in EditSchedule.
+
+The same `schedule` family additionally removes the rank induction, the
+witness/count existence links, and each final composition call. Replacing the
+finite pigeonhole collision with `(0, 0)` must reject at the count law. These
+controls require ordinary named rejections under the unchanged limits; no new
+Rust mutation or full local matrix is needed for this proof-only extension.

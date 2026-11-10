@@ -34,6 +34,9 @@ export function checkProofReformFence() {
     assertReformedSource('EditPastTotal','Tactics.prune('+JSON.stringify(namespace)+')');
     assert.throws(()=>assertReformedSource('fixture','Tactics.prune('+JSON.stringify(namespace)+')'),/fixture reform:/);
   }
+  assertReformedSource('EditSchedule','Tactics.prune("Nickel.EditSchedule.no_eligible_prefix")');
+  for(const name of ['fixture','EditCausal','EditPast'])
+    assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EditSchedule.no_eligible_prefix")'),new RegExp(name+' reform:'));
   for(const native of ['has_event','ready','choose_ready']) {
     assertReformedSource('EditSchedule','Tactics.prune("Nickel_crdt.Edit.'+native+'")');
     assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Nickel_crdt.Edit.'+native+'")'),/fixture reform:/);
