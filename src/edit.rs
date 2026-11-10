@@ -579,6 +579,30 @@ fn event_basis(facts: &[Fact], event: &Fact) -> Result<(Vec<EventId>, Vec<Fact>)
     let basis = select_basis(facts, &selected)?;
     Ok((selected, basis))
 }
+// Replay one operation group without changing its node order.
+fn replay_nodes(mut tree: Tree, nodes: &[Node]) -> Result<Tree, Error> {
+    for i in 0..nodes.len() {
+        tree.add(nodes[i].clone())?;
+    }
+    Ok(tree)
+}
+// Reconstruct the author's tree from precisely the selected operation groups.
+fn replay_author(operations: &[(EventId, Vec<Node>)], selected: &[EventId]) -> Result<Tree, Error> {
+    let mut author = Tree::default();
+    for i in 0..operations.len() {
+        let (id, ops) = operations[i].clone();
+        if has_event(selected, id) {
+            author = replay_nodes(author, &ops)?;
+        }
+    }
+    Ok(author)
+}
+// Finish author reconstruction before applying the event's own insertions.
+fn author_context(facts: &[Fact], event: &Fact, operations: &[(EventId, Vec<Node>)]) -> Result<(Vec<Fact>, Tree), Error> {
+    let (selected, basis) = event_basis(facts, event)?;
+    let author = replay_author(operations, &selected)?;
+    Ok((basis, author))
+}
 // Interpret one already-selected event. Scheduling state stays in the caller.
 fn interpret_event(
     facts: &[Fact],
@@ -586,17 +610,7 @@ fn interpret_event(
     operations: &[(EventId, Vec<Node>)],
     mut result: Tree,
 ) -> Result<(Tree, Vec<Node>), Error> {
-    let (selected, basis) = event_basis(facts, event)?;
-    let mut author = Tree::default();
-    for i in 0..operations.len() {
-        let pair: (EventId, Vec<Node>) = operations[i].clone();
-        let (id, ops) = pair;
-        if has_event(&selected, id) {
-            for j in 0..ops.len() {
-                author.add(ops[j].clone())?;
-            }
-        }
-    }
+    let (basis, mut author) = author_context(facts, event, operations)?;
     let mut seen = visible(&basis)?;
     let mut ops = Vec::new();
     if !event.insert.is_empty() {
@@ -860,3 +874,7 @@ mod causal_basis_tests;
 #[cfg(test)]
 #[path = "edit/basis_filter_tests.rs"]
 mod basis_filter_tests;
+
+#[cfg(test)]
+#[path = "edit/author_replay_tests.rs"]
+mod author_replay_tests;

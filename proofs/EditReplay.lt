@@ -1,0 +1,265 @@
+import Rust_primitives
+import Core_models
+import FStar.Pervasives
+import FStar.Classical
+import Nickel.Vector
+import Nickel.LoopUtil
+import Native = Nickel_crdt.Edit
+import Seq = FStar.Seq
+import Result = Core_models.Result
+
+// Mathematical replay in node order, using the actual Tree.add primitive.
+// This specifies which calls are made; it does not independently refine add.
+function add_node(tree: Native.t_Tree, node: Native.t_Node): Result.t_Result(Native.t_Tree, Native.t_Error) {
+  match Native.impl_Tree__add(tree, node) {
+    (next, Result.Result_Ok(_)) => Result.Result_Ok(next),
+    (_, Result.Result_Err(error)) => Result.Result_Err(error)
+  }
+}
+function! node_prefix(nodes: t_Slice(Native.t_Node), initial: Native.t_Tree,
+  finish: nat where finish <= Seq.length(nodes)): Result.t_Result(Native.t_Tree, Native.t_Error)
+  decreases finish
+{
+  if finish ==? 0 { Result.Result_Ok(initial) }
+  else {
+    match node_prefix(nodes, initial, finish - 1) {
+      Result.Result_Err(error) => Result.Result_Err(error),
+      Result.Result_Ok(tree) => add_node(tree, Seq.index(nodes, finish - 1))
+    }
+  }
+}
+proof! node_error_is_terminal(nodes: t_Slice(Native.t_Node), initial: Native.t_Tree,
+  from: nat, finish: nat where from <= finish and finish <= Seq.length(nodes), error: Native.t_Error): unit
+  decreases finish - from
+  takes node_prefix(nodes, initial, from) == Result.Result_Err(error)
+  gives node_prefix(nodes, initial, finish) == Result.Result_Err(error)
+{
+  if finish ==? from { () } else {
+    node_error_is_terminal(nodes, initial, from, finish - 1, error);
+    assert(node_prefix(nodes, initial, finish) == Result.Result_Err(error)) by {
+      Tactics.prune("Nickel_crdt.Edit.impl_Tree__add");
+      Tactics.smt_sync'(1, 1)
+    }
+  }
+}
+function node_step_condition(nodes: t_Slice(Native.t_Node), initial: Native.t_Tree,
+  index: usize where v(index) < Seq.length(nodes), outcome: (Native.t_Tree, Result.t_Result(unit, Native.t_Error))): Type0 {
+  match outcome {
+    (next, Result.Result_Ok(_)) => node_prefix(nodes, initial, v(index) + 1) == Result.Result_Ok(next),
+    (_, Result.Result_Err(error)) => node_prefix(nodes, initial, Seq.length(nodes)) == Result.Result_Err(error)
+  }
+}
+proof actual_nodes_replay_in_order(nodes: t_Slice(Native.t_Node), initial: Native.t_Tree): unit
+  gives Native.replay_nodes(initial, nodes) == node_prefix(nodes, initial, Seq.length(nodes))
+{
+  proof step(tree: Native.t_Tree, index: usize where v(index) < Seq.length(nodes)): unit
+    takes node_prefix(nodes, initial, v(index)) == Result.Result_Ok(tree)
+    gives node_step_condition(nodes, initial, index, Native.impl_Tree__add(tree, Seq.index(nodes, v(index))))
+    hint Native.impl_Tree__add(tree, Seq.index(nodes, v(index)))
+  {
+    assert(node_prefix(nodes, initial, v(index) + 1) == add_node(tree, Seq.index(nodes, v(index))));
+    match Native.impl_Tree__add(tree, Seq.index(nodes, v(index))) {
+      (_, Result.Result_Ok(_)) => (),
+      (_, Result.Result_Err(error)) => node_error_is_terminal(nodes, initial, v(index) + 1, Seq.length(nodes), error)
+    }
+  };
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(nodes),
+    ((at: nat, tree: Native.t_Tree) => at <= Seq.length(nodes) and
+      (at <= Seq.length(nodes) ==> node_prefix(nodes, initial, at) == Result.Result_Ok(tree))),
+    ((tree: Native.t_Tree) => tree),
+    ((tree: Native.t_Tree) => node_prefix(nodes, initial, Seq.length(nodes)) == Result.Result_Ok(tree)),
+    ((error: Native.t_Error) => node_prefix(nodes, initial, Seq.length(nodes)) == Result.Result_Err(error)));
+  assert(Native.replay_nodes(initial, nodes) == node_prefix(nodes, initial, Seq.length(nodes))) by {
+    Tactics.prune("Nickel_crdt.Edit.impl_Tree__add");
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.prune("Nickel.LoopUtil.step_safe");
+    Tactics.prune("Nickel.LoopUtil.output_safe");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+import Nickel.EditPast
+unfold type event_operations = (Native.t_EventId, Alloc.Vec.t_Vec(Native.t_Node, Alloc.Alloc.t_Global))
+function group_id(group: event_operations): Native.t_EventId { match group { (id, _) => id } }
+function group_nodes(group: event_operations): Alloc.Vec.t_Vec(Native.t_Node, Alloc.Alloc.t_Global) { match group { (_, nodes) => nodes } }
+unfold type tree_result = Result.t_Result(Native.t_Tree, Native.t_Error)
+function group_follows(selected: t_Slice(Native.t_EventId), group: event_operations,
+  previous: tree_result, outcome: tree_result): Type0 {
+  match previous {
+    Result.Result_Err(error) => outcome == Result.Result_Err(error),
+    Result.Result_Ok(tree) => match group { (id, nodes) =>
+      (member(selected, id) and outcome == node_prefix(Alloc.Vec.impl_1__as_slice(nodes), tree, Seq.length(Alloc.Vec.impl_1__as_slice(nodes)))) or
+      (not member(selected, id) and outcome == Result.Result_Ok(tree)) }
+  }
+}
+// Ordered operation groups are filtered by their event IDs, not by timing.
+function! author_prefix(operations: t_Slice(event_operations), selected: t_Slice(Native.t_EventId),
+  finish: nat where finish <= Seq.length(operations), outcome: tree_result): Type0
+  decreases finish
+{
+  if finish ==? 0 {
+    outcome == Result.Result_Ok(Core_models.Default.f_default<#Native.t_Tree, #Native.impl_5>(()))
+  } else {
+    exists(previous: tree_result) . author_prefix(operations, selected, finish - 1, previous) and
+      group_follows(selected, Seq.index(operations, finish - 1), previous, outcome)
+  }
+}
+// Both selectors are propositions, but their alternatives are exclusive.
+// The anchored relation therefore identifies one result, including errors.
+proof! author_prefix_is_deterministic(operations: t_Slice(event_operations), selected: t_Slice(Native.t_EventId),
+  finish: nat where finish <= Seq.length(operations), left: tree_result, right: tree_result): unit
+  decreases finish
+  takes author_prefix(operations, selected, finish, left)
+  takes author_prefix(operations, selected, finish, right)
+  gives left == right
+{
+  if finish ==? 0 { () } else {
+    proof each(previous_left: tree_result, previous_right: tree_result): unit
+      takes author_prefix(operations, selected, finish - 1, previous_left)
+      takes author_prefix(operations, selected, finish - 1, previous_right)
+      takes group_follows(selected, Seq.index(operations, finish - 1), previous_left, left)
+      takes group_follows(selected, Seq.index(operations, finish - 1), previous_right, right)
+      gives left == right
+    {
+      author_prefix_is_deterministic(operations, selected, finish - 1, previous_left, previous_right);
+      assert(left == right) by {
+        Tactics.prune("Nickel.EditReplay.author_prefix");
+        Tactics.prune("Nickel_crdt.Edit.impl_Tree__add");
+        Tactics.smt_sync'(1, 1)
+      }
+    };
+    FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each));
+    ()
+  }
+}
+proof author_prefix_extends(operations: t_Slice(event_operations), selected: t_Slice(Native.t_EventId),
+  at: nat where at < Seq.length(operations), previous: tree_result, outcome: tree_result): unit
+  takes author_prefix(operations, selected, at, previous)
+  takes group_follows(selected, Seq.index(operations, at), previous, outcome)
+  gives author_prefix(operations, selected, at + 1, outcome)
+{
+  FStar.Classical.exists_intro(
+    ((before: tree_result) => author_prefix(operations, selected, at, before) and
+      group_follows(selected, Seq.index(operations, at), before, outcome)), previous);
+  ()
+}
+proof! author_error_is_terminal(operations: t_Slice(event_operations), selected: t_Slice(Native.t_EventId),
+  from: nat, finish: nat where from <= finish and finish <= Seq.length(operations), error: Native.t_Error): unit
+  decreases finish - from
+  takes author_prefix(operations, selected, from, Result.Result_Err(error))
+  gives author_prefix(operations, selected, finish, Result.Result_Err(error))
+{
+  if finish ==? from { () } else {
+    author_error_is_terminal(operations, selected, from, finish - 1, error);
+    author_prefix_extends(operations, selected, finish - 1, Result.Result_Err(error), Result.Result_Err(error))
+  }
+}
+function group_step_condition(operations: t_Slice(event_operations), selected: t_Slice(Native.t_EventId),
+  index: usize where v(index) < Seq.length(operations), result: tree_result): Type0 {
+  match result {
+    Result.Result_Ok(tree) => author_prefix(operations, selected, v(index) + 1, Result.Result_Ok(tree)),
+    Result.Result_Err(error) => author_prefix(operations, selected, Seq.length(operations), Result.Result_Err(error))
+  }
+}
+proof actual_author_replays_selected_groups(operations: t_Slice(event_operations), selected: t_Slice(Native.t_EventId)): unit
+  gives author_prefix(operations, selected, Seq.length(operations), Native.replay_author(operations, selected))
+{
+  proof step(tree: Native.t_Tree, index: usize where v(index) < Seq.length(operations)): unit
+    takes author_prefix(operations, selected, v(index), Result.Result_Ok(tree))
+    takes member(selected, group_id(Seq.index(operations, v(index))))
+    gives group_step_condition(operations, selected, index,
+      Native.replay_nodes(tree, Alloc.Vec.impl_1__as_slice(group_nodes(Seq.index(operations, v(index))))))
+    hint author_prefix(operations, selected, v(index), Result.Result_Ok(tree)), Seq.index(operations, v(index))
+  {
+    match Seq.index(operations, v(index)) { (id, nodes) => {
+      actual_nodes_replay_in_order(Alloc.Vec.impl_1__as_slice(nodes), tree);
+      assert(Native.replay_nodes(tree, Alloc.Vec.impl_1__as_slice(nodes)) ==
+        node_prefix(Alloc.Vec.impl_1__as_slice(nodes), tree, Seq.length(Alloc.Vec.impl_1__as_slice(nodes)))) by {
+        Tactics.prune("Nickel_crdt.Edit.replay_nodes");
+        Tactics.prune("Nickel_crdt.Edit.impl_Tree__add");
+        Tactics.smt_sync'(1, 1)
+      };
+      match Native.replay_nodes(tree, Alloc.Vec.impl_1__as_slice(nodes)) {
+        Result.Result_Ok(next) => author_prefix_extends(operations, selected, v(index), Result.Result_Ok(tree), Result.Result_Ok(next)),
+        Result.Result_Err(error) => {
+          author_prefix_extends(operations, selected, v(index), Result.Result_Ok(tree), Result.Result_Err(error));
+          author_error_is_terminal(operations, selected, v(index) + 1, Seq.length(operations), error)
+        }
+      }
+    } }
+  };
+  proof skip(tree: Native.t_Tree, index: usize where v(index) < Seq.length(operations)): unit
+    takes author_prefix(operations, selected, v(index), Result.Result_Ok(tree))
+    takes not member(selected, group_id(Seq.index(operations, v(index))))
+    gives author_prefix(operations, selected, v(index) + 1, Result.Result_Ok(tree))
+    hint author_prefix(operations, selected, v(index), Result.Result_Ok(tree))
+  { author_prefix_extends(operations, selected, v(index), Result.Result_Ok(tree), Result.Result_Ok(tree)) };
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(operations),
+    ((at: nat, tree: Native.t_Tree) => at <= Seq.length(operations) and
+      (at <= Seq.length(operations) ==> author_prefix(operations, selected, at, Result.Result_Ok(tree)))),
+    ((tree: Native.t_Tree) => tree),
+    ((tree: Native.t_Tree) => author_prefix(operations, selected, Seq.length(operations), Result.Result_Ok(tree))),
+    ((error: Native.t_Error) => author_prefix(operations, selected, Seq.length(operations), Result.Result_Err(error))));
+  assert(author_prefix(operations, selected, Seq.length(operations), Native.replay_author(operations, selected))) by {
+    Tactics.prune("Nickel_crdt.Edit.has_event");
+    Tactics.prune("Nickel_crdt.Edit.replay_nodes");
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.prune("Nickel.LoopUtil.step_safe");
+    Tactics.prune("Nickel.LoopUtil.output_safe");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+import Nickel.EditAccepted
+import Nickel.EditPastTotal
+import Nickel.EditBasis
+function exact_author_context(facts: facts_vec, event: Native.t_Fact, operations: t_Slice(event_operations),
+  result: Result.t_Result((facts_vec, Native.t_Tree), Native.t_Error)): Type0 {
+  match result {
+    Result.Result_Ok((basis, author)) => exists(selected: ids_vec) .
+      Native.event_basis(Alloc.Vec.impl_1__as_slice(facts), event) == Result.Result_Ok((selected, basis)) and
+      exact_event_basis(facts, Alloc.Vec.impl_1__as_slice(event.f_after), Result.Result_Ok((selected, basis))) and
+      author_prefix(operations, Alloc.Vec.impl_1__as_slice(selected), Seq.length(operations), Result.Result_Ok(author)),
+    Result.Result_Err(error) => exists(selected: ids_vec, basis: facts_vec) .
+      Native.event_basis(Alloc.Vec.impl_1__as_slice(facts), event) == Result.Result_Ok((selected, basis)) and
+      exact_event_basis(facts, Alloc.Vec.impl_1__as_slice(event.f_after), Result.Result_Ok((selected, basis))) and
+      author_prefix(operations, Alloc.Vec.impl_1__as_slice(selected), Seq.length(operations), Result.Result_Err(error))
+  }
+}
+// Actual whole-fact selection and actual selected-group replay meet at the
+// same returned selected vector. No tree-work success is assumed.
+proof closed_author_context_is_exact(facts: facts_vec, event: Native.t_Fact, operations: t_Slice(event_operations)): unit
+  takes history_references_present(facts)
+  takes Native.duplicate_events(Alloc.Vec.impl_1__as_slice(event.f_after)) == false
+  takes all_ids(Alloc.Vec.impl_1__as_slice(event.f_after), fact_id_present(facts))
+  gives exact_author_context(facts, event, operations, Native.author_context(Alloc.Vec.impl_1__as_slice(facts), event, operations))
+{
+  closed_event_basis_is_exact(facts, event);
+  proof basis_shape(): unit
+    gives result_shape(Native.event_basis(Alloc.Vec.impl_1__as_slice(facts), event))
+  { () };
+  basis_shape();
+  proof each(selected: ids_vec): unit
+    gives author_prefix(operations, Alloc.Vec.impl_1__as_slice(selected), Seq.length(operations), Native.replay_author(operations, Alloc.Vec.impl_1__as_slice(selected))) and
+      result_shape(Native.replay_author(operations, Alloc.Vec.impl_1__as_slice(selected)))
+    hint Native.replay_author(operations, Alloc.Vec.impl_1__as_slice(selected))
+  {
+    actual_author_replays_selected_groups(operations, Alloc.Vec.impl_1__as_slice(selected));
+    proof shape(): unit
+      gives result_shape(Native.replay_author(operations, Alloc.Vec.impl_1__as_slice(selected)))
+    { () };
+    shape();
+    assert(author_prefix(operations, Alloc.Vec.impl_1__as_slice(selected), Seq.length(operations), Native.replay_author(operations, Alloc.Vec.impl_1__as_slice(selected))) and
+      result_shape(Native.replay_author(operations, Alloc.Vec.impl_1__as_slice(selected)))) by {
+      Tactics.prune("Nickel_crdt.Edit.replay_author");
+      Tactics.prune("Nickel.EditReplay.author_prefix");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  assert(exact_author_context(facts, event, operations, Native.author_context(Alloc.Vec.impl_1__as_slice(facts), event, operations))) by {
+    Tactics.prune("Nickel_crdt.Edit.event_basis");
+    Tactics.prune("Nickel_crdt.Edit.replay_author");
+    Tactics.prune("Nickel.EditReplay.author_prefix");
+    Tactics.smt_sync'(1, 1)
+  }
+}
