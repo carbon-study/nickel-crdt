@@ -110,6 +110,20 @@ fn author_replay_filters_groups_and_keeps_node_order_and_errors() {
         replay_nodes(Tree::default(), &[nodes[0].clone(), nodes[0].clone()]),
         Err(Error::Internal)
     );
+    // Two nonempty groups: the second insertion refers to the first group's
+    // births. Reversing whole groups must fail, independently of node reversal.
+    let (tree_a, nodes_a) = interpret_event(&facts, &facts[0], &[], Tree::default()).unwrap();
+    let first_group = vec![(facts[0].id, nodes_a)];
+    let (tree_ab, nodes_b) = interpret_event(&facts, &facts[2], &first_group, tree_a).unwrap();
+    assert!(!nodes_b.is_empty());
+    let mut groups = first_group;
+    groups.push((facts[2].id, nodes_b));
+    let selected = vec![facts[0].id, facts[2].id];
+    assert_eq!(reference(&groups, &selected), Ok(tree_ab.clone()));
+    assert_eq!(replay_author(&groups, &selected), Ok(tree_ab));
+    groups.reverse();
+    assert_eq!(reference(&groups, &selected), Err(Error::Internal));
+    assert_eq!(replay_author(&groups, &selected), Err(Error::Internal));
 }
 #[test]
 fn concurrent_deletion_basis_changes_placements_without_causing_an_error() {
