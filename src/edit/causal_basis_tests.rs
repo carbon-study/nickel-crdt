@@ -537,6 +537,75 @@ fn actual_past_cut_retains_the_actual_execution_order() {
     assert_eq!(cases, 24979);
 }
 
+// Two receivers with different concurrent extras select the same past for the
+// same event. Each actual past is compared with the independent closure oracle,
+// not only with the other receiver: both could otherwise share one wrong set.
+// Selected IDs only; interpreted placements are the test above.
+#[test]
+fn two_receivers_with_different_extras_select_the_same_past() {
+    let new = |w| Replica::new(w, Limits::default()).unwrap();
+    let (a, root) = author(new(Some(Writer::Alice)), 0, "ab", vec![]);
+    let b = receive_added(new(Some(Writer::Bo)), &root);
+    let (b, x) = author(b, 0, "x", vec![]);
+    let (a, y) = author(a, 2, "y", vec![]);
+    let a = receive_added(a, &x);
+    let (a, e) = author(a, 1, "e", vec![]);
+    // Extras: z is concurrent with y and e (Bo has not seen y); w follows e.
+    let (_b, z) = author(b, 1, "z", vec![]);
+    let (_a, w) = author(a, 0, "w", vec![]);
+    let shared = vec![root.clone(), x.clone(), y.clone()];
+    let mut all = shared.clone();
+    all.extend([e.clone(), z.clone(), w.clone()]);
+    let expected = closure(&all, &e.after);
+    assert_eq!(expected, shared.iter().map(|f| f.id).collect::<BTreeSet<_>>(), "fixture past");
+    let mut observed = BTreeSet::new();
+    let mut stores = BTreeSet::new();
+    // Legal causal orders after root, counted by hand: x and y in either order,
+    // z needs x, w needs e. Shared only: 2; +w: 2; +z: 5; +z+w: 7.
+    for (extras, legal) in [
+        (vec![z.clone()], 5),
+        (vec![w.clone()], 2),
+        (vec![z.clone(), w.clone()], 7),
+        (vec![], 2),
+    ] {
+        let mut delivered = 0;
+        let mut facts = shared.clone();
+        facts.push(e.clone());
+        facts.extend(extras.iter().cloned());
+        let mut orders = facts.clone();
+        permutations(&mut orders, 0, &mut |order| {
+            let mut seen = BTreeSet::new();
+            if !order.iter().all(|f| {
+                if !f.after.iter().all(|id| seen.contains(id)) {
+                    return false;
+                }
+                seen.insert(f.id);
+                true
+            }) {
+                return;
+            }
+            delivered += 1;
+            let mut r = new(None);
+            for f in order {
+                r = receive_added(r, f);
+            }
+            let selected = past(r.facts(), &e.after).expect("closed receiver history fits");
+            let set: BTreeSet<_> = selected.iter().copied().collect();
+            assert_eq!(selected.len(), set.len(), "duplicate selected ID");
+            assert_eq!(set, expected, "receiver past differs from the exact closure");
+            // Contamination witness: the extras are stored here but never selected.
+            for extra in &extras {
+                assert!(seen_in(r.facts(), extra.id) && !set.contains(&extra.id));
+            }
+            observed.insert(set.into_iter().collect::<Vec<_>>());
+            stores.insert(r.facts().iter().map(|f| f.id).collect::<Vec<_>>());
+        });
+        assert_eq!(delivered, legal, "every legal causal delivery order of this extra set");
+    }
+    assert_eq!(observed.len(), 1, "every receiver selected one past");
+    assert_eq!(stores.len(), 4, "the receivers really stored different histories");
+}
+
 #[test]
 fn outer_errors_have_a_concrete_event_work_witness() {
     let first = Fact {
