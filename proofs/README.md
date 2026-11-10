@@ -1343,7 +1343,7 @@ Controls:
   existing `past-*` Rust mutants this test fails while authoring its fixture,
   because admission itself calls `past`. It is therefore not counted as
   discriminating those mutants; exact `past` keeps its existing owners.
-- **Fence:** EditPastTotal alone may prune `ancestor`, `fact_id_present`,
+- **Fence:** EditPastTotal may prune `ancestor`, `fact_id_present`,
   `exact_past_result`, `shared_ancestry` and `same_members`, at query-local
   composition steps, so a removed link cannot be rediscovered by unfolding.
 
