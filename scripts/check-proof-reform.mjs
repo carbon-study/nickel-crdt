@@ -1,3 +1,4 @@
+import './check-replay-reform.mjs';
 import './check-basis-reform.mjs';
 import assert from 'node:assert/strict';
 import {assertReformedSource} from './proof-reform.mjs';
