@@ -114,6 +114,8 @@ function receive_ranked(rank: Native.t_EventId => nat, bound: nat, fact: Native.
     (next, _) => causal_rank(next.f_facts, rank, bound)
   }
 }
+// Public composition consumes the complete rank certificate from its contracts.
+// Keep its quantified definition hidden at the final outcome queries.
 proof receive_preserves_causal_rank(before: Native.t_Replica, fact: Native.t_Fact, rank: Native.t_EventId => nat, bound: nat): unit
   takes causal_rank(before.f_facts, rank, bound)
   gives receive_ranked(rank, bound, fact, Native.impl_Replica__receive(before, fact))
@@ -135,6 +137,7 @@ proof receive_preserves_causal_rank(before: Native.t_Replica, fact: Native.t_Fac
       };
       exact_extension_extends_rank(before.f_facts, fact, next.f_facts, rank, bound);
       assert(receive_ranked(rank, bound, fact, Native.impl_Replica__receive(before, fact))) by {
+        Tactics.prune("Nickel.EditCausal.causal_rank");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__edit");
         Tactics.prune("Alloc.Vec.from_seq");
@@ -147,6 +150,7 @@ proof receive_preserves_causal_rank(before: Native.t_Replica, fact: Native.t_Fac
     },
     _ => {
       assert(receive_ranked(rank, bound, fact, Native.impl_Replica__receive(before, fact))) by {
+        Tactics.prune("Nickel.EditCausal.causal_rank");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__edit");
         Tactics.prune("Alloc.Vec.from_seq");
@@ -187,6 +191,7 @@ proof edit_preserves_causal_rank(before: Native.t_Replica, gap: usize, insert: A
       };
       exact_extension_extends_rank(before.f_facts, fact, next.f_facts, rank, bound);
       assert(edit_ranked(rank, bound, Native.impl_Replica__edit(before, gap, insert, delete))) by {
+        Tactics.prune("Nickel.EditCausal.causal_rank");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__edit");
         Tactics.prune("Alloc.Vec.from_seq");
@@ -199,6 +204,7 @@ proof edit_preserves_causal_rank(before: Native.t_Replica, gap: usize, insert: A
     },
     _ => {
       assert(edit_ranked(rank, bound, Native.impl_Replica__edit(before, gap, insert, delete))) by {
+        Tactics.prune("Nickel.EditCausal.causal_rank");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__edit");
         Tactics.prune("Alloc.Vec.from_seq");

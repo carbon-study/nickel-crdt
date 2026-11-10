@@ -15,6 +15,9 @@ export function checkProofReformFence() {
     "let solve = Tactics.smt_sync'", "Tactics.smt_sync'(4, 4)",
     'Tactics.set_options("--fuel 100")', 'Tactics.prune("Other")', 'let hide = Tactics.prune',
   ])assert.throws(()=>assertReformedSource('fixture',bad),/fixture reform:/,bad);
+  assertReformedSource('EditCausal','Tactics.prune("Nickel.EditCausal.causal_rank")');
+  for(const name of ['fixture','EditSchedule','EditPast','EditWellFormed'])
+    assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EditCausal.causal_rank")'),new RegExp(name+' reform:'));
   assertReformedSource('EditWellFormed','Tactics.prune("Nickel.EditIdentity.prefix_absent")');
   assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Nickel.EditIdentity.prefix_absent")'),/fixture reform:/);
   assert.throws(()=>assertReformedSource('EditWellFormed','assert_norm(true)'),/EditWellFormed reform:/);
@@ -31,11 +34,15 @@ export function checkProofReformFence() {
     assertReformedSource('EditPastTotal','Tactics.prune('+JSON.stringify(namespace)+')');
     assert.throws(()=>assertReformedSource('fixture','Tactics.prune('+JSON.stringify(namespace)+')'),/fixture reform:/);
   }
+  for(const native of ['has_event','ready','choose_ready']) {
+    assertReformedSource('EditSchedule','Tactics.prune("Nickel_crdt.Edit.'+native+'")');
+    assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Nickel_crdt.Edit.'+native+'")'),/fixture reform:/);
+  }
   assertReformedSource('EditPastTotal','Tactics.prune("Nickel_crdt.Edit.validate_after")');
   assertReformedSource('EditPastTotal','Tactics.prune("Nickel_crdt.Edit.duplicate_events")');
   assert.throws(()=>assertReformedSource('EditPast','Tactics.prune("Nickel_crdt.Edit.duplicate_events")'),/EditPast reform:/);
   assert.throws(()=>assertReformedSource('EditPast','Tactics.prune("Nickel_crdt.Edit.validate_after")'),/EditPast reform:/);
-  for(const name of ['EditCausal','EditAtomic','EditWellFormed','EditPast','EditPastTotal']) {
+  for(const name of ['EditCausal','EditAtomic','EditWellFormed','EditPast','EditPastTotal','EditSchedule']) {
     assert.throws(()=>assertReformedSource(name,'assert_norm(true)'),new RegExp(name+' reform:'));
   }
   assertReformedSource('LoopUtil','Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf")');

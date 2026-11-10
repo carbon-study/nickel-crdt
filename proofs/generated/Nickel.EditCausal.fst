@@ -104,6 +104,7 @@ let receive_preserves_causal_rank (before: Native.t_Replica) (fact: Native.t_Fac
   );
   exact_extension_extends_rank before.f_facts fact next.f_facts rank bound;
   assert (receive_ranked rank bound fact (Native.impl_Replica__receive before fact)) by (
+    Tactics.prune "Nickel.EditCausal.causal_rank";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
     Tactics.prune "Alloc.Vec.from_seq";
@@ -113,6 +114,7 @@ let receive_preserves_causal_rank (before: Native.t_Replica) (fact: Native.t_Fac
     Tactics.prune "Rust_primitives.Slice.slice_index";
     Tactics.smt_sync' 1 1
   ) end | _ -> begin assert (receive_ranked rank bound fact (Native.impl_Replica__receive before fact)) by (
+    Tactics.prune "Nickel.EditCausal.causal_rank";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
     Tactics.prune "Alloc.Vec.from_seq";
@@ -140,6 +142,7 @@ let edit_preserves_causal_rank (before: Native.t_Replica) (gap: usize) (insert: 
   );
   exact_extension_extends_rank before.f_facts fact next.f_facts rank bound;
   assert (edit_ranked rank bound (Native.impl_Replica__edit before gap insert delete)) by (
+    Tactics.prune "Nickel.EditCausal.causal_rank";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
     Tactics.prune "Alloc.Vec.from_seq";
@@ -149,6 +152,7 @@ let edit_preserves_causal_rank (before: Native.t_Replica) (gap: usize) (insert: 
     Tactics.prune "Rust_primitives.Slice.slice_index";
     Tactics.smt_sync' 1 1
   ) end | _ -> begin assert (edit_ranked rank bound (Native.impl_Replica__edit before gap insert delete)) by (
+    Tactics.prune "Nickel.EditCausal.causal_rank";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
     Tactics.prune "Alloc.Vec.from_seq";

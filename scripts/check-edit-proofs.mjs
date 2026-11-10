@@ -21,6 +21,7 @@ import {checkPlanContracts} from './check-plan-contracts.mjs';
 import {checkWriterContracts} from './check-writer-contracts.mjs';
 import {checkNegativeProofEvidence} from './check-negative-proof-evidence.mjs';
 import {checkScalarContracts} from './check-loop-contracts.mjs';
+import {checkScheduleContracts} from './check-schedule-contracts.mjs';
 import {checkPastContracts} from './check-past-contracts.mjs';
 import {checkCounterContracts} from './check-counter-contracts.mjs';
 import {checkCacheSafety} from './check-cache-safety.mjs';
@@ -35,7 +36,7 @@ await fs.mkdir(output,{recursive:true});
 const identity=JSON.parse(await fs.readFile(path.join(modelCache,'identity.json'),'utf8'));
 assert.equal(identity.models,models);assert.equal(identity.fstar,fstar);
 const views=new Map();
-for(const name of ['Prelude','LoopUtil','Vector','EditAtomic','EditCommit','EditIdentity','EditAccepted','EditWellFormed','Spec','EditCausal','EditPast','EditPastTotal']) {
+for(const name of ['Prelude','LoopUtil','Vector','EditAtomic','EditCommit','EditIdentity','EditAccepted','EditWellFormed','Spec','EditCausal','EditPast','EditPastTotal','EditSchedule']) {
   const source=`proofs/${name}.lt`,view=`proofs/generated/Nickel.${name}.fst`;
   const code=await fs.readFile(path.join(root,view),'utf8');
   const receipt=(await fs.readFile(path.join(root,`proofs/generated/${name}.sha256`),'utf8')).trim().split('\n');
@@ -49,7 +50,7 @@ const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tre
   'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality',
   'identity-scan-key','identity-birth-equality','identity-writer-equality',
   'accepted-reuses-member','accepted-wrong-canonical-push','accepted-publication-duplicates',
-  'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes','past-refuses-closure','duplicate-scan-skips-pairs'];
+  'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes','past-refuses-closure','duplicate-scan-skips-pairs','scheduler-ready-skips-dependency','scheduler-reselects-done','scheduler-refuses-ready','scheduler-checks-empty-after'];
 // Contract-dependency families run after the positive chain verifies. With no
 // arguments (CI) every mode and every family runs. Development runs may select
 // `positive-only`, `contracts:<family>` (implies the positive chain) and any
@@ -58,7 +59,7 @@ const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tre
 // (after the positive chain), so n shards together cover every mode exactly once.
 // `contracts-except:<a>,<b>` runs every family not listed, so a CI job using it
 // also picks up any family added later.
-const families={past:checkPastContracts,remaining:checkRemainingContracts,counter:checkCounterContracts,push:checkPushContracts,vector:checkVectorContracts,
+const families={schedule:checkScheduleContracts,past:checkPastContracts,remaining:checkRemainingContracts,counter:checkCounterContracts,push:checkPushContracts,vector:checkVectorContracts,
   scalar:checkScalarContracts,identity:checkIdentityContracts,writer:checkWriterContracts,plan:checkPlanContracts,containment:checkContainmentContracts,accepted:checkAcceptedContracts,spec:checkSpecContracts,private:checkPrivateContracts,shared:checkSharedContracts,commit:checkCommitContracts};
 const args=process.argv.slice(3),familyRuns=new Set();let wantPositive=args.length===0,cacheSafety=args.length===0;
 const mutations=[];
@@ -86,6 +87,7 @@ if(args.length===0){for(const name of Object.keys(families))familyRuns.add(name)
 function prepareMutation(mode) {
   const scopes={
 'duplicate-scan-skips-pairs':'fn duplicate_events(', 'past-refuses-closure':'fn past(', 'past-skips-passes':'fn past(', 'past-skips-predecessors':'fn extend_past(', 'past-drops-roots':'fn past(', 'past-invents-id':'fn extend_past(', 'past-membership-always-false':'fn has_event(',
+'scheduler-ready-skips-dependency':'fn ready(', 'scheduler-reselects-done':'fn choose_ready(', 'scheduler-refuses-ready':'fn choose_ready(', 'scheduler-checks-empty-after':'fn choose_ready(',
 'plan-skips-validation':'fn plan(',
 "tree-publication-uses-private-writer":"fn with_tree(",
 "tree-publication-clears-private-counter":"fn with_tree(",
@@ -93,6 +95,10 @@ function prepareMutation(mode) {
 'plan-ignores-duplicate':'fn plan(', 'plan-swallows-classifier-error':'fn plan(', 'receive-plan-rewrites-counter':'pub fn receive(', 'invalid-forgets-reason':'fn invalid(', 'writer-index-collides':'fn writer_index(', 'native-push-discards-value':'fn push<T>','native-push-prepends':'fn push<T>','causal-validator-passes-empty':'fn validate_new(','causal-accepts-missing':'fn validate_after(', 'causal-call-passes-empty':'fn past(', 'causal-refuses-present':'fn validate_after(','plan-interprets-uncanonical':'fn plan(','scalar-count-loop-bypasses-check':'fn validate_new(','scalar-accepts-invalid':'fn validate_scalars(', 'scalar-refuses-valid':'fn validate_scalars(', 'scalar-call-passes-empty':'fn validate_new(','canonical-step-refuses':'fn canonical_step(', 'canonical-refuses':'fn canonical(','plan-keeps-old-tree':'fn with_tree(', 'plan-passes-old-tree':'fn plan(','order-key-ignores-writer':'fn event_lt(','order-chooses-largest':'fn choose_unseen(', 'order-discards-canonical':'fn plan(','edit-commit-ignores-counter':'fn with_counter(', 'edit-success-reuses-counter':'fn next_counter_after(', 'content-changes-whole-fact':'fn clone_selected_fact(', 'content-omits-facts':'fn canonical(', 'accepted-reuses-member':'fn choose_unseen(', 'accepted-wrong-canonical-push':'fn canonical_step(', 'accepted-publication-duplicates':'fn with_tree('};
   const start=original.indexOf(scopes[mode]??(mode==='identity-writer-equality'?'impl PartialEq for Writer':mode==='identity-birth-equality'?'impl PartialEq for BirthId':mode==='identity-event-equality'?'impl PartialEq for EventId':mode==='identity-forgets-gap'?'fn fact_equal(':mode.startsWith('identity-')?'fn duplicate(':mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit('));assert(start>=0);
   const edits={
+    'scheduler-ready-skips-dependency':['if has_event(done, after[i]) {','if true {'],
+    'scheduler-reselects-done':['if has_event(done, facts[i].id) {','if false {'],
+    'scheduler-refuses-ready':['return Some(i);','return None;'],
+    'scheduler-checks-empty-after':['ready(&facts[i].after, done)','ready(&[], done)'],
 'plan-skips-validation':['Self::validate_new(&self.facts, self.limits, fact)?;', 'let _ = Self::validate_new(&self.facts, self.limits, fact);'],
 "tree-publication-uses-private-writer":["self.tree = tree;","if self.writer.is_some() { self.tree = tree; }"],
 "tree-publication-clears-private-counter":["self.tree = tree;","self.tree = tree; self.next_counter = 0;"],
@@ -157,6 +163,7 @@ function prepareMutation(mode) {
   assert(Object.hasOwn(edits,mode),'mutation without a registered edit: '+mode);
   const [needle,replacement]=edits[mode];const at=original.indexOf(needle,start);assert(at>=start,'mutation anchor not found in scope: '+mode);
   if(mode==='duplicate-scan-skips-pairs') { const end=original.indexOf('\n}',start)+2;assert(end>start&&at<end);assert.equal(original.slice(start,end).split(needle).length,2,'one actual duplicate-scan anchor'); }
+  if(mode.startsWith('scheduler-')) { const end=original.indexOf('\n}',start)+2;assert(end>start&&at<end);assert.equal(original.slice(start,end).split(needle).length,2,'one actual scheduler anchor: '+mode); }
   if(mode.startsWith('native-push-')) { const end=original.indexOf('\n}',start)+2;assert(end>start&&at<end);assert.equal(original.slice(start,end).split(needle).length,2,'one actual push-body anchor'); }
   if(['plan-skips-validation','tree-publication-uses-private-writer','tree-publication-clears-private-counter','plan-clears-private-counter','plan-ignores-duplicate','plan-swallows-classifier-error','receive-plan-rewrites-counter'].includes(mode)) {
     const next=/\n    (?:pub )?fn /.exec(original.slice(start));
@@ -168,6 +175,10 @@ function prepareMutation(mode) {
   return mutant;
 }
 const theorems={
+  'scheduler-ready-skips-dependency':'EditSchedule.readiness_is_exact',
+  'scheduler-reselects-done':'EditSchedule.scheduler_choice_is_exact',
+  'scheduler-refuses-ready':'EditSchedule.scheduler_choice_is_exact',
+  'scheduler-checks-empty-after':'EditSchedule.scheduler_choice_is_exact',
 'plan-skips-validation':'EditAtomic.successful_plan_requires_validation',
 "tree-publication-uses-private-writer":"EditCommit.tree_publication_respects_shared",
 "tree-publication-clears-private-counter":"EditCommit.tree_publication_keeps_private",
@@ -248,7 +259,7 @@ for(const mode of [...(wantPositive?['positive']:[]),...mutations]) {
     await fs.writeFile(path.join(crate,'src/edit.rs'),prepared.get(mode));
   }
   const env={...process.env,CARGO_TARGET_DIR:path.join(root,'target','edit-proof-check')};
-  const nativeArgs=['test','--offline','--locked','-p','nickel-crdt',...(mode.startsWith('past-')?['--lib','causal_basis_tests']:['--test','edit_admit'])];
+  const nativeArgs=['test','--offline','--locked','-p','nickel-crdt',...((mode.startsWith('past-')||mode.startsWith('scheduler-'))?['--lib','causal_basis_tests']:['--test','edit_admit'])];
   const native=run('edit native '+mode,'cargo',nativeArgs,crate,{env});
   await fs.writeFile(path.join(output,mode+'.native.log'),native.log);
   if(mode==='positive')assert.equal(native.status,0,native.log);
@@ -282,8 +293,8 @@ for(const mode of [...(wantPositive?['positive']:[]),...mutations]) {
   const extractionChanged=recorded['Nickel_crdt.Edit.fst']!==digest(code);
   // Counter calculation/installation/wiring controls need only their owning module. The positive path still
   // checks both the public Spec surface and the existing ghost causal-rank family.
-  const proofRoot=mode==='positive'?'Nickel.Spec.fst':['past-refuses-closure','duplicate-scan-skips-pairs'].includes(mode)?'Nickel.EditPastTotal.fst':mode.startsWith('past-')?'Nickel.EditPast.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
-  const checked=await verify({dir:proof,roots:(mode==='positive'?['Nickel.Spec.fst','Nickel.EditCausal.fst','Nickel.EditPastTotal.fst']:[proofRoot]).map(name=>path.join(proof,name)),fstar,models,modelCache});
+  const proofRoot=mode==='positive'?'Nickel.Spec.fst':mode.startsWith('scheduler-')?'Nickel.EditSchedule.fst':['past-refuses-closure','duplicate-scan-skips-pairs'].includes(mode)?'Nickel.EditPastTotal.fst':mode.startsWith('past-')?'Nickel.EditPast.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
+  const checked=await verify({dir:proof,roots:(mode==='positive'?['Nickel.Spec.fst','Nickel.EditCausal.fst','Nickel.EditPastTotal.fst','Nickel.EditSchedule.fst']:[proofRoot]).map(name=>path.join(proof,name)),fstar,models,modelCache});
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {
     assert.equal(checked.status,0,checked.log);

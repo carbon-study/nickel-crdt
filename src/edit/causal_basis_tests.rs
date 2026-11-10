@@ -65,6 +65,11 @@ fn exact_past_on_all_four_vertex_dags_and_storage_permutations() {
             permutations(&mut facts, 0, &mut |stored| {
                 for mask in 0usize..(1 << n) {
                     let roots: Vec<_> = (0..n).filter(|i| mask & (1 << i) != 0).map(id).collect();
+                    let expected_choice = stored.iter().position(|fact| {
+                        !roots.contains(&fact.id) && fact.after.iter().all(|id| roots.contains(id))
+                    });
+                    assert_eq!(choose_ready(stored, &roots), expected_choice,
+                        "first eligible event under this storage order and done set");
                     let expected = closure(stored, &roots);
                     let actual = past(stored, &roots).expect("finite closed graph fits");
                     assert_eq!(actual.iter().copied().collect::<BTreeSet<_>>(), expected);

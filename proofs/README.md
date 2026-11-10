@@ -905,6 +905,10 @@ of nonempty causal cycles. This covers finite public-call continuations from
 states need not admit such a certificate. Derived Clone preserves the existing
 certificate through hax's identity-refined Clone signature; it grants no writer
 lease. Ghost-only rank/edge controls are separate from native mutations.
+The public receive/edit outcome queries keep `causal_rank` opaque: they consume
+the complete certificate supplied by their checked contracts rather than
+rediscovering its quantified definition. Removing the extension contract must
+produce an ordinary owner rejection, not solver-resource exhaustion.
 
 
 ## EditAccepted without normalization
@@ -1275,3 +1279,54 @@ Controls:
   call from the composition, and must reject at
   `scanned_roots_compute_exact_past`.
 - **Fence:** it admits the `duplicate_events` prune for EditPastTotal only.
+
+### first eligible event in the causal scheduler
+
+`EditSchedule.lt` connects two actual native calls to their selection contracts:
+
+- `readiness_is_exact`: `ready(after, done)` is true exactly when every direct
+  predecessor is a member of `done`.
+- `scheduler_choice_is_exact`: `choose_ready(facts, done)` returns the **least
+  eligible storage index**, or `None` exactly when no eligible index exists.
+  Eligible means the event ID is absent from `done` and every direct predecessor
+  is present there. A selected index is in bounds. This is storage-index order,
+  not event-ID order, text order or a new tie-break policy.
+- `available_event_is_chosen`: given one eligible in-bounds index, the actual
+  scan cannot return `None`. The scan body is withheld at this composition.
+
+These statements have no causal-closure, ID-uniqueness or acyclicity premise.
+They do **not** establish that an eligible event exists in every unfinished
+reachable state, that the outer interpreter schedules each event exactly once,
+that replay projects to a causal subset, or that tree rebuilding succeeds.
+Those remain the scheduler/admission continuation, not consequences of this
+conditional scan-progress law.
+
+The interpreter calls this same extracted scan with its actual facts and `done`
+vector. The source refactor preserves the former first-match behavior; it does
+not yet constitute an implementation-linked theorem about the complete
+interpreter. `ready` uses an indexed range and both scans express the positive
+membership branch directly. This retains the same short circuit/early return;
+the former native negation-wrapper shapes were refused by the proof and remain
+failed evidence, not an adopted normalizer or weakened statement.
+
+The existing native DAG/root/permutation fixture also checks the scan's result
+against an independent iterator predicate for every done subset in that fixture.
+This is bounded evidence, not the universal claim. The universal contracts use
+LoopUtil with its fold withheld, and membership/readiness contracts with those
+native bodies withheld at callers. Imported models and hax remain trusted.
+
+The `schedule` dependency family removes both loop-rule applications, the
+readiness pattern, and the choice contract used in conditional progress. Four
+default source modes skip dependency checks, permit reselecting an already-done
+ID, refuse an eligible event, or pass an empty dependency list at the actual
+readiness call. Each must fail native acceptance and ordinarily
+reject at its readiness/choice owner. Run only this changed scope locally:
+
+```sh
+node scripts/check-edit-proofs.mjs /tmp/schedule-check \
+  contracts:schedule scheduler-ready-skips-dependency \
+  scheduler-reselects-done scheduler-refuses-ready scheduler-checks-empty-after
+```
+
+The standard no-argument gate includes this family and all four source modes;
+the existing dynamic shard partition includes each new mode exactly once.

@@ -12,6 +12,7 @@ function tokens(source) {
 const pastVisibility=new Set(['"Nickel_crdt.Edit.has_event"','"Nickel_crdt.Edit.extend_past"','"Nickel_crdt.Edit.past_pass"','"Nickel_crdt.Edit.past"']);
 const pastTotalVisibility=new Set([...pastVisibility,'"Nickel_crdt.Edit.validate_after"','"Nickel_crdt.Edit.duplicate_events"']);
 const causalVisibility=new Set([
+  '"Nickel.EditCausal.causal_rank"',
   '"Nickel.EditIdentity.prefix_absent"','"Nickel_crdt.Edit.has_fact"','"Nickel_crdt.Edit.impl_Replica__new"','"Nickel_crdt.Edit.impl_Replica__receive"','"Nickel_crdt.Edit.impl_Replica__edit"']);
 const atomicVisibility=new Set([
   '"Nickel_crdt.Edit.frontier"',
@@ -55,6 +56,7 @@ export function assertReformedSource(name,source) {
     if(name==='EditAccepted'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&acceptedVisibility.has(ts[i+4])) { i+=5;continue; }
     if(name==='EditCommit'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&commitVisibility.has(ts[i+4])) { i+=5;continue; }
     if(name==='EditAtomic'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&atomicVisibility.has(ts[i+4])) { i+=5;continue; }
+    if(name==='EditSchedule'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&['"Nickel_crdt.Edit.has_event"','"Nickel_crdt.Edit.ready"','"Nickel_crdt.Edit.choose_ready"'].includes(ts[i+4])) { i+=5;continue; }
     if(name==='EditPast'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&pastVisibility.has(ts[i+4])) { i+=5;continue; }
     if(name==='EditPastTotal'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&pastTotalVisibility.has(ts[i+4])) { i+=5;continue; }
     if(name==='EditCausal'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&causalVisibility.has(ts[i+4])) { i+=5;continue; }
@@ -66,6 +68,6 @@ export function assertReformedSource(name,source) {
     }
   }
 }
-export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smoke','Vector','EditCausal','EditIdentity','EditWellFormed','Spec','EditCommit','EditAccepted','EditPast','EditPastTotal']) {
+export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smoke','Vector','EditCausal','EditIdentity','EditWellFormed','Spec','EditCommit','EditAccepted','EditPast','EditPastTotal','EditSchedule']) {
   for(const name of names)assertReformedSource(name,await fs.readFile(path.join(root,'proofs',name+'.lt'),'utf8'));
 }
