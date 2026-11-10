@@ -1292,7 +1292,8 @@ Controls:
 - **Contract removal:** `past-scan-without-exact-law` removes the exact-law
   call from the composition, and must reject at
   `scanned_roots_compute_exact_past`.
-- **Fence:** it admits the `duplicate_events` prune for EditPastTotal only.
+- **Fence:** it admits the `duplicate_events` prune for EditPastTotal and
+  EditSchedule; other modules remain refused.
 
 ### first eligible event in the causal scheduler
 
