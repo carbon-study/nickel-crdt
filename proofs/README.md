@@ -1307,6 +1307,9 @@ roots. The premises are explicit:
 
 It does not assume equal ancestor sets. Under these premises both `past` calls
 succeed and their selections have the same members.
+This is membership equivalence only. The order (and any repetition) of the returned
+IDs depends on each receiver's storage order, and is not claimed equal: `past` scans
+the receiver's own fact vector.
 
 The proof has three layers:
 - **Transfer (edge level).** `shared_path_stays_shared` and

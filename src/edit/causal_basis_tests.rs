@@ -560,16 +560,31 @@ fn two_receivers_with_different_extras_select_the_same_past() {
     assert_eq!(expected, shared.iter().map(|f| f.id).collect::<BTreeSet<_>>(), "fixture past");
     let mut observed = BTreeSet::new();
     let mut stores = BTreeSet::new();
-    for extras in [vec![z.clone()], vec![w.clone()], vec![z.clone(), w.clone()], vec![]] {
+    // Legal causal orders after root, counted by hand: x and y in either order,
+    // z needs x, w needs e. Shared only: 2; +w: 2; +z: 5; +z+w: 7.
+    for (extras, legal) in [
+        (vec![z.clone()], 5),
+        (vec![w.clone()], 2),
+        (vec![z.clone(), w.clone()], 7),
+        (vec![], 2),
+    ] {
+        let mut delivered = 0;
         let mut facts = shared.clone();
         facts.push(e.clone());
         facts.extend(extras.iter().cloned());
         let mut orders = facts.clone();
         permutations(&mut orders, 0, &mut |order| {
             let mut seen = BTreeSet::new();
-            if !order.iter().all(|f| f.after.iter().all(|id| seen.contains(id)) && seen.insert(f.id)) {
+            if !order.iter().all(|f| {
+                if !f.after.iter().all(|id| seen.contains(id)) {
+                    return false;
+                }
+                seen.insert(f.id);
+                true
+            }) {
                 return;
             }
+            delivered += 1;
             let mut r = new(None);
             for f in order {
                 r = receive_added(r, f);
@@ -585,6 +600,7 @@ fn two_receivers_with_different_extras_select_the_same_past() {
             observed.insert(set.into_iter().collect::<Vec<_>>());
             stores.insert(r.facts().iter().map(|f| f.id).collect::<Vec<_>>());
         });
+        assert_eq!(delivered, legal, "every legal causal delivery order of this extra set");
     }
     assert_eq!(observed.len(), 1, "every receiver selected one past");
     assert_eq!(stores.len(), 4, "the receivers really stored different histories");
