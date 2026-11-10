@@ -648,3 +648,180 @@ proof successful_execution_orders_its_exact_past_cut(facts: facts_vec, roots: t_
     Tactics.smt_sync'(1, 1)
   }
 }
+
+unfold type operation_pair = (Native.t_EventId, Alloc.Vec.t_Vec(Native.t_Node, Alloc.Alloc.t_Global))
+unfold type node_vec = Alloc.Vec.t_Vec(Native.t_Node, Alloc.Alloc.t_Global)
+unfold type event_work_step = (ids_vec, operations_vec, Native.t_Tree, node_vec, usize)
+function prefix_step_valid(facts: t_Slice(Native.t_Fact), done: ids_vec, operations: operations_vec,
+  tree: Native.t_Tree, step: event_work_step): Type0 {
+  match step { (previous_done, previous_operations, previous_tree, new_operations, index) =>
+    if v(index) < Seq.length(facts) {
+      Native.choose_ready(facts, Alloc.Vec.impl_1__as_slice(previous_done)) == Option.Option_Some(index) and
+      Native.interpret_event(facts, Seq.index(facts, v(index)), Alloc.Vec.impl_1__as_slice(previous_operations), previous_tree) == Result.Result_Ok((tree, new_operations)) and
+      Alloc.Vec.impl_1__as_slice(done) == Seq.append(Alloc.Vec.impl_1__as_slice(previous_done), Seq.create(1, Seq.index(facts, v(index)).f_id)) and
+      Alloc.Vec.impl_1__as_slice(operations) == Seq.append(Alloc.Vec.impl_1__as_slice(previous_operations), Seq.create(1, (Seq.index(facts, v(index)).f_id, new_operations)))
+    } else { Prims.l_False }
+  }
+}
+// A predecessor contains the actual helper input state, output operations and
+// chosen index. Packing it gives the constructor proof one explicit witness.
+function! event_work_prefix(facts: t_Slice(Native.t_Fact), count: nat,
+  done: ids_vec, operations: operations_vec, tree: Native.t_Tree): Type0
+  decreases count
+{
+  if count ==? 0 {
+    Alloc.Vec.impl_1__as_slice(done) == Seq.empty and
+    Alloc.Vec.impl_1__as_slice(operations) == Seq.empty and
+    tree == Core_models.Default.f_default<#Native.t_Tree, #Native.impl_5>(())
+  } else {
+    exists(step: event_work_step) .
+      (match step { (previous_done, previous_operations, previous_tree, _, _) =>
+        event_work_prefix(facts, count - 1, previous_done, previous_operations, previous_tree) }) and
+      prefix_step_valid(facts, done, operations, tree, step)
+  }
+}
+function prefix_can_extend_at(facts: t_Slice(Native.t_Fact), count: nat,
+  done: ids_vec, operations: operations_vec, tree: Native.t_Tree,
+  index: usize where v(index) < Seq.length(facts)): Type0 {
+  forall(next_tree: Native.t_Tree, new_operations: node_vec, next_done: ids_vec, next_operations: operations_vec) .
+    (Native.choose_ready(facts, Alloc.Vec.impl_1__as_slice(done)) == Option.Option_Some(index) and
+     Native.interpret_event(facts, Seq.index(facts, v(index)), Alloc.Vec.impl_1__as_slice(operations), tree) == Result.Result_Ok((next_tree, new_operations)) and
+     Alloc.Vec.impl_1__as_slice(next_done) == Seq.append(Alloc.Vec.impl_1__as_slice(done), Seq.create(1, Seq.index(facts, v(index)).f_id)) and
+     Alloc.Vec.impl_1__as_slice(next_operations) == Seq.append(Alloc.Vec.impl_1__as_slice(operations), Seq.create(1, (Seq.index(facts, v(index)).f_id, new_operations)))) ==>
+    event_work_prefix(facts, count + 1, next_done, next_operations, next_tree)
+}
+proof prefix_extension_is_actual_work(facts: t_Slice(Native.t_Fact), count: nat,
+  done: ids_vec, operations: operations_vec, tree: Native.t_Tree,
+  index: usize where v(index) < Seq.length(facts)): unit
+  takes event_work_prefix(facts, count, done, operations, tree)
+  gives prefix_can_extend_at(facts, count, done, operations, tree, index)
+{
+  proof next(next_tree: Native.t_Tree, new_operations: node_vec, next_done: ids_vec, next_operations: operations_vec): unit
+    takes Native.choose_ready(facts, Alloc.Vec.impl_1__as_slice(done)) == Option.Option_Some(index)
+    takes Native.interpret_event(facts, Seq.index(facts, v(index)), Alloc.Vec.impl_1__as_slice(operations), tree) == Result.Result_Ok((next_tree, new_operations))
+    takes Alloc.Vec.impl_1__as_slice(next_done) == Seq.append(Alloc.Vec.impl_1__as_slice(done), Seq.create(1, Seq.index(facts, v(index)).f_id))
+    takes Alloc.Vec.impl_1__as_slice(next_operations) == Seq.append(Alloc.Vec.impl_1__as_slice(operations), Seq.create(1, (Seq.index(facts, v(index)).f_id, new_operations)))
+    gives event_work_prefix(facts, count + 1, next_done, next_operations, next_tree)
+  {
+    const witness = ((done, operations, tree, new_operations, index) : event_work_step);
+    assert(prefix_step_valid(facts, next_done, next_operations, next_tree, witness));
+    FStar.Classical.exists_intro(
+      ((step: event_work_step) =>
+        (match step { (previous_done, previous_operations, previous_tree, _, _) =>
+          event_work_prefix(facts, count, previous_done, previous_operations, previous_tree) }) and
+        prefix_step_valid(facts, next_done, next_operations, next_tree, step)), witness);
+    assert(event_work_prefix(facts, count + 1, next_done, next_operations, next_tree)) by {
+      Tactics.prune("Nickel_crdt.Edit.interpret_event");
+      Tactics.prune("Nickel_crdt.Edit.choose_ready");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_4(FStar.Classical.move_requires_4(next))
+}
+proof prefix_starts_at_actual_empty(facts: t_Slice(Native.t_Fact)): unit
+  gives event_work_prefix(facts, 0, Alloc.Vec.impl__new<#Native.t_EventId>(()),
+    Alloc.Vec.impl__new<#operation_pair>(()),
+    Core_models.Default.f_default<#Native.t_Tree, #Native.impl_5>(()))
+{ () }
+// Any outer error on ranked distinct facts is explained by event/tree work,
+// rather than scheduler choice, the index guard or the two bookkeeping pushes.
+function tree_work_failed(facts: facts_vec, error: Native.t_Error): Type0 {
+  exists(done: ids_vec, operations: operations_vec, tree: Native.t_Tree,
+    index: FStar.Fin.under(Seq.length(Alloc.Vec.impl_1__as_slice(facts)))) .
+    Seq.length(Alloc.Vec.impl_1__as_slice(done)) < Seq.length(Alloc.Vec.impl_1__as_slice(facts)) and
+    Seq.length(Alloc.Vec.impl_1__as_slice(operations)) == Seq.length(Alloc.Vec.impl_1__as_slice(done)) and
+    unique_selection(Alloc.Vec.impl_1__as_slice(done)) and
+    causal_trace(Alloc.Vec.impl_1__as_slice(facts), Alloc.Vec.impl_1__as_slice(done)) and
+    eligible(Alloc.Vec.impl_1__as_slice(facts), Alloc.Vec.impl_1__as_slice(done), index) and
+    event_work_prefix(Alloc.Vec.impl_1__as_slice(facts), Seq.length(Alloc.Vec.impl_1__as_slice(done)), done, operations, tree) and
+    Native.choose_ready(Alloc.Vec.impl_1__as_slice(facts), Alloc.Vec.impl_1__as_slice(done)) == Option.Option_Some(mk_usize(index)) and
+    Native.interpret_event(Alloc.Vec.impl_1__as_slice(facts), Seq.index(Alloc.Vec.impl_1__as_slice(facts), index),
+      Alloc.Vec.impl_1__as_slice(operations), tree) == Result.Result_Err(error)
+}
+function schedule_progress_invariant(facts: t_Slice(Native.t_Fact), at: nat, state: schedule_state): Type0 {
+  schedule_invariant(facts, at, state) and
+    (match state { (done, operations, tree) => Seq.length(Alloc.Vec.impl_1__as_slice(operations)) == at and event_work_prefix(facts, at, done, operations, tree) })
+}
+proof ranked_outer_errors_come_from_tree_work(facts: facts_vec, rank: Native.t_EventId => nat, bound: nat): unit
+  takes causal_rank(facts, rank, bound)
+  takes ids_unique(facts)
+  gives Nickel.LoopUtil.result_safe(complete_causal_trace(Alloc.Vec.impl_1__as_slice(facts)),
+    tree_work_failed(facts), Native.interpret_scheduled(Alloc.Vec.impl_1__as_slice(facts)))
+{
+  const input = Alloc.Vec.impl_1__as_slice(facts);
+  proof progress(done: t_Slice(Native.t_EventId)): unit
+    takes Seq.length(done) < Seq.length(input)
+    gives not (Native.choose_ready(input, done) == Option.Option_None) and chosen_is_first(input, done, Native.choose_ready(input, done))
+    hint Native.choose_ready(input, done)
+  {
+    ranked_incomplete_scan_progress(facts, done, rank, bound);
+    scheduler_choice_is_exact(input, done);
+    assert(not (Native.choose_ready(input, done) == Option.Option_None) and
+      chosen_is_first(input, done, Native.choose_ready(input, done))) by {
+      Tactics.prune("Nickel_crdt.Edit.choose_ready");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  proof choice_shape(done: t_Slice(Native.t_EventId)): unit
+    gives Native.choose_ready(input, done) == Option.Option_None or
+      (exists(index: usize) . Native.choose_ready(input, done) == Option.Option_Some(index))
+    hint Native.choose_ready(input, done)
+  { () };
+  proof event_shape(event: Native.t_Fact, operations: t_Slice((Native.t_EventId, Alloc.Vec.t_Vec(Native.t_Node, Alloc.Alloc.t_Global))), tree: Native.t_Tree): unit
+    gives result_shape(Native.interpret_event(input, event, operations, tree))
+    hint Native.interpret_event(input, event, operations, tree)
+  { () };
+  proof extend_at_call(done: ids_vec, operations: operations_vec, tree: Native.t_Tree,
+    index: usize where v(index) < Seq.length(input)): unit
+    takes event_work_prefix(input, Seq.length(Alloc.Vec.impl_1__as_slice(done)), done, operations, tree)
+    takes Seq.length(Alloc.Vec.impl_1__as_slice(done)) < Seq.length(input)
+    gives prefix_can_extend_at(input, Seq.length(Alloc.Vec.impl_1__as_slice(done)), done, operations, tree, index)
+    hint Native.choose_ready(input, Alloc.Vec.impl_1__as_slice(done)),
+      Native.interpret_event(input, Seq.index(input, v(index)), Alloc.Vec.impl_1__as_slice(operations), tree)
+  {
+    prefix_extension_is_actual_work(input, Seq.length(Alloc.Vec.impl_1__as_slice(done)), done, operations, tree, index);
+    assert(prefix_can_extend_at(input, Seq.length(Alloc.Vec.impl_1__as_slice(done)), done, operations, tree, index)) by {
+      Tactics.prune("Nickel.EditCausal.causal_rank");
+      Tactics.prune("Nickel.EditSchedule.event_work_prefix");
+      Tactics.prune("Nickel_crdt.Edit.interpret_event");
+      Tactics.prune("Nickel_crdt.Edit.choose_ready");
+      Tactics.smt_sync'(0, 0)
+    }
+  };
+  prefix_starts_at_actual_empty(input);
+  empty_trace_is_valid(input);
+  Nickel.Vector.empty_vector_contents<#Native.t_EventId>();
+  Nickel.Vector.empty_vector_contents<#operation_pair>();
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(input),
+    schedule_progress_invariant(input), schedule_done, complete_causal_trace(input), tree_work_failed(facts));
+  assert(Nickel.LoopUtil.result_safe(complete_causal_trace(input), tree_work_failed(facts), Native.interpret_scheduled(input))) by {
+    Tactics.prune("Nickel.EditSchedule.event_work_prefix");
+    Tactics.prune("Nickel.EditCausal.causal_rank");
+    Tactics.prune("Nickel.EditSchedule.causal_trace");
+    Tactics.prune("Nickel_crdt.Edit.interpret_event");
+    Tactics.prune("Nickel_crdt.Edit.choose_ready");
+    Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.prune("Nickel.LoopUtil.step_safe");
+    Tactics.prune("Nickel.LoopUtil.output_safe");
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof interpret_errors_come_from_tree_work(facts: facts_vec, rank: Native.t_EventId => nat, bound: nat, error: Native.t_Error): unit
+  takes causal_rank(facts, rank, bound)
+  takes ids_unique(facts)
+  takes Native.interpret(Alloc.Vec.impl_1__as_slice(facts)) == Result.Result_Err(error)
+  gives tree_work_failed(facts, error)
+{
+  ranked_outer_errors_come_from_tree_work(facts, rank, bound);
+  interpret_erases_only_schedule(Alloc.Vec.impl_1__as_slice(facts));
+  proof shape(): unit
+    gives result_shape(Native.interpret_scheduled(Alloc.Vec.impl_1__as_slice(facts)))
+  { () };
+  shape();
+  assert(tree_work_failed(facts, error)) by {
+    Tactics.prune("Nickel_crdt.Edit.interpret");
+    Tactics.prune("Nickel_crdt.Edit.interpret_scheduled");
+    Tactics.smt_sync'(1, 1)
+  }
+}

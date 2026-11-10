@@ -64,7 +64,7 @@ const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tre
   'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality',
   'identity-scan-key','identity-birth-equality','identity-writer-equality',
   'accepted-reuses-member','accepted-wrong-canonical-push','accepted-publication-duplicates',
-  'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes','past-refuses-closure','duplicate-scan-skips-pairs','scheduler-ready-skips-dependency','scheduler-reselects-done','scheduler-refuses-ready','scheduler-checks-empty-after','scheduler-records-wrong-id','scheduler-stops-early','scheduler-erases-wrong-trace'];
+  'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes','past-refuses-closure','duplicate-scan-skips-pairs','scheduler-ready-skips-dependency','scheduler-reselects-done','scheduler-refuses-ready','scheduler-checks-empty-after','scheduler-records-wrong-id','scheduler-stops-early','scheduler-erases-wrong-trace','scheduler-invents-bookkeeping-error'];
 // Contract-dependency families run after the positive chain verifies. With no
 // arguments (CI) every mode and every family runs. Development runs may select
 // `positive-only`, `contracts:<family>` (implies the positive chain) and any
@@ -106,7 +106,7 @@ if(args.length===0){for(const name of Object.keys(families))familyRuns.add(name)
 function prepareMutation(mode) {
   const scopes={
 'duplicate-scan-skips-pairs':'fn duplicate_events(', 'past-refuses-closure':'fn past(', 'past-skips-passes':'fn past(', 'past-skips-predecessors':'fn extend_past(', 'past-drops-roots':'fn past(', 'past-invents-id':'fn extend_past(', 'past-membership-always-false':'fn has_event(',
-'scheduler-records-wrong-id':'fn interpret_scheduled(', 'scheduler-stops-early':'fn interpret_scheduled(', 'scheduler-erases-wrong-trace':'fn interpret(',
+'scheduler-records-wrong-id':'fn interpret_scheduled(', 'scheduler-stops-early':'fn interpret_scheduled(', 'scheduler-erases-wrong-trace':'fn interpret(', 'scheduler-invents-bookkeeping-error':'fn interpret_scheduled(',
 'scheduler-ready-skips-dependency':'fn ready(', 'scheduler-reselects-done':'fn choose_ready(', 'scheduler-refuses-ready':'fn choose_ready(', 'scheduler-checks-empty-after':'fn choose_ready(',
 'plan-skips-validation':'fn plan(',
 "tree-publication-uses-private-writer":"fn with_tree(",
@@ -118,6 +118,7 @@ function prepareMutation(mode) {
     'scheduler-records-wrong-id':['push(&mut done, event.id)?;', 'push(&mut done, EventId { writer: Writer::Alice, counter: 0 })?;'],
     'scheduler-stops-early':['for _ in 0..facts.len() {', 'for _ in 0..0 {'],
     'scheduler-erases-wrong-trace':['let pair = interpret_scheduled(facts)?;', 'let pair = interpret_scheduled(&[])?;'],
+    'scheduler-invents-bookkeeping-error':['let (next, ops) = pair;', 'let (next, ops) = pair; if ops.len() == 0 { return Err(Error::Internal); }'],
     'scheduler-ready-skips-dependency':['if has_event(done, after[i]) {','if true {'],
     'scheduler-reselects-done':['if has_event(done, facts[i].id) {','if false {'],
     'scheduler-refuses-ready':['return Some(i);','return None;'],
@@ -205,6 +206,7 @@ const theorems={
   'scheduler-records-wrong-id':'EditSchedule.successful_schedule_is_once_only_and_causal',
   'scheduler-stops-early':'EditSchedule.successful_schedule_is_once_only_and_causal',
   'scheduler-erases-wrong-trace':'EditSchedule.interpret_erases_only_schedule',
+  'scheduler-invents-bookkeeping-error':'EditSchedule.ranked_outer_errors_come_from_tree_work',
 'plan-skips-validation':'EditAtomic.successful_plan_requires_validation',
 "tree-publication-uses-private-writer":"EditCommit.tree_publication_respects_shared",
 "tree-publication-clears-private-counter":"EditCommit.tree_publication_keeps_private",

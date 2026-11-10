@@ -605,3 +605,92 @@ fn two_receivers_with_different_extras_select_the_same_past() {
     assert_eq!(observed.len(), 1, "every receiver selected one past");
     assert_eq!(stores.len(), 4, "the receivers really stored different histories");
 }
+
+#[test]
+fn outer_errors_have_a_concrete_event_work_witness() {
+    let first = Fact {
+        id: id(0),
+        after: vec![],
+        insert: vec!['x' as u32],
+        delete: vec![],
+        gap: Some(0),
+    };
+    let mut cases = 0;
+    for gap in [None, Some(2), Some(usize::MAX)] {
+        let bad = Fact {
+            id: id(1),
+            after: vec![first.id],
+            insert: vec!['y' as u32],
+            delete: vec![],
+            gap,
+        };
+        let mut facts = vec![first.clone(), bad.clone()];
+        permutations(&mut facts, 0, &mut |stored| {
+            // This witnesses the actual failing helper call after a successful
+            // first event. No public admission success is claimed for bad gaps.
+            let (tree, ops) =
+                interpret_event(stored, &first, &[], Tree::default()).expect("first event fits");
+            let done = vec![first.id];
+            let operations = vec![(first.id, ops)];
+            assert_complete_causal_trace(&[first.clone()], &done);
+            assert_eq!(operations.len(), done.len());
+            assert!(done.len() < stored.len());
+            assert!(bad.after.iter().all(|id| done.contains(id)));
+            let error = interpret_event(stored, &bad, &operations, tree)
+                .expect_err("bad gap fails inside event work");
+            assert_eq!(interpret_scheduled(stored), Err(error.clone()));
+            assert_eq!(interpret(stored), Err(error));
+            cases += 1;
+        });
+    }
+    assert_eq!(cases, 6);
+}
+
+#[test]
+fn error_witness_uses_reachable_prefix_not_an_adversarial_tree() {
+    // Reviewer counterexample: an empty A and inserting B. A fabricated tree
+    // already containing B makes B fail, but that is not a reachable prefix.
+    let a = Fact {
+        id: id(0),
+        after: vec![],
+        insert: vec![],
+        delete: vec![],
+        gap: None,
+    };
+    let b = Fact {
+        id: id(1),
+        after: vec![],
+        insert: vec!['b' as u32],
+        delete: vec![],
+        gap: Some(0),
+    };
+    let facts = vec![a, b.clone()];
+    let (adversarial, _) = interpret_event(&facts, &b, &[], Tree::default()).unwrap();
+    assert_eq!(
+        interpret_event(&facts, &b, &[], adversarial.clone()),
+        Err(Error::Internal)
+    );
+    assert_ne!(
+        adversarial,
+        Tree::default(),
+        "zero-step prefix is the actual default tree"
+    );
+
+    // Construct every prefix along the *actual choice/helper* schedule. This
+    // is independent of interpret_scheduled's bookkeeping/error branches.
+    let mut done = Vec::new();
+    let mut operations = Vec::new();
+    let mut tree = Tree::default();
+    for _ in 0..facts.len() {
+        let index = choose_ready(&facts, &done).expect("ranked incomplete prefix");
+        let event = &facts[index];
+        let (next, ops) = interpret_event(&facts, event, &operations, tree)
+            .expect("no event work fails on a reachable prefix in this history");
+        tree = next;
+        done.push(event.id);
+        operations.push((event.id, ops));
+    }
+    assert_eq!(done, vec![id(0), id(1)]);
+    assert_eq!(interpret_scheduled(&facts), Ok((tree.clone(), done)));
+    assert_eq!(interpret(&facts), Ok(tree));
+}

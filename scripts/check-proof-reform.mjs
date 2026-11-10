@@ -16,7 +16,8 @@ export function checkProofReformFence() {
     'Tactics.set_options("--fuel 100")', 'Tactics.prune("Other")', 'let hide = Tactics.prune',
   ])assert.throws(()=>assertReformedSource('fixture',bad),/fixture reform:/,bad);
   assertReformedSource('EditCausal','Tactics.prune("Nickel.EditCausal.causal_rank")');
-  for(const name of ['fixture','EditSchedule','EditPast','EditWellFormed'])
+  assertReformedSource('EditSchedule','Tactics.prune("Nickel.EditCausal.causal_rank")');
+  for(const name of ['fixture','EditPast','EditPastTotal','EditWellFormed'])
     assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EditCausal.causal_rank")'),new RegExp(name+' reform:'));
   assertReformedSource('EditWellFormed','Tactics.prune("Nickel.EditIdentity.prefix_absent")');
   assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Nickel.EditIdentity.prefix_absent")'),/fixture reform:/);
@@ -40,6 +41,12 @@ export function checkProofReformFence() {
   }
   assertReformedSource('EditSchedule','Tactics.prune("Nickel.EditSchedule.no_eligible_prefix")');
   assertReformedSource('EditSchedule','Tactics.prune("Nickel.EditSchedule.causal_trace")');
+  assertReformedSource('EditSchedule',"Tactics.smt_sync'(0, 0)");
+  for(const name of ['fixture','EditCausal','EditPast','EditPastTotal','EditAccepted'])
+    assert.throws(()=>assertReformedSource(name,"Tactics.smt_sync'(0, 0)"),new RegExp(name+' reform:'));
+  assertReformedSource('EditSchedule','Tactics.prune("Nickel.EditSchedule.event_work_prefix")');
+  for(const name of ['fixture','EditCausal','EditPast','EditPastTotal','EditAccepted'])
+    assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EditSchedule.event_work_prefix")'),new RegExp(name+' reform:'));
   assertReformedSource('EditSchedule','Tactics.prune("Nickel.EditPastTotal.unique_selection")');
   for(const name of ['fixture','EditCausal','EditPast'])
     assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EditPastTotal.unique_selection")'),new RegExp(name+' reform:'));

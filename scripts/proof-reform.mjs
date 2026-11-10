@@ -58,13 +58,14 @@ export function assertReformedSource(name,source) {
     if(name==='EditAccepted'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&acceptedVisibility.has(ts[i+4])) { i+=5;continue; }
     if(name==='EditCommit'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&commitVisibility.has(ts[i+4])) { i+=5;continue; }
     if(name==='EditAtomic'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&atomicVisibility.has(ts[i+4])) { i+=5;continue; }
-    if(name==='EditSchedule'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&['"Nickel_crdt.Edit.duplicate_events"','"Nickel.EditSchedule.cut_order"','"Nickel.EditPast.ancestor"','"Nickel_crdt.Edit.past"','"Nickel.EditPastTotal.unique_selection"','"Nickel.EditSchedule.causal_trace"','"Nickel_crdt.Edit.interpret"','"Nickel_crdt.Edit.interpret_event"','"Nickel_crdt.Edit.interpret_scheduled"','"Nickel.EditSchedule.no_eligible_prefix"','"Nickel_crdt.Edit.has_event"','"Nickel_crdt.Edit.ready"','"Nickel_crdt.Edit.choose_ready"'].includes(ts[i+4])) { i+=5;continue; }
+    if(name==='EditSchedule'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&['"Nickel.EditCausal.causal_rank"','"Nickel.EditSchedule.event_work_prefix"','"Nickel_crdt.Edit.duplicate_events"','"Nickel.EditSchedule.cut_order"','"Nickel.EditPast.ancestor"','"Nickel_crdt.Edit.past"','"Nickel.EditPastTotal.unique_selection"','"Nickel.EditSchedule.causal_trace"','"Nickel_crdt.Edit.interpret"','"Nickel_crdt.Edit.interpret_event"','"Nickel_crdt.Edit.interpret_scheduled"','"Nickel.EditSchedule.no_eligible_prefix"','"Nickel_crdt.Edit.has_event"','"Nickel_crdt.Edit.ready"','"Nickel_crdt.Edit.choose_ready"'].includes(ts[i+4])) { i+=5;continue; }
     if(name==='EditPast'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&pastVisibility.has(ts[i+4])) { i+=5;continue; }
     if(name==='EditPastTotal'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&pastTotalVisibility.has(ts[i+4])) { i+=5;continue; }
     if(name==='EditCausal'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&causalVisibility.has(ts[i+4])) { i+=5;continue; }
     if(ts[i]==='Tactics') {
       // No aliasing even of approved methods: only this direct call is admitted.
-      if(ts.slice(i,i+8).join(' ')!=="Tactics . smt_sync' ( 1 , 1 )")
+      if(ts.slice(i,i+8).join(' ')!=="Tactics . smt_sync' ( 1 , 1 )" &&
+        !(name==='EditSchedule'&&ts.slice(i,i+8).join(' ')==="Tactics . smt_sync' ( 0 , 0 )"))
         fail('only approved direct SMT/visibility tactic calls are permitted');
       i+=7;
     }
