@@ -25,6 +25,10 @@ export async function checkScheduleContracts({proof,output,fstar,models,modelCac
     ['schedule-public-without-erasure',/  interpret_erases_only_schedule facts;\n/,'successful_interpretation_has_causal_schedule','successful_interpretation_has_causal_schedule'],
     ['schedule-public-without-coverage',/full_trace_covers_storage facts done;\n/,'successful_interpretation_has_causal_schedule','successful_interpretation_has_causal_schedule'],
     ['schedule-full-without-capacity',/missing_stored_id_leaves_room stored done id;\n/,'full_trace_covers_storage','full_trace_covers_storage'],
+    ['cut-final-without-past',/  scanned_roots_compute_exact_past facts roots;\n/,'successful_execution_orders_its_exact_past_cut','successful_execution_orders_its_exact_past_cut'],
+    ['cut-final-without-execution',/  successful_interpretation_has_causal_schedule \(Alloc\.Vec\.impl_1__as_slice facts\) tree;\n/,'successful_execution_orders_its_exact_past_cut','successful_execution_orders_its_exact_past_cut'],
+    ['cut-final-without-order',/    full_execution_orders_exact_cut facts roots selected done;\n/,'successful_execution_orders_its_exact_past_cut','successful_execution_orders_its_exact_past_cut'],
+    ['cut-closed-without-edge-law',/    ancestor_follows_edge facts roots fact\.f_id id;\n/,'exact_cut_keeps_dependencies','exact_cut_keeps_dependencies'],
   ];
   for(const [control,pattern,owner,scope,replacement=''] of controls) {
     let start=0,end=original.length;

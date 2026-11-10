@@ -1424,3 +1424,36 @@ node scripts/check-edit-proofs.mjs /tmp/outer-schedule-check \
   contracts:schedule scheduler-records-wrong-id scheduler-stops-early \
   scheduler-erases-wrong-trace jobs:3
 ```
+
+### relative order of an actual past cut
+
+`successful_execution_orders_its_exact_past_cut` composes the actual duplicate
+scan, `past`, and the successful actual interpreter trace. Its premises are:
+causally closed stored facts, present roots, the actual scan returning false,
+distinct stored IDs, and successful `interpret`. It returns the actual selected
+IDs and actual done vector, with their stored/unique and complete causal-trace
+contracts. Every selected ID occurs in that execution; every direct predecessor
+of a selected fact is also selected and occurs strictly earlier in the execution.
+
+The cut is not assumed closed. `exact_cut_keeps_dependencies` obtains closure
+from exact transitive ancestry and the checked path-edge law. Stored-ID
+uniqueness connects each trace-position witness to the intended whole fact.
+`strictly_before` is independently stated using two increasing trace positions.
+The final composition withholds the actual native calls, and its order boundary
+consumes `cut_order` opaquely.
+
+This is a **relative-order cut contract**, not the completed replay-projection
+law. It does not construct or verify the runtime operation filter, prove that a
+separate subset interpretation chooses the identical schedule, or equate author
+placements/trees. Those reconstruction/projection obligations remain open.
+Interpretation success is still a premise; no tree/admission progress or M1
+completion is claimed.
+
+The native fixture independently computes closure on all 24,979 rooted,
+topologically labelled DAG/storage-permutation cases through four vertices,
+using nonempty text events. It compares the actual `past` result with that
+closure, checks the filtered actual execution, and compares its order with an
+actual separate subset execution. The last comparison is deliberately stronger
+**finite evidence**, not a universal equality theorem. Four new dependency
+controls cut the actual past, actual execution, order-composition and path-edge
+links. Production Rust, extraction and all prior theorem bodies stay unchanged.

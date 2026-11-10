@@ -34,6 +34,10 @@ export function checkProofReformFence() {
     assertReformedSource('EditPastTotal','Tactics.prune('+JSON.stringify(namespace)+')');
     assert.throws(()=>assertReformedSource('fixture','Tactics.prune('+JSON.stringify(namespace)+')'),/fixture reform:/);
   }
+  for(const boundary of ['Nickel.EditSchedule.cut_order','Nickel.EditPast.ancestor','Nickel_crdt.Edit.past','Nickel_crdt.Edit.duplicate_events']) {
+    assertReformedSource('EditSchedule','Tactics.prune("'+boundary+'")');
+    assert.throws(()=>assertReformedSource('fixture','Tactics.prune("'+boundary+'")'),/fixture reform:/);
+  }
   assertReformedSource('EditSchedule','Tactics.prune("Nickel.EditSchedule.no_eligible_prefix")');
   assertReformedSource('EditSchedule','Tactics.prune("Nickel.EditSchedule.causal_trace")');
   assertReformedSource('EditSchedule','Tactics.prune("Nickel.EditPastTotal.unique_selection")');

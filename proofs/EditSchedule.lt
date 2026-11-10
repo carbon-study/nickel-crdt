@@ -486,3 +486,165 @@ proof successful_interpretation_has_causal_schedule(facts: t_Slice(Native.t_Fact
     Tactics.smt_sync'(1, 1)
   }
 }
+
+// Restricting an actual execution to its exact past keeps predecessor order.
+// This is a relative-order statement, not equality of two rebuilt trees.
+function strictly_before(ids: t_Slice(Native.t_EventId), first: Native.t_EventId, second: Native.t_EventId): Type0 {
+  exists(i: usize where v(i) < Seq.length(ids), j: usize where v(j) < Seq.length(ids)) .
+    v(i) < v(j) and Seq.index(ids, v(i)) == first and Seq.index(ids, v(j)) == second
+}
+proof trace_orders_stored_dependencies(facts: t_Slice(Native.t_Fact), ids: t_Slice(Native.t_EventId),
+  index: FStar.Fin.under(Seq.length(facts)), at: FStar.Fin.under(Seq.length(ids))): unit
+  takes Nickel.EditIdentity.unique_ids(facts)
+  takes causal_trace(facts, ids)
+  takes Seq.index(facts, index).f_id == Seq.index(ids, at)
+  gives all_ids(Alloc.Vec.impl_1__as_slice(Seq.index(facts, index).f_after),
+    ((id: Native.t_EventId) => not absent_prefix(ids, id, at)))
+{
+  assert(causal_position(facts, ids, at));
+  proof each(k: FStar.Fin.under(Seq.length(facts))): unit
+    takes Seq.index(facts, k).f_id == Seq.index(ids, at)
+    takes all_ids(Alloc.Vec.impl_1__as_slice(Seq.index(facts, k).f_after),
+      ((id: Native.t_EventId) => not absent_prefix(ids, id, at)))
+    gives all_ids(Alloc.Vec.impl_1__as_slice(Seq.index(facts, index).f_after),
+      ((id: Native.t_EventId) => not absent_prefix(ids, id, at)))
+  {
+    unique_slice_nat_positions(facts, index, k);
+    assert(index == k);
+    ()
+  };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(each));
+  ()
+}
+proof earlier_member_has_strict_order(ids: t_Slice(Native.t_EventId), id: Native.t_EventId, at: FStar.Fin.under(Seq.length(ids))): unit
+  takes not absent_prefix(ids, id, at)
+  gives strictly_before(ids, id, Seq.index(ids, at))
+{
+  assert(v(mk_usize(at)) == at);
+  proof each(i: usize where v(i) < Seq.length(ids)): unit
+    gives (v(i) < at and Seq.index(ids, v(i)) == id) ==> strictly_before(ids, id, Seq.index(ids, at))
+  { () };
+  FStar.Classical.forall_intro(each);
+  ()
+}
+proof exact_cut_keeps_dependencies(facts: facts_vec, roots: t_Slice(Native.t_EventId), selected: ids_vec,
+  index: FStar.Fin.under(Seq.length(Alloc.Vec.impl_1__as_slice(facts)))): unit
+  takes exact_past_result(facts, roots, Result.Result_Ok(selected))
+  takes member(Alloc.Vec.impl_1__as_slice(selected), Seq.index(Alloc.Vec.impl_1__as_slice(facts), index).f_id)
+  gives all_ids(Alloc.Vec.impl_1__as_slice(Seq.index(Alloc.Vec.impl_1__as_slice(facts), index).f_after), member(Alloc.Vec.impl_1__as_slice(selected)))
+{
+  const fact = Seq.index(Alloc.Vec.impl_1__as_slice(facts), index);
+  assert(ancestor(facts, roots, fact.f_id));
+  proof each(j: usize where v(j) < Seq.length(Alloc.Vec.impl_1__as_slice(fact.f_after))): unit
+    gives member(Alloc.Vec.impl_1__as_slice(selected), Seq.index(Alloc.Vec.impl_1__as_slice(fact.f_after), v(j)))
+  {
+    const id = Seq.index(Alloc.Vec.impl_1__as_slice(fact.f_after), v(j));
+    assert(fact_present(Alloc.Vec.impl_1__as_slice(facts), fact));
+    assert(Nickel.EditCausal.causal_edge(facts, fact.f_id, id));
+    ancestor_follows_edge(facts, roots, fact.f_id, id);
+    assert(member(Alloc.Vec.impl_1__as_slice(selected), id)) by {
+      Tactics.prune("Nickel.EditPast.ancestor");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro(each);
+  ()
+}
+function cut_order(facts: facts_vec, selected: ids_vec, done: ids_vec): Type0 {
+  all_ids(Alloc.Vec.impl_1__as_slice(selected), member(Alloc.Vec.impl_1__as_slice(done))) and
+  (forall(index: FStar.Fin.under(Seq.length(Alloc.Vec.impl_1__as_slice(facts)))) .
+    member(Alloc.Vec.impl_1__as_slice(selected), Seq.index(Alloc.Vec.impl_1__as_slice(facts), index).f_id) ==>
+      all_ids(Alloc.Vec.impl_1__as_slice(Seq.index(Alloc.Vec.impl_1__as_slice(facts), index).f_after),
+        ((id: Native.t_EventId) => member(Alloc.Vec.impl_1__as_slice(selected), id) and
+          strictly_before(Alloc.Vec.impl_1__as_slice(done), id, Seq.index(Alloc.Vec.impl_1__as_slice(facts), index).f_id))))
+}
+proof full_execution_orders_exact_cut(facts: facts_vec, roots: t_Slice(Native.t_EventId), selected: ids_vec, done: ids_vec): unit
+  takes ids_unique(facts)
+  takes stored_selection(facts, selected)
+  takes exact_past_result(facts, roots, Result.Result_Ok(selected))
+  takes Seq.length(Alloc.Vec.impl_1__as_slice(done)) == Seq.length(Alloc.Vec.impl_1__as_slice(facts))
+  takes unique_selection(Alloc.Vec.impl_1__as_slice(done))
+  takes causal_trace(Alloc.Vec.impl_1__as_slice(facts), Alloc.Vec.impl_1__as_slice(done))
+  gives cut_order(facts, selected, done)
+{
+  const input = Alloc.Vec.impl_1__as_slice(facts);
+  const ids = Alloc.Vec.impl_1__as_slice(done);
+  full_trace_covers_storage(input, done);
+  proof selected_member(i: usize where v(i) < Seq.length(Alloc.Vec.impl_1__as_slice(selected))): unit
+    gives member(ids, Seq.index(Alloc.Vec.impl_1__as_slice(selected), v(i)))
+  {
+    const id = Seq.index(Alloc.Vec.impl_1__as_slice(selected), v(i));
+    const index = parent_fact_position(facts, id);
+    assert(member(ids, Seq.index(input, index).f_id));
+    ()
+  };
+  FStar.Classical.forall_intro(selected_member);
+  proof selected_fact(index: FStar.Fin.under(Seq.length(input))): unit
+    takes member(Alloc.Vec.impl_1__as_slice(selected), Seq.index(input, index).f_id)
+    gives all_ids(Alloc.Vec.impl_1__as_slice(Seq.index(input, index).f_after),
+      ((id: Native.t_EventId) => member(Alloc.Vec.impl_1__as_slice(selected), id) and strictly_before(ids, id, Seq.index(input, index).f_id)))
+  {
+    const at = done_position(ids, Seq.index(input, index).f_id);
+    trace_orders_stored_dependencies(input, ids, index, at);
+    exact_cut_keeps_dependencies(facts, roots, selected, index);
+    proof dependency(j: usize where v(j) < Seq.length(Alloc.Vec.impl_1__as_slice(Seq.index(input, index).f_after))): unit
+      gives member(Alloc.Vec.impl_1__as_slice(selected), Seq.index(Alloc.Vec.impl_1__as_slice(Seq.index(input, index).f_after), v(j))) and
+        strictly_before(ids, Seq.index(Alloc.Vec.impl_1__as_slice(Seq.index(input, index).f_after), v(j)), Seq.index(input, index).f_id)
+    {
+      earlier_member_has_strict_order(ids, Seq.index(Alloc.Vec.impl_1__as_slice(Seq.index(input, index).f_after), v(j)), at)
+    };
+    FStar.Classical.forall_intro(dependency);
+    ()
+  };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(selected_fact));
+  ()
+}
+function interpreted_cut(facts: facts_vec, roots: t_Slice(Native.t_EventId), tree: Native.t_Tree): Type0 {
+  exists(selected: ids_vec, done: ids_vec) .
+    Native.past(Alloc.Vec.impl_1__as_slice(facts), roots) == Result.Result_Ok(selected) and
+    Native.interpret_scheduled(Alloc.Vec.impl_1__as_slice(facts)) == Result.Result_Ok((tree, done)) and
+    stored_selection(facts, selected) and
+    complete_causal_trace(Alloc.Vec.impl_1__as_slice(facts), (tree, done)) and
+    cut_order(facts, selected, done)
+}
+proof successful_execution_orders_its_exact_past_cut(facts: facts_vec, roots: t_Slice(Native.t_EventId), tree: Native.t_Tree): unit
+  takes Nickel.EditWellFormed.facts_causally_closed(facts)
+  takes Nickel.EditWellFormed.dependencies_present(Alloc.Vec.impl_1__as_slice(facts), roots)
+  takes Native.duplicate_events(roots) == false
+  takes ids_unique(facts)
+  takes Native.interpret(Alloc.Vec.impl_1__as_slice(facts)) == Result.Result_Ok(tree)
+  gives interpreted_cut(facts, roots, tree)
+{
+  proof shape(): unit
+    gives result_shape(Native.past(Alloc.Vec.impl_1__as_slice(facts), roots))
+  { () };
+  shape();
+  assert(history_references_present(facts));
+  assert(all_ids(roots, fact_id_present(facts)));
+  scanned_roots_compute_exact_past(facts, roots);
+  successful_interpretation_has_causal_schedule(Alloc.Vec.impl_1__as_slice(facts), tree);
+  proof combine(selected: ids_vec, done: ids_vec): unit
+    takes Native.past(Alloc.Vec.impl_1__as_slice(facts), roots) == Result.Result_Ok(selected)
+    takes stored_selection(facts, selected)
+    takes exact_past_result(facts, roots, Result.Result_Ok(selected))
+    takes Native.interpret_scheduled(Alloc.Vec.impl_1__as_slice(facts)) == Result.Result_Ok((tree, done))
+    takes complete_causal_trace(Alloc.Vec.impl_1__as_slice(facts), (tree, done))
+    gives interpreted_cut(facts, roots, tree)
+  {
+    full_execution_orders_exact_cut(facts, roots, selected, done);
+    assert(interpreted_cut(facts, roots, tree)) by {
+      Tactics.prune("Nickel.EditSchedule.cut_order");
+      Tactics.prune("Nickel_crdt.Edit.duplicate_events");
+    Tactics.prune("Nickel_crdt.Edit.past");
+      Tactics.prune("Nickel_crdt.Edit.interpret_scheduled");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(combine));
+  assert(interpreted_cut(facts, roots, tree)) by {
+    Tactics.prune("Nickel_crdt.Edit.past");
+    Tactics.prune("Nickel_crdt.Edit.interpret");
+    Tactics.prune("Nickel_crdt.Edit.interpret_scheduled");
+    Tactics.smt_sync'(1, 1)
+  }
+}

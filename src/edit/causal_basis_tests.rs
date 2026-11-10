@@ -477,3 +477,62 @@ fn authored_delete_and_multi_scalar_histories_preserve_full_interpretation() {
         (288, 72, 192, 600)
     );
 }
+
+#[test]
+fn actual_past_cut_retains_the_actual_execution_order() {
+    let mut cases = 0;
+    for n in 0usize..=4 {
+        for edges in 0usize..(1 << (n * n.saturating_sub(1) / 2)) {
+            let mut bit = 0;
+            let mut facts = Vec::new();
+            for i in 0..n {
+                let mut after = Vec::new();
+                for j in 0..i {
+                    if edges & (1 << bit) != 0 {
+                        after.push(id(j));
+                    }
+                    bit += 1;
+                }
+                facts.push(Fact {
+                    id: id(i),
+                    after,
+                    insert: vec!['a' as u32 + i as u32],
+                    delete: vec![],
+                    gap: Some(0),
+                });
+            }
+            permutations(&mut facts, 0, &mut |stored| {
+                let (_, done) = interpret_scheduled(stored).expect("full text DAG fits");
+                assert_complete_causal_trace(stored, &done);
+                for mask in 0usize..(1 << n) {
+                    let roots: Vec<_> = (0..n).filter(|i| mask & (1 << i) != 0).map(id).collect();
+                    assert!(!duplicate_events(&roots));
+                    let independent = closure(stored, &roots);
+                    let selected = past(stored, &roots).expect("closed roots");
+                    assert_eq!(
+                        selected.iter().copied().collect::<BTreeSet<_>>(),
+                        independent
+                    );
+                    let projected: Vec<_> = done
+                        .iter()
+                        .copied()
+                        .filter(|id| independent.contains(id))
+                        .collect();
+                    let basis: Vec<_> = stored
+                        .iter()
+                        .filter(|f| independent.contains(&f.id))
+                        .cloned()
+                        .collect();
+                    assert_complete_causal_trace(&basis, &projected);
+                    let (_, separately_executed) =
+                        interpret_scheduled(&basis).expect("past-only text DAG fits");
+                    // Stronger finite witness: the pure relative-order theorem
+                    // does not yet claim equality with this separate execution.
+                    assert_eq!(projected, separately_executed);
+                    cases += 1;
+                }
+            });
+        }
+    }
+    assert_eq!(cases, 24979);
+}

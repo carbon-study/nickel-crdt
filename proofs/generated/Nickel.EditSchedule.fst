@@ -317,3 +317,86 @@ let successful_interpretation_has_causal_schedule (facts: t_Slice Native.t_Fact)
     Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
     Tactics.smt_sync' 1 1
   )
+
+let strictly_before (ids: t_Slice Native.t_EventId) (first: Native.t_EventId) (second: Native.t_EventId) : Type0 =
+  exists(i: usize{v i < Seq.length ids}) (j: usize{v j < Seq.length ids}). Prims.l_and (Prims.l_and (v i < v j) (Seq.index ids (v i) == first)) (Seq.index ids (v j) == second)
+
+let trace_orders_stored_dependencies (facts: t_Slice Native.t_Fact) (ids: t_Slice Native.t_EventId) (index: FStar.Fin.under (Seq.length facts)) (at: FStar.Fin.under (Seq.length ids)) : Lemma (requires (Nickel.EditIdentity.unique_ids facts /\ causal_trace facts ids /\ (Seq.index facts index).f_id == Seq.index ids at)) (ensures all_ids (Alloc.Vec.impl_1__as_slice (Seq.index facts index).f_after) (fun (id: Native.t_EventId) -> Prims.l_not (absent_prefix ids id at))) =
+  assert (causal_position facts ids at);
+  let each (k: FStar.Fin.under (Seq.length facts)) : Lemma (requires ((Seq.index facts k).f_id == Seq.index ids at /\ all_ids (Alloc.Vec.impl_1__as_slice (Seq.index facts k).f_after) (fun (id: Native.t_EventId) -> Prims.l_not (absent_prefix ids id at)))) (ensures all_ids (Alloc.Vec.impl_1__as_slice (Seq.index facts index).f_after) (fun (id: Native.t_EventId) -> Prims.l_not (absent_prefix ids id at))) =
+    unique_slice_nat_positions facts index k;
+    assert (index == k);
+    () in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires each);
+  ()
+
+let earlier_member_has_strict_order (ids: t_Slice Native.t_EventId) (id: Native.t_EventId) (at: FStar.Fin.under (Seq.length ids)) : Lemma (requires Prims.l_not (absent_prefix ids id at)) (ensures strictly_before ids id (Seq.index ids at)) =
+  assert (v (mk_usize at) == at);
+  let each (i: usize{v i < Seq.length ids}) : Lemma (ensures Prims.l_and (v i < at) (Seq.index ids (v i) == id) ==> strictly_before ids id (Seq.index ids at)) = () in
+  FStar.Classical.forall_intro each;
+  ()
+
+let exact_cut_keeps_dependencies (facts: facts_vec) (roots: t_Slice Native.t_EventId) (selected: ids_vec) (index: FStar.Fin.under (Seq.length (Alloc.Vec.impl_1__as_slice facts))) : Lemma (requires (exact_past_result facts roots (Result.Result_Ok selected) /\ member (Alloc.Vec.impl_1__as_slice selected) (Seq.index (Alloc.Vec.impl_1__as_slice facts) index).f_id)) (ensures all_ids (Alloc.Vec.impl_1__as_slice (Seq.index (Alloc.Vec.impl_1__as_slice facts) index).f_after) (member (Alloc.Vec.impl_1__as_slice selected))) =
+  let fact = Seq.index (Alloc.Vec.impl_1__as_slice facts) index in
+  assert (ancestor facts roots fact.f_id);
+  let each (j: usize{v j < Seq.length (Alloc.Vec.impl_1__as_slice fact.f_after)}) : Lemma (ensures member (Alloc.Vec.impl_1__as_slice selected) (Seq.index (Alloc.Vec.impl_1__as_slice fact.f_after) (v j))) =
+    let id = Seq.index (Alloc.Vec.impl_1__as_slice fact.f_after) (v j) in
+    assert (fact_present (Alloc.Vec.impl_1__as_slice facts) fact);
+    assert (Nickel.EditCausal.causal_edge facts fact.f_id id);
+    ancestor_follows_edge facts roots fact.f_id id;
+    assert (member (Alloc.Vec.impl_1__as_slice selected) id) by (
+      Tactics.prune "Nickel.EditPast.ancestor";
+      Tactics.smt_sync' 1 1
+    ) in
+  FStar.Classical.forall_intro each;
+  ()
+
+let cut_order (facts: facts_vec) (selected: ids_vec) (done: ids_vec) : Type0 =
+  Prims.l_and (all_ids (Alloc.Vec.impl_1__as_slice selected) (member (Alloc.Vec.impl_1__as_slice done))) (forall(index: FStar.Fin.under (Seq.length (Alloc.Vec.impl_1__as_slice facts))). member (Alloc.Vec.impl_1__as_slice selected) (Seq.index (Alloc.Vec.impl_1__as_slice facts) index).f_id ==> all_ids (Alloc.Vec.impl_1__as_slice (Seq.index (Alloc.Vec.impl_1__as_slice facts) index).f_after) (fun (id: Native.t_EventId) -> Prims.l_and (member (Alloc.Vec.impl_1__as_slice selected) id) (strictly_before (Alloc.Vec.impl_1__as_slice done) id (Seq.index (Alloc.Vec.impl_1__as_slice facts) index).f_id)))
+
+let full_execution_orders_exact_cut (facts: facts_vec) (roots: t_Slice Native.t_EventId) (selected: ids_vec) (done: ids_vec) : Lemma (requires (ids_unique facts /\ stored_selection facts selected /\ exact_past_result facts roots (Result.Result_Ok selected) /\ Seq.length (Alloc.Vec.impl_1__as_slice done) == Seq.length (Alloc.Vec.impl_1__as_slice facts) /\ unique_selection (Alloc.Vec.impl_1__as_slice done) /\ causal_trace (Alloc.Vec.impl_1__as_slice facts) (Alloc.Vec.impl_1__as_slice done))) (ensures cut_order facts selected done) =
+  let input = Alloc.Vec.impl_1__as_slice facts in
+  let ids = Alloc.Vec.impl_1__as_slice done in
+  full_trace_covers_storage input done;
+  let selected_member (i: usize{v i < Seq.length (Alloc.Vec.impl_1__as_slice selected)}) : Lemma (ensures member ids (Seq.index (Alloc.Vec.impl_1__as_slice selected) (v i))) =
+    let id = Seq.index (Alloc.Vec.impl_1__as_slice selected) (v i) in
+    let index = parent_fact_position facts id in
+    assert (member ids (Seq.index input index).f_id);
+    () in
+  FStar.Classical.forall_intro selected_member;
+  let selected_fact (index: FStar.Fin.under (Seq.length input)) : Lemma (requires member (Alloc.Vec.impl_1__as_slice selected) (Seq.index input index).f_id) (ensures all_ids (Alloc.Vec.impl_1__as_slice (Seq.index input index).f_after) (fun (id: Native.t_EventId) -> Prims.l_and (member (Alloc.Vec.impl_1__as_slice selected) id) (strictly_before ids id (Seq.index input index).f_id))) =
+    let at = done_position ids (Seq.index input index).f_id in
+    trace_orders_stored_dependencies input ids index at;
+    exact_cut_keeps_dependencies facts roots selected index;
+    let dependency (j: usize{v j < Seq.length (Alloc.Vec.impl_1__as_slice (Seq.index input index).f_after)}) : Lemma (ensures Prims.l_and (member (Alloc.Vec.impl_1__as_slice selected) (Seq.index (Alloc.Vec.impl_1__as_slice (Seq.index input index).f_after) (v j))) (strictly_before ids (Seq.index (Alloc.Vec.impl_1__as_slice (Seq.index input index).f_after) (v j)) (Seq.index input index).f_id)) = earlier_member_has_strict_order ids (Seq.index (Alloc.Vec.impl_1__as_slice (Seq.index input index).f_after) (v j)) at in
+    FStar.Classical.forall_intro dependency;
+    () in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires selected_fact);
+  ()
+
+let interpreted_cut (facts: facts_vec) (roots: t_Slice Native.t_EventId) (tree: Native.t_Tree) : Type0 =
+  exists(selected: ids_vec) (done: ids_vec). Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Native.past (Alloc.Vec.impl_1__as_slice facts) roots == Result.Result_Ok selected) (Native.interpret_scheduled (Alloc.Vec.impl_1__as_slice facts) == Result.Result_Ok (tree, done))) (stored_selection facts selected)) (complete_causal_trace (Alloc.Vec.impl_1__as_slice facts) (tree, done))) (cut_order facts selected done)
+
+let successful_execution_orders_its_exact_past_cut (facts: facts_vec) (roots: t_Slice Native.t_EventId) (tree: Native.t_Tree) : Lemma (requires (Nickel.EditWellFormed.facts_causally_closed facts /\ Nickel.EditWellFormed.dependencies_present (Alloc.Vec.impl_1__as_slice facts) roots /\ Native.duplicate_events roots == false /\ ids_unique facts /\ Native.interpret (Alloc.Vec.impl_1__as_slice facts) == Result.Result_Ok tree)) (ensures interpreted_cut facts roots tree) =
+  let shape () : Lemma (ensures result_shape (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) = () in
+  shape ();
+  assert (history_references_present facts);
+  assert (all_ids roots (fact_id_present facts));
+  scanned_roots_compute_exact_past facts roots;
+  successful_interpretation_has_causal_schedule (Alloc.Vec.impl_1__as_slice facts) tree;
+  let combine (selected: ids_vec) (done: ids_vec) : Lemma (requires (Native.past (Alloc.Vec.impl_1__as_slice facts) roots == Result.Result_Ok selected /\ stored_selection facts selected /\ exact_past_result facts roots (Result.Result_Ok selected) /\ Native.interpret_scheduled (Alloc.Vec.impl_1__as_slice facts) == Result.Result_Ok (tree, done) /\ complete_causal_trace (Alloc.Vec.impl_1__as_slice facts) (tree, done))) (ensures interpreted_cut facts roots tree) =
+    full_execution_orders_exact_cut facts roots selected done;
+    assert (interpreted_cut facts roots tree) by (
+      Tactics.prune "Nickel.EditSchedule.cut_order";
+      Tactics.prune "Nickel_crdt.Edit.duplicate_events";
+      Tactics.prune "Nickel_crdt.Edit.past";
+      Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
+      Tactics.smt_sync' 1 1
+    ) in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 combine);
+  assert (interpreted_cut facts roots tree) by (
+    Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.prune "Nickel_crdt.Edit.interpret";
+    Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
+    Tactics.smt_sync' 1 1
+  )
