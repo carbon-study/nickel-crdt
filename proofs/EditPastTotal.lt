@@ -348,3 +348,208 @@ proof scanned_roots_compute_exact_past(facts: facts_vec, roots: t_Slice(Native.t
     Tactics.smt_sync'(1, 1)
   }
 }
+
+// Two receivers select the same past IDs for the same roots. This is the
+// selected-ID part of author reconstruction only: equal selected sets do not
+// establish equal interpreted placements, which remain a separate obligation.
+function same_parents(into: facts_vec, other: facts_vec, id: Native.t_EventId): Type0 {
+  forall(older: Native.t_EventId) . Nickel.EditCausal.causal_edge(into, id, older) <==> Nickel.EditCausal.causal_edge(other, id, older)
+}
+function shared_ancestry(into: facts_vec, other: facts_vec, roots: t_Slice(Native.t_EventId)): Type0 {
+  forall(id: Native.t_EventId) . ancestor(into, roots, id) ==> same_parents(into, other, id)
+}
+proof! shared_path_stays_shared(into: facts_vec, other: facts_vec, roots: t_Slice(Native.t_EventId), start: Native.t_EventId, steps: Prims.list(Native.t_EventId), finish: Native.t_EventId): unit
+  decreases steps
+  takes shared_ancestry(into, other, roots)
+  takes ancestor(into, roots, start)
+  takes ancestor(other, roots, start)
+  takes Nickel.EditCausal.causal_path(into, start, steps, finish) or Nickel.EditCausal.causal_path(other, start, steps, finish)
+  gives ancestor(into, roots, finish) and ancestor(other, roots, finish)
+{
+  match steps {
+    Prims.Nil => (),
+    Prims.Cons(next, rest) => {
+      assert(Nickel.EditCausal.causal_edge(into, start, next) and Nickel.EditCausal.causal_edge(other, start, next)) by {
+        Tactics.prune("Nickel.EditPast.ancestor");
+        Tactics.smt_sync'(1, 1)
+      };
+      ancestor_follows_edge(into, roots, start, next);
+      ancestor_follows_edge(other, roots, start, next);
+      assert(ancestor(into, roots, next) and ancestor(other, roots, next) and
+        (Nickel.EditCausal.causal_path(into, next, rest, finish) or Nickel.EditCausal.causal_path(other, next, rest, finish))) by {
+        Tactics.prune("Nickel.EditPast.ancestor");
+        Tactics.prune("Nickel.EditPastTotal.shared_ancestry");
+        Tactics.smt_sync'(1, 1)
+      };
+      shared_path_stays_shared(into, other, roots, next, rest, finish);
+      assert(ancestor(into, roots, finish) and ancestor(other, roots, finish)) by {
+        Tactics.prune("Nickel.EditPast.ancestor");
+        Tactics.prune("Nickel.EditPastTotal.shared_ancestry");
+        Tactics.smt_sync'(1, 1)
+      }
+    }
+  }
+}
+proof shared_ancestry_agrees(into: facts_vec, other: facts_vec, roots: t_Slice(Native.t_EventId)): unit
+  takes shared_ancestry(into, other, roots)
+  gives forall(id: Native.t_EventId) . ancestor(into, roots, id) <==> ancestor(other, roots, id)
+{
+  proof each_path(root: Native.t_EventId, steps: Prims.list(Native.t_EventId), id: Native.t_EventId): unit
+    takes member(roots, root)
+    takes Nickel.EditCausal.causal_path(into, root, steps, id) or Nickel.EditCausal.causal_path(other, root, steps, id)
+    gives ancestor(into, roots, id) and ancestor(other, roots, id)
+  {
+    assert(Nickel.EditCausal.causal_path(into, root, Prims.Nil, root));
+    assert(Nickel.EditCausal.causal_path(other, root, Prims.Nil, root));
+    shared_path_stays_shared(into, other, roots, root, steps, id);
+    assert(ancestor(into, roots, id) and ancestor(other, roots, id)) by {
+      Tactics.prune("Nickel.EditPast.ancestor");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(each_path))
+}
+// Receiver-facing premise: every fact in into's past of roots is also stored in other.
+function shared_past_facts(into: facts_vec, other: facts_vec, roots: t_Slice(Native.t_EventId)): Type0 {
+  forall(fact: Native.t_Fact) . fact_present(Alloc.Vec.impl_1__as_slice(into), fact) and ancestor(into, roots, fact.f_id) ==>
+    fact_present(Alloc.Vec.impl_1__as_slice(other), fact)
+}
+proof! path_end_is_present(facts: facts_vec, start: Native.t_EventId, steps: Prims.list(Native.t_EventId), finish: Native.t_EventId): unit
+  decreases steps
+  takes history_references_present(facts)
+  takes fact_id_present(facts, start)
+  takes Nickel.EditCausal.causal_path(facts, start, steps, finish)
+  gives fact_id_present(facts, finish)
+{
+  match steps {
+    Prims.Nil => (),
+    Prims.Cons(next, rest) => {
+      assert(fact_id_present(facts, next));
+      path_end_is_present(facts, next, rest, finish);
+      assert(fact_id_present(facts, finish)) by {
+        Tactics.prune("Nickel.EditPast.fact_id_present");
+        Tactics.smt_sync'(1, 1)
+      }
+    }
+  }
+}
+proof ancestor_is_present(facts: facts_vec, roots: t_Slice(Native.t_EventId), id: Native.t_EventId): unit
+  takes history_references_present(facts)
+  takes all_ids(roots, fact_id_present(facts))
+  takes ancestor(facts, roots, id)
+  gives fact_id_present(facts, id)
+{
+  proof each_path(root: Native.t_EventId, steps: Prims.list(Native.t_EventId)): unit
+    takes member(roots, root)
+    takes Nickel.EditCausal.causal_path(facts, root, steps, id)
+    gives fact_id_present(facts, id)
+  {
+    path_end_is_present(facts, root, steps, id);
+    assert(fact_id_present(facts, id)) by {
+      Tactics.prune("Nickel.EditPast.fact_id_present");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_path))
+}
+proof unique_present_facts_agree(facts: facts_vec, left: Native.t_Fact, right: Native.t_Fact): unit
+  takes ids_unique(facts)
+  takes fact_present(Alloc.Vec.impl_1__as_slice(facts), left)
+  takes fact_present(Alloc.Vec.impl_1__as_slice(facts), right)
+  takes left.f_id == right.f_id
+  gives left == right
+{
+  proof each(i: nat, j: nat): unit
+    takes i < Seq.length(Alloc.Vec.impl_1__as_slice(facts))
+    takes j < Seq.length(Alloc.Vec.impl_1__as_slice(facts))
+    takes Seq.index(Alloc.Vec.impl_1__as_slice(facts), i) == left
+    takes Seq.index(Alloc.Vec.impl_1__as_slice(facts), j) == right
+    gives left == right
+  { unique_slice_nat_positions(Alloc.Vec.impl_1__as_slice(facts), i, j) };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each))
+}
+// Whole-fact agreement on into's past, with unique IDs in other, gives the edge premise.
+proof whole_facts_give_shared_ancestry(into: facts_vec, other: facts_vec, roots: t_Slice(Native.t_EventId)): unit
+  takes history_references_present(into)
+  takes all_ids(roots, fact_id_present(into))
+  takes ids_unique(other)
+  takes shared_past_facts(into, other, roots)
+  gives shared_ancestry(into, other, roots)
+{
+  proof each(id: Native.t_EventId, older: Native.t_EventId): unit
+    takes ancestor(into, roots, id)
+    gives Nickel.EditCausal.causal_edge(into, id, older) <==> Nickel.EditCausal.causal_edge(other, id, older)
+  {
+    ancestor_is_present(into, roots, id);
+    assert(fact_id_present(into, id)) by {
+      Tactics.prune("Nickel.EditPast.fact_id_present");
+      Tactics.smt_sync'(1, 1)
+    };
+    proof backward(fact: Native.t_Fact, stored: Native.t_Fact): unit
+      takes fact_present(Alloc.Vec.impl_1__as_slice(other), fact)
+      takes fact.f_id == id
+      takes fact_present(Alloc.Vec.impl_1__as_slice(into), stored)
+      takes stored.f_id == id
+      gives fact == stored
+    { unique_present_facts_agree(other, fact, stored) };
+    FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(backward))
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each))
+}
+function same_members(left: Result.t_Result(ids_vec, Native.t_Error), right: Result.t_Result(ids_vec, Native.t_Error)): Type0 {
+  match (left, right) {
+    (Result.Result_Ok(l), Result.Result_Ok(r)) => forall(id: Native.t_EventId) . member(Alloc.Vec.impl_1__as_slice(l), id) <==> member(Alloc.Vec.impl_1__as_slice(r), id),
+    _ => Prims.l_True
+  }
+}
+function both_ok(left: Result.t_Result(ids_vec, Native.t_Error), right: Result.t_Result(ids_vec, Native.t_Error)): Type0 {
+  match (left, right) {
+    (Result.Result_Ok(_), Result.Result_Ok(_)) => Prims.l_True,
+    _ => Prims.l_False
+  }
+}
+proof shared_ancestry_selects_same_past(into: facts_vec, other: facts_vec, roots: t_Slice(Native.t_EventId)): unit
+  takes shared_ancestry(into, other, roots)
+  gives same_members(Native.past(Alloc.Vec.impl_1__as_slice(into), roots), Native.past(Alloc.Vec.impl_1__as_slice(other), roots))
+{
+  successful_past_is_exact_closure(into, roots);
+  successful_past_is_exact_closure(other, roots);
+  shared_ancestry_agrees(into, other, roots);
+  assert(exact_past_result(into, roots, Native.past(Alloc.Vec.impl_1__as_slice(into), roots)) and
+    exact_past_result(other, roots, Native.past(Alloc.Vec.impl_1__as_slice(other), roots)) and
+    (forall(id: Native.t_EventId) . ancestor(into, roots, id) <==> ancestor(other, roots, id))) by {
+    Tactics.prune("Nickel_crdt.Edit.past");
+    Tactics.prune("Nickel.EditPast.exact_past_result");
+    Tactics.prune("Nickel.EditPast.ancestor");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// Selected-ID agreement only: interpreted placement equality remains a separate obligation.
+proof two_closed_receivers_select_same_past(into: facts_vec, other: facts_vec, roots: t_Slice(Native.t_EventId)): unit
+  takes Nickel.EditWellFormed.facts_causally_closed(into)
+  takes Nickel.EditWellFormed.facts_causally_closed(other)
+  takes Nickel.EditWellFormed.dependencies_present(Alloc.Vec.impl_1__as_slice(into), roots)
+  takes Nickel.EditWellFormed.dependencies_present(Alloc.Vec.impl_1__as_slice(other), roots)
+  takes unique_selection(roots)
+  takes ids_unique(other)
+  takes shared_past_facts(into, other, roots)
+  gives both_ok(Native.past(Alloc.Vec.impl_1__as_slice(into), roots), Native.past(Alloc.Vec.impl_1__as_slice(other), roots)) and
+    same_members(Native.past(Alloc.Vec.impl_1__as_slice(into), roots), Native.past(Alloc.Vec.impl_1__as_slice(other), roots))
+{
+  assert(history_references_present(into));
+  assert(all_ids(roots, fact_id_present(into)));
+  whole_facts_give_shared_ancestry(into, other, roots);
+  assert(shared_ancestry(into, other, roots)) by {
+    Tactics.prune("Nickel.EditPastTotal.shared_ancestry");
+    Tactics.smt_sync'(1, 1)
+  };
+  causally_closed_history_computes_exact_past(into, roots);
+  causally_closed_history_computes_exact_past(other, roots);
+  shared_ancestry_selects_same_past(into, other, roots);
+  assert(both_ok(Native.past(Alloc.Vec.impl_1__as_slice(into), roots), Native.past(Alloc.Vec.impl_1__as_slice(other), roots)) and
+    same_members(Native.past(Alloc.Vec.impl_1__as_slice(into), roots), Native.past(Alloc.Vec.impl_1__as_slice(other), roots))) by {
+    Tactics.prune("Nickel_crdt.Edit.past");
+    Tactics.prune("Nickel.EditPastTotal.same_members");
+    Tactics.smt_sync'(1, 1)
+  }
+}

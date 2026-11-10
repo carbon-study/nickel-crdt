@@ -10,7 +10,9 @@ function tokens(source) {
     .map(m=>m[0]).filter(t=>!t.startsWith('//')&&!t.startsWith('/*'));
 }
 const pastVisibility=new Set(['"Nickel_crdt.Edit.has_event"','"Nickel_crdt.Edit.extend_past"','"Nickel_crdt.Edit.past_pass"','"Nickel_crdt.Edit.past"']);
-const pastTotalVisibility=new Set([...pastVisibility,'"Nickel_crdt.Edit.validate_after"','"Nickel_crdt.Edit.duplicate_events"']);
+// Two-receiver past selection: ghost visibility at query-local composition steps.
+const receiverPastVisibility=['"Nickel.EditPast.ancestor"','"Nickel.EditPast.fact_id_present"','"Nickel.EditPast.exact_past_result"','"Nickel.EditPastTotal.shared_ancestry"','"Nickel.EditPastTotal.same_members"'];
+const pastTotalVisibility=new Set([...pastVisibility,'"Nickel_crdt.Edit.validate_after"','"Nickel_crdt.Edit.duplicate_events"',...receiverPastVisibility]);
 const causalVisibility=new Set([
   '"Nickel.EditCausal.causal_rank"',
   '"Nickel.EditIdentity.prefix_absent"','"Nickel_crdt.Edit.has_fact"','"Nickel_crdt.Edit.impl_Replica__new"','"Nickel_crdt.Edit.impl_Replica__receive"','"Nickel_crdt.Edit.impl_Replica__edit"']);
