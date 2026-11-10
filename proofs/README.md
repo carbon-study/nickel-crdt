@@ -1555,3 +1555,42 @@ reviewer counterexample also checks that B fails on a fabricated tree containing
 B already, while every reachable helper-prefix call for [empty A, inserting B]
 succeeds. The invented outer error fails that replay-witness oracle, rather
 than merely a particular proof strategy.
+
+### actual author-basis fact selection
+
+`EditBasis.lt` checks the first stage used by `interpret_event`. The native
+`select_basis` helper returns exactly the whole-fact subsequence whose IDs are
+selected, preserving storage order and repeated input occurrences. Its
+`selected_prefix` relation is independent of the native loop and membership
+scan. The theorem excludes every helper error: before a push, the output length
+is at most the already scanned prefix length, hence below the input length.
+There is no additional stored-ID uniqueness premise for this filter.
+
+The actual `event_basis` stage first calls `past` with the event's own direct
+predecessors and then calls the filter. For a causally closed history with
+present, duplicate-free roots, `closed_event_basis_is_exact` gives a successful
+pair: selected IDs are exactly the transitive past, and the facts are exactly
+that selection's storage-order whole-fact filter. It composes the accepted
+exact/total past law and the checked filter, with both native callees withheld.
+`interpret_event` uses this stage in place of its former inline fact filter;
+its remaining operation replay and tree work are unchanged.
+
+Four dependency removals cover the filter loop, whole-fact clone contract,
+exact-past composition and filter composition. Three fresh Rust modes include
+unselected facts, omit selected facts, or pass empty roots to `past`; each must
+fail the actual native tests and reject ordinarily at its owning basis law.
+The `basis` family and `EditBasis` positive root run in the existing gate. The
+positive run also requires a discovered, passing native basis-test baseline,
+alongside the existing `edit_admit` run. Selecting a `basis-*` mode requests that
+positive baseline too. Native
+fixtures use an independent worklist closure and exact whole-fact/order checks,
+plus an actual interpreter continuation with an unseen concurrent deletion.
+Separate test/fence fixture files keep this slice out of the append-heavy shared
+lists. The new hax declarations and `interpret_event` change; all other existing
+hax `let` declarations remain byte-identical.
+
+This is a checked fact-selection boundary. It does not prove the filtered
+operation stream equals a subset execution, nor equal author placements/trees,
+tree-work totality, public fitting-input admission or M1 completion. Native
+integration checks are finite evidence for the refactor, not a universal
+semantic equivalence theorem for the entire interpreter.

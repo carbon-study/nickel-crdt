@@ -41,7 +41,7 @@
         root = ./.;
         fileset = pkgs.lib.fileset.unions [
           ./Cargo.toml ./Cargo.lock ./src ./tests ./proof-smoke
-          ./proofs/generated ./proofs/Prelude.lt ./proofs/LoopUtil.lt ./proofs/Vector.lt ./proofs/Smoke.lt ./proofs/EditAtomic.lt ./proofs/EditCommit.lt ./proofs/EditIdentity.lt ./proofs/EditAccepted.lt ./proofs/EditWellFormed.lt ./proofs/Spec.lt ./proofs/EditCausal.lt ./proofs/EditPast.lt ./proofs/EditPastTotal.lt ./proofs/EditSchedule.lt ./scripts
+          ./proofs/generated ./proofs/Prelude.lt ./proofs/LoopUtil.lt ./proofs/Vector.lt ./proofs/Smoke.lt ./proofs/EditAtomic.lt ./proofs/EditCommit.lt ./proofs/EditIdentity.lt ./proofs/EditAccepted.lt ./proofs/EditWellFormed.lt ./proofs/Spec.lt ./proofs/EditCausal.lt ./proofs/EditPast.lt ./proofs/EditPastTotal.lt ./proofs/EditSchedule.lt ./proofs/EditBasis.lt ./scripts
         ];
       };
       # One proof derivation per argument list. The full gate (no arguments) stays

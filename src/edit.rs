@@ -562,6 +562,23 @@ fn visible(facts: &[Fact]) -> Result<Vec<BirthId>, Error> {
     }
     Ok(ids)
 }
+// Preserve storage order and whole fact values while selecting an author basis.
+fn select_basis(facts: &[Fact], selected: &[EventId]) -> Result<Vec<Fact>, Error> {
+    let mut basis = Vec::new();
+    for i in 0..facts.len() {
+        let fact = &facts[i];
+        if has_event(selected, fact.id) {
+            push(&mut basis, clone_selected_fact(fact))?;
+        }
+    }
+    Ok(basis)
+}
+// The author basis boundary: exact past first, then whole-fact selection.
+fn event_basis(facts: &[Fact], event: &Fact) -> Result<(Vec<EventId>, Vec<Fact>), Error> {
+    let selected = past(facts, &event.after)?;
+    let basis = select_basis(facts, &selected)?;
+    Ok((selected, basis))
+}
 // Interpret one already-selected event. Scheduling state stays in the caller.
 fn interpret_event(
     facts: &[Fact],
@@ -569,13 +586,7 @@ fn interpret_event(
     operations: &[(EventId, Vec<Node>)],
     mut result: Tree,
 ) -> Result<(Tree, Vec<Node>), Error> {
-    let selected = past(facts, &event.after)?;
-    let mut basis = Vec::new();
-    for f in facts {
-        if has_event(&selected, f.id) {
-            push(&mut basis, f.clone())?;
-        }
-    }
+    let (selected, basis) = event_basis(facts, event)?;
     let mut author = Tree::default();
     for i in 0..operations.len() {
         let pair: (EventId, Vec<Node>) = operations[i].clone();
@@ -845,3 +856,7 @@ impl Replica {
 #[cfg(test)]
 #[path = "edit/causal_basis_tests.rs"]
 mod causal_basis_tests;
+
+#[cfg(test)]
+#[path = "edit/basis_filter_tests.rs"]
+mod basis_filter_tests;
