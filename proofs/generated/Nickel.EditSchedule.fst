@@ -161,3 +161,159 @@ let ranked_incomplete_scan_progress (facts: facts_vec) (done: t_Slice Native.t_E
     Tactics.prune "Nickel_crdt.Edit.choose_ready";
     Tactics.smt_sync' 1 1
   )
+
+open Nickel.EditPastTotal
+
+let causal_position (facts: t_Slice Native.t_Fact) (ids: t_Slice Native.t_EventId) (at: FStar.Fin.under (Seq.length ids)) : Type0 =
+  exists(index: FStar.Fin.under (Seq.length facts)). Prims.l_and ((Seq.index facts index).f_id == Seq.index ids at) (all_ids (Alloc.Vec.impl_1__as_slice (Seq.index facts index).f_after) (fun (id: Native.t_EventId) -> Prims.l_not (absent_prefix ids id at)))
+
+let causal_trace (facts: t_Slice Native.t_Fact) (ids: t_Slice Native.t_EventId) : Type0 =
+  forall(at: FStar.Fin.under (Seq.length ids)). causal_position facts ids at
+
+let append_retains_earlier (before: t_Slice Native.t_EventId) (id: Native.t_EventId) (wanted: Native.t_EventId) (finish: nat{finish <= Seq.length before}) : Lemma (requires (Seq.length before < max_usize /\ Prims.l_not (absent_prefix before wanted finish))) (ensures Prims.l_not (absent_prefix (Seq.append before (Seq.create 1 id)) wanted finish)) =
+  let next = Seq.append before (Seq.create 1 id) in
+  let impossible (dummy: unit) : Lemma (requires absent_prefix next wanted finish) (ensures Prims.l_False) =
+    let each (i: usize{v i < Seq.length before}) : Lemma (ensures v i < finish ==> Prims.l_not (Seq.index before (v i) == wanted)) =
+      assert (v i < Seq.length next);
+      assert (Seq.index next (v i) == Seq.index before (v i));
+      () in
+    FStar.Classical.forall_intro each;
+    assert (absent_prefix before wanted finish);
+    () in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires impossible);
+  ()
+
+let eligible_append_keeps_causal_trace (facts: t_Slice Native.t_Fact) (before: t_Slice Native.t_EventId) (index: nat{index < Seq.length facts}) : Lemma (requires (Seq.length before < max_usize /\ causal_trace facts before /\ eligible facts before index)) (ensures causal_trace facts (Seq.append before (Seq.create 1 (Seq.index facts index).f_id))) =
+  let fact = Seq.index facts index in
+  let next = Seq.append before (Seq.create 1 fact.f_id) in
+  let position (at: FStar.Fin.under (Seq.length next)) : Lemma (ensures causal_position facts next at) = if at < Seq.length before then
+    begin assert (causal_position facts before at);
+    let transfer (k: FStar.Fin.under (Seq.length facts)) : Lemma (requires ((Seq.index facts k).f_id == Seq.index before at /\ all_ids (Alloc.Vec.impl_1__as_slice (Seq.index facts k).f_after) (fun (id: Native.t_EventId) -> Prims.l_not (absent_prefix before id at)))) (ensures Prims.l_and ((Seq.index facts k).f_id == Seq.index next at) (all_ids (Alloc.Vec.impl_1__as_slice (Seq.index facts k).f_after) (fun (id: Native.t_EventId) -> Prims.l_not (absent_prefix next id at)))) =
+      let dependency (j: usize{v j < Seq.length (Alloc.Vec.impl_1__as_slice (Seq.index facts k).f_after)}) : Lemma (ensures Prims.l_not (absent_prefix next (Seq.index (Alloc.Vec.impl_1__as_slice (Seq.index facts k).f_after) (v j)) at)) = append_retains_earlier before fact.f_id (Seq.index (Alloc.Vec.impl_1__as_slice (Seq.index facts k).f_after) (v j)) at in
+      FStar.Classical.forall_intro dependency;
+      () in
+    FStar.Classical.forall_intro (FStar.Classical.move_requires transfer);
+    () end
+  else
+    begin assert (at == Seq.length before);
+    let dependency (j: usize{v j < Seq.length (Alloc.Vec.impl_1__as_slice fact.f_after)}) : Lemma (ensures Prims.l_not (absent_prefix next (Seq.index (Alloc.Vec.impl_1__as_slice fact.f_after) (v j)) at)) = append_retains_earlier before fact.f_id (Seq.index (Alloc.Vec.impl_1__as_slice fact.f_after) (v j)) at in
+    FStar.Classical.forall_intro dependency;
+    assert ((Seq.index facts index).f_id == Seq.index next at);
+    assert (all_ids (Alloc.Vec.impl_1__as_slice (Seq.index facts index).f_after) (fun (id: Native.t_EventId) -> Prims.l_not (absent_prefix next id at)));
+    () end in
+  FStar.Classical.forall_intro position;
+  ()
+
+module Result = Core_models.Result
+
+unfold type operations_vec = Alloc.Vec.t_Vec (Native.t_EventId & Alloc.Vec.t_Vec Native.t_Node Alloc.Alloc.t_Global) Alloc.Alloc.t_Global
+
+unfold type schedule_state = ids_vec & operations_vec & Native.t_Tree
+
+let schedule_done (state: schedule_state) : Native.t_Tree & ids_vec =
+  match state with | (done, _, tree) -> begin (tree, done) end
+
+let schedule_invariant (facts: t_Slice Native.t_Fact) (at: nat) (state: schedule_state) : Type0 =
+  match state with | (done, _, _) -> begin Prims.l_and (Prims.l_and (Seq.length (Alloc.Vec.impl_1__as_slice done) == at) (unique_selection (Alloc.Vec.impl_1__as_slice done))) (causal_trace facts (Alloc.Vec.impl_1__as_slice done)) end
+
+let complete_causal_trace (facts: t_Slice Native.t_Fact) (pair: Native.t_Tree & ids_vec) : Type0 =
+  match pair with | (_, done) -> begin Prims.l_and (Prims.l_and (Seq.length (Alloc.Vec.impl_1__as_slice done) == Seq.length facts) (unique_selection (Alloc.Vec.impl_1__as_slice done))) (causal_trace facts (Alloc.Vec.impl_1__as_slice done)) end
+
+let choice_keeps_trace (facts: t_Slice Native.t_Fact) (before: t_Slice Native.t_EventId{Seq.length before < max_usize}) : Type0 =
+  match Native.choose_ready facts before with | Option.Option_None -> begin Prims.l_True end | Option.Option_Some index -> begin Prims.l_and (v index < Seq.length facts) (Prims.l_and (v index < Seq.length facts ==> unique_selection (Seq.append before (Seq.create 1 (Seq.index facts (v index)).f_id))) (causal_trace facts (Seq.append before (Seq.create 1 (Seq.index facts (v index)).f_id)))) end
+
+let chosen_append_keeps_trace (facts: t_Slice Native.t_Fact) (before: t_Slice Native.t_EventId) : Lemma (requires (Seq.length before < max_usize /\ Prims.l_and (unique_selection before) (causal_trace facts before))) (ensures choice_keeps_trace facts before) [SMTPat (Native.choose_ready facts before)] =
+  scheduler_choice_is_exact facts before;
+  match Native.choose_ready facts before with | Option.Option_None -> begin () end | Option.Option_Some index -> begin if v index < Seq.length facts then
+    begin eligible_append_keeps_causal_trace facts before (v index);
+    fresh_append_is_unique before (Seq.index facts (v index)).f_id end
+  else
+    begin () end end
+
+let empty_trace_is_valid (facts: t_Slice Native.t_Fact) : Lemma (ensures Prims.l_and (unique_selection Seq.empty) (causal_trace facts Seq.empty)) =
+  ()
+
+let successful_schedule_is_once_only_and_causal (facts: t_Slice Native.t_Fact) : Lemma (ensures Nickel.LoopUtil.result_safe (complete_causal_trace facts) (fun (_: Native.t_Error) -> Prims.l_True) (Native.interpret_scheduled facts)) =
+  let event_shape (event: Native.t_Fact) (operations: t_Slice (Native.t_EventId & Alloc.Vec.t_Vec Native.t_Node Alloc.Alloc.t_Global)) (tree: Native.t_Tree) : Lemma (ensures result_shape (Native.interpret_event facts event operations tree)) [SMTPat (Native.interpret_event facts event operations tree)] = () in
+  let choice_shape (done: t_Slice Native.t_EventId) : Lemma (ensures Prims.l_or (Native.choose_ready facts done == Option.Option_None) (exists(i: usize). Native.choose_ready facts done == Option.Option_Some i)) [SMTPat (Native.choose_ready facts done)] = () in
+  empty_trace_is_valid facts;
+  Nickel.Vector.empty_vector_contents #Native.t_EventId ();
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len facts) (schedule_invariant facts) schedule_done (complete_causal_trace facts) (fun (_: Native.t_Error) -> Prims.l_True);
+  assert (Nickel.LoopUtil.result_safe (complete_causal_trace facts) (fun (_: Native.t_Error) -> Prims.l_True) (Native.interpret_scheduled facts)) by (
+    Tactics.prune "Nickel.EditSchedule.causal_trace";
+    Tactics.prune "Nickel_crdt.Edit.interpret_event";
+    Tactics.prune "Nickel_crdt.Edit.choose_ready";
+    Tactics.prune "Nickel_crdt.Edit.push";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.smt_sync' 1 1
+  )
+
+let causal_trace_uses_stored_ids (facts: facts_vec) (done: ids_vec) : Lemma (requires causal_trace (Alloc.Vec.impl_1__as_slice facts) (Alloc.Vec.impl_1__as_slice done)) (ensures all_ids (Alloc.Vec.impl_1__as_slice done) (fact_id_present facts)) =
+  let input = Alloc.Vec.impl_1__as_slice facts in
+  let ids = Alloc.Vec.impl_1__as_slice done in
+  let each (at: usize{v at < Seq.length ids}) : Lemma (ensures fact_id_present facts (Seq.index ids (v at))) =
+    assert (causal_position input ids (v at));
+    assert (exists(index: FStar.Fin.under (Seq.length input)). Prims.l_and ((Seq.index input index).f_id == Seq.index ids (v at)) (all_ids (Alloc.Vec.impl_1__as_slice (Seq.index input index).f_after) (fun (id: Native.t_EventId) -> Prims.l_not (absent_prefix ids id (v at)))));
+    assert (exists(index: FStar.Fin.under (Seq.length input)). (Seq.index input index).f_id == Seq.index ids (v at));
+    let stored (index: FStar.Fin.under (Seq.length input)) : Lemma (requires (Seq.index input index).f_id == Seq.index ids (v at)) (ensures fact_id_present facts (Seq.index ids (v at))) =
+      assert (fact_present input (Seq.index input index));
+      () in
+    FStar.Classical.forall_intro (FStar.Classical.move_requires stored);
+    () in
+  FStar.Classical.forall_intro each;
+  ()
+
+let full_trace_covers_storage (facts: t_Slice Native.t_Fact) (done: ids_vec) : Lemma (requires (Seq.length (Alloc.Vec.impl_1__as_slice done) == Seq.length facts /\ unique_selection (Alloc.Vec.impl_1__as_slice done) /\ causal_trace facts (Alloc.Vec.impl_1__as_slice done))) (ensures forall(i: FStar.Fin.under (Seq.length facts)). member (Alloc.Vec.impl_1__as_slice done) (Seq.index facts i).f_id) =
+  let stored = Alloc.Vec.from_seq #Native.t_Fact #Alloc.Alloc.t_Global facts in
+  Nickel.Vector.vector_from_seq #Native.t_Fact facts;
+  causal_trace_uses_stored_ids stored done;
+  let each (i: FStar.Fin.under (Seq.length facts)) : Lemma (ensures member (Alloc.Vec.impl_1__as_slice done) (Seq.index facts i).f_id) =
+    let id = (Seq.index facts i).f_id in
+    assert (fact_present facts (Seq.index facts i));
+    assert (fact_id_present stored id);
+    if Native.has_event (Alloc.Vec.impl_1__as_slice done) id then
+      begin () end
+    else
+      begin missing_stored_id_leaves_room stored done id;
+      assert (Prims.l_False) by (
+        Tactics.prune "Nickel.EditSchedule.causal_trace";
+        Tactics.prune "Nickel.EditPastTotal.unique_selection";
+        Tactics.smt_sync' 1 1
+      ) end in
+  FStar.Classical.forall_intro each;
+  ()
+
+let erase_schedule (out: Result.t_Result (Native.t_Tree & ids_vec) Native.t_Error) : Result.t_Result Native.t_Tree Native.t_Error =
+  match out with | Result.Result_Err error -> begin Result.Result_Err error end | Result.Result_Ok (tree, _) -> begin Result.Result_Ok tree end
+
+let interpret_erases_only_schedule (facts: t_Slice Native.t_Fact) : Lemma (ensures Native.interpret facts == erase_schedule (Native.interpret_scheduled facts)) =
+  let shape () : Lemma (ensures result_shape (Native.interpret_scheduled facts)) = () in
+  shape ();
+  assert (Native.interpret facts == erase_schedule (Native.interpret_scheduled facts)) by (
+    Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
+    Tactics.smt_sync' 1 1
+  )
+
+let interpretation_schedule (facts: t_Slice Native.t_Fact) (tree: Native.t_Tree) : Type0 =
+  exists(done: ids_vec). Prims.l_and (Prims.l_and (Native.interpret_scheduled facts == Result.Result_Ok (tree, done)) (complete_causal_trace facts (tree, done))) (forall(i: FStar.Fin.under (Seq.length facts)). member (Alloc.Vec.impl_1__as_slice done) (Seq.index facts i).f_id)
+
+let successful_interpretation_has_causal_schedule (facts: t_Slice Native.t_Fact) (tree: Native.t_Tree) : Lemma (requires Native.interpret facts == Result.Result_Ok tree) (ensures interpretation_schedule facts tree) =
+  successful_schedule_is_once_only_and_causal facts;
+  interpret_erases_only_schedule facts;
+  let each (done: ids_vec) : Lemma (requires (Native.interpret_scheduled facts == Result.Result_Ok (tree, done) /\ complete_causal_trace facts (tree, done))) (ensures interpretation_schedule facts tree) =
+    full_trace_covers_storage facts done;
+    assert (interpretation_schedule facts tree) by (
+      Tactics.prune "Nickel_crdt.Edit.interpret";
+      Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
+      Tactics.smt_sync' 1 1
+    ) in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires each);
+  let shape () : Lemma (ensures result_shape (Native.interpret_scheduled facts)) = () in
+  shape ();
+  assert (interpretation_schedule facts tree) by (
+    Tactics.prune "Nickel_crdt.Edit.interpret";
+    Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
+    Tactics.smt_sync' 1 1
+  )

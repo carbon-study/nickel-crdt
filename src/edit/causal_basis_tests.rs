@@ -254,3 +254,226 @@ fn receiver_extras_preserve_exact_author_placements_through_public_admission() {
 fn seen_in(facts: &[Fact], id: EventId) -> bool {
     facts.iter().any(|f| f.id == id)
 }
+
+// Frozen pre-refactor implementation: checks error values and full Tree, not
+// just the visible text or the extracted schedule. Test-only, never extracted.
+fn interpret_before_schedule_refactor(facts: &[Fact]) -> Result<Tree, Error> {
+    let mut result = Tree::default();
+    let mut done: Vec<EventId> = Vec::new();
+    let mut operations: Vec<(EventId, Vec<Node>)> = Vec::new();
+    for _ in 0..facts.len() {
+        let index = choose_ready(facts, &done).ok_or(Error::Internal)?;
+        if index >= facts.len() {
+            return Err(Error::Internal);
+        }
+        let event = &facts[index];
+        let selected = past(facts, &event.after)?;
+        let mut basis = Vec::new();
+        for f in facts {
+            if has_event(&selected, f.id) {
+                push(&mut basis, f.clone())?;
+            }
+        }
+        let mut author = Tree::default();
+        for i in 0..operations.len() {
+            let pair: (EventId, Vec<Node>) = operations[i].clone();
+            let (id, ops) = pair;
+            if has_event(&selected, id) {
+                for j in 0..ops.len() {
+                    author.add(ops[j].clone())?;
+                }
+            }
+        }
+        let mut seen = visible(&basis)?;
+        let mut ops = Vec::new();
+        if !event.insert.is_empty() {
+            let gap = event.gap.ok_or(Error::Internal)?;
+            for index in 0..event.insert.len() {
+                let id = BirthId {
+                    event: event.id,
+                    index,
+                };
+                let op = author.insert(id, event.insert[index], &seen, add(gap, index)?)?;
+                push(&mut ops, op)?;
+                push(&mut seen, id)?;
+            }
+        }
+        for i in 0..ops.len() {
+            result.add(ops[i].clone())?;
+        }
+        push(&mut done, event.id)?;
+        push(&mut operations, (event.id, ops))?;
+    }
+    Ok(result)
+}
+
+fn assert_complete_causal_trace(stored: &[Fact], trace: &[EventId]) {
+    let mut seen = BTreeSet::new();
+    for &event in trace {
+        let fact = stored
+            .iter()
+            .find(|fact| fact.id == event)
+            .expect("stored event");
+        assert!(
+            fact.after.iter().all(|id| seen.contains(id)),
+            "predecessor not yet run"
+        );
+        // Independent oracle chooses the least eligible storage index.
+        let expected = stored
+            .iter()
+            .find(|f| !seen.contains(&f.id) && f.after.iter().all(|id| seen.contains(id)))
+            .unwrap();
+        assert_eq!(event, expected.id);
+        assert!(seen.insert(event), "event ran twice");
+    }
+    assert_eq!(seen, stored.iter().map(|fact| fact.id).collect());
+}
+
+#[test]
+fn actual_outer_schedule_is_once_only_causal_and_refactor_preserves_results() {
+    let mut cases = 0;
+    let mut successful_nonempty_traces = 0;
+    for n in 0usize..=4 {
+        for edges in 0usize..(1 << (n * n.saturating_sub(1) / 2)) {
+            let mut bit = 0;
+            let mut facts = Vec::new();
+            for i in 0..n {
+                let mut after = Vec::new();
+                for j in 0..i {
+                    if edges & (1 << bit) != 0 {
+                        after.push(id(j));
+                    }
+                    bit += 1;
+                }
+                facts.push(Fact {
+                    id: id(i),
+                    after,
+                    insert: vec![],
+                    delete: vec![],
+                    gap: None,
+                });
+            }
+            permutations(&mut facts, 0, &mut |stored| {
+                let (tree, trace) =
+                    interpret_scheduled(stored).expect("closed empty-effect DAG fits");
+                assert_eq!(interpret(stored), Ok(tree));
+                assert_eq!(
+                    interpret(stored),
+                    interpret_before_schedule_refactor(stored)
+                );
+                assert_complete_causal_trace(stored, &trace);
+                // Nonempty insertions and invalid gaps exercise the moved helper's
+                // success/error paths, still comparing the entire returned Tree.
+                for gap in [None, Some(0), Some(1), Some(usize::MAX)] {
+                    let mut changed = stored.to_vec();
+                    for fact in &mut changed {
+                        fact.insert = vec!['x' as u32];
+                        fact.gap = gap;
+                    }
+                    let scheduled = interpret_scheduled(&changed);
+                    if let Ok((_, trace)) = &scheduled {
+                        assert_complete_causal_trace(&changed, trace);
+                        if !changed.is_empty() {
+                            successful_nonempty_traces += 1;
+                        }
+                    }
+                    if !changed.is_empty() {
+                        assert_eq!(scheduled.is_ok(), gap == Some(0), "nonempty gap domain");
+                    }
+                    assert_eq!(
+                        interpret(&changed),
+                        interpret_before_schedule_refactor(&changed)
+                    );
+                }
+                cases += 1;
+            });
+        }
+    }
+    assert_eq!(cases, 1590);
+    assert_eq!(successful_nonempty_traces, 1589);
+    let nonempty = Fact {
+        id: id(0),
+        after: vec![],
+        insert: vec!['x' as u32],
+        delete: vec![],
+        gap: Some(0),
+    };
+    let (tree, done) = interpret_scheduled(&[nonempty]).expect("one text event succeeds");
+    assert_eq!(done, vec![id(0)]);
+    assert_eq!(tree.nodes.len(), 1);
+}
+
+// Exercise the moved visible-basis and gap+index paths using only public
+// author/admit calls, with real deletions and distinct multi-scalar inserts.
+#[test]
+fn authored_delete_and_multi_scalar_histories_preserve_full_interpretation() {
+    fn check(replica: &Replica) {
+        let (tree, trace) = interpret_scheduled(replica.facts()).expect("authored history fits");
+        assert_complete_causal_trace(replica.facts(), &trace);
+        assert_eq!(
+            Ok(tree.clone()),
+            interpret_before_schedule_refactor(replica.facts())
+        );
+        assert_eq!(tree, replica.tree);
+    }
+    let mut authored = 0;
+    let mut deleting = 0;
+    let mut multi_scalar = 0;
+    let mut checked = 0;
+    for seed in 0u64..24 {
+        let mut state = seed + 1;
+        let mut replicas = [
+            Replica::new(Some(Writer::Alice), Limits::default()).unwrap(),
+            Replica::new(Some(Writer::Bo), Limits::default()).unwrap(),
+        ];
+        let mut facts = Vec::new();
+        for step in 0..12 {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let actor = ((state >> 32) & 1) as usize;
+            let visible = replicas[actor].observe().unwrap();
+            let gap = ((state >> 16) as usize) % (visible.len() + 1);
+            let delete = if step % 3 == 0 && !visible.is_empty() {
+                vec![visible[(state as usize) % visible.len()].0]
+            } else {
+                vec![]
+            };
+            let count = 1 + (step + seed as usize) % 3;
+            let insert = ['A' as u32, 'ß' as u32, '🦀' as u32][..count].to_vec();
+            let (next, result) = replicas[actor].clone().edit(gap, insert, delete);
+            let Local::Authored(fact) = result.expect("bounded public edit") else {
+                panic!("nonempty edit")
+            };
+            authored += 1;
+            deleting += usize::from(!fact.delete.is_empty());
+            multi_scalar += usize::from(fact.insert.len() > 1);
+            facts.push(fact);
+            replicas[actor] = next;
+            check(&replicas[actor]);
+            checked += 1;
+            if step % 2 == 1 {
+                for replica in &mut replicas {
+                    for fact in &facts {
+                        let (next, outcome) = replica.clone().receive(fact);
+                        assert!(matches!(
+                            outcome,
+                            Ok(Admission::Added | Admission::Duplicate)
+                        ));
+                        *replica = next;
+                    }
+                    check(replica);
+                    checked += 1;
+                }
+            }
+        }
+        let mut union = Replica::new(None, Limits::default()).unwrap();
+        for fact in &facts {
+            union = receive_added(union, fact);
+        }
+        check(&union);
+        checked += 1;
+    }
+    assert_eq!(
+        (authored, deleting, multi_scalar, checked),
+        (288, 72, 192, 600)
+    );
+}

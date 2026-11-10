@@ -562,7 +562,53 @@ fn visible(facts: &[Fact]) -> Result<Vec<BirthId>, Error> {
     }
     Ok(ids)
 }
-fn interpret(facts: &[Fact]) -> Result<Tree, Error> {
+// Interpret one already-selected event. Scheduling state stays in the caller.
+fn interpret_event(
+    facts: &[Fact],
+    event: &Fact,
+    operations: &[(EventId, Vec<Node>)],
+    mut result: Tree,
+) -> Result<(Tree, Vec<Node>), Error> {
+    let selected = past(facts, &event.after)?;
+    let mut basis = Vec::new();
+    for f in facts {
+        if has_event(&selected, f.id) {
+            push(&mut basis, f.clone())?;
+        }
+    }
+    let mut author = Tree::default();
+    for i in 0..operations.len() {
+        let pair: (EventId, Vec<Node>) = operations[i].clone();
+        let (id, ops) = pair;
+        if has_event(&selected, id) {
+            for j in 0..ops.len() {
+                author.add(ops[j].clone())?;
+            }
+        }
+    }
+    let mut seen = visible(&basis)?;
+    let mut ops = Vec::new();
+    if !event.insert.is_empty() {
+        let gap = event.gap.ok_or(Error::Internal)?;
+        for index in 0..event.insert.len() {
+            let id = BirthId {
+                event: event.id,
+                index,
+            };
+            let op = author.insert(id, event.insert[index], &seen, add(gap, index)?)?;
+            push(&mut ops, op)?;
+            push(&mut seen, id)?;
+        }
+    }
+    for i in 0..ops.len() {
+        result.add(ops[i].clone())?;
+    }
+    Ok((result, ops))
+}
+
+// Retain the actual done vector as a private scheduling witness; no extra trace
+// is allocated. The ordinary interpreter below erases it at the return boundary.
+fn interpret_scheduled(facts: &[Fact]) -> Result<(Tree, Vec<EventId>), Error> {
     let mut result = Tree::default();
     let mut done: Vec<EventId> = Vec::new();
     let mut operations: Vec<(EventId, Vec<Node>)> = Vec::new();
@@ -572,44 +618,18 @@ fn interpret(facts: &[Fact]) -> Result<Tree, Error> {
             return Err(Error::Internal);
         }
         let event = &facts[index];
-        let selected = past(facts, &event.after)?;
-        let mut basis = Vec::new();
-        for f in facts {
-            if has_event(&selected, f.id) {
-                push(&mut basis, f.clone())?;
-            }
-        }
-        let mut author = Tree::default();
-        for i in 0..operations.len() {
-            let pair: (EventId, Vec<Node>) = operations[i].clone();
-            let (id, ops) = pair;
-            if has_event(&selected, id) {
-                for j in 0..ops.len() {
-                    author.add(ops[j].clone())?;
-                }
-            }
-        }
-        let mut seen = visible(&basis)?;
-        let mut ops = Vec::new();
-        if !event.insert.is_empty() {
-            let gap = event.gap.ok_or(Error::Internal)?;
-            for index in 0..event.insert.len() {
-                let id = BirthId {
-                    event: event.id,
-                    index,
-                };
-                let op = author.insert(id, event.insert[index], &seen, add(gap, index)?)?;
-                push(&mut ops, op)?;
-                push(&mut seen, id)?;
-            }
-        }
-        for i in 0..ops.len() {
-            result.add(ops[i].clone())?;
-        }
+        let pair = interpret_event(facts, event, &operations, result)?;
+        let (next, ops) = pair;
+        result = next;
         push(&mut done, event.id)?;
         push(&mut operations, (event.id, ops))?;
     }
-    Ok(result)
+    Ok((result, done))
+}
+fn interpret(facts: &[Fact]) -> Result<Tree, Error> {
+    let pair = interpret_scheduled(facts)?;
+    let (tree, _) = pair;
+    Ok(tree)
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Replica {
