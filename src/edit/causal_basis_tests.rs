@@ -307,9 +307,32 @@ fn interpret_before_schedule_refactor(facts: &[Fact]) -> Result<Tree, Error> {
     Ok(result)
 }
 
+fn assert_complete_causal_trace(stored: &[Fact], trace: &[EventId]) {
+    let mut seen = BTreeSet::new();
+    for &event in trace {
+        let fact = stored
+            .iter()
+            .find(|fact| fact.id == event)
+            .expect("stored event");
+        assert!(
+            fact.after.iter().all(|id| seen.contains(id)),
+            "predecessor not yet run"
+        );
+        // Independent oracle chooses the least eligible storage index.
+        let expected = stored
+            .iter()
+            .find(|f| !seen.contains(&f.id) && f.after.iter().all(|id| seen.contains(id)))
+            .unwrap();
+        assert_eq!(event, expected.id);
+        assert!(seen.insert(event), "event ran twice");
+    }
+    assert_eq!(seen, stored.iter().map(|fact| fact.id).collect());
+}
+
 #[test]
 fn actual_outer_schedule_is_once_only_causal_and_refactor_preserves_results() {
     let mut cases = 0;
+    let mut successful_nonempty_traces = 0;
     for n in 0usize..=4 {
         for edges in 0usize..(1 << (n * n.saturating_sub(1) / 2)) {
             let mut bit = 0;
@@ -338,27 +361,7 @@ fn actual_outer_schedule_is_once_only_causal_and_refactor_preserves_results() {
                     interpret(stored),
                     interpret_before_schedule_refactor(stored)
                 );
-                let mut seen = BTreeSet::new();
-                for event in trace {
-                    let fact = stored
-                        .iter()
-                        .find(|fact| fact.id == event)
-                        .expect("stored event");
-                    assert!(
-                        fact.after.iter().all(|id| seen.contains(id)),
-                        "predecessor not yet run"
-                    );
-                    // Independent oracle chooses the least eligible storage index.
-                    let expected = stored
-                        .iter()
-                        .find(|f| {
-                            !seen.contains(&f.id) && f.after.iter().all(|id| seen.contains(id))
-                        })
-                        .unwrap();
-                    assert_eq!(event, expected.id);
-                    assert!(seen.insert(event), "event ran twice");
-                }
-                assert_eq!(seen, stored.iter().map(|fact| fact.id).collect());
+                assert_complete_causal_trace(stored, &trace);
                 // Nonempty insertions and invalid gaps exercise the moved helper's
                 // success/error paths, still comparing the entire returned Tree.
                 for gap in [None, Some(0), Some(1), Some(usize::MAX)] {
@@ -366,6 +369,16 @@ fn actual_outer_schedule_is_once_only_causal_and_refactor_preserves_results() {
                     for fact in &mut changed {
                         fact.insert = vec!['x' as u32];
                         fact.gap = gap;
+                    }
+                    let scheduled = interpret_scheduled(&changed);
+                    if let Ok((_, trace)) = &scheduled {
+                        assert_complete_causal_trace(&changed, trace);
+                        if !changed.is_empty() {
+                            successful_nonempty_traces += 1;
+                        }
+                    }
+                    if !changed.is_empty() {
+                        assert_eq!(scheduled.is_ok(), gap == Some(0), "nonempty gap domain");
                     }
                     assert_eq!(
                         interpret(&changed),
@@ -377,6 +390,7 @@ fn actual_outer_schedule_is_once_only_causal_and_refactor_preserves_results() {
         }
     }
     assert_eq!(cases, 1590);
+    assert_eq!(successful_nonempty_traces, 1589);
     let nonempty = Fact {
         id: id(0),
         after: vec![],
