@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {digest,run,verify,put} from './proof-cache.mjs';
+import {mkdirSync} from 'node:fs';
+import {digest,holdLock,runAsync,verify,put} from './proof-cache.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
 import {checkProofReform} from './proof-reform.mjs';
 import {checkRemainingContracts} from './check-remaining-contracts.mjs';
@@ -25,9 +26,22 @@ import {checkScheduleContracts} from './check-schedule-contracts.mjs';
 import {checkPastContracts} from './check-past-contracts.mjs';
 import {checkCounterContracts} from './check-counter-contracts.mjs';
 import {checkCacheSafety} from './check-cache-safety.mjs';
-import './check-proof-reform.mjs';
-checkNegativeProofEvidence();
 const root=fileURLToPath(new URL('..',import.meta.url));
+// One invocation per checkout. Mode workspaces (.cache/edit-proofs), Cargo targets
+// (target/edit-proof-check) and the positive seed are shared mutable state, so an
+// overlapping invocation is rejected before it writes any of them. This process
+// takes the lock itself and every command it starts inherits it (holdLock), so a
+// killed runner's surviving writers keep the checkout locked until they exit.
+// Never delete the lock file: its inode is the lock.
+const lock=path.join(root,'.cache','edit-proofs.lock');
+mkdirSync(path.dirname(lock),{recursive:true});
+if(!holdLock(lock)) {
+  console.error('another check-edit-proofs invocation holds '+lock+'; overlapping runs would share workspaces and extractions');
+  process.exit(75);
+}
+// Self-checks run once the lock is held.
+await import('./check-proof-reform.mjs');
+checkNegativeProofEvidence();
 await checkProofReform(root);
 const {NICKEL_HAX_BIN:hax,NICKEL_PROOF_FSTAR:fstar,NICKEL_HAX_SOURCE:models,NICKEL_FSTAR_MODEL_CACHE:modelCache}=process.env;
 assert(hax&&fstar&&models&&modelCache,'use the locked .#proofs environment');
@@ -58,10 +72,15 @@ const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tre
 // `shard:<i>/<n>` selects every mutation mode whose index k has k mod n == i
 // (after the positive chain), so n shards together cover every mode exactly once.
 // `contracts-except:<a>,<b>` runs every family not listed, so a CI job using it
-// also picks up any family added later.
+// also picks up any family added later. `jobs:<n>` (default 1) checks up to n
+// selected mutation modes concurrently, after the positive chain and its
+// families; it selects nothing by itself.
 const families={schedule:checkScheduleContracts,past:checkPastContracts,remaining:checkRemainingContracts,counter:checkCounterContracts,push:checkPushContracts,vector:checkVectorContracts,
   scalar:checkScalarContracts,identity:checkIdentityContracts,writer:checkWriterContracts,plan:checkPlanContracts,containment:checkContainmentContracts,accepted:checkAcceptedContracts,spec:checkSpecContracts,private:checkPrivateContracts,shared:checkSharedContracts,commit:checkCommitContracts};
-const args=process.argv.slice(3),familyRuns=new Set();let wantPositive=args.length===0,cacheSafety=args.length===0;
+const jobArgs=process.argv.slice(3).filter(arg=>arg.startsWith('jobs:')),args=process.argv.slice(3).filter(arg=>!arg.startsWith('jobs:'));
+assert(jobArgs.length<=1&&jobArgs.every(arg=>/^jobs:[1-9]\d*$/.test(arg)),'use at most one jobs:<n> with n >= 1');
+const jobs=jobArgs.length?Number(jobArgs[0].slice(5)):1;
+const familyRuns=new Set();let wantPositive=args.length===0,cacheSafety=args.length===0;
 const mutations=[];
 for(const arg of args) {
   if(arg==='positive'){wantPositive=true;for(const name of Object.keys(families))familyRuns.add(name);}
@@ -247,27 +266,46 @@ for(const mode of mutations) {
   assert(views.has('Nickel.'+theorems[mode].split('.')[0]+'.fst'),'owning theorem outside the checked views: '+mode);
   prepared.set(mode,prepareMutation(mode));
 }
+const haxArgs=out=>['-C','--offline','--locked','-p','nickel-crdt',';','into','--output-dir',out,'-i','-** +nickel_crdt::edit::**::receive +nickel_crdt::edit::**::edit +nickel_crdt::edit::**::new','fstar'];
+const copyCrate=async(crate,source)=>{
+  await fs.mkdir(crate,{recursive:true});
+  for(const name of ['Cargo.toml','Cargo.lock','src','tests','proof-smoke'])await fs.cp(path.join(root,name),path.join(crate,name),{recursive:true});
+  if(source!==undefined)await fs.writeFile(path.join(crate,'src/edit.rs'),source);
+};
+const inventory=async dir=>JSON.stringify(await Promise.all((await fs.readdir(dir)).filter(name=>/\.fsti?$/.test(name)).sort()
+  .map(async name=>[name,digest(await fs.readFile(path.join(dir,name)))])));
+// Extraction identity, independent of any theorem: a second extraction of the same
+// crate, in a fresh private Cargo target, must give the same generated inventory
+// byte for byte. A shared or stale target that hands one crate another crate's
+// extraction fails here, even when the owner would also reject the wrong mutant.
+async function sameExtraction(label,crate,extract,scratch) {
+  await fs.rm(scratch,{recursive:true,force:true});await fs.mkdir(path.join(scratch,'extract'),{recursive:true});
+  const reference=await runAsync('edit hax reference '+label,hax,haxArgs(path.join(scratch,'extract')),crate,{env:{...process.env,CARGO_TARGET_DIR:path.join(scratch,'target')}});
+  assert.equal(reference.status,0,reference.log);
+  const same=await inventory(extract)===await inventory(path.join(scratch,'extract'));
+  await fs.rm(scratch,{recursive:true,force:true});
+  return same;
+}
 const fresh=async proof=>{try{await fs.access(path.join(proof,'sources.json'));return false;}catch{return true;}};
 let positive,positiveProof;
-for(const mode of [...(wantPositive?['positive']:[]),...mutations]) {
+async function check(mode) {
   const work=path.join(root,'.cache','edit-proofs',mode),crate=path.join(work,'crate'),proof=path.join(work,'proof');
-  await fs.mkdir(crate,{recursive:true});
   if(positiveProof&&await fresh(proof))await fs.cp(positiveProof,proof,{recursive:true,preserveTimestamps:true});
   await fs.mkdir(proof,{recursive:true});
-  for(const name of ['Cargo.toml','Cargo.lock','src','tests','proof-smoke'])await fs.cp(path.join(root,name),path.join(crate,name),{recursive:true});
-  if(mode!=='positive') {
-    await fs.writeFile(path.join(crate,'src/edit.rs'),prepared.get(mode));
-  }
-  const env={...process.env,CARGO_TARGET_DIR:path.join(root,'target','edit-proof-check')};
+  await copyCrate(crate,mode==='positive'?undefined:prepared.get(mode));
+  // Each mode has its own Cargo target: hax names its metadata by package, not by
+  // source tree, so crate copies sharing a target read each other's extraction.
+  const env={...process.env,CARGO_TARGET_DIR:path.join(root,'target','edit-proof-check','modes',mode)};
   const nativeArgs=['test','--offline','--locked','-p','nickel-crdt',...((mode.startsWith('past-')||mode.startsWith('scheduler-'))?['--lib','causal_basis_tests']:['--test','edit_admit'])];
-  const native=run('edit native '+mode,'cargo',nativeArgs,crate,{env});
+  const native=await runAsync('edit native '+mode,'cargo',nativeArgs,crate,{env});
   await fs.writeFile(path.join(output,mode+'.native.log'),native.log);
   if(mode==='positive')assert.equal(native.status,0,native.log);
   else {assert.equal(native.status,101,native.log);assert.match(native.log,/test result: FAILED/);}
   const extract=path.join(work,'extract');await fs.rm(extract,{recursive:true,force:true});await fs.mkdir(extract,{recursive:true});
-  const extracted=run('edit hax '+mode,hax,['-C','--offline','--locked','-p','nickel-crdt',';','into','--output-dir',extract,'-i','-** +nickel_crdt::edit::**::receive +nickel_crdt::edit::**::edit +nickel_crdt::edit::**::new','fstar'],crate,{env});
+  const extracted=await runAsync('edit hax '+mode,hax,haxArgs(extract),crate,{env});
   await fs.writeFile(path.join(output,mode+'.hax.log'),extracted.log);
   assert.equal(extracted.status,0,extracted.log);
+  assert(await sameExtraction(mode,crate,extract,path.join(work,'reference')),'extraction identity: '+mode+"'s extraction differs from a private-target extraction of its own crate");
   // Install the fresh extraction inventory: remove project sources that are neither
   // authored views nor produced by this extraction (e.g. left by a seeded copy).
   const inventory=(await fs.readdir(extract)).filter(name=>/\.fsti?$/.test(name));
@@ -294,7 +332,7 @@ for(const mode of [...(wantPositive?['positive']:[]),...mutations]) {
   // Counter calculation/installation/wiring controls need only their owning module. The positive path still
   // checks both the public Spec surface and the existing ghost causal-rank family.
   const proofRoot=mode==='positive'?'Nickel.Spec.fst':mode.startsWith('scheduler-')?'Nickel.EditSchedule.fst':['past-refuses-closure','duplicate-scan-skips-pairs'].includes(mode)?'Nickel.EditPastTotal.fst':mode.startsWith('past-')?'Nickel.EditPast.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
-  const checked=await verify({dir:proof,roots:(mode==='positive'?['Nickel.Spec.fst','Nickel.EditCausal.fst','Nickel.EditPastTotal.fst','Nickel.EditSchedule.fst']:[proofRoot]).map(name=>path.join(proof,name)),fstar,models,modelCache});
+  const checked=await verify({label:mode,dir:proof,roots:(mode==='positive'?['Nickel.Spec.fst','Nickel.EditCausal.fst','Nickel.EditPastTotal.fst','Nickel.EditSchedule.fst']:[proofRoot]).map(name=>path.join(proof,name)),fstar,models,modelCache});
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {
     assert.equal(checked.status,0,checked.log);
@@ -323,3 +361,29 @@ for(const mode of [...(wantPositive?['positive']:[]),...mutations]) {
   }
   console.log(`PASS ${mode}: native and unchanged actual-Rust theorem ${mode==='positive'?'verified':'reject the mutation'}`);
 }
+// The positive chain (and its families) completes first: it seeds every fresh
+// mutation workspace and is only read afterwards. After the first failure no
+// further mode starts; running modes finish before the failure is reported.
+if(wantPositive)await check('positive');
+// Identity control: two mutants of one function (one owner theorem rejects both).
+// A's crate with B's extraction must fail the identity check; B's own must pass.
+if(mutations.length) {
+  const control=path.join(root,'.cache','edit-proofs','identity-control'),[a,b]=['scheduler-reselects-done','scheduler-refuses-ready'];
+  await fs.rm(control,{recursive:true,force:true});
+  await copyCrate(path.join(control,'a'),prepareMutation(a));await copyCrate(path.join(control,'b'),prepareMutation(b));
+  await fs.mkdir(path.join(control,'extract'),{recursive:true});
+  const extracted=await runAsync('edit hax identity control',hax,haxArgs(path.join(control,'extract')),path.join(control,'b'),{env:{...process.env,CARGO_TARGET_DIR:path.join(control,'target')}});
+  assert.equal(extracted.status,0,extracted.log);
+  assert(!await sameExtraction('control wrong mutant',path.join(control,'a'),path.join(control,'extract'),path.join(control,'reference')),'identity control: another mutant\'s extraction passed the identity check');
+  assert(await sameExtraction('control own mutant',path.join(control,'b'),path.join(control,'extract'),path.join(control,'reference')),'identity control: a mutant\'s own extraction failed the identity check');
+  await fs.rm(control,{recursive:true,force:true});
+  console.log('PASS extraction identity control: a wrong mutant\'s extraction fails identity; its own passes');
+}
+// A mode selected twice (for example by a shard and by name) runs once: two
+// concurrent checks of one mode would share its workspace.
+const queue=[...new Set(mutations)];
+let next=0,failure;
+await Promise.all(Array.from({length:Math.min(jobs,queue.length)},async()=>{
+  while(!failure&&next<queue.length) {const mode=queue[next++];try{await check(mode);}catch(error){failure??={mode,error};}}
+}));
+if(failure)throw failure.error;
