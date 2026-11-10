@@ -78,7 +78,7 @@ export function holdLock(file) {
   if(lockFd!==undefined)throw Error('lock already held');
   const fd=openSync(file,'a');
   const r=spawnSync('flock',['--nonblock','--conflict-exit-code','75','3'],{stdio:['ignore','inherit','inherit',fd]});
-  if(r.error)throw r.error;
+  if(r.error)throw r.error.code==='ENOENT'?Error('the edit proof runner needs flock(1) (util-linux) on PATH'):r.error;
   if(r.status===75)return false;
   if(r.status!==0)throw Error('flock '+file+' exited '+(r.status??r.signal));
   lockFd=fd;return true;
@@ -100,23 +100,37 @@ export function runAsync(label,bin,args,cwd,{env=process.env,seconds=60}={}) {
   const start=performance.now(),limit=32*1024*1024;
   return new Promise((resolve,reject)=>{
     const child=spawn('timeout',['--kill-after=2s',`${seconds}s`,bin,...args],{cwd,env,stdio:stdio()});
-    const out={stdout:'',stderr:''},bytes={stdout:0,stderr:0};let overflow=false;
+    const out={stdout:'',stderr:''},bytes={stdout:0,stderr:0};let overflow=false,settled=false;
+    const finish=(status,signal)=>{
+      if(settled)return;settled=true;
+      const elapsed=(performance.now()-start)/1000;
+      console.log(`[time] ${label}: ${elapsed.toFixed(3)}s (exit ${status ?? signal})`);
+      if(overflow)return reject(Error(label+': output exceeded '+limit+' bytes'));
+      resolve({status,stdout:out.stdout,log:out.stdout+out.stderr,seconds:elapsed});
+    };
+    // Overflow: TERM timeout, which forwards it to its process group. timeout
+    // leads that group (no --foreground), so after the same 2 s grace KILL the
+    // whole group: a descendant that ignores TERM can outlive timeout itself.
+    // Then settle without waiting for pipes such a survivor might hold open.
+    const stop=()=>{
+      child.kill('SIGTERM');
+      setTimeout(()=>{
+        try{process.kill(-child.pid,'SIGKILL');}catch(e){if(e.code!=='ESRCH')throw e;}
+        child.stdout.destroy();child.stderr.destroy();
+        finish(null,'SIGKILL');
+      },2000);
+    };
     for(const name of ['stdout','stderr']) {
       child[name].setEncoding('utf8');
       child[name].on('data',chunk=>{
         if(overflow)return; // stop collecting once the command has been told to stop
         out[name]+=chunk;bytes[name]+=Buffer.byteLength(chunk);
-        if(bytes[name]>limit){overflow=true;child.kill('SIGTERM');}
+        if(bytes[name]>limit){overflow=true;stop();}
       });
     }
     child.stdin.end();
-    child.on('error',reject);
-    child.on('close',(status,signal)=>{
-      const elapsed=(performance.now()-start)/1000;
-      console.log(`[time] ${label}: ${elapsed.toFixed(3)}s (exit ${status ?? signal})`);
-      if(overflow)return reject(Error(label+': output exceeded '+limit+' bytes'));
-      resolve({status,stdout:out.stdout,log:out.stdout+out.stderr,seconds:elapsed});
-    });
+    child.on('error',error=>{if(!settled){settled=true;reject(error);}});
+    child.on('close',finish);
   });
 }
 // Workspace source hashes, not source mtimes, invalidate direct cache entries.
