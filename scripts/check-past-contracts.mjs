@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {put,verify} from './proof-cache.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
-export async function checkPastContracts({proof,output,fstar,models,modelCache}) {
+export async function checkPastContracts({proof,output,fstar,models,modelCache,select=()=>true}) {
   const controls=[
     ['past-membership-without-loop-rule',
       /  Nickel\.LoopUtil\.preserve_any[^\n]+;\n/,
@@ -16,7 +16,7 @@ export async function checkPastContracts({proof,output,fstar,models,modelCache})
       /  Graph\.membership_is_exact[^\n]+;\n/,
       'Nickel.EditPast.event_membership_is_exact','', 'event_membership_is_exact'],
     ['past-membership-without-concrete-bridge',
-      /  assert \(Shared\.has_id[^\n]+;\n/,
+      /  assert \(Shared\.has_id [^\n]+ by \(\n(?:    [^\n]+\n)+  \);\n/,
       'Nickel.EditPast.event_membership_is_exact','', 'event_membership_is_exact'],
     ['past-membership-without-pattern',
       /(?<=let event_membership_is_exact[^\n]*) \[SMTPat \(Native\.has_event ids id\)\]/,
@@ -61,7 +61,7 @@ export async function checkPastContracts({proof,output,fstar,models,modelCache})
     ['past-receivers-without-other-totality', /  causally_closed_history_computes_exact_past other roots;\n/, 'Nickel.EditPastTotal.two_closed_receivers_select_same_past'],
     ['past-receivers-without-selection', /  shared_ancestry_selects_same_past into other roots;\n/, 'Nickel.EditPastTotal.two_closed_receivers_select_same_past'],
   ];
-  for(const [control,pattern,theorem,replacement='',scope] of controls) {
+  for(const [control,pattern,theorem,replacement='',scope] of controls.filter(([name])=>select(name))) {
     const name=theorem.split('.').slice(0,2).join('.')+'.fst';
     const original=await fs.readFile(path.join(proof,name),'utf8');
     let start=0,end=original.length;

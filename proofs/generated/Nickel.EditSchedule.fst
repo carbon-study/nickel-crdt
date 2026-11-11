@@ -33,7 +33,12 @@ let ready_prefix (after: t_Slice Native.t_EventId) (done: t_Slice Native.t_Event
 let readiness_is_exact (after: t_Slice Native.t_EventId) (done: t_Slice Native.t_EventId) : Lemma (ensures Native.ready after done == true <==> all_ids after (member done)) [SMTPat (Native.ready after done)] =
   Nickel.EventGraphText.text_graph_policy_is_exact ();
   Nickel.EventGraphText.text_graph_callbacks_are_exact ();
-  assert (Shared.ready after done (Nickel.EventGraphText.text_graph_ops ()) == Native.ready after done);
+  assert (Shared.ready after done (Nickel.EventGraphText.text_graph_ops ()) == Native.ready after done) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
+    Tactics.smt_sync' 1 1
+  );
   Graph.readiness_is_exact after done (Nickel.EventGraphText.text_graph_ops ());
   assert (Native.ready after done == true <==> all_ids after (member done)) by (
     Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
@@ -65,7 +70,12 @@ let chosen_is_first (facts: t_Slice Native.t_Fact) (done: t_Slice Native.t_Event
 let scheduler_choice_is_exact (facts: t_Slice Native.t_Fact) (done: t_Slice Native.t_EventId) : Lemma (ensures chosen_is_first facts done (Native.choose_ready facts done)) =
   Nickel.EventGraphText.text_graph_policy_is_exact ();
   Nickel.EventGraphText.text_graph_callbacks_are_exact ();
-  assert (Shared.choose_ready facts done (Nickel.EventGraphText.text_graph_ops ()) == Native.choose_ready facts done);
+  assert (Shared.choose_ready facts done (Nickel.EventGraphText.text_graph_ops ()) == Native.choose_ready facts done) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
+    Tactics.smt_sync' 1 1
+  );
   Graph.scheduler_choice_is_exact facts done (Nickel.EventGraphText.text_graph_ops ());
   assert (chosen_is_first facts done (Native.choose_ready facts done)) by (
     Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";

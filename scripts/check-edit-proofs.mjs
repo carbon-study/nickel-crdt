@@ -462,14 +462,20 @@ async function check(mode) {
   assert.match(code,/let impl_Replica__receive /);assert.match(code,/let impl_Replica__edit/);assert.match(code,/let impl_Replica__new/);
   // Preserve an ordinary call at the identity boundary: PartialEq operators
   // are structurally lowered by the pinned backend, ignoring custom bodies.
-  const scan=code.slice(code.indexOf('let impl_Replica__duplicate '),code.indexOf('let impl_Replica__validate_new '));
+  const nativeDeclaration=name=>{
+    const found=[...code.matchAll(new RegExp('^let '+name+'(?=[: \t])','gm'))];
+    assert.equal(found.length,1,'exact native declaration '+name);
+    const start=found[0].index,next=code.indexOf('\nlet ',start+4);
+    return code.slice(start,next<0?code.length:next);
+  };
+  const scan=nativeDeclaration('impl_Replica__duplicate');
   assert.match(scan,/Nickel_crdt\.Event_layer\.classify/);
   if(mode==='identity-call-ignores-payload') {
     assert.match(scan,/Nickel_crdt\.Event_layer\.graph_ops/,'wrong per-call policy must be extracted');
     assert(!/fact_equal/.test(scan),'wrong callback must replace the full-fact comparison');
   } else if(mode!=='identity-scan-key') {
     assert.match(scan,/v_TEXT_OPS/,'classifier must consume the actual client policy');
-    const policy=code.slice(code.indexOf('let v_TEXT_OPS'),code.indexOf('let impl_Replica__duplicate '));
+    const policy=nativeDeclaration('v_TEXT_OPS');
     assert.match(policy,/fact_equal/,'client policy must retain whole-fact equality');
   }
   for(const name of inventory)assert(!/\b(?:admit|assume|admit_smt_queries)\b/.test(await fs.readFile(path.join(proof,name),'utf8')),'no assumptions in extracted project code '+name);

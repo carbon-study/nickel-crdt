@@ -42,7 +42,12 @@ let member (ids: t_Slice Native.t_EventId) (id: Native.t_EventId) : Type0 =
 let event_membership_is_exact (ids: t_Slice Native.t_EventId) (id: Native.t_EventId) : Lemma (ensures Native.has_event ids id == true <==> member ids id) [SMTPat (Native.has_event ids id)] =
   Nickel.EventGraphText.text_graph_policy_is_exact ();
   Nickel.EventGraphText.text_graph_callbacks_are_exact ();
-  assert (Shared.has_id ids id (Nickel.EventGraphText.text_graph_ops ()) == Native.has_event ids id);
+  assert (Shared.has_id ids id (Nickel.EventGraphText.text_graph_ops ()) == Native.has_event ids id) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
+    Tactics.smt_sync' 1 1
+  );
   Graph.membership_is_exact ids id (Nickel.EventGraphText.text_graph_ops ());
   assert (Native.has_event ids id == true <==> member ids id) by (
     Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
