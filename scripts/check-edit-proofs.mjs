@@ -1,4 +1,5 @@
 import {checkReplayContracts} from './check-replay-contracts.mjs';
+import {itemSpan,scopedAnchor,checkMutationScopeControls} from './mutation-scope.mjs';
 import {checkBasisContracts} from './check-basis-contracts.mjs';
 // Actual edit/admit extraction: return paths, commit coherence and identity laws.
 // This gate does not prove valid-fact acceptance, convergence or FugueMax.
@@ -105,7 +106,7 @@ if(args.length===0){for(const name of Object.keys(families))familyRuns.add(name)
 // digest change (and F*'s own dependency check) forces the extracted module and
 // every dependent proof to recheck; only modules independent of it are reused.
 // Each mutation edits exactly one anchored site of the actual Rust source.
-function prepareMutation(mode) {
+function prepareMutation(mode,source=original) {
   const scopes={
 'replay-nodes-skip-first':'fn replay_nodes(', 'replay-nodes-reverse':'fn replay_nodes(', 'replay-groups-include-all':'fn replay_author(', 'replay-groups-skip-all':'fn replay_author(', 'replay-context-passes-empty':'fn author_context(', 'replay-context-invents-error':'fn author_context(', 'replay-context-contaminates-basis':'fn author_context(',
 'basis-includes-unselected':'fn select_basis(', 'basis-omits-selected':'fn select_basis(', 'basis-event-ignores-roots':'fn event_basis(',
@@ -117,7 +118,7 @@ function prepareMutation(mode) {
 "tree-publication-clears-private-counter":"fn with_tree(",
 "plan-clears-private-counter":"fn plan(",
 'plan-ignores-duplicate':'fn plan(', 'plan-swallows-classifier-error':'fn plan(', 'receive-plan-rewrites-counter':'pub fn receive(', 'invalid-forgets-reason':'fn invalid(', 'writer-index-collides':'fn writer_index(', 'native-push-discards-value':'fn push<T>','native-push-prepends':'fn push<T>','causal-validator-passes-empty':'fn validate_new(','causal-accepts-missing':'fn validate_after(', 'causal-call-passes-empty':'fn past(', 'causal-refuses-present':'fn validate_after(','plan-interprets-uncanonical':'fn plan(','scalar-count-loop-bypasses-check':'fn validate_new(','scalar-accepts-invalid':'fn validate_scalars(', 'scalar-refuses-valid':'fn validate_scalars(', 'scalar-call-passes-empty':'fn validate_new(','canonical-step-refuses':'fn canonical_step(', 'canonical-refuses':'fn canonical(','plan-keeps-old-tree':'fn with_tree(', 'plan-passes-old-tree':'fn plan(','order-key-ignores-writer':'fn event_lt(','order-chooses-largest':'fn choose_unseen(', 'order-discards-canonical':'fn plan(','edit-commit-ignores-counter':'fn with_counter(', 'edit-success-reuses-counter':'fn next_counter_after(', 'content-changes-whole-fact':'fn clone_selected_fact(', 'content-omits-facts':'fn canonical(', 'accepted-reuses-member':'fn choose_unseen(', 'accepted-wrong-canonical-push':'fn canonical_step(', 'accepted-publication-duplicates':'fn with_tree('};
-  const start=original.indexOf(scopes[mode]??(mode==='identity-writer-equality'?'impl PartialEq for Writer':mode==='identity-birth-equality'?'impl PartialEq for BirthId':mode==='identity-event-equality'?'impl PartialEq for EventId':mode==='identity-forgets-gap'?'fn fact_equal(':mode.startsWith('identity-')?'fn duplicate(':mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit('));assert(start>=0);
+  const header=(scopes[mode]??(mode==='identity-writer-equality'?'impl PartialEq for Writer':mode==='identity-birth-equality'?'impl PartialEq for BirthId':mode==='identity-event-equality'?'impl PartialEq for EventId':mode==='identity-forgets-gap'?'fn fact_equal(':mode.startsWith('identity-')?'fn duplicate(':mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit('));const [start]=itemSpan(source,header,mode);
   const edits={
     'replay-nodes-skip-first':['for i in 0..nodes.len() {','for i in 1..nodes.len() {'],
     'replay-nodes-reverse':['tree.add(nodes[i].clone())?;', 'tree.add(nodes[nodes.len() - 1 - i].clone())?;'],
@@ -199,17 +200,9 @@ function prepareMutation(mode) {
   };
   assert(start>=0,'mutation scope not found: '+mode);
   assert(Object.hasOwn(edits,mode),'mutation without a registered edit: '+mode);
-  const [needle,replacement]=edits[mode];const at=original.indexOf(needle,start);assert(at>=start,'mutation anchor not found in scope: '+mode);
-  if(mode==='duplicate-scan-skips-pairs') { const end=original.indexOf('\n}',start)+2;assert(end>start&&at<end);assert.equal(original.slice(start,end).split(needle).length,2,'one actual duplicate-scan anchor'); }
-  if(mode.startsWith('scheduler-')) { const end=original.indexOf('\n}',start)+2;assert(end>start&&at<end);assert.equal(original.slice(start,end).split(needle).length,2,'one actual scheduler anchor: '+mode); }
-  if(mode.startsWith('native-push-')) { const end=original.indexOf('\n}',start)+2;assert(end>start&&at<end);assert.equal(original.slice(start,end).split(needle).length,2,'one actual push-body anchor'); }
-  if(['plan-skips-validation','tree-publication-uses-private-writer','tree-publication-clears-private-counter','plan-clears-private-counter','plan-ignores-duplicate','plan-swallows-classifier-error','receive-plan-rewrites-counter'].includes(mode)) {
-    const next=/\n    (?:pub )?fn /.exec(original.slice(start));
-    const end=next?start+next.index:original.length;
-    assert(at<end);assert.equal(original.slice(start,end).split(needle).length,2,'one actual planner/caller anchor');
-  }
-  const mutant=original.slice(0,at)+original.slice(at).replace(needle,replacement);
-  assert.notEqual(mutant,original);
+  const [needle,replacement]=edits[mode];const at=scopedAnchor(source,header,needle,mode);
+  const mutant=source.slice(0,at)+source.slice(at).replace(needle,replacement);
+  assert.notEqual(mutant,source);
   return mutant;
 }
 const theorems={
@@ -293,6 +286,11 @@ const theorems={
 };
 // Registration consistency: every selected mutation must have an anchored edit and a
 // named owning theorem before any native test, extraction or compiler starts.
+// Every registered mode, not only the selected ones, must resolve to exactly one
+// anchor inside its named item; the scope controls exercise the same path.
+for(const mode of modes.filter(mode=>mode!=='positive'))prepareMutation(mode);
+checkMutationScopeControls(prepareMutation,original,'causal-refuses-present','fn validate_after(','Ok(())','fn validate_new(');
+console.log('PASS mutation scopes: every registered mode resolves to one in-scope anchor; moved/duplicate/comment-only anchor, missing/comment/string/duplicated header, literal braces, C raw strings across items and unsupported-lexeme controls');
 const prepared=new Map();
 for(const mode of mutations) {
   assert(Object.hasOwn(theorems,mode),'mutation without an owning theorem: '+mode);
