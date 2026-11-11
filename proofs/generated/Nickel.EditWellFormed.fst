@@ -84,7 +84,6 @@ let no_validation_success (result: Result.t_Result unit Native.t_Error) : Type0 
   match result with | Result.Result_Err _ -> begin Prims.l_True end | _ -> begin Prims.l_False end
 
 let successful_validation_has_valid_scalars (facts: t_Slice Native.t_Fact) (limits: Native.t_Limits) (fact: Native.t_Fact) : Lemma (ensures validated_scalars fact (Native.impl_Replica__validate_new facts limits fact)) =
-  Nickel.LoopUtil.early_return_preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (fun (_: nat) (_: unit) -> Prims.l_True) no_validation_success;
   Nickel.LoopUtil.early_return_preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (fun (_: nat) (_: usize) -> Prims.l_True) no_validation_success;
   scalar_validation_is_sound (Alloc.Vec.impl_1__as_slice fact.f_insert);
   assert (validated_scalars fact (Native.impl_Replica__validate_new facts limits fact)) by (
