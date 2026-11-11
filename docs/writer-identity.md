@@ -96,8 +96,9 @@ keeps counters JavaScript-safe.
 ### 3.1 What the current API supplies
 
 - `Replica::new(writer, limits)` always starts with `next_counter: 1` and no
-  facts. `next_counter()` is a getter; there is no operation that restores a
-  replica's counter or facts.
+  facts. `next_counter()` is a getter; there is no public producer-state
+  restoration constructor; receive can rebuild shared facts but does not restore
+  the authoring counter.
 - So **a same-peer restart is not possible through today's API.** A caller who
   persists the counter externally cannot hand it back. Calling `new` with the
   same peer ID would re-issue `(peer, 1)`, `(peer, 2)`, … as different
@@ -179,17 +180,9 @@ proposal is that proofs use writers only through these properties:
 - **L5 order key** (used by EditAccepted): an injective, order-preserving map of
   `EventId` into `nat`, for example `key(w, c) = rank(w) · 2^64 + c` with `rank`
   an order embedding of writers into `nat`. It replaces the two-armed
-  `event_key`.
-  - **L5 is an extra restriction, not a consequence of L1–L4.** An arbitrary
-    total order need not embed into `nat`. The integers in their usual order are
-    an example: no order-preserving map sends them into `nat`.
-  - For a finite-width concrete domain such as `u64`, `rank(w) = w` works, so
-    under T1 L5 holds by construction.
-  - Under T2 there are two choices. Either restrict the allowed peer domains to
-    those with such a ranking, as an explicit interface law. Or replace the
-    global key with a ranking constructed over the finitely many peers of a given
-    history, which is an additional construction to prove. EditAccepted would
-    then be re-proved against it.
+  `event_key`. L5 is an additional restriction, not a consequence of L2. T2 here
+  covers domains admitting this rank; more general ordered domains would need a
+  separately proved finite-support construction.
 
 **From an arbitrary ordered peer domain to the Rust type.**
 
