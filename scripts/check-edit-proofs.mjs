@@ -57,6 +57,7 @@ const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tre
   'accepted-reuses-member','accepted-wrong-canonical-push','accepted-publication-duplicates',
   'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes','past-refuses-closure','duplicate-scan-skips-pairs','scheduler-ready-skips-dependency','scheduler-reselects-done','scheduler-refuses-ready','scheduler-checks-empty-after','scheduler-records-wrong-id','scheduler-stops-early','scheduler-erases-wrong-trace','scheduler-invents-bookkeeping-error','basis-includes-unselected','basis-omits-selected','basis-event-ignores-roots','replay-nodes-skip-first','replay-nodes-reverse','replay-groups-include-all','replay-groups-skip-all','replay-context-passes-empty','replay-context-invents-error','replay-context-contaminates-basis','scheduler-forgets-completed-tree'];
 modes.push('plan-interprets-uncanonical-call', ...["shared-plan-skips-validation","shared-plan-ignores-duplicate","shared-plan-swallows-classifier-error","identity-call-passes-empty","identity-call-ignores-payload","past-membership-call-passes-empty","scheduler-readiness-call-passes-empty","scheduler-choice-call-passes-empty"]);
+modes.push('text-policy-swaps-eq-lt','graph-policy-swaps-eq-lt','admission-policy-swaps-errors');
 // Contract-dependency families run after the positive chain verifies. With no
 // arguments (CI) every mode and every family runs. Development runs may select
 // `positive-only`, `contracts:<family>` (implies the positive chain) and any
@@ -111,9 +112,9 @@ const mutationDefinitions=[
   ["writer-index-collides","src/edit.rs","fn writer_index(","Writer::Bo => 1","Writer::Bo => 0"],
   ["native-push-discards-value","src/event_layer.rs","fn push<","xs.push(value);","let _ = value;"],
   ["native-push-prepends","src/event_layer.rs","fn push<","xs.push(value);","xs.insert(0, value);"],
-  ["causal-validator-passes-empty","src/edit.rs","fn validate_new(","fact_after,","|_| &[],"],
-  ["causal-accepts-missing","src/event_layer.rs","fn validate_after<","if !has_fact(facts, &after[i], id, id_eq) {","if false {"],
-  ["causal-call-passes-empty","src/event_layer.rs","fn past<","validate_after(facts, after_ids, id, id_eq, missing)?;","validate_after(facts, &[], id, id_eq, missing)?;"],
+  ["causal-validator-passes-empty","src/edit.rs","fn validate_new(","&TEXT_OPS)","&crate::event_layer::event_ops(crate::event_layer::graph_ops(fact_id, |_| &[], same_event_id, earlier_event_id, clone_selected_fact, fact_equal, internal_error, missing_error), required_predecessor, forbidden_ancestor, event_capacity_error, dependency_capacity_error, duplicate_dependency_error, predecessor_error))"],
+  ["causal-accepts-missing","src/event_layer.rs","fn validate_after<","if !has_fact(facts, &after[i], ops) {","if false {"],
+  ["causal-call-passes-empty","src/event_layer.rs","fn past<","validate_after(facts, after_ids, ops)?;","validate_after(facts, &[], ops)?;"],
   ["causal-refuses-present","src/event_layer.rs","fn validate_after<","Ok(())","Err(missing())"],
   ["plan-interprets-uncanonical","src/event_shell.rs","fn plan<","let next = prepare(context, next, fact)?;\n    let next = execute(context, next)?;","let next = execute(context, next)?;\n    let next = prepare(context, next, fact)?;"],
   ["scalar-count-loop-bypasses-check","src/edit.rs","fn validate_new(","births = add(births, facts[i].insert.len())?;","births = add(births, facts[i].insert.len())?; if births > 0 { return Ok(()); }"],
@@ -143,32 +144,32 @@ const mutationDefinitions=[
   ["identity-skips-later","src/event_layer.rs","fn classify<","for i in 0..facts.len() {","for i in 0..0 {"],
   ["identity-counter-range","src/edit.rs","fn duplicate(","if fact.id.counter == 0 || fact.id.counter > MAX_COUNTER {","if false {"],
   ["identity-event-equality","src/edit.rs","impl PartialEq for EventId","self.writer == other.writer && self.counter == other.counter","self.writer == other.writer"],
-  ["identity-scan-key","src/edit.rs","fn duplicate(","crate::event_layer::classify(facts, fact, fact_id, same_event_id, fact_equal)","crate::event_layer::classify(facts, fact, |f| EventId { writer: Writer::Alice, counter: f.id.counter }, same_event_id, fact_equal)"],
+  ["identity-scan-key","src/edit.rs","fn duplicate(","crate::event_layer::classify(facts, fact, &TEXT_OPS.0)","crate::event_layer::classify(facts, fact, &crate::event_layer::graph_ops(|f| EventId { writer: Writer::Alice, counter: f.id.counter }, fact_after, same_event_id, earlier_event_id, clone_selected_fact, fact_equal, internal_error, missing_error))"],
   ["identity-birth-equality","src/edit.rs","impl PartialEq for BirthId","self.event == other.event && self.index == other.index","self.event == other.event"],
   ["identity-writer-equality","src/edit.rs","impl PartialEq for Writer","writer_index(*self) == writer_index(*other)","writer_index(*self) == writer_index(*self)"],
-  ["accepted-reuses-member","src/event_layer.rs","fn choose_unseen<","if !has_fact(out, &id(&facts[j]), id, id_eq) {","if true {"],
+  ["accepted-reuses-member","src/event_layer.rs","fn choose_unseen<","if !has_fact(out, &id(&facts[j]), ops) {","if true {"],
   ["accepted-wrong-canonical-push","src/event_layer.rs","fn canonical_step<","push(&mut out, clone_selected_fact(&facts[i], clone_fact), internal)?;","push(&mut out, clone_selected_fact(&facts[0], clone_fact), internal)?;"],
   ["accepted-publication-duplicates","src/edit.rs","fn with_tree(","self.tree = tree;","self.tree = tree; if !self.facts.is_empty() && self.facts.len() < usize::MAX { let copy = self.facts[0].clone(); self.facts.push(copy); }"],
   ["content-changes-whole-fact","src/edit.rs","fn clone_selected_fact(","fact.clone()","let mut changed = fact.clone(); changed.gap = None; changed"],
   ["content-omits-facts","src/event_layer.rs","fn canonical<","for _ in 0..facts.len() {","for _ in 0..0 {"],
   ["past-drops-roots","src/event_layer.rs","fn past<","let mut selected = after_ids.to_vec();","let mut selected = Vec::new();"],
-  ["past-invents-id","src/event_layer.rs","fn extend_past<","if has_id(&selected, &id(fact), id_eq) {","if true {"],
+  ["past-invents-id","src/event_layer.rs","fn extend_past<","if has_id(&selected, &id(fact), ops) {","if true {"],
   ["past-membership-always-false","src/event_layer.rs","fn has_id<","if id_eq(&ids[i], wanted) {","if false {"],
-  ["past-skips-predecessors","src/event_layer.rs","fn extend_past<","if has_id(&selected, &id(fact), id_eq) {","if false {"],
+  ["past-skips-predecessors","src/event_layer.rs","fn extend_past<","if has_id(&selected, &id(fact), ops) {","if false {"],
   ["past-skips-passes","src/event_layer.rs","fn past<","for _ in 0..facts.len() {","for _ in 0..0 {"],
   ["past-refuses-closure","src/event_layer.rs","fn past<","Ok(selected)","Err(internal())"],
   ["duplicate-scan-skips-pairs","src/event_layer.rs","fn duplicate_ids<","if id_eq(&xs[i], &xs[j]) {","if false {"],
-  ["scheduler-ready-skips-dependency","src/event_layer.rs","fn ready<","if has_id(done, &after[i], id_eq) {","if true {"],
-  ["scheduler-reselects-done","src/event_layer.rs","fn choose_ready<","if has_id(done, &id(&facts[i]), id_eq) {","if false {"],
+  ["scheduler-ready-skips-dependency","src/event_layer.rs","fn ready<","if has_id(done, &after[i], ops) {","if true {"],
+  ["scheduler-reselects-done","src/event_layer.rs","fn choose_ready<","if has_id(done, &id(&facts[i]), ops) {","if false {"],
   ["scheduler-refuses-ready","src/event_layer.rs","fn choose_ready<","return Some(i);","return None;"],
-  ["scheduler-checks-empty-after","src/event_layer.rs","fn choose_ready<","ready(after(&facts[i]), done, id_eq)","ready(&[], done, id_eq)"],
+  ["scheduler-checks-empty-after","src/event_layer.rs","fn choose_ready<","ready(after(&facts[i]), done, ops)","ready(&[], done, ops)"],
   ["scheduler-records-wrong-id","src/edit.rs","fn interpret_scheduled(","fact_id,","|_| EventId { writer: Writer::Alice, counter: 0 },"],
   ["scheduler-stops-early","src/event_shell.rs","fn scheduled<","for _ in 0..facts.len() {","for _ in 0..0 {"],
   ["scheduler-erases-wrong-trace","src/edit.rs","fn interpret(","let pair = interpret_scheduled(facts)?;","let pair = interpret_scheduled(&[])?;"],
   ["scheduler-invents-bookkeeping-error","src/event_shell.rs","fn scheduled<","let event_id = id(event);","if operations.len() == 0 { return Err(internal()); } let event_id = id(event);"],
-  ["basis-includes-unselected","src/event_layer.rs","fn select_basis<","if has_id(selected, &id(fact), id_eq) {","if true {"],
-  ["basis-omits-selected","src/event_layer.rs","fn select_basis<","if has_id(selected, &id(fact), id_eq) {","if false {"],
-  ["basis-event-ignores-roots","src/event_layer.rs","fn event_basis<","past(facts, after(event), id, after, id_eq, internal, missing)?","past(facts, &[], id, after, id_eq, internal, missing)?"],
+  ["basis-includes-unselected","src/event_layer.rs","fn select_basis<","if has_id(selected, &id(fact), ops) {","if true {"],
+  ["basis-omits-selected","src/event_layer.rs","fn select_basis<","if has_id(selected, &id(fact), ops) {","if false {"],
+  ["basis-event-ignores-roots","src/event_layer.rs","fn event_basis<","past(facts, after(event), ops)?","past(facts, &[], ops)?"],
   ["replay-nodes-skip-first","src/edit.rs","fn replay_nodes(","for i in 0..nodes.len() {","for i in 1..nodes.len() {"],
   ["replay-nodes-reverse","src/edit.rs","fn replay_nodes(","tree.add(nodes[i].clone())?;","tree.add(nodes[nodes.len() - 1 - i].clone())?;"],
   ["replay-groups-include-all","src/edit.rs","fn replay_author(","if has_event(selected, id) {","if !has_event(&[], id) {"],
@@ -181,11 +182,14 @@ const mutationDefinitions=[
   ["shared-plan-skips-validation","src/event_shell.rs","fn plan<","validate(context, before, fact)?;","let _ = validate(context, before, fact);"],
   ["shared-plan-ignores-duplicate","src/event_shell.rs","fn plan<","if duplicate(context, before, fact)? {","if duplicate(context, before, fact)? && false {"],
   ["shared-plan-swallows-classifier-error","src/event_shell.rs","fn plan<","if duplicate(context, before, fact)? {","if match duplicate(context, before, fact) { Ok(found) => found, Err(_) => false } {"],
-  ["identity-call-passes-empty","src/edit.rs","fn duplicate(","crate::event_layer::classify(facts, fact, fact_id, same_event_id, fact_equal)","crate::event_layer::classify(&[], fact, fact_id, same_event_id, fact_equal)"],
-  ["identity-call-ignores-payload","src/edit.rs","fn duplicate(","crate::event_layer::classify(facts, fact, fact_id, same_event_id, fact_equal)","crate::event_layer::classify(facts, fact, fact_id, same_event_id, |left, right| left.id == right.id)"],
-  ["past-membership-call-passes-empty","src/edit.rs","fn has_event(","crate::event_layer::has_id(ids, &id, same_event_id)","crate::event_layer::has_id(&[], &id, same_event_id)"],
-  ["scheduler-readiness-call-passes-empty","src/edit.rs","fn ready(","crate::event_layer::ready(after, done, same_event_id)","crate::event_layer::ready(&[], done, same_event_id)"],
-  ["scheduler-choice-call-passes-empty","src/edit.rs","fn choose_ready(","crate::event_layer::choose_ready(facts, done, fact_id, fact_after, same_event_id)","crate::event_layer::choose_ready(&[], done, fact_id, fact_after, same_event_id)"]
+  ["identity-call-passes-empty","src/edit.rs","fn duplicate(","crate::event_layer::classify(facts, fact, &TEXT_OPS.0)","crate::event_layer::classify(&[], fact, &TEXT_OPS.0)"],
+  ["identity-call-ignores-payload","src/edit.rs","fn duplicate(","crate::event_layer::classify(facts, fact, &TEXT_OPS.0)","crate::event_layer::classify(facts, fact, &crate::event_layer::graph_ops(fact_id, fact_after, same_event_id, earlier_event_id, clone_selected_fact, |left, right| left.id == right.id, internal_error, missing_error))"],
+  ["past-membership-call-passes-empty","src/edit.rs","fn has_event(","crate::event_layer::has_id(ids, &id, &TEXT_OPS.0)","crate::event_layer::has_id(&[], &id, &TEXT_OPS.0)"],
+  ["scheduler-readiness-call-passes-empty","src/edit.rs","fn ready(","crate::event_layer::ready(after, done, &TEXT_OPS.0)","crate::event_layer::ready(&[], done, &TEXT_OPS.0)"],
+  ["scheduler-choice-call-passes-empty","src/edit.rs","fn choose_ready(","crate::event_layer::choose_ready(facts, done, &TEXT_OPS.0)","crate::event_layer::choose_ready(&[], done, &TEXT_OPS.0)"],
+  ["text-policy-swaps-eq-lt","src/edit.rs","const TEXT_OPS:","same_event_id, earlier_event_id,","earlier_event_id, same_event_id,"],
+  ["graph-policy-swaps-eq-lt","src/event_layer.rs","const fn graph_ops<","(id, after, id_eq, id_lt, clone_fact, fact_eq)","(id, after, id_lt, id_eq, clone_fact, fact_eq)"],
+  ["admission-policy-swaps-errors","src/event_layer.rs","const fn event_ops<","(event_capacity, dep_capacity, duplicate_error, predecessor_error)","(dep_capacity, event_capacity, duplicate_error, predecessor_error)"]
 ];
 const definitionByMode=new Map(mutationDefinitions.map(([mode,...definition])=>[mode,definition]));
 const registeredMutations=modes.filter(mode=>mode!=='positive');
@@ -293,6 +297,9 @@ const theorems={
 // caller composition sensitive. Only the exact named new owner may reject a
 // moved-body control; an arbitrary earlier dependency failure is never credited.
 theorems['plan-interprets-uncanonical-call']='EditAccepted.plan_publishes_interpretation';
+theorems['text-policy-swaps-eq-lt']='EventGraphText.text_policy_is_exact';
+theorems['graph-policy-swaps-eq-lt']='EventGraph.graph_ops_preserve_callbacks';
+theorems['admission-policy-swaps-errors']='EventGraph.event_ops_preserve_callbacks';
 const priorOwners={...theorems};
 const ownerMigrations={
   "plan-interprets-uncanonical-call":["EditAccepted.plan_publishes_canonical_facts","added wrong-prepare callback omits canonicalization; exact canonical fact publication owns this fault, while interpretation of the returned facts can still agree"],
@@ -457,8 +464,14 @@ async function check(mode) {
   // are structurally lowered by the pinned backend, ignoring custom bodies.
   const scan=code.slice(code.indexOf('let impl_Replica__duplicate '),code.indexOf('let impl_Replica__validate_new '));
   assert.match(scan,/Nickel_crdt\.Event_layer\.classify/);
-  if(mode==='identity-call-ignores-payload')assert(!/fact_equal/.test(scan),'selected wrong callback must replace the ordinary full-fact call');
-  else assert.match(scan,/Nickel_crdt\.Event_layer\.classify[\s\S]*fact_equal/);
+  if(mode==='identity-call-ignores-payload') {
+    assert.match(scan,/Nickel_crdt\.Event_layer\.graph_ops/,'wrong per-call policy must be extracted');
+    assert(!/fact_equal/.test(scan),'wrong callback must replace the full-fact comparison');
+  } else if(mode!=='identity-scan-key') {
+    assert.match(scan,/v_TEXT_OPS/,'classifier must consume the actual client policy');
+    const policy=code.slice(code.indexOf('let v_TEXT_OPS'),code.indexOf('let impl_Replica__duplicate '));
+    assert.match(policy,/fact_equal/,'client policy must retain whole-fact equality');
+  }
   for(const name of inventory)assert(!/\b(?:admit|assume|admit_smt_queries)\b/.test(await fs.readFile(path.join(proof,name),'utf8')),'no assumptions in extracted project code '+name);
   const extractionIdentity=await Promise.all(inventory.map(async name=>[name,digest(await fs.readFile(path.join(extract,name)))]));
   if(mode==='positive') {
@@ -475,7 +488,7 @@ async function check(mode) {
   const extractionChanged=extractionIdentity.filter(([name,hash])=>recorded[name]!==hash).map(([name])=>name);
   // Counter calculation/installation/wiring controls need only their owning module. The positive path still
   // checks both the public Spec surface and the existing ghost causal-rank family.
-  const proofRoot=/^(EventGraph|EventShell|EventClassifier)\./.test(theorems[mode]??'')?'Nickel.'+theorems[mode].split('.')[0]+'.fst':mode==='positive'?'Nickel.Spec.fst':mode.startsWith('replay-')?'Nickel.EditReplay.fst':mode.startsWith('basis-')?'Nickel.EditBasis.fst':mode.startsWith('scheduler-')?'Nickel.EditSchedule.fst':['past-refuses-closure','duplicate-scan-skips-pairs'].includes(mode)?'Nickel.EditPastTotal.fst':mode.startsWith('past-')?'Nickel.EditPast.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
+  const proofRoot=/^(EventGraph|EventGraphText|EventShell|EventClassifier)\./.test(theorems[mode]??'')?'Nickel.'+theorems[mode].split('.')[0]+'.fst':mode==='positive'?'Nickel.Spec.fst':mode.startsWith('replay-')?'Nickel.EditReplay.fst':mode.startsWith('basis-')?'Nickel.EditBasis.fst':mode.startsWith('scheduler-')?'Nickel.EditSchedule.fst':['past-refuses-closure','duplicate-scan-skips-pairs'].includes(mode)?'Nickel.EditPastTotal.fst':mode.startsWith('past-')?'Nickel.EditPast.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
   const checked=await verify({label:mode,dir:proof,roots:(mode==='positive'?['Nickel.EventGraph.fst','Nickel.EventGraphText.fst','Nickel.EventShell.fst','Nickel.EventClassifier.fst','Nickel.Spec.fst','Nickel.EditCausal.fst','Nickel.EditPastTotal.fst','Nickel.EditSchedule.fst','Nickel.EditBasis.fst','Nickel.EditReplay.fst']:['Nickel_crdt.Edit.fst',proofRoot]).map(name=>path.join(proof,name)),fstar,models,modelCache});
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {

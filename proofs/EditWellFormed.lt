@@ -1,3 +1,4 @@
+import Nickel.EventGraphText
 import Rust_primitives
 import Core_models
 import FStar.Pervasives
@@ -289,10 +290,15 @@ function dependency_check_invariant(facts: t_Slice(Native.t_Fact), after: t_Slic
 proof dependency_validation_is_sound(facts: t_Slice(Native.t_Fact), after: t_Slice(Native.t_EventId)): unit
   gives dependency_check_result(facts, after, Native.validate_after(facts, after))
 {
+  Nickel.EventGraphText.text_graph_policy_is_exact();
+  Nickel.EventGraphText.text_graph_callbacks_are_exact();
   Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(after),
     dependency_check_invariant(facts, after), ((_: unit) => ()),
     ((_: unit) => dependencies_present(facts, after)), ((_: Native.t_Error) => Prims.l_True));
   assert(dependency_check_result(facts, after, Native.validate_after(facts, after))) by {
+    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
+    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
+    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
     Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
     Tactics.prune("Nickel.LoopUtil.step_safe");
     Tactics.prune("Nickel.LoopUtil.output_safe");
@@ -333,8 +339,13 @@ function past_has_dependencies(facts: t_Slice(Native.t_Fact), after: t_Slice(Nat
 proof successful_past_has_direct_dependencies(facts: t_Slice(Native.t_Fact), after: t_Slice(Native.t_EventId)): unit
   gives past_has_dependencies(facts, after, Native.past(facts, after))
 {
+  Nickel.EventGraphText.text_graph_policy_is_exact();
+  Nickel.EventGraphText.text_graph_callbacks_are_exact();
   dependency_validation_is_sound(facts, after);
   assert(past_has_dependencies(facts, after, Native.past(facts, after))) by {
+    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
+    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
+    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
     Tactics.prune("Nickel_crdt.Edit.validate_after");
     Tactics.prune("Nickel_crdt.Event_layer.validate_after");
     Tactics.prune("Alloc.Vec.from_seq");
@@ -357,9 +368,14 @@ function validation_has_dependencies(facts: t_Slice(Native.t_Fact), fact: Native
 proof successful_validation_has_direct_dependencies(facts: t_Slice(Native.t_Fact), limits: Native.t_Limits, fact: Native.t_Fact): unit
   gives validation_has_dependencies(facts, fact, Native.impl_Replica__validate_new(facts, limits, fact))
 {
+  Nickel.EventGraphText.text_graph_policy_is_exact();
+  Nickel.EventGraphText.text_graph_callbacks_are_exact();
   // past is checked before the counting loops; their bodies are irrelevant here.
   successful_past_has_direct_dependencies(facts, Alloc.Vec.impl_1__as_slice(fact.f_after));
   assert(validation_has_dependencies(facts, fact, Native.impl_Replica__validate_new(facts, limits, fact))) by {
+    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
+    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
+    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
     Tactics.prune("Nickel_crdt.Edit.past");
     Tactics.prune("Nickel_crdt.Event_layer.past");
     Tactics.prune("Alloc.Vec.from_seq");

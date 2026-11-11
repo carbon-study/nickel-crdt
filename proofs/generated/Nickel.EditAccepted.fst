@@ -110,9 +110,14 @@ let choice_returned (facts: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) 
   fun result -> match result with | Result.Result_Err _ -> begin Prims.l_True end | Result.Result_Ok choice -> begin choice_safe facts out choice end
 
 let selected_id_is_unseen (facts: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) : Lemma (ensures (choice_returned facts out) (Native.choose_unseen facts out)) =
+  Nickel.EventGraphText.text_graph_policy_is_exact ();
+  Nickel.EventGraphText.text_graph_callbacks_are_exact ();
   let each_membership_boolean (xs: t_Slice Native.t_Fact) (id: Native.t_EventId) : Lemma (ensures Prims.l_or (Native.has_fact xs id == true) (Native.has_fact xs id == false)) [SMTPat (Native.has_fact xs id)] = () in
   Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (choice_invariant facts out) (fun (choice: Option.t_Option usize) -> choice) (choice_post facts out) (fun (_: Native.t_Error) -> Prims.l_True);
   assert ((choice_returned facts out) (Native.choose_unseen facts out)) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
     Tactics.prune "Nickel_crdt.Edit.has_fact";
     Tactics.prune "Nickel_crdt.Event_layer.has_fact";
     Tactics.prune "Nickel.LoopUtil.step_safe";
@@ -200,8 +205,12 @@ let canonical_loop_result (input: t_Slice Native.t_Fact) : Result.t_Result facts
   match loop with | Core_models.Ops.Control_flow.ControlFlow_Break ret -> begin ret end | Core_models.Ops.Control_flow.ControlFlow_Continue out -> begin Result.Result_Ok out end
 
 let canonical_uses_complete_range (input: t_Slice Native.t_Fact) : Lemma (ensures Native.canonical input == canonical_loop_result input) =
+  Nickel.EventGraphText.text_graph_policy_is_exact ();
   Nickel.LoopEquality.pointwise_callbacks_any #facts_vec #(Result.t_Result facts_vec Native.t_Error) (mk_usize 0) (Core_models.Slice.impl__len input);
   assert (Native.canonical input == canonical_loop_result input) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
     Tactics.prune "Nickel_crdt.Edit.canonical_step";
     Tactics.prune "Nickel_crdt.Event_layer.canonical_step";
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
@@ -490,10 +499,15 @@ let least_extends_all (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact
   FStar.Classical.forall_intro_2 each
 
 let selected_id_is_least (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) : Lemma (ensures least_result input out (Native.choose_unseen input out)) =
+  Nickel.EventGraphText.text_graph_policy_is_exact ();
+  Nickel.EventGraphText.text_graph_callbacks_are_exact ();
   let each_order (a: Native.t_EventId) (b: Native.t_EventId) : Lemma (ensures Native.event_lt a b == true <==> event_key a < event_key b) [SMTPat (Native.event_lt a b)] = event_order_is_key_order a b in
   least_extends_all input out;
   Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Nickel.EditIdentity.length input) (least_choice input out) (fun (choice: Option.t_Option usize) -> choice) (least_choice input out (v (Nickel.EditIdentity.length input))) (fun (_: Native.t_Error) -> Prims.l_True);
   assert (least_result input out (Native.choose_unseen input out)) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
@@ -854,12 +868,17 @@ let canonical_total (result: Result.t_Result facts_vec Native.t_Error) : Type0 =
   match result with | Result.Result_Ok _ -> begin Prims.l_True end | _ -> begin Prims.l_False end
 
 let canonical_step_succeeds (input: t_Slice Native.t_Fact) (out: facts_vec) : Lemma (requires (Nickel.EditIdentity.unique_ids input /\ Seq.length (Alloc.Vec.impl_1__as_slice out) < Seq.length input)) (ensures canonical_total (Native.canonical_step input out)) =
+  Nickel.EventGraphText.text_graph_policy_is_exact ();
+  Nickel.EventGraphText.text_graph_callbacks_are_exact ();
   choice_always_returns input (Alloc.Vec.impl_1__as_slice out);
   selected_id_is_least input (Alloc.Vec.impl_1__as_slice out);
   shorter_output_has_unseen input (Alloc.Vec.impl_1__as_slice out);
   match Native.choose_unseen input (Alloc.Vec.impl_1__as_slice out) with | Result.Result_Ok (Option.Option_Some k) -> begin assert (v k < Seq.length input);
   push_result_is_exact out (Native.clone_selected_fact (Rust_primitives.Slice.slice_index input k));
   assert (canonical_total (Native.canonical_step input out)) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
     Tactics.prune "Nickel_crdt.Edit.choose_unseen";
     Tactics.prune "Nickel_crdt.Event_layer.choose_unseen";
     Tactics.prune "Nickel_crdt.Edit.push";

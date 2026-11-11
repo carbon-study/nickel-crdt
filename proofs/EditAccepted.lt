@@ -99,6 +99,8 @@ function choice_returned(facts: t_Slice(Native.t_Fact), out: t_Slice(Native.t_Fa
 proof selected_id_is_unseen(facts: t_Slice(Native.t_Fact), out: t_Slice(Native.t_Fact)): unit
   gives choice_returned(facts, out)(Native.choose_unseen(facts, out))
 {
+  Nickel.EventGraphText.text_graph_policy_is_exact();
+  Nickel.EventGraphText.text_graph_callbacks_are_exact();
   // Keep the callee's declared Boolean range when its definition facts are hidden.
   proof each_membership_boolean(xs: t_Slice(Native.t_Fact), id: Native.t_EventId): unit
     gives Native.has_fact(xs, id) == true or Native.has_fact(xs, id) == false
@@ -108,6 +110,9 @@ proof selected_id_is_unseen(facts: t_Slice(Native.t_Fact), out: t_Slice(Native.t
     choice_invariant(facts, out), ((choice: Option.t_Option(usize)) => choice), choice_post(facts, out),
     ((_: Native.t_Error) => Prims.l_True));
   assert(choice_returned(facts, out)(Native.choose_unseen(facts, out))) by {
+    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
+    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
+    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
     Tactics.prune("Nickel_crdt.Edit.has_fact");
     Tactics.prune("Nickel_crdt.Event_layer.has_fact");
     Tactics.prune("Nickel.LoopUtil.step_safe");
@@ -228,8 +233,12 @@ function canonical_loop_result(input: t_Slice(Native.t_Fact)): Result.t_Result(f
 proof canonical_uses_complete_range(input: t_Slice(Native.t_Fact)): unit
   gives Native.canonical(input) == canonical_loop_result(input)
 {
+  Nickel.EventGraphText.text_graph_policy_is_exact();
   Nickel.LoopEquality.pointwise_callbacks_any<#facts_vec, #Result.t_Result(facts_vec, Native.t_Error)>(mk_usize(0), Core_models.Slice.impl__len(input));
   assert(Native.canonical(input) == canonical_loop_result(input)) by {
+    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
+    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
+    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
     Tactics.prune("Nickel_crdt.Edit.canonical_step");
     Tactics.prune("Nickel_crdt.Event_layer.canonical_step");
     Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
@@ -669,6 +678,8 @@ proof least_extends_all(input: t_Slice(Native.t_Fact), out: t_Slice(Native.t_Fac
 proof selected_id_is_least(input: t_Slice(Native.t_Fact), out: t_Slice(Native.t_Fact)): unit
   gives least_result(input, out, Native.choose_unseen(input, out))
 {
+  Nickel.EventGraphText.text_graph_policy_is_exact();
+  Nickel.EventGraphText.text_graph_callbacks_are_exact();
   proof each_order(a: Native.t_EventId, b: Native.t_EventId): unit
     gives (Native.event_lt(a, b) == true <==> event_key(a) < event_key(b))
     hint Native.event_lt(a, b)
@@ -678,6 +689,9 @@ proof selected_id_is_least(input: t_Slice(Native.t_Fact), out: t_Slice(Native.t_
     least_choice(input, out), ((choice: Option.t_Option(usize)) => choice), least_choice(input, out, v(Nickel.EditIdentity.length(input))),
     ((_: Native.t_Error) => Prims.l_True));
   assert(least_result(input, out, Native.choose_unseen(input, out))) by {
+    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
+    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
+    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
     Tactics.prune("Nickel.LoopUtil.step_safe");
     Tactics.prune("Nickel.LoopUtil.output_safe");
     Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
@@ -1203,6 +1217,8 @@ proof canonical_step_succeeds(input: t_Slice(Native.t_Fact), out: facts_vec): un
   takes Seq.length(Alloc.Vec.impl_1__as_slice(out)) < Seq.length(input)
   gives canonical_total(Native.canonical_step(input, out))
 {
+  Nickel.EventGraphText.text_graph_policy_is_exact();
+  Nickel.EventGraphText.text_graph_callbacks_are_exact();
   choice_always_returns(input, Alloc.Vec.impl_1__as_slice(out));
   selected_id_is_least(input, Alloc.Vec.impl_1__as_slice(out));
   shorter_output_has_unseen(input, Alloc.Vec.impl_1__as_slice(out));
@@ -1211,6 +1227,9 @@ proof canonical_step_succeeds(input: t_Slice(Native.t_Fact), out: facts_vec): un
       assert(v(k) < Seq.length(input));
       push_result_is_exact(out, Native.clone_selected_fact(Rust_primitives.Slice.slice_index(input, k)));
       assert(canonical_total(Native.canonical_step(input, out))) by {
+    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
+    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
+    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
         Tactics.prune("Nickel_crdt.Edit.choose_unseen");
     Tactics.prune("Nickel_crdt.Event_layer.choose_unseen");
         Tactics.prune("Nickel_crdt.Edit.push");

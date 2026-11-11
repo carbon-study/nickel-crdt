@@ -166,7 +166,7 @@ fn validate_scalars(scalars: &[u32]) -> Result<(), Error> {
     Ok(())
 }
 fn duplicate_events(xs: &[EventId]) -> bool {
-    crate::event_layer::duplicate_ids(xs, same_event_id)
+    crate::event_layer::duplicate_ids(xs, &TEXT_OPS.0)
 }
 fn duplicate_births(xs: &[BirthId]) -> bool {
     for i in 0..xs.len() {
@@ -393,7 +393,7 @@ fn next_counter_after(counter: u64) -> Result<u64, Error> {
     }
 }
 fn has_event(ids: &[EventId], id: EventId) -> bool {
-    crate::event_layer::has_id(ids, &id, same_event_id)
+    crate::event_layer::has_id(ids, &id, &TEXT_OPS.0)
 }
 fn has_birth(ids: &[BirthId], id: BirthId) -> bool {
     for old in ids {
@@ -404,43 +404,21 @@ fn has_birth(ids: &[BirthId], id: BirthId) -> bool {
     false
 }
 fn has_fact(facts: &[Fact], id: EventId) -> bool {
-    crate::event_layer::has_fact(facts, &id, fact_id, same_event_id)
+    crate::event_layer::has_fact(facts, &id, &TEXT_OPS.0)
 }
 // Same selection scan, separated so its fresh-choice invariant can be checked.
 fn choose_unseen(facts: &[Fact], out: &[Fact]) -> Result<Option<usize>, Error> {
-    crate::event_layer::choose_unseen(
-        facts,
-        out,
-        fact_id,
-        same_event_id,
-        earlier_event_id,
-        internal_error,
-    )
+    crate::event_layer::choose_unseen(facts, out, &TEXT_OPS.0)
 }
 // Copying a selected fact is a whole-fact operation, independently of its ID.
 fn clone_selected_fact(fact: &Fact) -> Fact {
     fact.clone()
 }
 fn canonical_step(facts: &[Fact], mut out: Vec<Fact>) -> Result<Vec<Fact>, Error> {
-    crate::event_layer::canonical_step(
-        facts,
-        out,
-        fact_id,
-        same_event_id,
-        earlier_event_id,
-        internal_error,
-        clone_selected_fact,
-    )
+    crate::event_layer::canonical_step(facts, out, &TEXT_OPS.0)
 }
 fn canonical(facts: &[Fact]) -> Result<Vec<Fact>, Error> {
-    crate::event_layer::canonical(
-        facts,
-        fact_id,
-        same_event_id,
-        earlier_event_id,
-        internal_error,
-        clone_selected_fact,
-    )
+    crate::event_layer::canonical(facts, &TEXT_OPS.0)
 }
 fn deletes(facts: &[Fact], id: BirthId) -> bool {
     for f in facts {
@@ -451,51 +429,29 @@ fn deletes(facts: &[Fact], id: BirthId) -> bool {
     false
 }
 fn ready(after: &[EventId], done: &[EventId]) -> bool {
-    crate::event_layer::ready(after, done, same_event_id)
+    crate::event_layer::ready(after, done, &TEXT_OPS.0)
 }
 // Return the first eligible stored event; interpret uses this same scan.
 fn choose_ready(facts: &[Fact], done: &[EventId]) -> Option<usize> {
-    crate::event_layer::choose_ready(facts, done, fact_id, fact_after, same_event_id)
+    crate::event_layer::choose_ready(facts, done, &TEXT_OPS.0)
 }
 fn frontier(facts: &[Fact]) -> Result<Vec<EventId>, Error> {
-    crate::event_layer::frontier(facts, fact_id, fact_after, same_event_id, internal_error)
+    crate::event_layer::frontier(facts, &TEXT_OPS.0)
 }
 // Direct predecessor admission guard, separated from closure computation.
 fn validate_after(facts: &[Fact], after: &[EventId]) -> Result<(), Error> {
-    crate::event_layer::validate_after(facts, after, fact_id, same_event_id, missing_error)
+    crate::event_layer::validate_after(facts, after, &TEXT_OPS.0)
 }
 // Each layer has an indexed range so its extracted callback has executable
 // LoopUtil semantics; keep expansion order and ordinary error propagation.
 fn extend_past(fact: &Fact, mut selected: Vec<EventId>) -> Result<Vec<EventId>, Error> {
-    crate::event_layer::extend_past(
-        fact,
-        selected,
-        fact_id,
-        fact_after,
-        same_event_id,
-        internal_error,
-    )
+    crate::event_layer::extend_past(fact, selected, &TEXT_OPS.0)
 }
 fn past_pass(facts: &[Fact], mut selected: Vec<EventId>) -> Result<Vec<EventId>, Error> {
-    crate::event_layer::past_pass(
-        facts,
-        selected,
-        fact_id,
-        fact_after,
-        same_event_id,
-        internal_error,
-    )
+    crate::event_layer::past_pass(facts, selected, &TEXT_OPS.0)
 }
 fn past(facts: &[Fact], after: &[EventId]) -> Result<Vec<EventId>, Error> {
-    crate::event_layer::past(
-        facts,
-        after,
-        fact_id,
-        fact_after,
-        same_event_id,
-        internal_error,
-        missing_error,
-    )
+    crate::event_layer::past(facts, after, &TEXT_OPS.0)
 }
 fn visible(facts: &[Fact]) -> Result<Vec<BirthId>, Error> {
     let mut ids = Vec::new();
@@ -514,27 +470,11 @@ fn visible(facts: &[Fact]) -> Result<Vec<BirthId>, Error> {
 }
 // Preserve storage order and whole fact values while selecting an author basis.
 fn select_basis(facts: &[Fact], selected: &[EventId]) -> Result<Vec<Fact>, Error> {
-    crate::event_layer::select_basis(
-        facts,
-        selected,
-        fact_id,
-        same_event_id,
-        internal_error,
-        clone_selected_fact,
-    )
+    crate::event_layer::select_basis(facts, selected, &TEXT_OPS.0)
 }
 // The author basis boundary: exact past first, then whole-fact selection.
 fn event_basis(facts: &[Fact], event: &Fact) -> Result<(Vec<EventId>, Vec<Fact>), Error> {
-    crate::event_layer::event_basis(
-        facts,
-        event,
-        fact_id,
-        fact_after,
-        same_event_id,
-        internal_error,
-        missing_error,
-        clone_selected_fact,
-    )
+    crate::event_layer::event_basis(facts, event, &TEXT_OPS.0)
 }
 // Replay one operation group without changing its node order.
 fn replay_nodes(mut tree: Tree, nodes: &[Node]) -> Result<Tree, Error> {
@@ -660,30 +600,14 @@ impl Replica {
         if fact.id.counter == 0 || fact.id.counter > MAX_COUNTER {
             return Err(invalid(Invalid::Counter));
         }
-        match crate::event_layer::classify(facts, fact, fact_id, same_event_id, fact_equal) {
+        match crate::event_layer::classify(facts, fact, &TEXT_OPS.0) {
             None => Ok(false),
             Some(true) => Ok(true),
             Some(false) => Err(invalid(Invalid::Conflict)),
         }
     }
     fn validate_new(facts: &[Fact], limits: Limits, fact: &Fact) -> Result<(), Error> {
-        let selected = crate::event_layer::validate_event(
-            facts,
-            fact,
-            limits.events,
-            limits.dependencies,
-            fact_id,
-            fact_after,
-            same_event_id,
-            required_predecessor,
-            forbidden_ancestor,
-            event_capacity_error,
-            dependency_capacity_error,
-            duplicate_dependency_error,
-            predecessor_error,
-            internal_error,
-            missing_error,
-        )?;
+        let selected = crate::event_layer::validate_event(facts, fact, limits.events, limits.dependencies, &TEXT_OPS)?;
         if fact.insert.len() > limits.scalars {
             return Err(Error::Capacity(Capacity::Scalars));
         }
@@ -896,3 +820,15 @@ fn duplicate_dependency_error() -> Error {
 fn predecessor_error() -> Error {
     invalid(Invalid::Predecessor)
 }
+
+// One text policy; construction-site controls bind both comparison positions.
+const TEXT_OPS: crate::event_layer::EventOps<Fact, EventId, Error> = {
+    crate::event_layer::event_ops(
+        crate::event_layer::graph_ops(
+            fact_id, fact_after, same_event_id, earlier_event_id,
+            clone_selected_fact, fact_equal, internal_error, missing_error,
+        ),
+        required_predecessor, forbidden_ancestor, event_capacity_error,
+        dependency_capacity_error, duplicate_dependency_error, predecessor_error,
+    )
+};

@@ -46,7 +46,7 @@ export async function checkScheduleContracts({proof,output,fstar,models,modelCac
   controls.push(
     ['schedule-ready-without-loop',/  Nickel\.LoopUtil\.preserve_any [^\n]+;\n/,'readiness_is_exact','readiness_is_exact','','EventGraph'],
     ['schedule-choice-without-loop',/  Nickel\.LoopUtil\.preserve_any [^\n]+;\n/,'scheduler_choice_is_exact','scheduler_choice_is_exact','','EventGraph'],
-    ['schedule-choice-without-ready-contract',/(?<=let readiness_is_exact[^\n]*) \[SMTPat \(Native\.ready after done eq\)\]/,'scheduler_choice_is_exact',undefined,'','EventGraph']
+    ['schedule-choice-without-ready-contract',/(?<=let readiness_is_exact[^\n]*) \[SMTPat \(Native\.ready after done ops\)\]/,'scheduler_choice_is_exact',undefined,'','EventGraph']
   );
   for(const [control,pattern,owner,scope,replacement='',module='EditSchedule'] of controls) {
     const name='Nickel.'+module+'.fst', original=await fs.readFile(path.join(proof,name),'utf8');

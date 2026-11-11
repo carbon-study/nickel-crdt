@@ -51,6 +51,10 @@ required range-fold congruence by checked induction. Stronger exact-past, rank,
 trace and labelled tree-work claims remain text specializations of that real
 shared implementation, not universal semantics for arbitrary clients.
 
+The [bundled-policy contract](../docs/shared-policy-tuples.md) describes the
+graph/admission tuple groups, checked constructors and construction-site swap
+controls. Batch construction coverage is native-only, not client refinement.
+
 The extraction inventory is strictly the three edit/shared modules plus the
 independently owned smoke module. Every original Rust mutation remains registered;
 when its owning algorithm moved, an explicit table records its precise generic

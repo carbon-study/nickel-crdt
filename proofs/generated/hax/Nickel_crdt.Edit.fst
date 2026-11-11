@@ -547,56 +547,6 @@ let fact_after (fact: t_Fact) : t_Slice t_EventId = Alloc.Vec.impl_1__as_slice f
 
 let same_event_id (a b: t_EventId) : bool = a =. b
 
-let duplicate_events (xs: t_Slice t_EventId) : bool =
-  Nickel_crdt.Event_layer.duplicate_ids #t_EventId xs same_event_id
-
-let has_event (ids: t_Slice t_EventId) (id: t_EventId) : bool =
-  Nickel_crdt.Event_layer.has_id #t_EventId ids id same_event_id
-
-let has_fact (facts: t_Slice t_Fact) (id: t_EventId) : bool =
-  Nickel_crdt.Event_layer.has_fact #t_Fact #t_EventId facts id fact_id same_event_id
-
-let ready (after done: t_Slice t_EventId) : bool =
-  Nickel_crdt.Event_layer.ready #t_EventId after done same_event_id
-
-let choose_ready (facts: t_Slice t_Fact) (done: t_Slice t_EventId)
-    : Core_models.Option.t_Option usize =
-  Nickel_crdt.Event_layer.choose_ready #t_Fact
-    #t_EventId
-    facts
-    done
-    fact_id
-    fact_after
-    same_event_id
-
-let impl_Replica__duplicate (facts: t_Slice t_Fact) (fact: t_Fact)
-    : Core_models.Result.t_Result bool t_Error =
-  if fact.f_id.f_counter =. mk_u64 0 || fact.f_id.f_counter >. v_MAX_COUNTER
-  then
-    Core_models.Result.Result_Err (invalid (Invalid_Counter <: t_Invalid))
-    <:
-    Core_models.Result.t_Result bool t_Error
-  else
-    match
-      Nickel_crdt.Event_layer.classify #t_Fact
-        #t_EventId
-        facts
-        fact
-        fact_id
-        same_event_id
-        fact_equal
-      <:
-      Core_models.Option.t_Option bool
-    with
-    | Core_models.Option.Option_None  ->
-      Core_models.Result.Result_Ok false <: Core_models.Result.t_Result bool t_Error
-    | Core_models.Option.Option_Some true ->
-      Core_models.Result.Result_Ok true <: Core_models.Result.t_Result bool t_Error
-    | Core_models.Option.Option_Some false ->
-      Core_models.Result.Result_Err (invalid (Invalid_Conflict <: t_Invalid))
-      <:
-      Core_models.Result.t_Result bool t_Error
-
 let earlier_event_id (a b: t_EventId) : bool = event_lt a b
 
 let internal_error (_: Prims.unit) : t_Error = Error_Internal <: t_Error
@@ -3042,70 +2992,6 @@ let impl_Tree__insert
     <:
     (t_Tree & Core_models.Result.t_Result t_Node t_Error)
 
-let choose_unseen (facts out: t_Slice t_Fact)
-    : Core_models.Result.t_Result (Core_models.Option.t_Option usize) t_Error =
-  Nickel_crdt.Event_layer.choose_unseen #t_Fact
-    #t_EventId
-    #t_Error
-    facts
-    out
-    fact_id
-    same_event_id
-    earlier_event_id
-    internal_error
-
-let canonical_step (facts: t_Slice t_Fact) (out: Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global)
-    : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global) t_Error =
-  Nickel_crdt.Event_layer.canonical_step #t_Fact #t_EventId #t_Error facts out fact_id same_event_id
-    earlier_event_id internal_error clone_selected_fact
-
-let canonical (facts: t_Slice t_Fact)
-    : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global) t_Error =
-  Nickel_crdt.Event_layer.canonical #t_Fact
-    #t_EventId
-    #t_Error
-    facts
-    fact_id
-    same_event_id
-    earlier_event_id
-    internal_error
-    clone_selected_fact
-
-let frontier (facts: t_Slice t_Fact)
-    : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error =
-  Nickel_crdt.Event_layer.frontier #t_Fact
-    #t_EventId
-    #t_Error
-    facts
-    fact_id
-    fact_after
-    same_event_id
-    internal_error
-
-let extend_past (fact: t_Fact) (selected: Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
-    : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error =
-  Nickel_crdt.Event_layer.extend_past #t_Fact
-    #t_EventId
-    #t_Error
-    fact
-    selected
-    fact_id
-    fact_after
-    same_event_id
-    internal_error
-
-let past_pass (facts: t_Slice t_Fact) (selected: Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
-    : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error =
-  Nickel_crdt.Event_layer.past_pass #t_Fact
-    #t_EventId
-    #t_Error
-    facts
-    selected
-    fact_id
-    fact_after
-    same_event_id
-    internal_error
-
 let visible (facts: t_Slice t_Fact)
     : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global) t_Error =
   let ids:Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global = Alloc.Vec.impl__new #t_BirthId () in
@@ -3215,18 +3101,6 @@ let visible (facts: t_Slice t_Fact)
     <:
     Core_models.Result.t_Result (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global) t_Error
 
-let select_basis (facts: t_Slice t_Fact) (selected: t_Slice t_EventId)
-    : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global) t_Error =
-  Nickel_crdt.Event_layer.select_basis #t_Fact
-    #t_EventId
-    #t_Error
-    facts
-    selected
-    fact_id
-    same_event_id
-    internal_error
-    clone_selected_fact
-
 let replay_nodes (tree: t_Tree) (nodes: t_Slice t_Node) : Core_models.Result.t_Result t_Tree t_Error =
   match
     Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
@@ -3272,6 +3146,110 @@ let replay_nodes (tree: t_Tree) (nodes: t_Slice t_Node) : Core_models.Result.t_R
   | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
   | Core_models.Ops.Control_flow.ControlFlow_Continue tree ->
     Core_models.Result.Result_Ok tree <: Core_models.Result.t_Result t_Tree t_Error
+
+let missing_error (_: Prims.unit) : t_Error = Error_Missing <: t_Error
+
+let required_predecessor (id: t_EventId) : Core_models.Option.t_Option t_EventId =
+  if id.f_counter >. mk_u64 1
+  then
+    Core_models.Option.Option_Some
+    ({ f_writer = id.f_writer; f_counter = id.f_counter -! mk_u64 1 } <: t_EventId)
+    <:
+    Core_models.Option.t_Option t_EventId
+  else Core_models.Option.Option_None <: Core_models.Option.t_Option t_EventId
+
+let forbidden_ancestor (ancestor current: t_EventId) : bool =
+  ancestor.f_writer =. current.f_writer && ancestor.f_counter >=. current.f_counter
+
+let event_capacity_error (_: Prims.unit) : t_Error =
+  Error_Capacity (Capacity_Events <: t_Capacity) <: t_Error
+
+let dependency_capacity_error (_: Prims.unit) : t_Error =
+  Error_Capacity (Capacity_Dependencies <: t_Capacity) <: t_Error
+
+let duplicate_dependency_error (_: Prims.unit) : t_Error =
+  invalid (Invalid_DependencyDuplicate <: t_Invalid)
+
+let predecessor_error (_: Prims.unit) : t_Error = invalid (Invalid_Predecessor <: t_Invalid)
+
+let v_TEXT_OPS: ((((t_Fact -> t_EventId) & (t_Fact -> t_Slice t_EventId) &
+      (t_EventId -> t_EventId -> bool) &
+      (t_EventId -> t_EventId -> bool) &
+      (t_Fact -> t_Fact) &
+      (t_Fact -> t_Fact -> bool)) &
+    ((Prims.unit -> t_Error) & (Prims.unit -> t_Error))) &
+  ((t_EventId -> Core_models.Option.t_Option t_EventId) & (t_EventId -> t_EventId -> bool) &
+    ((Prims.unit -> t_Error) & (Prims.unit -> t_Error) & (Prims.unit -> t_Error) &
+      (Prims.unit -> t_Error)))) =
+  Nickel_crdt.Event_layer.event_ops #t_Fact #t_EventId #t_Error
+    (Nickel_crdt.Event_layer.graph_ops #t_Fact #t_EventId #t_Error fact_id fact_after same_event_id
+        earlier_event_id clone_selected_fact fact_equal internal_error missing_error
+      <:
+      (((t_Fact -> t_EventId) & (t_Fact -> t_Slice t_EventId) & (t_EventId -> t_EventId -> bool) &
+          (t_EventId -> t_EventId -> bool) &
+          (t_Fact -> t_Fact) &
+          (t_Fact -> t_Fact -> bool)) &
+        ((Prims.unit -> t_Error) & (Prims.unit -> t_Error)))) required_predecessor
+    forbidden_ancestor event_capacity_error dependency_capacity_error duplicate_dependency_error
+    predecessor_error
+
+let duplicate_events (xs: t_Slice t_EventId) : bool =
+  Nickel_crdt.Event_layer.duplicate_ids #t_Fact #t_EventId #t_Error xs v_TEXT_OPS._1
+
+let has_event (ids: t_Slice t_EventId) (id: t_EventId) : bool =
+  Nickel_crdt.Event_layer.has_id #t_Fact #t_EventId #t_Error ids id v_TEXT_OPS._1
+
+let has_fact (facts: t_Slice t_Fact) (id: t_EventId) : bool =
+  Nickel_crdt.Event_layer.has_fact #t_Fact #t_EventId #t_Error facts id v_TEXT_OPS._1
+
+let choose_unseen (facts out: t_Slice t_Fact)
+    : Core_models.Result.t_Result (Core_models.Option.t_Option usize) t_Error =
+  Nickel_crdt.Event_layer.choose_unseen #t_Fact #t_EventId #t_Error facts out v_TEXT_OPS._1
+
+let canonical_step (facts: t_Slice t_Fact) (out: Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global)
+    : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global) t_Error =
+  Nickel_crdt.Event_layer.canonical_step #t_Fact #t_EventId #t_Error facts out v_TEXT_OPS._1
+
+let canonical (facts: t_Slice t_Fact)
+    : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global) t_Error =
+  Nickel_crdt.Event_layer.canonical #t_Fact #t_EventId #t_Error facts v_TEXT_OPS._1
+
+let ready (after done: t_Slice t_EventId) : bool =
+  Nickel_crdt.Event_layer.ready #t_Fact #t_EventId #t_Error after done v_TEXT_OPS._1
+
+let choose_ready (facts: t_Slice t_Fact) (done: t_Slice t_EventId)
+    : Core_models.Option.t_Option usize =
+  Nickel_crdt.Event_layer.choose_ready #t_Fact #t_EventId #t_Error facts done v_TEXT_OPS._1
+
+let frontier (facts: t_Slice t_Fact)
+    : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error =
+  Nickel_crdt.Event_layer.frontier #t_Fact #t_EventId #t_Error facts v_TEXT_OPS._1
+
+let validate_after (facts: t_Slice t_Fact) (after: t_Slice t_EventId)
+    : Core_models.Result.t_Result Prims.unit t_Error =
+  Nickel_crdt.Event_layer.validate_after #t_Fact #t_EventId #t_Error facts after v_TEXT_OPS._1
+
+let extend_past (fact: t_Fact) (selected: Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+    : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error =
+  Nickel_crdt.Event_layer.extend_past #t_Fact #t_EventId #t_Error fact selected v_TEXT_OPS._1
+
+let past_pass (facts: t_Slice t_Fact) (selected: Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global)
+    : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error =
+  Nickel_crdt.Event_layer.past_pass #t_Fact #t_EventId #t_Error facts selected v_TEXT_OPS._1
+
+let past (facts: t_Slice t_Fact) (after: t_Slice t_EventId)
+    : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error =
+  Nickel_crdt.Event_layer.past #t_Fact #t_EventId #t_Error facts after v_TEXT_OPS._1
+
+let select_basis (facts: t_Slice t_Fact) (selected: t_Slice t_EventId)
+    : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global) t_Error =
+  Nickel_crdt.Event_layer.select_basis #t_Fact #t_EventId #t_Error facts selected v_TEXT_OPS._1
+
+let event_basis (facts: t_Slice t_Fact) (event: t_Fact)
+    : Core_models.Result.t_Result
+      (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global & Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global)
+      t_Error =
+  Nickel_crdt.Event_layer.event_basis #t_Fact #t_EventId #t_Error facts event v_TEXT_OPS._1
 
 let replay_author
       (operations: t_Slice (t_EventId & Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global))
@@ -3334,31 +3312,6 @@ let replay_author
   | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
   | Core_models.Ops.Control_flow.ControlFlow_Continue author ->
     Core_models.Result.Result_Ok author <: Core_models.Result.t_Result t_Tree t_Error
-
-let missing_error (_: Prims.unit) : t_Error = Error_Missing <: t_Error
-
-let validate_after (facts: t_Slice t_Fact) (after: t_Slice t_EventId)
-    : Core_models.Result.t_Result Prims.unit t_Error =
-  Nickel_crdt.Event_layer.validate_after #t_Fact
-    #t_EventId
-    #t_Error
-    facts
-    after
-    fact_id
-    same_event_id
-    missing_error
-
-let past (facts: t_Slice t_Fact) (after: t_Slice t_EventId)
-    : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error =
-  Nickel_crdt.Event_layer.past #t_Fact #t_EventId #t_Error facts after fact_id fact_after
-    same_event_id internal_error missing_error
-
-let event_basis (facts: t_Slice t_Fact) (event: t_Fact)
-    : Core_models.Result.t_Result
-      (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global & Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global)
-      t_Error =
-  Nickel_crdt.Event_layer.event_basis #t_Fact #t_EventId #t_Error facts event fact_id fact_after
-    same_event_id internal_error missing_error clone_selected_fact
 
 let author_context
       (facts: t_Slice t_Fact)
@@ -3742,129 +3695,39 @@ let interpret_event
     <:
     Core_models.Result.t_Result (t_Tree & Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global) t_Error
 
-let scheduled_choose (_: Prims.unit) (facts: t_Slice t_Fact) (done: t_Slice t_EventId)
-    : Core_models.Option.t_Option usize = choose_ready facts done
-
-let scheduled_apply
-      (_: Prims.unit)
-      (facts: t_Slice t_Fact)
-      (event: t_Fact)
-      (operations: t_Slice (t_EventId & Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global))
-      (result: t_Tree)
-    : Core_models.Result.t_Result (t_Tree & Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global) t_Error =
-  interpret_event facts event operations result
-
-let interpret_scheduled (facts: t_Slice t_Fact)
-    : Core_models.Result.t_Result (t_Tree & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error =
-  Nickel_crdt.Event_shell.scheduled #t_Fact #t_EventId #t_Tree
-    #(Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global) #t_Error #Prims.unit facts
-    (Core_models.Default.f_default #t_Tree #FStar.Tactics.Typeclasses.solve () <: t_Tree)
-    (() <: Prims.unit) fact_id scheduled_choose scheduled_apply internal_error
-
-let interpret (facts: t_Slice t_Fact) : Core_models.Result.t_Result t_Tree t_Error =
-  match
-    interpret_scheduled facts
-    <:
-    Core_models.Result.t_Result (t_Tree & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error
-  with
-  | Core_models.Result.Result_Ok pair ->
-    let (tree: t_Tree), (_: Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) = pair in
-    Core_models.Result.Result_Ok tree <: Core_models.Result.t_Result t_Tree t_Error
-  | Core_models.Result.Result_Err err ->
-    Core_models.Result.Result_Err err <: Core_models.Result.t_Result t_Tree t_Error
-
-let plan_duplicate (_: t_Limits) (before: t_Replica) (fact: t_Fact)
+let impl_Replica__duplicate (facts: t_Slice t_Fact) (fact: t_Fact)
     : Core_models.Result.t_Result bool t_Error =
-  impl_Replica__duplicate (Alloc.Vec.impl_1__as_slice before.f_facts <: t_Slice t_Fact) fact
-
-let plan_prepare (_: t_Limits) (next: t_Replica) (fact: t_Fact)
-    : Core_models.Result.t_Result t_Replica t_Error =
-  let
-  (tmp0: Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global),
-  (out: Core_models.Result.t_Result Prims.unit t_Error) =
-    push #t_Fact
-      next.f_facts
-      (Core_models.Clone.f_clone #t_Fact #FStar.Tactics.Typeclasses.solve fact <: t_Fact)
-  in
-  let next:t_Replica = { next with f_facts = tmp0 } <: t_Replica in
-  match out <: Core_models.Result.t_Result Prims.unit t_Error with
-  | Core_models.Result.Result_Ok _ ->
-    (match
-        canonical (Alloc.Vec.impl_1__as_slice next.f_facts <: t_Slice t_Fact)
-        <:
-        Core_models.Result.t_Result (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global) t_Error
-      with
-      | Core_models.Result.Result_Ok hoist65 ->
-        let next:t_Replica = { next with f_facts = hoist65 } <: t_Replica in
-        Core_models.Result.Result_Ok next <: Core_models.Result.t_Result t_Replica t_Error
-      | Core_models.Result.Result_Err err ->
-        Core_models.Result.Result_Err err <: Core_models.Result.t_Result t_Replica t_Error)
-  | Core_models.Result.Result_Err err ->
-    Core_models.Result.Result_Err err <: Core_models.Result.t_Result t_Replica t_Error
-
-let plan_execute (limits: t_Limits) (next: t_Replica)
-    : Core_models.Result.t_Result t_Replica t_Error =
-  match
-    interpret (Alloc.Vec.impl_1__as_slice next.f_facts <: t_Slice t_Fact)
-    <:
-    Core_models.Result.t_Result t_Tree t_Error
-  with
-  | Core_models.Result.Result_Ok tree ->
-    if
-      (Alloc.Vec.impl_1__len #t_Node #Alloc.Alloc.t_Global tree.f_nodes <: usize) >.
-      (Core_models.Num.impl_usize__MAX /! mk_usize 3 <: usize)
-    then
-      Core_models.Result.Result_Err (Error_Internal <: t_Error)
-      <:
-      Core_models.Result.t_Result t_Replica t_Error
-    else
-      if
-        ((Alloc.Vec.impl_1__len #t_Node #Alloc.Alloc.t_Global tree.f_nodes <: usize) *! mk_usize 3
-          <:
-          usize) >.
-        limits.f_ordering_links
-      then
-        Core_models.Result.Result_Err
-        (Error_Capacity (Capacity_OrderingLinks <: t_Capacity) <: t_Error)
-        <:
-        Core_models.Result.t_Result t_Replica t_Error
-      else
-        Core_models.Result.Result_Ok (impl_Replica__with_tree next tree)
-        <:
-        Core_models.Result.t_Result t_Replica t_Error
-  | Core_models.Result.Result_Err err ->
-    Core_models.Result.Result_Err err <: Core_models.Result.t_Result t_Replica t_Error
-
-let required_predecessor (id: t_EventId) : Core_models.Option.t_Option t_EventId =
-  if id.f_counter >. mk_u64 1
+  if fact.f_id.f_counter =. mk_u64 0 || fact.f_id.f_counter >. v_MAX_COUNTER
   then
-    Core_models.Option.Option_Some
-    ({ f_writer = id.f_writer; f_counter = id.f_counter -! mk_u64 1 } <: t_EventId)
+    Core_models.Result.Result_Err (invalid (Invalid_Counter <: t_Invalid))
     <:
-    Core_models.Option.t_Option t_EventId
-  else Core_models.Option.Option_None <: Core_models.Option.t_Option t_EventId
-
-let forbidden_ancestor (ancestor current: t_EventId) : bool =
-  ancestor.f_writer =. current.f_writer && ancestor.f_counter >=. current.f_counter
-
-let event_capacity_error (_: Prims.unit) : t_Error =
-  Error_Capacity (Capacity_Events <: t_Capacity) <: t_Error
-
-let dependency_capacity_error (_: Prims.unit) : t_Error =
-  Error_Capacity (Capacity_Dependencies <: t_Capacity) <: t_Error
-
-let duplicate_dependency_error (_: Prims.unit) : t_Error =
-  invalid (Invalid_DependencyDuplicate <: t_Invalid)
-
-let predecessor_error (_: Prims.unit) : t_Error = invalid (Invalid_Predecessor <: t_Invalid)
+    Core_models.Result.t_Result bool t_Error
+  else
+    match
+      Nickel_crdt.Event_layer.classify #t_Fact #t_EventId #t_Error facts fact v_TEXT_OPS._1
+      <:
+      Core_models.Option.t_Option bool
+    with
+    | Core_models.Option.Option_None  ->
+      Core_models.Result.Result_Ok false <: Core_models.Result.t_Result bool t_Error
+    | Core_models.Option.Option_Some true ->
+      Core_models.Result.Result_Ok true <: Core_models.Result.t_Result bool t_Error
+    | Core_models.Option.Option_Some false ->
+      Core_models.Result.Result_Err (invalid (Invalid_Conflict <: t_Invalid))
+      <:
+      Core_models.Result.t_Result bool t_Error
 
 let impl_Replica__validate_new (facts: t_Slice t_Fact) (limits: t_Limits) (fact: t_Fact)
     : Core_models.Result.t_Result Prims.unit t_Error =
   match
-    Nickel_crdt.Event_layer.validate_event #t_Fact #t_EventId #t_Error facts fact limits.f_events
-      limits.f_dependencies fact_id fact_after same_event_id required_predecessor forbidden_ancestor
-      event_capacity_error dependency_capacity_error duplicate_dependency_error predecessor_error
-      internal_error missing_error
+    Nickel_crdt.Event_layer.validate_event #t_Fact
+      #t_EventId
+      #t_Error
+      facts
+      fact
+      limits.f_events
+      limits.f_dependencies
+      v_TEXT_OPS
     <:
     Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error
   with
@@ -4167,11 +4030,104 @@ let impl_Replica__validate_new (facts: t_Slice t_Fact) (limits: t_Limits) (fact:
   | Core_models.Result.Result_Err err ->
     Core_models.Result.Result_Err err <: Core_models.Result.t_Result Prims.unit t_Error
 
+let scheduled_choose (_: Prims.unit) (facts: t_Slice t_Fact) (done: t_Slice t_EventId)
+    : Core_models.Option.t_Option usize = choose_ready facts done
+
+let scheduled_apply
+      (_: Prims.unit)
+      (facts: t_Slice t_Fact)
+      (event: t_Fact)
+      (operations: t_Slice (t_EventId & Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global))
+      (result: t_Tree)
+    : Core_models.Result.t_Result (t_Tree & Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global) t_Error =
+  interpret_event facts event operations result
+
+let interpret_scheduled (facts: t_Slice t_Fact)
+    : Core_models.Result.t_Result (t_Tree & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error =
+  Nickel_crdt.Event_shell.scheduled #t_Fact #t_EventId #t_Tree
+    #(Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global) #t_Error #Prims.unit facts
+    (Core_models.Default.f_default #t_Tree #FStar.Tactics.Typeclasses.solve () <: t_Tree)
+    (() <: Prims.unit) fact_id scheduled_choose scheduled_apply internal_error
+
+let interpret (facts: t_Slice t_Fact) : Core_models.Result.t_Result t_Tree t_Error =
+  match
+    interpret_scheduled facts
+    <:
+    Core_models.Result.t_Result (t_Tree & Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error
+  with
+  | Core_models.Result.Result_Ok pair ->
+    let (tree: t_Tree), (_: Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) = pair in
+    Core_models.Result.Result_Ok tree <: Core_models.Result.t_Result t_Tree t_Error
+  | Core_models.Result.Result_Err err ->
+    Core_models.Result.Result_Err err <: Core_models.Result.t_Result t_Tree t_Error
+
+let plan_duplicate (_: t_Limits) (before: t_Replica) (fact: t_Fact)
+    : Core_models.Result.t_Result bool t_Error =
+  impl_Replica__duplicate (Alloc.Vec.impl_1__as_slice before.f_facts <: t_Slice t_Fact) fact
+
 let plan_validate (_: t_Limits) (before: t_Replica) (fact: t_Fact)
     : Core_models.Result.t_Result Prims.unit t_Error =
   impl_Replica__validate_new (Alloc.Vec.impl_1__as_slice before.f_facts <: t_Slice t_Fact)
     before.f_limits
     fact
+
+let plan_prepare (_: t_Limits) (next: t_Replica) (fact: t_Fact)
+    : Core_models.Result.t_Result t_Replica t_Error =
+  let
+  (tmp0: Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global),
+  (out: Core_models.Result.t_Result Prims.unit t_Error) =
+    push #t_Fact
+      next.f_facts
+      (Core_models.Clone.f_clone #t_Fact #FStar.Tactics.Typeclasses.solve fact <: t_Fact)
+  in
+  let next:t_Replica = { next with f_facts = tmp0 } <: t_Replica in
+  match out <: Core_models.Result.t_Result Prims.unit t_Error with
+  | Core_models.Result.Result_Ok _ ->
+    (match
+        canonical (Alloc.Vec.impl_1__as_slice next.f_facts <: t_Slice t_Fact)
+        <:
+        Core_models.Result.t_Result (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global) t_Error
+      with
+      | Core_models.Result.Result_Ok hoist65 ->
+        let next:t_Replica = { next with f_facts = hoist65 } <: t_Replica in
+        Core_models.Result.Result_Ok next <: Core_models.Result.t_Result t_Replica t_Error
+      | Core_models.Result.Result_Err err ->
+        Core_models.Result.Result_Err err <: Core_models.Result.t_Result t_Replica t_Error)
+  | Core_models.Result.Result_Err err ->
+    Core_models.Result.Result_Err err <: Core_models.Result.t_Result t_Replica t_Error
+
+let plan_execute (limits: t_Limits) (next: t_Replica)
+    : Core_models.Result.t_Result t_Replica t_Error =
+  match
+    interpret (Alloc.Vec.impl_1__as_slice next.f_facts <: t_Slice t_Fact)
+    <:
+    Core_models.Result.t_Result t_Tree t_Error
+  with
+  | Core_models.Result.Result_Ok tree ->
+    if
+      (Alloc.Vec.impl_1__len #t_Node #Alloc.Alloc.t_Global tree.f_nodes <: usize) >.
+      (Core_models.Num.impl_usize__MAX /! mk_usize 3 <: usize)
+    then
+      Core_models.Result.Result_Err (Error_Internal <: t_Error)
+      <:
+      Core_models.Result.t_Result t_Replica t_Error
+    else
+      if
+        ((Alloc.Vec.impl_1__len #t_Node #Alloc.Alloc.t_Global tree.f_nodes <: usize) *! mk_usize 3
+          <:
+          usize) >.
+        limits.f_ordering_links
+      then
+        Core_models.Result.Result_Err
+        (Error_Capacity (Capacity_OrderingLinks <: t_Capacity) <: t_Error)
+        <:
+        Core_models.Result.t_Result t_Replica t_Error
+      else
+        Core_models.Result.Result_Ok (impl_Replica__with_tree next tree)
+        <:
+        Core_models.Result.t_Result t_Replica t_Error
+  | Core_models.Result.Result_Err err ->
+    Core_models.Result.Result_Err err <: Core_models.Result.t_Result t_Replica t_Error
 
 let impl_Replica__plan (self: t_Replica) (fact: t_Fact)
     : Core_models.Result.t_Result (Core_models.Option.t_Option t_Replica) t_Error =

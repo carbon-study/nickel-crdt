@@ -3,6 +3,8 @@ module Nickel.EditIdentity
 
 open Nickel.Prelude
 
+open Nickel.EventGraphText
+
 open Rust_primitives
 
 open Rust_primitives.Slice
@@ -134,9 +136,14 @@ let rec shared_lookup_agrees (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact
     begin () end
 
 let duplicate_matches_lookup (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact) : Lemma (ensures Native.impl_Replica__duplicate facts fact == identity_result facts fact) =
-  Nickel.EventClassifier.classification_is_exact facts fact Native.fact_id Native.same_event_id Native.fact_equal;
+  Nickel.EventGraphText.text_graph_policy_is_exact ();
+  Nickel.EventGraphText.text_graph_callbacks_are_exact ();
+  Nickel.EventClassifier.classification_is_exact facts fact (Nickel.EventGraphText.text_graph_ops ());
   shared_lookup_agrees facts fact (mk_usize 0);
   assert (Native.impl_Replica__duplicate facts fact == identity_result facts fact) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
     Tactics.prune "Nickel_crdt.Event_layer.classify";
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.prune "Nickel.LoopUtil.option_run";
