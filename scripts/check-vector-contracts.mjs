@@ -10,7 +10,6 @@ export async function checkVectorContracts({proof, output, fstar, models, modelC
   const acceptedFile = path.join(proof, 'Nickel.EditAccepted.fst');
   const vector = await fs.readFile(vectorFile, 'utf8');
   const accepted = await fs.readFile(acceptedFile, 'utf8');
-  const identity = await fs.readFile(path.join(proof, 'Nickel.EditIdentity.fst'), 'utf8');
   const callerStart = accepted.indexOf('let append_fresh_preserves_unique ');
   const callerEnd = accepted.indexOf('\nlet ', callerStart + 4);
   const anchor = 'Tactics.prune "Alloc.Vec.impl_1__as_slice";';
@@ -26,13 +25,16 @@ export async function checkVectorContracts({proof, output, fstar, models, modelC
     assert(at > start && end > at && !vector.slice(start, at).includes('\n\n'));
     cases.push({name: 'vector-without-pattern-' + name, file: vectorFile,
       source: vector.slice(0, at) + vector.slice(end),
-      // Global hints reject at their first dependent boundary: vector contents
-      // now serves push_result_is_exact; slice length serves Identity.
-      // Scoped removals below still guard the original Accepted callers.
-      theorem: name === 'slice_length' ? 'Nickel.EditIdentity.duplicate_matches_lookup'
-        : name === 'vector_contents' ? 'Nickel.EditAccepted.push_result_is_exact'
+      // Migration: duplicate_matches_lookup now composes the generic classifier
+      // and lookup bridge. Its old global slice_length control therefore moves
+      // to append_fresh_preserves_unique: ids_unique and the absence premise
+      // use native slice bounds, while push_outcome appends semantic sequences.
+      // Their bounds need the same slice_length equation. The vector_contents
+      // boundary remains push_result_is_exact. Original scoped controls below
+      // remain separate, with their original mathematical claims and owners.
+      theorem: name === 'vector_contents' ? 'Nickel.EditAccepted.push_result_is_exact'
         : 'Nickel.EditAccepted.append_fresh_preserves_unique',
-      view: name === 'slice_length' ? identity : accepted});
+      view: accepted});
     const scoped = accepted.slice(0, callerStart) + caller.replace(anchor,
       'Tactics.prune "Nickel.Vector.' + name + '";\n    ' + anchor) + accepted.slice(callerEnd);
     cases.push({name: 'vector-without-equation-' + name, file: acceptedFile,

@@ -1,3 +1,4 @@
+import {checkEventContracts} from './check-event-contracts.mjs';
 import {checkOperationContracts} from './check-operation-contracts.mjs';
 import {checkReplayContracts} from './check-replay-contracts.mjs';
 import {itemSpan,scopedAnchor,checkMutationScopeControls} from './mutation-scope.mjs';
@@ -47,28 +48,15 @@ if(!holdLock(lock)) {
 await import('./check-proof-reform.mjs');
 checkNegativeProofEvidence();
 await checkProofReform(root);
-const {NICKEL_HAX_BIN:hax,NICKEL_PROOF_FSTAR:fstar,NICKEL_HAX_SOURCE:models,NICKEL_FSTAR_MODEL_CACHE:modelCache}=process.env;
-assert(hax&&fstar&&models&&modelCache,'use the locked .#proofs environment');
-const output=process.argv[2];assert(output,'output directory required');
-await fs.mkdir(output,{recursive:true});
-const identity=JSON.parse(await fs.readFile(path.join(modelCache,'identity.json'),'utf8'));
-assert.equal(identity.models,models);assert.equal(identity.fstar,fstar);
-const views=new Map();
-for(const name of ['Prelude','LoopUtil','Vector','EditAtomic','EditCommit','EditIdentity','EditAccepted','EditWellFormed','Spec','EditCausal','EditPast','EditPastTotal','EditSchedule','EditBasis','EditReplay']) {
-  const source=`proofs/${name}.lt`,view=`proofs/generated/Nickel.${name}.fst`;
-  const code=await fs.readFile(path.join(root,view),'utf8');
-  const receipt=(await fs.readFile(path.join(root,`proofs/generated/${name}.sha256`),'utf8')).trim().split('\n');
-  assert.deepEqual(receipt,[digest(await fs.readFile(path.join(root,source)))+'  '+source,digest(code)+'  '+view]);
-  assert(!/\b(?:admit|admit_smt_queries|assume|lax)\b/.test(code),'no authored admissions');
-  views.set(`Nickel.${name}.fst`,code);
-}
-const original=await fs.readFile(path.join(root,'src/edit.rs'),'utf8');
+const sourceFiles=['src/edit.rs','src/event_layer.rs','src/event_shell.rs'];
+const original=Object.fromEntries(await Promise.all(sourceFiles.map(async name=>[name,await fs.readFile(path.join(root,name),'utf8')])));
 const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tree-publication-clears-private-counter","plan-clears-private-counter",'positive','plan-ignores-duplicate','plan-swallows-classifier-error','receive-plan-rewrites-counter','invalid-forgets-reason','writer-index-collides','native-push-discards-value','native-push-prepends','causal-validator-passes-empty','causal-accepts-missing','causal-call-passes-empty','causal-refuses-present','plan-interprets-uncanonical','scalar-count-loop-bypasses-check','scalar-accepts-invalid','scalar-call-passes-empty','scalar-refuses-valid','canonical-step-refuses','canonical-refuses','plan-keeps-old-tree','plan-passes-old-tree','order-key-ignores-writer','order-chooses-largest','order-discards-canonical','local-return-after','edit-call-passes-old-counter','edit-commit-ignores-counter','receive-error-corrupts-counter','edit-error-corrupts-counter','edit-success-reuses-counter',
   'local-return-gap','local-stale-tree','receive-success-counter','author-forgets-gap','receive-private-gate',
   'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality',
   'identity-scan-key','identity-birth-equality','identity-writer-equality',
   'accepted-reuses-member','accepted-wrong-canonical-push','accepted-publication-duplicates',
   'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes','past-refuses-closure','duplicate-scan-skips-pairs','scheduler-ready-skips-dependency','scheduler-reselects-done','scheduler-refuses-ready','scheduler-checks-empty-after','scheduler-records-wrong-id','scheduler-stops-early','scheduler-erases-wrong-trace','scheduler-invents-bookkeeping-error','basis-includes-unselected','basis-omits-selected','basis-event-ignores-roots','replay-nodes-skip-first','replay-nodes-reverse','replay-groups-include-all','replay-groups-skip-all','replay-context-passes-empty','replay-context-invents-error','replay-context-contaminates-basis','scheduler-forgets-completed-tree'];
+modes.push('plan-interprets-uncanonical-call', ...["shared-plan-skips-validation","shared-plan-ignores-duplicate","shared-plan-swallows-classifier-error","identity-call-passes-empty","identity-call-ignores-payload","past-membership-call-passes-empty","scheduler-readiness-call-passes-empty","scheduler-choice-call-passes-empty"]);
 // Contract-dependency families run after the positive chain verifies. With no
 // arguments (CI) every mode and every family runs. Development runs may select
 // `positive-only`, `contracts:<family>` (implies the positive chain) and any
@@ -79,7 +67,7 @@ const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tre
 // also picks up any family added later. `jobs:<n>` (default 1) checks up to n
 // selected mutation modes concurrently, after the positive chain and its
 // families; it selects nothing by itself.
-const families={operation:checkOperationContracts,replay:checkReplayContracts,basis:checkBasisContracts,schedule:checkScheduleContracts,past:checkPastContracts,remaining:checkRemainingContracts,counter:checkCounterContracts,push:checkPushContracts,vector:checkVectorContracts,
+const families={event:checkEventContracts,operation:checkOperationContracts,replay:checkReplayContracts,basis:checkBasisContracts,schedule:checkScheduleContracts,past:checkPastContracts,remaining:checkRemainingContracts,counter:checkCounterContracts,push:checkPushContracts,vector:checkVectorContracts,
   scalar:checkScalarContracts,identity:checkIdentityContracts,writer:checkWriterContracts,plan:checkPlanContracts,containment:checkContainmentContracts,accepted:checkAcceptedContracts,spec:checkSpecContracts,private:checkPrivateContracts,shared:checkSharedContracts,commit:checkCommitContracts};
 const jobArgs=process.argv.slice(3).filter(arg=>arg.startsWith('jobs:')),args=process.argv.slice(3).filter(arg=>!arg.startsWith('jobs:'));
 assert(jobArgs.length<=1&&jobArgs.every(arg=>/^jobs:[1-9]\d*$/.test(arg)),'use at most one jobs:<n> with n >= 1');
@@ -87,7 +75,8 @@ const jobs=jobArgs.length?Number(jobArgs[0].slice(5)):1;
 const familyRuns=new Set();let wantPositive=args.length===0,cacheSafety=args.length===0;
 const mutations=[];
 for(const arg of args) {
-  if(arg==='positive'){wantPositive=true;for(const name of Object.keys(families))familyRuns.add(name);}
+  if(arg==='gatepreflight'){}
+  else if(arg==='positive'){wantPositive=true;for(const name of Object.keys(families))familyRuns.add(name);}
   else if(arg==='positive-only')wantPositive=true;
   else if(arg==='cache-safety'){wantPositive=true;cacheSafety=true;}
   else if(/^shard:\d+\/\d+$/.test(arg)){
@@ -101,112 +90,122 @@ for(const arg of args) {
   else if(arg.startsWith('contracts:')){const name=arg.slice(10);assert(Object.hasOwn(families,name),'unknown contract family '+name);wantPositive=true;familyRuns.add(name);}
   else {assert(modes.includes(arg),'unknown mode '+arg);if(arg.startsWith('basis-')||arg.startsWith('replay-')||arg==='scheduler-forgets-completed-tree')wantPositive=true;mutations.push(arg);}
 }
+assert(!args.includes('gatepreflight')||args.length===1,'gatepreflight is an exclusive preparation-only mode');
 if(args.length===0){for(const name of Object.keys(families))familyRuns.add(name);mutations.push(...modes.filter(mode=>mode!=='positive'));}
 // A fresh mutation workspace starts from the verified positive workspace: same
 // views and caches, then fresh hax output replaces Nickel_crdt.Edit.fst. Its
 // digest change (and F*'s own dependency check) forces the extracted module and
 // every dependent proof to recheck; only modules independent of it are reused.
 // Each mutation edits exactly one anchored site of the actual Rust source.
-function prepareMutation(mode,source=original) {
-  const scopes={
-'scheduler-forgets-completed-tree':'fn interpret_scheduled(',
-'replay-nodes-skip-first':'fn replay_nodes(', 'replay-nodes-reverse':'fn replay_nodes(', 'replay-groups-include-all':'fn replay_author(', 'replay-groups-skip-all':'fn replay_author(', 'replay-context-passes-empty':'fn author_context(', 'replay-context-invents-error':'fn author_context(', 'replay-context-contaminates-basis':'fn author_context(',
-'basis-includes-unselected':'fn select_basis(', 'basis-omits-selected':'fn select_basis(', 'basis-event-ignores-roots':'fn event_basis(',
-'duplicate-scan-skips-pairs':'fn duplicate_events(', 'past-refuses-closure':'fn past(', 'past-skips-passes':'fn past(', 'past-skips-predecessors':'fn extend_past(', 'past-drops-roots':'fn past(', 'past-invents-id':'fn extend_past(', 'past-membership-always-false':'fn has_event(',
-'scheduler-records-wrong-id':'fn interpret_scheduled(', 'scheduler-stops-early':'fn interpret_scheduled(', 'scheduler-erases-wrong-trace':'fn interpret(', 'scheduler-invents-bookkeeping-error':'fn interpret_scheduled(',
-'scheduler-ready-skips-dependency':'fn ready(', 'scheduler-reselects-done':'fn choose_ready(', 'scheduler-refuses-ready':'fn choose_ready(', 'scheduler-checks-empty-after':'fn choose_ready(',
-'plan-skips-validation':'fn plan(',
-"tree-publication-uses-private-writer":"fn with_tree(",
-"tree-publication-clears-private-counter":"fn with_tree(",
-"plan-clears-private-counter":"fn plan(",
-'plan-ignores-duplicate':'fn plan(', 'plan-swallows-classifier-error':'fn plan(', 'receive-plan-rewrites-counter':'pub fn receive(', 'invalid-forgets-reason':'fn invalid(', 'writer-index-collides':'fn writer_index(', 'native-push-discards-value':'fn push<T>','native-push-prepends':'fn push<T>','causal-validator-passes-empty':'fn validate_new(','causal-accepts-missing':'fn validate_after(', 'causal-call-passes-empty':'fn past(', 'causal-refuses-present':'fn validate_after(','plan-interprets-uncanonical':'fn plan(','scalar-count-loop-bypasses-check':'fn validate_new(','scalar-accepts-invalid':'fn validate_scalars(', 'scalar-refuses-valid':'fn validate_scalars(', 'scalar-call-passes-empty':'fn validate_new(','canonical-step-refuses':'fn canonical_step(', 'canonical-refuses':'fn canonical(','plan-keeps-old-tree':'fn with_tree(', 'plan-passes-old-tree':'fn plan(','order-key-ignores-writer':'fn event_lt(','order-chooses-largest':'fn choose_unseen(', 'order-discards-canonical':'fn plan(','edit-commit-ignores-counter':'fn with_counter(', 'edit-success-reuses-counter':'fn next_counter_after(', 'content-changes-whole-fact':'fn clone_selected_fact(', 'content-omits-facts':'fn canonical(', 'accepted-reuses-member':'fn choose_unseen(', 'accepted-wrong-canonical-push':'fn canonical_step(', 'accepted-publication-duplicates':'fn with_tree('};
-  const header=(scopes[mode]??(mode==='identity-writer-equality'?'impl PartialEq for Writer':mode==='identity-birth-equality'?'impl PartialEq for BirthId':mode==='identity-event-equality'?'impl PartialEq for EventId':mode==='identity-forgets-gap'?'fn fact_equal(':mode.startsWith('identity-')?'fn duplicate(':mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit('));const [start]=itemSpan(source,header,mode);
-  const edits={
-    'scheduler-forgets-completed-tree':['Ok((result, done))', 'Ok((Tree::default(), done))'],
-    'replay-nodes-skip-first':['for i in 0..nodes.len() {','for i in 1..nodes.len() {'],
-    'replay-nodes-reverse':['tree.add(nodes[i].clone())?;', 'tree.add(nodes[nodes.len() - 1 - i].clone())?;'],
-    'replay-groups-include-all':['if has_event(selected, id) {','if !has_event(&[], id) {'],
-    'replay-groups-skip-all':['if has_event(selected, id) {','if has_event(&[], id) {'],
-    'replay-context-passes-empty':['replay_author(operations, &selected)?','replay_author(&[], &selected)?'],
-    'replay-context-contaminates-basis':['let (selected, basis) = event_basis(facts, event)?;', 'let (selected, mut basis) = event_basis(facts, event)?; if !event.after.is_empty() && facts.len() > 2 { push(&mut basis, facts[1].clone())?; }'],
-    'replay-context-invents-error':['let author = replay_author(operations, &selected)?;','let author = replay_author(operations, &selected)?; if operations.is_empty() { return Err(Error::Internal); }'],
-    'basis-includes-unselected':['if has_event(selected, fact.id) {','if true {'],
-    'basis-omits-selected':['if has_event(selected, fact.id) {','if false {'],
-    'basis-event-ignores-roots':['past(facts, &event.after)?','past(facts, &[])?'],
-    'scheduler-records-wrong-id':['push(&mut done, event.id)?;', 'push(&mut done, EventId { writer: Writer::Alice, counter: 0 })?;'],
-    'scheduler-stops-early':['for _ in 0..facts.len() {', 'for _ in 0..0 {'],
-    'scheduler-erases-wrong-trace':['let pair = interpret_scheduled(facts)?;', 'let pair = interpret_scheduled(&[])?;'],
-    'scheduler-invents-bookkeeping-error':['let (next, ops) = pair;', 'let (next, ops) = pair; if ops.len() == 0 { return Err(Error::Internal); }'],
-    'scheduler-ready-skips-dependency':['if has_event(done, after[i]) {','if true {'],
-    'scheduler-reselects-done':['if has_event(done, facts[i].id) {','if false {'],
-    'scheduler-refuses-ready':['return Some(i);','return None;'],
-    'scheduler-checks-empty-after':['ready(&facts[i].after, done)','ready(&[], done)'],
-'plan-skips-validation':['Self::validate_new(&self.facts, self.limits, fact)?;', 'let _ = Self::validate_new(&self.facts, self.limits, fact);'],
-"tree-publication-uses-private-writer":["self.tree = tree;","if self.writer.is_some() { self.tree = tree; }"],
-"tree-publication-clears-private-counter":["self.tree = tree;","self.tree = tree; self.next_counter = 0;"],
-"plan-clears-private-counter":["let mut next = self.clone();","let mut next = self.clone(); next.next_counter = 0;"],
-
-    'plan-ignores-duplicate':['if Self::duplicate(&self.facts, fact)? {','if Self::duplicate(&self.facts, fact)? && false {'],
-    'plan-swallows-classifier-error':['if Self::duplicate(&self.facts, fact)? {','if match Self::duplicate(&self.facts, fact) { Ok(found) => found, Err(_) => false } {'],
-    'receive-plan-rewrites-counter':['match self.plan(fact) {','let mut offered = (*fact).clone(); offered.id.counter = 1; match self.plan(&offered) {'],
-    'native-push-discards-value':['xs.push(value);','let _ = value;'],
-    'native-push-prepends':['xs.push(value);','xs.insert(0, value);'],
-    'past-refuses-closure':['Ok(selected)', 'Err(Error::Internal)'],
-    'duplicate-scan-skips-pairs':['if xs[i] == xs[j] {', 'if false {'],
-    'past-skips-passes':['for _ in 0..facts.len() {', 'for _ in 0..0 {'],
-    'past-skips-predecessors':['if has_event(&selected, fact.id) {', 'if false {'],
-    'past-drops-roots':['let mut selected = after.to_vec();','let mut selected = Vec::new();'],
-    'past-invents-id':['push(&mut selected, id)?;', 'push(&mut selected, EventId { writer: Writer::Alice, counter: 0 })?;'],
-    'past-membership-always-false':['if ids[i] == id {','if false {'],
-    'causal-validator-passes-empty':['let selected = past(&facts, &fact.after)?;', 'let selected = past(&facts, &[])?;'],
-    'causal-accepts-missing':['if !has_fact(facts, after[i]) {','if false {'],
-    'causal-call-passes-empty':['validate_after(facts, after)?;', 'validate_after(facts, &[])?;'],
-    'causal-refuses-present':['Ok(())','Err(Error::Missing)'],
-    'scalar-count-loop-bypasses-check':['births = add(births, facts[i].insert.len())?;', 'births = add(births, facts[i].insert.len())?; if births > 0 { return Ok(()); }'],
-    'scalar-accepts-invalid':['if scalar > 0x10ffff || (scalar >= 0xd800 && scalar <= 0xdfff) {', 'if false {'],
-    'scalar-call-passes-empty':['validate_scalars(&fact.insert)?;', 'validate_scalars(&[])?;'],
-    'scalar-refuses-valid':['Ok(())', 'Err(invalid(Invalid::Scalar))'],
-    'canonical-step-refuses':['Ok(out)', 'Err(Error::Internal)'],
-    'canonical-refuses':['Ok(out)', 'Err(Error::Internal)'],
-    'plan-keeps-old-tree':['self.tree = tree;', 'let _ = tree;'],
-    'plan-passes-old-tree':['Ok(Some(next.with_tree(tree)))', 'Ok(Some(next.with_tree(self.tree.clone())))'],
-    'plan-interprets-uncanonical':['next.facts = canonical(&next.facts)?;\n        let tree = interpret(&next.facts)?;', 'let tree = interpret(&next.facts)?;\n        next.facts = canonical(&next.facts)?;'],
-    'order-chooses-largest':['if event_lt(facts[j].id, facts[k].id) {', 'if event_lt(facts[k].id, facts[j].id) {'],
-    'order-key-ignores-writer':['writer_index(a.writer) < writer_index(b.writer)\n        || (a.writer == b.writer && a.counter < b.counter)', 'a.counter < b.counter'],
-    'order-discards-canonical':['next.facts = canonical(&next.facts)?;', 'let _ = canonical(&next.facts)?;'],
-    'edit-call-passes-old-counter':['next = next.with_counter(next_counter);', 'next = next.with_counter(self.next_counter);'],
-    'local-return-after':['(next, Ok(Local::Authored(fact)))','{ let mut changed = fact; changed.after = Vec::new(); (next, Ok(Local::Authored(changed))) }'],
-    'edit-commit-ignores-counter':['self.next_counter = counter;', 'self.next_counter = self.next_counter;'],
-    'content-changes-whole-fact':['fact.clone()', 'let mut changed = fact.clone(); changed.gap = None; changed'],
-    'content-omits-facts':['for _ in 0..facts.len() {', 'for _ in 0..0 {'],
-    'accepted-reuses-member':['if !has_fact(out, facts[j].id) {','if true {'],
-    'accepted-wrong-canonical-push':['push(&mut out, clone_selected_fact(&facts[i]))?;','push(&mut out, clone_selected_fact(&facts[0]))?;'],
-    'accepted-publication-duplicates':['self.tree = tree;','self.tree = tree; if !self.facts.is_empty() && self.facts.len() < usize::MAX { let copy = self.facts[0].clone(); self.facts.push(copy); }'],
-    'invalid-forgets-reason':['Error::Invalid(reason)','Error::Invalid(Invalid::Counter)'],
-    'writer-index-collides':['Writer::Bo => 1','Writer::Bo => 0'],
-    'identity-writer-equality':['writer_index(*self) == writer_index(*other)','writer_index(*self) == writer_index(*self)'],
-    'identity-birth-equality':['self.event == other.event && self.index == other.index','self.event == other.event'],
-    'identity-scan-key':['if old.id == fact.id {','if old.id.counter == fact.id.counter {'],
-    'identity-event-equality':['self.writer == other.writer && self.counter == other.counter','self.writer == other.writer'],
-    'identity-forgets-gap':['&& left.gap == right.gap','&& true'],
-    'identity-accepts-conflict':['return if fact_equal(old, fact) {','return if fact_equal(old, fact) || old.id == fact.id {'],
-    'identity-skips-later':['for i in 0..facts.len() {','for i in 0..0 {'],
-    'identity-counter-range':['if fact.id.counter == 0 || fact.id.counter > MAX_COUNTER {','if false {'],
-    'receive-error-corrupts-counter':['Err(error) => (self, Err(error)),','Err(error) => { let mut damaged = self; damaged.next_counter = 0; (damaged, Err(error)) },'],
-    'edit-error-corrupts-counter':['Err(error) => (self, Err(error)),','Err(error) => { let mut damaged = self; damaged.next_counter = 0; (damaged, Err(error)) },'],
-    'edit-success-reuses-counter':['Ok(counter + 1)','Ok(counter)'],
-    'local-return-gap':['(next, Ok(Local::Authored(fact)))','{ let mut changed = fact; changed.gap = Some(0); (next, Ok(Local::Authored(changed))) }'],
-    'local-stale-tree':['next = next.with_counter(next_counter);','next = next.with_counter(next_counter); next.tree = self.tree.clone();'],
-    'receive-success-counter':['Ok(Some(next)) => (next, Ok(Admission::Added)),','Ok(Some(mut next)) => { next.next_counter = 0; (next, Ok(Admission::Added)) },'],
-    'author-forgets-gap':['Some(gap)','Some(0)'],
-    'receive-private-gate':['Self::validate_new(&self.facts, self.limits, fact)?;', 'Self::validate_new(&self.facts, self.limits, fact)?; if self.writer.is_none() { return Err(Error::Missing); }'],
-  };
-  assert(start>=0,'mutation scope not found: '+mode);
-  assert(Object.hasOwn(edits,mode),'mutation without a registered edit: '+mode);
-  const [needle,replacement]=edits[mode];const at=scopedAnchor(source,header,needle,mode);
+// Each row is [mode, source owner, item header, anchor, replacement]. This is
+// the sole mutation definition table; the lookup below is only its index.
+const mutationDefinitions=[
+  ["plan-skips-validation","src/edit.rs","fn plan_validate(","Replica::validate_new(&before.facts, before.limits, fact)","Ok(())"],
+  ["tree-publication-uses-private-writer","src/edit.rs","fn with_tree(","self.tree = tree;","if self.writer.is_some() { self.tree = tree; }"],
+  ["tree-publication-clears-private-counter","src/edit.rs","fn with_tree(","self.tree = tree;","self.tree = tree; self.next_counter = 0;"],
+  ["plan-clears-private-counter","src/edit.rs","fn plan_prepare(","push(&mut next.facts, fact.clone())?;","next.next_counter = 0; push(&mut next.facts, fact.clone())?;"],
+  ["plan-ignores-duplicate","src/edit.rs","fn plan_duplicate(","Replica::duplicate(&before.facts, fact)","let _ = Replica::duplicate(&before.facts, fact)?; Ok(false)"],
+  ["plan-swallows-classifier-error","src/edit.rs","fn plan_duplicate(","Replica::duplicate(&before.facts, fact)","match Replica::duplicate(&before.facts, fact) { Ok(found) => Ok(found), Err(_) => Ok(false) }"],
+  ["receive-plan-rewrites-counter","src/edit.rs","fn receive_plan(","before.plan(fact)","let mut offered = fact.clone(); offered.id.counter = 1; before.plan(&offered)"],
+  ["invalid-forgets-reason","src/edit.rs","fn invalid(","Error::Invalid(reason)","Error::Invalid(Invalid::Counter)"],
+  ["writer-index-collides","src/edit.rs","fn writer_index(","Writer::Bo => 1","Writer::Bo => 0"],
+  ["native-push-discards-value","src/event_layer.rs","fn push<","xs.push(value);","let _ = value;"],
+  ["native-push-prepends","src/event_layer.rs","fn push<","xs.push(value);","xs.insert(0, value);"],
+  ["causal-validator-passes-empty","src/edit.rs","fn validate_new(","fact_after,","|_| &[],"],
+  ["causal-accepts-missing","src/event_layer.rs","fn validate_after<","if !has_fact(facts, &after[i], id, id_eq) {","if false {"],
+  ["causal-call-passes-empty","src/event_layer.rs","fn past<","validate_after(facts, after_ids, id, id_eq, missing)?;","validate_after(facts, &[], id, id_eq, missing)?;"],
+  ["causal-refuses-present","src/event_layer.rs","fn validate_after<","Ok(())","Err(missing())"],
+  ["plan-interprets-uncanonical","src/event_shell.rs","fn plan<","let next = prepare(context, next, fact)?;\n    let next = execute(context, next)?;","let next = execute(context, next)?;\n    let next = prepare(context, next, fact)?;"],
+  ["scalar-count-loop-bypasses-check","src/edit.rs","fn validate_new(","births = add(births, facts[i].insert.len())?;","births = add(births, facts[i].insert.len())?; if births > 0 { return Ok(()); }"],
+  ["scalar-accepts-invalid","src/edit.rs","fn validate_scalars(","if scalar > 0x10ffff || (scalar >= 0xd800 && scalar <= 0xdfff) {","if false {"],
+  ["scalar-call-passes-empty","src/edit.rs","fn validate_new(","validate_scalars(&fact.insert)?;","validate_scalars(&[])?;"],
+  ["scalar-refuses-valid","src/edit.rs","fn validate_scalars(","Ok(())","Err(invalid(Invalid::Scalar))"],
+  ["canonical-step-refuses","src/event_layer.rs","fn canonical_step<","Ok(out)","Err(internal())"],
+  ["canonical-refuses","src/event_layer.rs","fn canonical<","Ok(out)","Err(internal())"],
+  ["plan-keeps-old-tree","src/edit.rs","fn with_tree(","self.tree = tree;","let _ = tree;"],
+  ["plan-passes-old-tree","src/edit.rs","fn plan_execute(","Ok(next.with_tree(tree))","Ok(next.clone().with_tree(next.tree.clone()))"],
+  ["order-key-ignores-writer","src/edit.rs","fn event_lt(","writer_index(a.writer) < writer_index(b.writer)\n        || (a.writer == b.writer && a.counter < b.counter)","a.counter < b.counter"],
+  ["order-chooses-largest","src/event_layer.rs","fn choose_unseen<","if id_lt(&id(&facts[j]), &id(&facts[k])) {","if id_lt(&id(&facts[k]), &id(&facts[j])) {"],
+  ["order-discards-canonical","src/edit.rs","fn plan_prepare(","next.facts = canonical(&next.facts)?;","let _ = canonical(&next.facts)?;"],
+  ["local-return-after","src/edit.rs","pub fn edit(","(next, Ok(Local::Authored(fact)))","{ let mut changed = fact; changed.after = Vec::new(); (next, Ok(Local::Authored(changed))) }"],
+  ["edit-call-passes-old-counter","src/edit.rs","pub fn edit(","next = next.with_counter(next_counter);","next = next.with_counter(self.next_counter);"],
+  ["edit-commit-ignores-counter","src/edit.rs","fn with_counter(","self.next_counter = counter;","self.next_counter = self.next_counter;"],
+  ["receive-error-corrupts-counter","src/edit.rs","fn receive(","crate::event_shell::receive(\n            self,\n            fact,\n            &(),\n            receive_plan,\n            Admission::Added,\n            Admission::Duplicate,\n        )","{ let (mut next, result) = crate::event_shell::receive(\n            self,\n            fact,\n            &(),\n            receive_plan,\n            Admission::Added,\n            Admission::Duplicate,\n        ); if matches!(result, Err(_)) { next.next_counter = 0; } (next, result) }"],
+  ["edit-error-corrupts-counter","src/edit.rs","pub fn edit(","Err(error) => (self, Err(error)),","Err(error) => { let mut damaged = self; damaged.next_counter = 0; (damaged, Err(error)) },"],
+  ["edit-success-reuses-counter","src/edit.rs","fn next_counter_after(","Ok(counter + 1)","Ok(counter)"],
+  ["local-return-gap","src/edit.rs","pub fn edit(","(next, Ok(Local::Authored(fact)))","{ let mut changed = fact; changed.gap = Some(0); (next, Ok(Local::Authored(changed))) }"],
+  ["local-stale-tree","src/edit.rs","pub fn edit(","next = next.with_counter(next_counter);","next = next.with_counter(next_counter); next.tree = self.tree.clone();"],
+  ["receive-success-counter","src/edit.rs","fn receive(","crate::event_shell::receive(\n            self,\n            fact,\n            &(),\n            receive_plan,\n            Admission::Added,\n            Admission::Duplicate,\n        )","{ let (mut next, result) = crate::event_shell::receive(\n            self,\n            fact,\n            &(),\n            receive_plan,\n            Admission::Added,\n            Admission::Duplicate,\n        ); if matches!(result, Ok(Admission::Added)) { next.next_counter = 0; } (next, result) }"],
+  ["author-forgets-gap","src/edit.rs","pub fn edit(","Some(gap)","Some(0)"],
+  ["receive-private-gate","src/edit.rs","fn plan_validate(","Replica::validate_new(&before.facts, before.limits, fact)","Replica::validate_new(&before.facts, before.limits, fact)?; if before.writer.is_none() { return Err(Error::Missing); } Ok(())"],
+  ["identity-forgets-gap","src/edit.rs","fn fact_equal(","&& left.gap == right.gap","&& true"],
+  ["identity-accepts-conflict","src/event_layer.rs","fn classify<","return Some(fact_eq(old, fact));","return Some(fact_eq(old, fact) || id_eq(&id(old), &id(fact)));"],
+  ["identity-skips-later","src/event_layer.rs","fn classify<","for i in 0..facts.len() {","for i in 0..0 {"],
+  ["identity-counter-range","src/edit.rs","fn duplicate(","if fact.id.counter == 0 || fact.id.counter > MAX_COUNTER {","if false {"],
+  ["identity-event-equality","src/edit.rs","impl PartialEq for EventId","self.writer == other.writer && self.counter == other.counter","self.writer == other.writer"],
+  ["identity-scan-key","src/edit.rs","fn duplicate(","crate::event_layer::classify(facts, fact, fact_id, same_event_id, fact_equal)","crate::event_layer::classify(facts, fact, |f| EventId { writer: Writer::Alice, counter: f.id.counter }, same_event_id, fact_equal)"],
+  ["identity-birth-equality","src/edit.rs","impl PartialEq for BirthId","self.event == other.event && self.index == other.index","self.event == other.event"],
+  ["identity-writer-equality","src/edit.rs","impl PartialEq for Writer","writer_index(*self) == writer_index(*other)","writer_index(*self) == writer_index(*self)"],
+  ["accepted-reuses-member","src/event_layer.rs","fn choose_unseen<","if !has_fact(out, &id(&facts[j]), id, id_eq) {","if true {"],
+  ["accepted-wrong-canonical-push","src/event_layer.rs","fn canonical_step<","push(&mut out, clone_selected_fact(&facts[i], clone_fact), internal)?;","push(&mut out, clone_selected_fact(&facts[0], clone_fact), internal)?;"],
+  ["accepted-publication-duplicates","src/edit.rs","fn with_tree(","self.tree = tree;","self.tree = tree; if !self.facts.is_empty() && self.facts.len() < usize::MAX { let copy = self.facts[0].clone(); self.facts.push(copy); }"],
+  ["content-changes-whole-fact","src/edit.rs","fn clone_selected_fact(","fact.clone()","let mut changed = fact.clone(); changed.gap = None; changed"],
+  ["content-omits-facts","src/event_layer.rs","fn canonical<","for _ in 0..facts.len() {","for _ in 0..0 {"],
+  ["past-drops-roots","src/event_layer.rs","fn past<","let mut selected = after_ids.to_vec();","let mut selected = Vec::new();"],
+  ["past-invents-id","src/event_layer.rs","fn extend_past<","if has_id(&selected, &id(fact), id_eq) {","if true {"],
+  ["past-membership-always-false","src/event_layer.rs","fn has_id<","if id_eq(&ids[i], wanted) {","if false {"],
+  ["past-skips-predecessors","src/event_layer.rs","fn extend_past<","if has_id(&selected, &id(fact), id_eq) {","if false {"],
+  ["past-skips-passes","src/event_layer.rs","fn past<","for _ in 0..facts.len() {","for _ in 0..0 {"],
+  ["past-refuses-closure","src/event_layer.rs","fn past<","Ok(selected)","Err(internal())"],
+  ["duplicate-scan-skips-pairs","src/event_layer.rs","fn duplicate_ids<","if id_eq(&xs[i], &xs[j]) {","if false {"],
+  ["scheduler-ready-skips-dependency","src/event_layer.rs","fn ready<","if has_id(done, &after[i], id_eq) {","if true {"],
+  ["scheduler-reselects-done","src/event_layer.rs","fn choose_ready<","if has_id(done, &id(&facts[i]), id_eq) {","if false {"],
+  ["scheduler-refuses-ready","src/event_layer.rs","fn choose_ready<","return Some(i);","return None;"],
+  ["scheduler-checks-empty-after","src/event_layer.rs","fn choose_ready<","ready(after(&facts[i]), done, id_eq)","ready(&[], done, id_eq)"],
+  ["scheduler-records-wrong-id","src/edit.rs","fn interpret_scheduled(","fact_id,","|_| EventId { writer: Writer::Alice, counter: 0 },"],
+  ["scheduler-stops-early","src/event_shell.rs","fn scheduled<","for _ in 0..facts.len() {","for _ in 0..0 {"],
+  ["scheduler-erases-wrong-trace","src/edit.rs","fn interpret(","let pair = interpret_scheduled(facts)?;","let pair = interpret_scheduled(&[])?;"],
+  ["scheduler-invents-bookkeeping-error","src/event_shell.rs","fn scheduled<","let event_id = id(event);","if operations.len() == 0 { return Err(internal()); } let event_id = id(event);"],
+  ["basis-includes-unselected","src/event_layer.rs","fn select_basis<","if has_id(selected, &id(fact), id_eq) {","if true {"],
+  ["basis-omits-selected","src/event_layer.rs","fn select_basis<","if has_id(selected, &id(fact), id_eq) {","if false {"],
+  ["basis-event-ignores-roots","src/event_layer.rs","fn event_basis<","past(facts, after(event), id, after, id_eq, internal, missing)?","past(facts, &[], id, after, id_eq, internal, missing)?"],
+  ["replay-nodes-skip-first","src/edit.rs","fn replay_nodes(","for i in 0..nodes.len() {","for i in 1..nodes.len() {"],
+  ["replay-nodes-reverse","src/edit.rs","fn replay_nodes(","tree.add(nodes[i].clone())?;","tree.add(nodes[nodes.len() - 1 - i].clone())?;"],
+  ["replay-groups-include-all","src/edit.rs","fn replay_author(","if has_event(selected, id) {","if !has_event(&[], id) {"],
+  ["replay-groups-skip-all","src/edit.rs","fn replay_author(","if has_event(selected, id) {","if has_event(&[], id) {"],
+  ["replay-context-passes-empty","src/edit.rs","fn author_context(","replay_author(operations, &selected)?","replay_author(&[], &selected)?"],
+  ["replay-context-invents-error","src/edit.rs","fn author_context(","let author = replay_author(operations, &selected)?;","let author = replay_author(operations, &selected)?; if operations.is_empty() { return Err(Error::Internal); }"],
+  ["replay-context-contaminates-basis","src/edit.rs","fn author_context(","let (selected, basis) = event_basis(facts, event)?;","let (selected, mut basis) = event_basis(facts, event)?; if !event.after.is_empty() && facts.len() > 2 { push(&mut basis, facts[1].clone())?; }"],
+  ["scheduler-forgets-completed-tree","src/edit.rs","fn interpret_scheduled(","crate::event_shell::scheduled(\n        facts,\n        Tree::default(),\n        &(),\n        fact_id,\n        scheduled_choose,\n        scheduled_apply,\n        internal_error,\n    )","crate::event_shell::scheduled(\n        facts,\n        Tree::default(),\n        &(),\n        fact_id,\n        scheduled_choose,\n        scheduled_apply,\n        internal_error,\n    ).map(|(_, done)| (Tree::default(), done))"],
+  ["plan-interprets-uncanonical-call","src/edit.rs","fn plan(","plan_prepare,","|_, next, fact| { let mut prepared = next; push(&mut prepared.facts, fact.clone())?; Ok(prepared) },"],
+  ["shared-plan-skips-validation","src/event_shell.rs","fn plan<","validate(context, before, fact)?;","let _ = validate(context, before, fact);"],
+  ["shared-plan-ignores-duplicate","src/event_shell.rs","fn plan<","if duplicate(context, before, fact)? {","if duplicate(context, before, fact)? && false {"],
+  ["shared-plan-swallows-classifier-error","src/event_shell.rs","fn plan<","if duplicate(context, before, fact)? {","if match duplicate(context, before, fact) { Ok(found) => found, Err(_) => false } {"],
+  ["identity-call-passes-empty","src/edit.rs","fn duplicate(","crate::event_layer::classify(facts, fact, fact_id, same_event_id, fact_equal)","crate::event_layer::classify(&[], fact, fact_id, same_event_id, fact_equal)"],
+  ["identity-call-ignores-payload","src/edit.rs","fn duplicate(","crate::event_layer::classify(facts, fact, fact_id, same_event_id, fact_equal)","crate::event_layer::classify(facts, fact, fact_id, same_event_id, |left, right| left.id == right.id)"],
+  ["past-membership-call-passes-empty","src/edit.rs","fn has_event(","crate::event_layer::has_id(ids, &id, same_event_id)","crate::event_layer::has_id(&[], &id, same_event_id)"],
+  ["scheduler-readiness-call-passes-empty","src/edit.rs","fn ready(","crate::event_layer::ready(after, done, same_event_id)","crate::event_layer::ready(&[], done, same_event_id)"],
+  ["scheduler-choice-call-passes-empty","src/edit.rs","fn choose_ready(","crate::event_layer::choose_ready(facts, done, fact_id, fact_after, same_event_id)","crate::event_layer::choose_ready(&[], done, fact_id, fact_after, same_event_id)"]
+];
+const definitionByMode=new Map(mutationDefinitions.map(([mode,...definition])=>[mode,definition]));
+const registeredMutations=modes.filter(mode=>mode!=='positive');
+assert.equal(new Set(registeredMutations).size,registeredMutations.length,'duplicate registered mutation mode');
+assert.equal(definitionByMode.size,mutationDefinitions.length,'duplicate mutation definition');
+assert.deepEqual([...definitionByMode.keys()].sort(),[...registeredMutations].sort(),'mutation definitions must exactly cover registered modes');
+for(const [mode,owner,header,needle,replacement] of mutationDefinitions) {
+  assert.equal(definitionByMode.get(mode).length,4,'mutation definition must have four fields: '+mode);
+  assert(sourceFiles.includes(owner),'unknown mutation source owner: '+mode);
+  assert([header,needle,replacement].every(value=>typeof value==='string'&&value.length>0),'mutation fields must be nonempty strings: '+mode);
+}
+function prepareMutation(mode,sources=original) {
+  const definition=definitionByMode.get(mode);
+  assert(definition,'mutation without a registered definition: '+mode);
+  const [owner,header,needle,replacement]=definition;
+  const source=typeof sources==='string'?sources:sources[owner];
+  const at=scopedAnchor(source,header,needle,mode);
   const mutant=source.slice(0,at)+source.slice(at).replace(needle,replacement);
   assert.notEqual(mutant,source);
-  return mutant;
+  return typeof sources==='string'?mutant:{...sources,[owner]:mutant};
 }
 const theorems={
   'scheduler-forgets-completed-tree':'EditSchedule.successful_schedule_has_complete_event_work',
@@ -288,24 +287,113 @@ const theorems={
   'author-forgets-gap':'EditCommit.authored_fact_binds_request',
   "receive-private-gate":"EditCommit.plan_ignores_private_state",
 };
+
+// Explicit semantic ownership transfers. The old statements and their domains
+// remain checked; additional concrete callback/call-argument controls above keep
+// caller composition sensitive. Only the exact named new owner may reject a
+// moved-body control; an arbitrary earlier dependency failure is never credited.
+theorems['plan-interprets-uncanonical-call']='EditAccepted.plan_publishes_interpretation';
+const priorOwners={...theorems};
+const ownerMigrations={
+  "plan-interprets-uncanonical-call":["EditAccepted.plan_publishes_canonical_facts","added wrong-prepare callback omits canonicalization; exact canonical fact publication owns this fault, while interpretation of the returned facts can still agree"],
+  "plan-interprets-uncanonical":["EventShell.planning_is_exact","callback ordering moved from concrete plan to generic plan"],
+  "past-membership-always-false": [
+    "EventGraph.membership_is_exact",
+    "membership loop moved unchanged to comparison-relative has_id"
+  ],
+  "scheduler-ready-skips-dependency": [
+    "EventGraph.readiness_is_exact",
+    "dependency scan moved unchanged to comparison-relative ready"
+  ],
+  "scheduler-reselects-done": [
+    "EventGraph.scheduler_choice_is_exact",
+    "actual first-ready scan moved to generic choose_ready"
+  ],
+  "scheduler-refuses-ready": [
+    "EventGraph.scheduler_choice_is_exact",
+    "actual first-ready scan moved to generic choose_ready"
+  ],
+  "scheduler-checks-empty-after": [
+    "EventGraph.scheduler_choice_is_exact",
+    "actual dependency argument belongs to generic choose_ready"
+  ],
+  "identity-accepts-conflict": [
+    "EventClassifier.classification_is_exact",
+    "actual first matching identity classification moved to generic classify"
+  ],
+  "identity-skips-later": [
+    "EventClassifier.classification_is_exact",
+    "indexed first-match scan moved to generic classify"
+  ]
+};
+Object.assign(theorems,{
+  "shared-plan-skips-validation": "EventShell.planning_is_exact",
+  "shared-plan-ignores-duplicate": "EventShell.planning_is_exact",
+  "shared-plan-swallows-classifier-error": "EventShell.planning_is_exact",
+  "identity-call-passes-empty": "EditIdentity.duplicate_matches_lookup",
+  "identity-call-ignores-payload": "EditIdentity.duplicate_matches_lookup",
+  "past-membership-call-passes-empty": "EditPast.event_membership_is_exact",
+  "scheduler-readiness-call-passes-empty": "EditSchedule.readiness_is_exact",
+  "scheduler-choice-call-passes-empty": "EditSchedule.scheduler_choice_is_exact"
+});
+for(const [mode,[owner]] of Object.entries(ownerMigrations))theorems[mode]=owner;
+const mutationOwners=Object.fromEntries(modes.filter(mode=>mode!=='positive').map(mode=>[mode,{owner:theorems[mode],priorOwner:priorOwners[mode]??null,reason:ownerMigrations[mode]?.[1]??(priorOwners[mode]?'owning concrete statement retained':'additional generic-body or concrete-caller control'),source:definitionByMode.get(mode)[0]}]));
+
 // Registration consistency: every selected mutation must have an anchored edit and a
 // named owning theorem before any native test, extraction or compiler starts.
 // Every registered mode, not only the selected ones, must resolve to exactly one
 // anchor inside its named item; the scope controls exercise the same path.
-for(const mode of modes.filter(mode=>mode!=='positive'))prepareMutation(mode);
-checkMutationScopeControls(prepareMutation,original,'causal-refuses-present','fn validate_after(','Ok(())','fn validate_new(');
+for(const mode of modes.filter(mode=>mode!=='positive')){assert(Object.hasOwn(theorems,mode),'mutation without an owning theorem '+mode);prepareMutation(mode);}
+// Owner dispatch itself is part of the fail-closed preparation boundary. A moved
+// anchor in another source file must never rescue the selected owner's missing
+// anchor. Existing exhaustive literal/lexer controls still run below.
+for(const mode of ['native-push-discards-value','plan-skips-validation']) {
+  const [owner,header,needle]=definitionByMode.get(mode);
+  const source=original[owner], [start,end]=itemSpan(source,header,mode);
+  const body=source.slice(start,end);
+  const variant=body=>({...original,[owner]:source.slice(0,start)+body+source.slice(end)});
+  const prepared=prepareMutation(mode);
+  assert.deepEqual(sourceFiles.filter(file=>prepared[file]!==original[file]),[owner],'mutation must change only its actual owner '+mode);
+  assert.throws(()=>prepareMutation(mode,variant(body.replace(needle,'/* moved '+needle+' */'))),/anchor is not code/);
+  assert.throws(()=>prepareMutation(mode,variant(body.replace(needle,''))),/anchor not found in its scope/);
+  assert.throws(()=>prepareMutation(mode,variant(body.replace('{','{ '+needle+';'))),/anchor is ambiguous/);
+  const other=sourceFiles.find(file=>file!==owner);
+  assert.throws(()=>prepareMutation(mode,{...variant(body.replace(needle,'')),[other]:original[other]+'\n'+body}),/anchor not found in its scope/,'another file cannot rescue a moved anchor');
+  const renamed=source.replace(header,header.replace('fn ','fn moved_'));
+  assert.throws(()=>prepareMutation(mode,{...original,[owner]:'// '+header+'\n'+renamed}),/scope not found/);
+}
+
+checkMutationScopeControls(prepareMutation,original['src/edit.rs'],'scalar-refuses-valid','fn validate_scalars(','Ok(())','fn validate_new(');
 console.log('PASS mutation scopes: every registered mode resolves to one in-scope anchor; moved/duplicate/comment-only anchor, missing/comment/string/duplicated header, literal braces, C raw strings across items and unsupported-lexeme controls');
+if(args.length===1&&args[0]==='gatepreflight')process.exit(0);
+const {NICKEL_HAX_BIN:hax,NICKEL_PROOF_FSTAR:fstar,NICKEL_HAX_SOURCE:models,NICKEL_FSTAR_MODEL_CACHE:modelCache}=process.env;
+assert(hax&&fstar&&models&&modelCache,'use the locked .#proofs environment');
+const output=process.argv[2];assert(output,'output directory required');
+await fs.mkdir(output,{recursive:true});
+await fs.writeFile(path.join(output,'mutation-owners.json'),JSON.stringify(mutationOwners,null,2)+'\n');
+const identity=JSON.parse(await fs.readFile(path.join(modelCache,'identity.json'),'utf8'));
+assert.equal(identity.models,models);assert.equal(identity.fstar,fstar);
+const views=new Map();
+for(const name of ['Prelude','LoopUtil','LoopEquality','EventGraph','EventGraphText','EventShell','EventClassifier','Vector','EditAtomic','EditCommit','EditIdentity','EditAccepted','EditWellFormed','Spec','EditCausal','EditPast','EditPastTotal','EditSchedule','EditBasis','EditReplay']) {
+  const source=`proofs/${name}.lt`,view=`proofs/generated/Nickel.${name}.fst`;
+  const code=await fs.readFile(path.join(root,view),'utf8');
+  const receipt=(await fs.readFile(path.join(root,`proofs/generated/${name}.sha256`),'utf8')).trim().split('\n');
+  assert.deepEqual(receipt,[digest(await fs.readFile(path.join(root,source)))+'  '+source,digest(code)+'  '+view]);
+  assert(!/\b(?:admit|admit_smt_queries|assume|lax)\b/.test(code),'no authored admissions');
+  views.set(`Nickel.${name}.fst`,code);
+}
+
 const prepared=new Map();
 for(const mode of mutations) {
   assert(Object.hasOwn(theorems,mode),'mutation without an owning theorem: '+mode);
   assert(views.has('Nickel.'+theorems[mode].split('.')[0]+'.fst'),'owning theorem outside the checked views: '+mode);
   prepared.set(mode,prepareMutation(mode));
 }
-const haxArgs=out=>['-C','--offline','--locked','-p','nickel-crdt',';','into','--output-dir',out,'-i','-** +nickel_crdt::edit::**::receive +nickel_crdt::edit::**::edit +nickel_crdt::edit::**::new','fstar'];
+const haxArgs=out=>['-C','--offline','--locked','-p','nickel-crdt',';','into','--output-dir',out,'-i',"-** +nickel_crdt::edit::**::receive +nickel_crdt::edit::**::edit +nickel_crdt::edit::**::new +nickel_crdt::edit::**::validate_new +nickel_crdt::edit::fact_equal +nickel_crdt::edit::push +nickel_crdt::edit::duplicate_events +nickel_crdt::edit::has_event +nickel_crdt::edit::has_fact +nickel_crdt::edit::choose_unseen +nickel_crdt::edit::clone_selected_fact +nickel_crdt::edit::canonical_step +nickel_crdt::edit::canonical +nickel_crdt::edit::ready +nickel_crdt::edit::choose_ready +nickel_crdt::edit::frontier +nickel_crdt::edit::validate_after +nickel_crdt::edit::extend_past +nickel_crdt::edit::past_pass +nickel_crdt::edit::past +nickel_crdt::edit::select_basis +nickel_crdt::edit::event_basis +nickel_crdt::edit::interpret_scheduled",'fstar'];
 const copyCrate=async(crate,source)=>{
   await fs.mkdir(crate,{recursive:true});
   for(const name of ['Cargo.toml','Cargo.lock','src','tests','proof-smoke'])await fs.cp(path.join(root,name),path.join(crate,name),{recursive:true});
-  if(source!==undefined)await fs.writeFile(path.join(crate,'src/edit.rs'),source);
+  if(source!==undefined)for(const [name,code] of Object.entries(source))await fs.writeFile(path.join(crate,name),code);
 };
 const inventory=async dir=>JSON.stringify(await Promise.all((await fs.readdir(dir)).filter(name=>/\.fsti?$/.test(name)).sort()
   .map(async name=>[name,digest(await fs.readFile(path.join(dir,name)))])));
@@ -357,7 +445,9 @@ async function check(mode) {
   assert(await sameExtraction(mode,crate,extract,path.join(work,'reference')),'extraction identity: '+mode+"'s extraction differs from a private-target extraction of its own crate");
   // Install the fresh extraction inventory: remove project sources that are neither
   // authored views nor produced by this extraction (e.g. left by a seeded copy).
-  const inventory=(await fs.readdir(extract)).filter(name=>/\.fsti?$/.test(name));
+  const inventory=(await fs.readdir(extract)).filter(name=>/\.fsti?$/.test(name)).sort();
+  const expectedExtraction=['Nickel_crdt.Edit.fst','Nickel_crdt.Event_layer.fst','Nickel_crdt.Event_shell.fst'];
+  assert.deepEqual(inventory,expectedExtraction,'unexpected actual edit extraction inventory');
   assert(inventory.includes('Nickel_crdt.Edit.fst'),'extraction did not produce Nickel_crdt.Edit.fst');
   for(const name of await fs.readdir(proof))if(/\.fsti?$/.test(name)&&!views.has(name)&&!inventory.includes(name))await fs.rm(path.join(proof,name));
   for(const name of inventory)await put(path.join(proof,name),await fs.readFile(path.join(extract,name),'utf8'));
@@ -366,22 +456,27 @@ async function check(mode) {
   // Preserve an ordinary call at the identity boundary: PartialEq operators
   // are structurally lowered by the pinned backend, ignoring custom bodies.
   const scan=code.slice(code.indexOf('let impl_Replica__duplicate '),code.indexOf('let impl_Replica__validate_new '));
-  assert.match(scan,/fact_equal old fact/);
-  assert(!/\b(?:admit|assume|admit_smt_queries)\b/.test(code),'no assumptions in extracted project code');
+  assert.match(scan,/Nickel_crdt\.Event_layer\.classify/);
+  if(mode==='identity-call-ignores-payload')assert(!/fact_equal/.test(scan),'selected wrong callback must replace the ordinary full-fact call');
+  else assert.match(scan,/Nickel_crdt\.Event_layer\.classify[\s\S]*fact_equal/);
+  for(const name of inventory)assert(!/\b(?:admit|assume|admit_smt_queries)\b/.test(await fs.readFile(path.join(proof,name),'utf8')),'no assumptions in extracted project code '+name);
+  const extractionIdentity=await Promise.all(inventory.map(async name=>[name,digest(await fs.readFile(path.join(extract,name)))]));
   if(mode==='positive') {
-    const committed=await fs.readFile(path.join(root,'proofs/generated/hax/Nickel_crdt.Edit.fst'),'utf8');
-    assert(code===committed,'fresh hax edit extraction differs from proofs/generated/hax/Nickel_crdt.Edit.fst; review and refresh the committed translation');
-    positive=code;
-  } else assert.notEqual(code,positive);
+    const retained=(await fs.readdir(path.join(root,'proofs/generated/hax'))).filter(name=>/\.fsti?$/.test(name)).sort();
+    // This directory also retains the independent smoke gate's sole module.
+    assert.deepEqual(retained,[...expectedExtraction,'Nickel_proof_smoke.fst'].sort(),'unexpected retained hax inventory (edit owners plus independent smoke owner)');
+    for(const name of inventory)assert.equal(await fs.readFile(path.join(extract,name),'utf8'),await fs.readFile(path.join(root,'proofs/generated/hax',name),'utf8'),'fresh extraction differs from retained '+name);
+    positive=JSON.stringify(extractionIdentity);
+  } else assert.notEqual(JSON.stringify(extractionIdentity),positive,'mutation must change the actual extracted inventory');
   for(const [name,code] of views)await put(path.join(proof,name),code);
   // What this workspace last recorded for the extraction decides whether it must be
   // recompiled now: changed (seeded, fresh or edited) must recompile; unchanged may be reused.
   let recorded={};try{recorded=JSON.parse(await fs.readFile(path.join(proof,'sources.json'),'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
-  const extractionChanged=recorded['Nickel_crdt.Edit.fst']!==digest(code);
+  const extractionChanged=extractionIdentity.filter(([name,hash])=>recorded[name]!==hash).map(([name])=>name);
   // Counter calculation/installation/wiring controls need only their owning module. The positive path still
   // checks both the public Spec surface and the existing ghost causal-rank family.
-  const proofRoot=mode==='positive'?'Nickel.Spec.fst':mode.startsWith('replay-')?'Nickel.EditReplay.fst':mode.startsWith('basis-')?'Nickel.EditBasis.fst':mode.startsWith('scheduler-')?'Nickel.EditSchedule.fst':['past-refuses-closure','duplicate-scan-skips-pairs'].includes(mode)?'Nickel.EditPastTotal.fst':mode.startsWith('past-')?'Nickel.EditPast.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
-  const checked=await verify({label:mode,dir:proof,roots:(mode==='positive'?['Nickel.Spec.fst','Nickel.EditCausal.fst','Nickel.EditPastTotal.fst','Nickel.EditSchedule.fst','Nickel.EditBasis.fst','Nickel.EditReplay.fst']:[proofRoot]).map(name=>path.join(proof,name)),fstar,models,modelCache});
+  const proofRoot=/^(EventGraph|EventShell|EventClassifier)\./.test(theorems[mode]??'')?'Nickel.'+theorems[mode].split('.')[0]+'.fst':mode==='positive'?'Nickel.Spec.fst':mode.startsWith('replay-')?'Nickel.EditReplay.fst':mode.startsWith('basis-')?'Nickel.EditBasis.fst':mode.startsWith('scheduler-')?'Nickel.EditSchedule.fst':['past-refuses-closure','duplicate-scan-skips-pairs'].includes(mode)?'Nickel.EditPastTotal.fst':mode.startsWith('past-')?'Nickel.EditPast.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
+  const checked=await verify({label:mode,dir:proof,roots:(mode==='positive'?['Nickel.EventGraph.fst','Nickel.EventGraphText.fst','Nickel.EventShell.fst','Nickel.EventClassifier.fst','Nickel.Spec.fst','Nickel.EditCausal.fst','Nickel.EditPastTotal.fst','Nickel.EditSchedule.fst','Nickel.EditBasis.fst','Nickel.EditReplay.fst']:['Nickel_crdt.Edit.fst',proofRoot]).map(name=>path.join(proof,name)),fstar,models,modelCache});
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {
     assert.equal(checked.status,0,checked.log);
@@ -395,7 +490,7 @@ async function check(mode) {
       await check({proof:copy,output,fstar,models,modelCache});
     }
     if(cacheSafety)await checkCacheSafety({positiveProof:proof,workRoot:path.join(root,'.cache','edit-proofs'),output,fstar,models,modelCache});
-    await fs.copyFile(path.join(proof,'Nickel_crdt.Edit.fst'),path.join(output,'Nickel_crdt.Edit.fst'));
+    for(const name of inventory)await fs.copyFile(path.join(proof,name),path.join(output,name));
   } else {
     assert.equal(checked.status,2,'require ordinary proof rejection, not extraction failure/timeout');
     const theorem='Nickel.'+theorems[mode],file='Nickel.'+theorems[mode].split('.')[0]+'.fst';
@@ -403,7 +498,7 @@ async function check(mode) {
     // proof module always compiles here (a rejected module leaves no checked result);
     // the extraction must compile whenever it differs from this workspace's last record.
     // An unchanged extraction in a warm rerun of the same mode may be legitimately reused.
-    for(const changed of [...(extractionChanged?['Nickel_crdt.Edit.fst']:[]),file])
+    for(const changed of [...extractionChanged,file])
       assert(checked.modules.includes(changed),changed+' was not compiled for '+mode+': '+(checked.modules.join(',')||'nothing'));
     assert(hasOrdinaryTheoremRejection({status:checked.status,log:checked.log,theorem,view:views.get(file)}),
       'require a final ordinary named query rejection and a semantic error in its source declaration: '+checked.log);

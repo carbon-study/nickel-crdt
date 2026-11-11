@@ -5,12 +5,12 @@ import path from 'node:path';
 import {put,verify} from './proof-cache.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
 export async function checkScheduleContracts({proof,output,fstar,models,modelCache}) {
-  const name='Nickel.EditSchedule.fst', original=await fs.readFile(path.join(proof,name),'utf8');
   const controls=[
     ['schedule-available-without-choice-contract',/  scheduler_choice_is_exact facts done;\n/,'available_event_is_chosen'],
-    ['schedule-ready-without-loop',/  Nickel\.LoopUtil\.preserve_any \(mk_usize 0\) \(Core_models\.Slice\.impl__len after\)[^\n]+;\n/,'readiness_is_exact'],
-    ['schedule-choice-without-loop',/  Nickel\.LoopUtil\.preserve_any \(mk_usize 0\) \(Core_models\.Slice\.impl__len facts\)[^\n]+;\n/,'scheduler_choice_is_exact'],
-    ['schedule-choice-without-ready-contract',/(?<=let readiness_is_exact[^\n]*) \[SMTPat \(Native\.ready after done\)\]/,'scheduler_choice_is_exact'],
+    ['schedule-ready-without-generic-contract',/  Graph\.readiness_is_exact [^\n]+;\n/,'readiness_is_exact','readiness_is_exact'],
+    ['schedule-ready-without-concrete-bridge',/  assert \(Shared\.ready [^\n]+;\n/,'readiness_is_exact','readiness_is_exact'],
+    ['schedule-choice-without-concrete-bridge',/  assert \(Shared\.choose_ready [^\n]+;\n/,'scheduler_choice_is_exact','scheduler_choice_is_exact'],
+    ['schedule-choice-without-generic-contract',/  Graph\.scheduler_choice_is_exact [^\n]+;\n/,'scheduler_choice_is_exact','scheduler_choice_is_exact'],
     ['schedule-rank-without-induction',/no_choice_finishes_lower_ranks facts done rank bound \(finish - 1\);\n/,'no_choice_finishes_lower_ranks','no_choice_finishes_lower_ranks'],
     ['schedule-unfinished-without-ranks',/    no_choice_finishes_lower_ranks facts done rank bound bound;\n/,'ranked_unfinished_has_eligible','ranked_unfinished_has_eligible'],
     ['schedule-incomplete-without-ranks',/    no_choice_finishes_lower_ranks facts done rank bound bound;\n/,'ranked_incomplete_has_eligible','ranked_incomplete_has_eligible'],
@@ -38,7 +38,18 @@ export async function checkScheduleContracts({proof,output,fstar,models,modelCac
     ['error-prefix-without-empty',/  prefix_starts_at_actual_empty input;\n/,'ranked_outer_errors_come_from_tree_work','ranked_outer_errors_come_from_tree_work'],
     ['error-prefix-without-extension',/    prefix_extension_is_actual_work input \(Seq\.length \(Alloc\.Vec\.impl_1__as_slice done\)\) done operations tree index;\n/,'ranked_outer_errors_come_from_tree_work','ranked_outer_errors_come_from_tree_work'],
   ];
-  for(const [control,pattern,owner,scope,replacement=''] of controls) {
+  // Migration map: EditSchedule.{readiness,scheduler_choice}_is_exact's
+  // loop rules now belong to EventGraph. The concrete controls above remove
+  // the generic callee with native bodies withheld by the caller's prunes.
+  // choose_ready itself uses EventGraph.readiness, so remove that pattern at
+  // its generic owner, not the now-unused concrete wrapper's pattern.
+  controls.push(
+    ['schedule-ready-without-loop',/  Nickel\.LoopUtil\.preserve_any [^\n]+;\n/,'readiness_is_exact','readiness_is_exact','','EventGraph'],
+    ['schedule-choice-without-loop',/  Nickel\.LoopUtil\.preserve_any [^\n]+;\n/,'scheduler_choice_is_exact','scheduler_choice_is_exact','','EventGraph'],
+    ['schedule-choice-without-ready-contract',/(?<=let readiness_is_exact[^\n]*) \[SMTPat \(Native\.ready after done eq\)\]/,'scheduler_choice_is_exact',undefined,'','EventGraph']
+  );
+  for(const [control,pattern,owner,scope,replacement='',module='EditSchedule'] of controls) {
+    const name='Nickel.'+module+'.fst', original=await fs.readFile(path.join(proof,name),'utf8');
     let start=0,end=original.length;
     if(scope) {
       const declaration=new RegExp('^let (?:rec )?'+scope+' ','m').exec(original);assert(declaration,control+' declaration');
@@ -50,10 +61,18 @@ export async function checkScheduleContracts({proof,output,fstar,models,modelCac
     assert.equal([...body.matchAll(new RegExp(pattern.source,'g'))].length,1,control+' anchor');
     const dir=path.join(path.dirname(proof),control);await fs.rm(dir,{recursive:true,force:true});
     await fs.cp(proof,dir,{recursive:true,preserveTimestamps:true});
-    const view=original.slice(0,start)+body.replace(pattern,replacement)+original.slice(end);await put(path.join(dir,name),view);
+    let changed=body.replace(pattern,replacement);
+    if(control==='schedule-ready-without-generic-contract') {
+      // The generic callee also has a global SMT pattern: withhold that
+      // automatic route, as well as its explicit call, in this caller.
+      const anchor='    Tactics.prune "Nickel_crdt.Edit.ready";';
+      assert.equal(changed.split(anchor).length,2,control+' callee-prune anchor');
+      changed=changed.replace(anchor,anchor+'\n    Tactics.prune "Nickel.EventGraph.readiness_is_exact";');
+    }
+    const view=original.slice(0,start)+changed+original.slice(end);await put(path.join(dir,name),view);
     const r=await verify({dir,roots:[path.join(dir,name)],fstar,models,modelCache});
     await fs.writeFile(path.join(output,control+'.proof.log'),r.log);
-    assert(hasOrdinaryTheoremRejection({status:r.status,log:r.log,theorem:'Nickel.EditSchedule.'+owner,view}),control+': '+r.log);
+    assert(hasOrdinaryTheoremRejection({status:r.status,log:r.log,theorem:'Nickel.'+module+'.'+owner,view}),control+': '+r.log);
     console.log('PASS '+control+': ordinary owning rejection');
   }
 }

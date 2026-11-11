@@ -3,6 +3,12 @@ module Nickel.EditSchedule
 
 open Nickel.Prelude
 
+module Shared = Nickel_crdt.Event_layer
+
+module Graph = Nickel.EventGraph
+
+open Nickel.EventGraphText
+
 open Rust_primitives
 
 open Core_models
@@ -25,12 +31,16 @@ let ready_prefix (after: t_Slice Native.t_EventId) (done: t_Slice Native.t_Event
   forall(i: usize{v i < Seq.length after}). v i < finish ==> member done (Seq.index after (v i))
 
 let readiness_is_exact (after: t_Slice Native.t_EventId) (done: t_Slice Native.t_EventId) : Lemma (ensures Native.ready after done == true <==> all_ids after (member done)) [SMTPat (Native.ready after done)] =
-  Nickel.LoopUtil.preserve_any (mk_usize 0) (Core_models.Slice.impl__len after) (fun (at: nat) (_: unit) -> ready_prefix after done at) (fun (_: unit) -> all_ids after (member done)) (fun (b: bool) -> Prims.l_and (b == false) (Prims.l_not (all_ids after (member done))));
+  assert (Shared.ready after done Native.same_event_id == Native.ready after done);
+  Graph.readiness_is_exact after done Native.same_event_id;
   assert (Native.ready after done == true <==> all_ids after (member done)) by (
-    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
-    Tactics.prune "Nickel_crdt.Edit.has_event";
+    Tactics.prune "Nickel_crdt.Edit.ready";
+    Tactics.prune "Nickel_crdt.Event_layer.ready";
     Tactics.smt_sync' 1 1
   )
+
+let ready_is_text_call (after: t_Slice Native.t_EventId) (done: t_Slice Native.t_EventId) : Lemma (ensures Shared.ready after done Native.same_event_id == Native.ready after done) [SMTPat (Shared.ready after done Native.same_event_id)] =
+  ()
 
 let eligible (facts: t_Slice Native.t_Fact) (done: t_Slice Native.t_EventId) (i: nat{i < Seq.length facts}) : Type0 =
   Prims.l_and (Prims.l_not (member done (Seq.index facts i).f_id)) (all_ids (Alloc.Vec.impl_1__as_slice (Seq.index facts i).f_after) (member done))
@@ -42,18 +52,22 @@ let chosen_is_first (facts: t_Slice Native.t_Fact) (done: t_Slice Native.t_Event
   match result with | Option.Option_None -> begin no_eligible_prefix facts done (Seq.length facts) end | Option.Option_Some i -> begin Prims.l_and (v i < Seq.length facts) (Prims.l_and (v i < Seq.length facts ==> eligible facts done (v i)) (no_eligible_prefix facts done (v i))) end
 
 let scheduler_choice_is_exact (facts: t_Slice Native.t_Fact) (done: t_Slice Native.t_EventId) : Lemma (ensures chosen_is_first facts done (Native.choose_ready facts done)) =
-  Nickel.LoopUtil.preserve_any (mk_usize 0) (Core_models.Slice.impl__len facts) (fun (at: nat) (_: unit) -> no_eligible_prefix facts done at) (fun (_: unit) -> no_eligible_prefix facts done (Seq.length facts)) (chosen_is_first facts done);
+  assert (Shared.choose_ready facts done Native.fact_id Native.fact_after Native.same_event_id == Native.choose_ready facts done);
+  Graph.scheduler_choice_is_exact facts done Native.fact_id Native.fact_after Native.same_event_id;
   assert (chosen_is_first facts done (Native.choose_ready facts done)) by (
-    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
-    Tactics.prune "Nickel_crdt.Edit.has_event";
-    Tactics.prune "Nickel_crdt.Edit.ready";
+    Tactics.prune "Nickel_crdt.Edit.choose_ready";
+    Tactics.prune "Nickel_crdt.Event_layer.choose_ready";
     Tactics.smt_sync' 1 1
   )
+
+let choose_ready_is_text_call (facts: t_Slice Native.t_Fact) (done: t_Slice Native.t_EventId) : Lemma (ensures Shared.choose_ready facts done Native.fact_id Native.fact_after Native.same_event_id == Native.choose_ready facts done) [SMTPat (Shared.choose_ready facts done Native.fact_id Native.fact_after Native.same_event_id)] =
+  ()
 
 let available_event_is_chosen (facts: t_Slice Native.t_Fact) (done: t_Slice Native.t_EventId) (available: usize{v available < Seq.length facts}) : Lemma (requires eligible facts done (v available)) (ensures Prims.l_not (Native.choose_ready facts done == Option.Option_None)) =
   scheduler_choice_is_exact facts done;
   assert (Prims.l_not (Native.choose_ready facts done == Option.Option_None)) by (
     Tactics.prune "Nickel_crdt.Edit.choose_ready";
+    Tactics.prune "Nickel_crdt.Event_layer.choose_ready";
     Tactics.smt_sync' 1 1
   )
 
@@ -159,6 +173,7 @@ let ranked_incomplete_scan_progress (facts: facts_vec) (done: t_Slice Native.t_E
   scheduler_choice_is_exact input done;
   assert (Prims.l_not (Native.choose_ready input done == Option.Option_None)) by (
     Tactics.prune "Nickel_crdt.Edit.choose_ready";
+    Tactics.prune "Nickel_crdt.Event_layer.choose_ready";
     Tactics.smt_sync' 1 1
   )
 
@@ -243,7 +258,9 @@ let successful_schedule_is_once_only_and_causal (facts: t_Slice Native.t_Fact) :
     Tactics.prune "Nickel.EditSchedule.causal_trace";
     Tactics.prune "Nickel_crdt.Edit.interpret_event";
     Tactics.prune "Nickel_crdt.Edit.choose_ready";
+    Tactics.prune "Nickel_crdt.Event_layer.choose_ready";
     Tactics.prune "Nickel_crdt.Edit.push";
+    Tactics.prune "Nickel_crdt.Event_layer.push";
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
@@ -293,6 +310,7 @@ let interpret_erases_only_schedule (facts: t_Slice Native.t_Fact) : Lemma (ensur
   shape ();
   assert (Native.interpret facts == erase_schedule (Native.interpret_scheduled facts)) by (
     Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
+    Tactics.prune "Nickel_crdt.Event_shell.scheduled";
     Tactics.smt_sync' 1 1
   )
 
@@ -307,6 +325,7 @@ let successful_interpretation_has_causal_schedule (facts: t_Slice Native.t_Fact)
     assert (interpretation_schedule facts tree) by (
       Tactics.prune "Nickel_crdt.Edit.interpret";
       Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
+      Tactics.prune "Nickel_crdt.Event_shell.scheduled";
       Tactics.smt_sync' 1 1
     ) in
   FStar.Classical.forall_intro (FStar.Classical.move_requires each);
@@ -315,6 +334,7 @@ let successful_interpretation_has_causal_schedule (facts: t_Slice Native.t_Fact)
   assert (interpretation_schedule facts tree) by (
     Tactics.prune "Nickel_crdt.Edit.interpret";
     Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
+    Tactics.prune "Nickel_crdt.Event_shell.scheduled";
     Tactics.smt_sync' 1 1
   )
 
@@ -389,15 +409,20 @@ let successful_execution_orders_its_exact_past_cut (facts: facts_vec) (roots: t_
     assert (interpreted_cut facts roots tree) by (
       Tactics.prune "Nickel.EditSchedule.cut_order";
       Tactics.prune "Nickel_crdt.Edit.duplicate_events";
+      Tactics.prune "Nickel_crdt.Event_layer.duplicate_ids";
       Tactics.prune "Nickel_crdt.Edit.past";
+      Tactics.prune "Nickel_crdt.Event_layer.past";
       Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
+      Tactics.prune "Nickel_crdt.Event_shell.scheduled";
       Tactics.smt_sync' 1 1
     ) in
   FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 combine);
   assert (interpreted_cut facts roots tree) by (
     Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.prune "Nickel_crdt.Edit.interpret";
     Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
+    Tactics.prune "Nickel_crdt.Event_shell.scheduled";
     Tactics.smt_sync' 1 1
   )
 
@@ -430,6 +455,7 @@ let prefix_extension_is_actual_work (facts: t_Slice Native.t_Fact) (count: nat) 
     assert (event_work_prefix facts (count + 1) next_done next_operations next_tree) by (
       Tactics.prune "Nickel_crdt.Edit.interpret_event";
       Tactics.prune "Nickel_crdt.Edit.choose_ready";
+      Tactics.prune "Nickel_crdt.Event_layer.choose_ready";
       Tactics.smt_sync' 1 1
     ) in
   FStar.Classical.forall_intro_4 (FStar.Classical.move_requires_4 next)
@@ -451,6 +477,7 @@ let ranked_outer_errors_come_from_tree_work (facts: facts_vec) (rank: Native.t_E
     assert (Prims.l_and (Prims.l_not (Native.choose_ready input done == Option.Option_None)) (chosen_is_first input done (Native.choose_ready input done))) by (
       Tactics.prune "Nickel.EditCausal.causal_rank";
       Tactics.prune "Nickel_crdt.Edit.choose_ready";
+      Tactics.prune "Nickel_crdt.Event_layer.choose_ready";
       Tactics.smt_sync' 1 1
     ) in
   let choice_shape (done: t_Slice Native.t_EventId) : Lemma (ensures Prims.l_or (Native.choose_ready input done == Option.Option_None) (exists(index: usize). Native.choose_ready input done == Option.Option_Some index)) [SMTPat (Native.choose_ready input done)] = () in
@@ -462,6 +489,7 @@ let ranked_outer_errors_come_from_tree_work (facts: facts_vec) (rank: Native.t_E
       Tactics.prune "Nickel.EditSchedule.event_work_prefix";
       Tactics.prune "Nickel_crdt.Edit.interpret_event";
       Tactics.prune "Nickel_crdt.Edit.choose_ready";
+      Tactics.prune "Nickel_crdt.Event_layer.choose_ready";
       Tactics.smt_sync' 0 0
     ) in
   prefix_starts_at_actual_empty input;
@@ -475,7 +503,9 @@ let ranked_outer_errors_come_from_tree_work (facts: facts_vec) (rank: Native.t_E
     Tactics.prune "Nickel.EditSchedule.causal_trace";
     Tactics.prune "Nickel_crdt.Edit.interpret_event";
     Tactics.prune "Nickel_crdt.Edit.choose_ready";
+    Tactics.prune "Nickel_crdt.Event_layer.choose_ready";
     Tactics.prune "Nickel_crdt.Edit.push";
+    Tactics.prune "Nickel_crdt.Event_layer.push";
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
@@ -490,6 +520,7 @@ let interpret_errors_come_from_tree_work (facts: facts_vec) (rank: Native.t_Even
   assert (tree_work_failed facts error) by (
     Tactics.prune "Nickel_crdt.Edit.interpret";
     Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
+    Tactics.prune "Nickel_crdt.Event_shell.scheduled";
     Tactics.smt_sync' 1 1
   )
 
@@ -505,6 +536,7 @@ let successful_schedule_has_complete_event_work (facts: t_Slice Native.t_Fact) :
       Tactics.prune "Nickel.EditSchedule.event_work_prefix";
       Tactics.prune "Nickel_crdt.Edit.interpret_event";
       Tactics.prune "Nickel_crdt.Edit.choose_ready";
+      Tactics.prune "Nickel_crdt.Event_layer.choose_ready";
       Tactics.smt_sync' 0 0
     ) in
   prefix_starts_at_actual_empty facts;
@@ -517,7 +549,9 @@ let successful_schedule_has_complete_event_work (facts: t_Slice Native.t_Fact) :
     Tactics.prune "Nickel.EditSchedule.causal_trace";
     Tactics.prune "Nickel_crdt.Edit.interpret_event";
     Tactics.prune "Nickel_crdt.Edit.choose_ready";
+    Tactics.prune "Nickel_crdt.Event_layer.choose_ready";
     Tactics.prune "Nickel_crdt.Edit.push";
+    Tactics.prune "Nickel_crdt.Event_layer.push";
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
@@ -539,6 +573,7 @@ let rec actual_prefix_groups_match_trace (facts: t_Slice Native.t_Fact) (count: 
         Tactics.prune "Nickel.EditSchedule.event_work_prefix";
         Tactics.prune "Nickel_crdt.Edit.interpret_event";
         Tactics.prune "Nickel_crdt.Edit.choose_ready";
+        Tactics.prune "Nickel_crdt.Event_layer.choose_ready";
         Tactics.smt_sync' 0 0
       );
       () end
@@ -548,6 +583,7 @@ let rec actual_prefix_groups_match_trace (facts: t_Slice Native.t_Fact) (count: 
     assert (operation_labels_match done operations) by (
       Tactics.prune "Nickel_crdt.Edit.interpret_event";
       Tactics.prune "Nickel_crdt.Edit.choose_ready";
+      Tactics.prune "Nickel_crdt.Event_layer.choose_ready";
       Tactics.smt_sync' 1 1
     ) end
 
@@ -563,6 +599,7 @@ let successful_interpretation_has_operation_provenance (facts: t_Slice Native.t_
     assert (interpretation_event_work facts tree) by (
       Tactics.prune "Nickel.EditSchedule.event_work_prefix";
       Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
+      Tactics.prune "Nickel_crdt.Event_shell.scheduled";
       Tactics.prune "Nickel_crdt.Edit.interpret";
       Tactics.smt_sync' 1 1
     ) in
@@ -572,6 +609,7 @@ let successful_interpretation_has_operation_provenance (facts: t_Slice Native.t_
   assert (interpretation_event_work facts tree) by (
     Tactics.prune "Nickel.EditSchedule.event_work_prefix";
     Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
+    Tactics.prune "Nickel_crdt.Event_shell.scheduled";
     Tactics.prune "Nickel_crdt.Edit.interpret";
     Tactics.smt_sync' 1 1
   )

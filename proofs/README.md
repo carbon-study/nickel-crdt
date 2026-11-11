@@ -26,9 +26,8 @@ dependency graph. Interfaces and implementations count separately. Unrelated
 workspace files, extraction targets and immutable imported models do not count;
 checked project targets still count on warm runs. The serial sum is not divided
 by make's job count. The two seconds per target cover compiler timeout kill
-grace; ten seconds cover make overhead. For the current nine-module edit chain
-this is 568 seconds, while every F* process remains capped at 60 seconds and
-every solver query at rlimit100. Dependency discovery remains independently
+grace; ten seconds cover make overhead. The actual requested dependency graph determines the count; every F* process
+remains capped at 60 seconds and every solver query at rlimit100. Dependency discovery remains independently
 capped at 60 seconds; model bootstrap keeps its explicit 600-second driver.
 Project callers cannot enlarge the derived bound through an explicit override.
 The selected target list, policy and bounds are printed and retained in
@@ -39,6 +38,26 @@ and normal rejection; none is a proof-success substitute.
 The smoke fixture establishes no CRDT convergence, ordering, undo, codec, Wasm or browser property.
 
 The [prospective API/verification contract](../docs/api-verification.md) lists the proposed V1–V9 obligations. None is currently discharged. The [undo analysis](../docs/undo-semantics.md) records the semantic/algorithmic stop gate; the loop proof does not bypass it.
+
+## shared-layer migration
+
+The actual `edit::Replica` now delegates graph, causal admission, planning,
+scheduled replay and publication to `event_layer` / `event_shell`. The original
+text statements retain their domains, premises and mathematical predicates;
+proof bodies compose generic contracts and exact client-specialization bridges.
+`EventGraph`, `EventClassifier` and `EventShell` contain the generic foundations;
+`EventGraphText` binds actual callback arguments; `LoopEquality` derives the
+required range-fold congruence by checked induction. Stronger exact-past, rank,
+trace and labelled tree-work claims remain text specializations of that real
+shared implementation, not universal semantics for arbitrary clients.
+
+The extraction inventory is strictly the three edit/shared modules plus the
+independently owned smoke module. Every original Rust mutation remains registered;
+when its owning algorithm moved, an explicit table records its precise generic
+owner and reason. Additional concrete callback/wiring controls retain client-call
+sensitivity. An arbitrary earlier failure, exhaustion or type failure is never
+accepted instead. See [scope and trust](../docs/shared-layer-experiment.md) and
+[exact extraction](generated/hax/README.md).
 
 ## running the edit gate
 
@@ -70,7 +89,7 @@ identity check, independently of any owner theorem.
 Each family edits its own copy of the verified positive workspace, so probes
 neither leave the positive cache in a failed state nor see each other's edits.
 A fresh mutation workspace starts as a copy of the verified positive workspace;
-fresh hax output then replaces `Nickel_crdt.Edit.fst`, and the digest check plus
+fresh hax output then replaces the complete three-module edit/shared inventory, and the digest check plus
 F*'s own dependency check force that module and every dependent proof to
 recheck. Only modules independent of the extraction (Prelude, LoopUtil, Vector)
 are reused. Acceptance still requires the complete no-argument gate.

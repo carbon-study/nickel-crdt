@@ -42,6 +42,25 @@ const acceptedVisibility=new Set([
   '"Nickel_crdt.Edit.canonical_step"','"Nickel_crdt.Edit.choose_unseen"','"Nickel_crdt.Edit.canonical"',
   '"Nickel_crdt.Edit.has_fact"','"Nickel_crdt.Edit.event_lt"','"Nickel_crdt.Edit.clone_selected_fact"','"Nickel_crdt.Edit.interpret"',
 ]);
+// Generic owners get only the specific callee visibility used in their proofs.
+const genericVisibility={
+  EventGraph:new Set(["\"Nickel_crdt.Event_layer.has_id\"","\"Nickel_crdt.Event_layer.ready\""]),
+  EventGraphText:new Set([]),
+  EventClassifier:new Set([]),
+  EventShell:new Set(["\"Nickel_crdt.Event_shell.receive_into\""]),
+  EditAtomic:new Set(["\"Nickel_crdt.Event_shell.plan\"","\"Nickel_crdt.Event_layer.push\"","\"Nickel_crdt.Event_layer.canonical\"","\"Nickel_crdt.Event_shell.receive\"","\"Nickel_crdt.Event_shell.receive_into\"","\"Nickel_crdt.Event_layer.frontier\""]),
+  EditCommit:new Set(["\"Nickel_crdt.Event_shell.plan\"","\"Nickel_crdt.Event_layer.frontier\"","\"Nickel_crdt.Event_shell.receive\"","\"Nickel_crdt.Event_shell.receive_into\""]),
+  EditIdentity:new Set(["\"Nickel_crdt.Event_layer.classify\"","\"Nickel_crdt.Event_shell.plan\""]),
+  EditBasis:new Set(["\"Nickel_crdt.Event_layer.clone_selected_fact\"","\"Nickel_crdt.Event_layer.has_id\"","\"Nickel_crdt.Event_layer.push\"","\"Nickel_crdt.Event_layer.select_basis\"","\"Nickel_crdt.Event_layer.past\""]),
+  EditPast:new Set(["\"Nickel.EventGraph.membership_is_exact\"","\"Nickel_crdt.Event_layer.has_id\"","\"Nickel_crdt.Event_layer.push\"","\"Nickel_crdt.Event_layer.extend_past\"","\"Nickel_crdt.Event_layer.past_pass\"","\"Nickel_crdt.Event_layer.past\""]),
+  EditPastTotal:new Set(["\"Nickel_crdt.Event_layer.push\"","\"Nickel_crdt.Event_layer.has_id\"","\"Nickel_crdt.Event_layer.extend_past\"","\"Nickel_crdt.Event_layer.past_pass\"","\"Nickel_crdt.Event_layer.validate_after\"","\"Nickel_crdt.Event_layer.past\"","\"Nickel_crdt.Event_layer.duplicate_ids\""]),
+  EditSchedule:new Set(["\"Nickel_crdt.Event_layer.ready\"","\"Nickel_crdt.Event_layer.choose_ready\"","\"Nickel_crdt.Event_layer.push\"","\"Nickel_crdt.Event_shell.scheduled\"","\"Nickel_crdt.Event_layer.duplicate_ids\"","\"Nickel_crdt.Event_layer.past\""]),
+  EditAccepted:new Set(["\"Nickel_crdt.Event_layer.has_fact\"","\"Nickel_crdt.Event_layer.push\"","\"Nickel_crdt.Event_layer.canonical_step\"","\"Nickel_crdt.Event_layer.canonical\"","\"Nickel_crdt.Event_layer.choose_unseen\""]),
+  EditWellFormed:new Set(["\"Nickel_crdt.Event_shell.plan\"","\"Nickel_crdt.Event_shell.receive\"","\"Nickel_crdt.Event_shell.receive_into\"","\"Nickel_crdt.Event_layer.has_fact\"","\"Nickel_crdt.Event_layer.validate_after\"","\"Nickel_crdt.Event_layer.past\""]),
+  EditCausal:new Set(["\"Nickel_crdt.Event_layer.has_fact\"","\"Nickel_crdt.Event_shell.receive\"","\"Nickel_crdt.Event_shell.receive_into\""]),
+  Spec:new Set(["\"Nickel_crdt.Event_shell.receive\"","\"Nickel_crdt.Event_shell.receive_into\""]),
+  Vector:new Set([])
+};
 export function assertReformedSource(name,source) {
   const ts=tokens(source),fail=message=>assert.fail(name+' reform: '+message);
   for(let i=0;i<ts.length;i++) {
@@ -50,6 +69,7 @@ export function assertReformedSource(name,source) {
     if(ts[i]==='FStar'&&ts[i+1]==='.'&&ts[i+2]==='NormSteps')fail('normalizer imports are prohibited');
     if(ts[i]==='FStar'&&ts[i+1]==='.'&&ts[i+2]==='Tactics')
       fail('only the canonical Tactics import is approved');
+    if(genericVisibility[name]?.has(ts[i+4])&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')') { i+=5;continue; }
     if(ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+5]===')'&&
       ['"Nickel_crdt.Edit.impl_Replica__with_tree"','"Nickel_crdt.Edit.impl_Replica__plan"','"Nickel_crdt.Edit.impl_Replica__duplicate"','"Nickel_crdt.Edit.invalid"','"Nickel_crdt.Edit.writer_index"','"Nickel_crdt.Edit.fact_equal"','"Alloc.Vec.from_seq"','"Alloc.Vec.impl_1__as_slice"','"Alloc.Vec.impl_1__len"','"Core_models.Slice.impl__len"','"Rust_primitives.Slice.slice_index"','"Nickel_crdt.Edit.push"','"Nickel_crdt.Edit.impl_Replica__with_counter"','"Nickel_crdt.Edit.next_counter_after"','"Rust_primitives.Hax.Folds.fold_range"','"Rust_primitives.Hax.Folds.fold_range_return"','"Nickel.LoopUtil.option_run"','"Nickel.LoopUtil.step_safe"','"Nickel.LoopUtil.output_safe"','"Nickel_proof_smoke.flip"'].includes(ts[i+4])) { i+=5;continue; }
     if(name==='LoopUtil'&&ts[i]==='Tactics'&&ts[i+1]==='.'&&ts[i+2]==='prune'&&ts[i+3]==='('&&ts[i+4]==='"Rust_primitives.Hax.Folds.fold_range_cf"'&&ts[i+5]===')') { i+=5;continue; }
@@ -73,6 +93,6 @@ export function assertReformedSource(name,source) {
     }
   }
 }
-export async function checkProofReform(root,names=['EditAtomic','LoopUtil','Smoke','Vector','EditCausal','EditIdentity','EditWellFormed','Spec','EditCommit','EditAccepted','EditPast','EditPastTotal','EditSchedule','EditBasis','EditReplay']) {
+export async function checkProofReform(root,names=['LoopEquality','EventGraph','EventGraphText','EventShell','EventClassifier','EditAtomic','LoopUtil','Smoke','Vector','EditCausal','EditIdentity','EditWellFormed','Spec','EditCommit','EditAccepted','EditPast','EditPastTotal','EditSchedule','EditBasis','EditReplay']) {
   for(const name of names)assertReformedSource(name,await fs.readFile(path.join(root,'proofs',name+'.lt'),'utf8'));
 }

@@ -17,6 +17,8 @@ open Nickel.LoopUtil
 
 open Nickel.EditAtomic
 
+open Nickel.EventClassifier
+
 module Native = Nickel_crdt.Edit
 
 module Result = Core_models.Result
@@ -116,10 +118,26 @@ let identity_result (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact) : Resul
   else
     begin classify (first_id facts fact.f_id (mk_usize 0)) fact end
 
+let classified_shared (result: Option.t_Option bool) : Result.t_Result bool Native.t_Error =
+  match result with | Option.Option_None -> begin Result.Result_Ok false end | Option.Option_Some true -> begin Result.Result_Ok true end | Option.Option_Some false -> begin Result.Result_Err (Native.Error_Invalid Native.Invalid_Conflict) end
+
+let rec shared_lookup_agrees (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact) (at: usize{v at <= v (length facts)}) : Lemma (ensures classified_shared (Nickel.EventClassifier.lookup facts fact Native.fact_id Native.same_event_id Native.fact_equal at) == classify (first_id facts fact.f_id at) fact) (decreases v (length facts) - v at) =
+  if v at < v (length facts) then
+    begin if not ((Rust_primitives.Slice.slice_index facts at).f_id ==? fact.f_id) then
+      begin shared_lookup_agrees facts fact (at +! mk_usize 1) end
+    else
+      begin assert (Native.fact_equal (Rust_primitives.Slice.slice_index facts at) fact == (Rust_primitives.Slice.slice_index facts at ==? fact)) by (
+        Tactics.prune "Nickel_crdt.Edit.fact_equal";
+        Tactics.smt_sync' 1 1
+      ) end end
+  else
+    begin () end
+
 let duplicate_matches_lookup (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact) : Lemma (ensures Native.impl_Replica__duplicate facts fact == identity_result facts fact) =
-  Nickel.LoopUtil.option_interpret_any (mk_usize 0) (length facts) (scan_next facts fact) (scan_stop facts fact) scan_done;
-  scan_lookup facts fact (mk_usize 0);
+  Nickel.EventClassifier.classification_is_exact facts fact Native.fact_id Native.same_event_id Native.fact_equal;
+  shared_lookup_agrees facts fact (mk_usize 0);
   assert (Native.impl_Replica__duplicate facts fact == identity_result facts fact) by (
+    Tactics.prune "Nickel_crdt.Event_layer.classify";
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.prune "Nickel.LoopUtil.option_run";
     Tactics.prune "Nickel_crdt.Edit.fact_equal";
@@ -155,6 +173,7 @@ let receive_known_identity (before: Native.t_Replica) (fact: Native.t_Fact) (ind
   duplicate_matches_lookup (Alloc.Vec.impl_1__as_slice before.f_facts) fact;
   assert (Native.impl_Replica__receive before fact == known_identity before (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice before.f_facts) index) fact) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__duplicate";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
@@ -168,6 +187,7 @@ let receive_invalid_counter (before: Native.t_Replica) (fact: Native.t_Fact) : L
   duplicate_matches_lookup (Alloc.Vec.impl_1__as_slice before.f_facts) fact;
   assert (Native.impl_Replica__receive before fact == (before, Result.Result_Err (Native.Error_Invalid Native.Invalid_Counter))) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__duplicate";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
@@ -190,6 +210,7 @@ let receive_added_has_fresh_event_id (before: Native.t_Replica) (fact: Native.t_
   duplicate_matches_lookup (Alloc.Vec.impl_1__as_slice before.f_facts) fact;
   match Native.impl_Replica__receive before fact with | (_, Result.Result_Ok Native.Admission_Added) -> begin assert (first_id (Alloc.Vec.impl_1__as_slice before.f_facts) fact.f_id (mk_usize 0) == Option.Option_None) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__duplicate";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";

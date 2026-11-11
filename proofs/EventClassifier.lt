@@ -1,0 +1,53 @@
+import Rust_primitives
+import Core_models
+import FStar.Pervasives
+import Nickel.LoopUtil
+import Native = Nickel_crdt.Event_layer
+import Option = Core_models.Option
+import Tactics = FStar.Tactics.V2
+
+function! lookup<f: Type0, i: Type0>(facts: t_Slice(f), fact: f, id: f => i, eq: i => i => bool, same: f => f => bool,
+  at: usize where v(at) <= v(Core_models.Slice.impl__len(facts))): Option.t_Option(bool)
+  decreases v(Core_models.Slice.impl__len(facts)) - v(at)
+{
+  if v(at) < v(Core_models.Slice.impl__len(facts)) {
+    const old = Rust_primitives.Slice.slice_index(facts, at);
+    if eq(id(old), id(fact)) { Option.Option_Some(same(old, fact)) }
+    else { lookup(facts, fact, id, eq, same, at +! mk_usize(1)) }
+  } else { Option.Option_None }
+}
+function scan_next<f: Type0, i: Type0>(facts: t_Slice(f), fact: f, id: f => i, eq: i => i => bool): Nickel.LoopUtil.transition(unit, Core_models.Slice.impl__len(facts)) {
+  (_, at) => if eq(id(Rust_primitives.Slice.slice_index(facts, at)), id(fact)) { Option.Option_None } else { Option.Option_Some(()) }
+}
+function scan_stop<f: Type0>(facts: t_Slice(f), fact: f, same: f => f => bool, _: unit, at: usize where v(at) < v(Core_models.Slice.impl__len(facts))): Option.t_Option(bool) {
+  Option.Option_Some(same(Rust_primitives.Slice.slice_index(facts, at), fact))
+}
+function scan_done(_: unit): Option.t_Option(bool) { Option.Option_None }
+function run<f: Type0, i: Type0>(facts: t_Slice(f), fact: f, id: f => i, eq: i => i => bool, same: f => f => bool, at: usize where v(at) <= v(Core_models.Slice.impl__len(facts))): Option.t_Option(bool) {
+  Nickel.LoopUtil.option_run(Core_models.Slice.impl__len(facts), at, (), scan_next(facts, fact, id, eq), scan_stop(facts, fact, same), scan_done)
+}
+proof! scan_matches_lookup<f: Type0, i: Type0>(facts: t_Slice(f), fact: f, id: f => i, eq: i => i => bool, same: f => f => bool, at: usize where v(at) <= v(Core_models.Slice.impl__len(facts))): unit
+  decreases v(Core_models.Slice.impl__len(facts)) - v(at)
+  gives run(facts, fact, id, eq, same, at) == lookup(facts, fact, id, eq, same, at)
+{
+  if v(at) < v(Core_models.Slice.impl__len(facts)) {
+    Nickel.LoopUtil.option_run_step(Core_models.Slice.impl__len(facts), at, (), scan_next(facts, fact, id, eq), scan_stop(facts, fact, same), scan_done);
+    if !eq(id(Rust_primitives.Slice.slice_index(facts, at)), id(fact)) {
+      scan_matches_lookup(facts, fact, id, eq, same, at +! mk_usize(1))
+    } else { () }
+  } else {
+    Nickel.LoopUtil.option_run_end(Core_models.Slice.impl__len(facts), at, (), scan_next(facts, fact, id, eq), scan_stop(facts, fact, same), scan_done)
+  }
+}
+proof classification_is_exact<f: Type0, i: Type0>(facts: t_Slice(f), fact: f, id: f => i, eq: i => i => bool, same: f => f => bool): unit
+  gives Native.classify(facts, fact, id, eq, same) == lookup(facts, fact, id, eq, same, mk_usize(0))
+  hint Native.classify(facts, fact, id, eq, same)
+{
+  Nickel.LoopUtil.option_interpret_any(mk_usize(0), Core_models.Slice.impl__len(facts), scan_next(facts, fact, id, eq), scan_stop(facts, fact, same), scan_done);
+  scan_matches_lookup(facts, fact, id, eq, same, mk_usize(0));
+  assert(Native.classify(facts, fact, id, eq, same) == lookup(facts, fact, id, eq, same, mk_usize(0))) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.prune("Nickel.LoopUtil.option_run");
+    Tactics.smt_sync'(1, 1)
+  }
+}

@@ -2,6 +2,8 @@ import Rust_primitives
 import Core_models
 import FStar.Pervasives
 import Nickel.LoopUtil
+import Nickel.LoopEquality
+import Nickel.EventGraphText
 import Nickel.EditIdentity
 import Native = Nickel_crdt.Edit
 import Result = Core_models.Result
@@ -107,6 +109,7 @@ proof selected_id_is_unseen(facts: t_Slice(Native.t_Fact), out: t_Slice(Native.t
     ((_: Native.t_Error) => Prims.l_True));
   assert(choice_returned(facts, out)(Native.choose_unseen(facts, out))) by {
     Tactics.prune("Nickel_crdt.Edit.has_fact");
+    Tactics.prune("Nickel_crdt.Event_layer.has_fact");
     Tactics.prune("Nickel.LoopUtil.step_safe");
     Tactics.prune("Nickel.LoopUtil.output_safe");
     Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
@@ -164,6 +167,7 @@ proof append_fresh_preserves_unique(facts: facts_vec, fact: Native.t_Fact): unit
   membership_absent(Alloc.Vec.impl_1__as_slice(facts), fact.f_id);
   assert(push_result_unique(Native.push(facts, fact))) by {
     Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.prune("Nickel_crdt.Event_layer.push");
     Tactics.prune("Alloc.Vec.impl_1__as_slice");
     Tactics.prune("Alloc.Vec.from_seq");
     Tactics.prune("Alloc.Vec.impl_1__len");
@@ -224,8 +228,11 @@ function canonical_loop_result(input: t_Slice(Native.t_Fact)): Result.t_Result(f
 proof canonical_uses_complete_range(input: t_Slice(Native.t_Fact)): unit
   gives Native.canonical(input) == canonical_loop_result(input)
 {
+  Nickel.LoopEquality.pointwise_callbacks_any<#facts_vec, #Result.t_Result(facts_vec, Native.t_Error)>(mk_usize(0), Core_models.Slice.impl__len(input));
   assert(Native.canonical(input) == canonical_loop_result(input)) by {
     Tactics.prune("Nickel_crdt.Edit.canonical_step");
+    Tactics.prune("Nickel_crdt.Event_layer.canonical_step");
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
     Tactics.smt_sync'(1, 1)
   }
 }
@@ -242,6 +249,7 @@ proof canonical_has_unique_ids(facts: t_Slice(Native.t_Fact)): unit
     canonical_step_preserves_unique(facts, out);
     assert(canonical_result_unique(Native.canonical_step(facts, out))) by {
       Tactics.prune("Nickel_crdt.Edit.canonical_step");
+    Tactics.prune("Nickel_crdt.Event_layer.canonical_step");
       Tactics.smt_sync'(1, 1)
     }
   };
@@ -250,8 +258,10 @@ proof canonical_has_unique_ids(facts: t_Slice(Native.t_Fact)): unit
     ((_: Native.t_Error) => Prims.l_True));
   assert(canonical_result_unique(Native.canonical(facts))) by {
     Tactics.prune("Nickel_crdt.Edit.canonical");
+    Tactics.prune("Nickel_crdt.Event_layer.canonical");
     Tactics.prune("Alloc.Vec.impl__new");
     Tactics.prune("Nickel_crdt.Edit.canonical_step");
+    Tactics.prune("Nickel_crdt.Event_layer.canonical_step");
     Tactics.prune("Nickel.LoopUtil.step_safe");
     Tactics.prune("Nickel.LoopUtil.output_safe");
     Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
@@ -307,9 +317,11 @@ proof plan_publishes_canonical_facts(before: Native.t_Replica, fact: Native.t_Fa
   assert(canonical_publication(before, fact, Native.impl_Replica__plan(before, fact))) by {
     Tactics.prune("Nickel_crdt.Edit.impl_Replica__with_tree");
     Tactics.prune("Nickel_crdt.Edit.canonical");
+    Tactics.prune("Nickel_crdt.Event_layer.canonical");
     Tactics.prune("Nickel_crdt.Edit.interpret");
     Tactics.prune("Nickel_crdt.Edit.impl_Replica__duplicate");
     Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.prune("Nickel_crdt.Event_layer.push");
     Tactics.smt_sync'(1, 1)
   }
 }
@@ -393,6 +405,7 @@ proof append_whole_fact(input: t_Slice(Native.t_Fact), out: facts_vec, fact: Nat
 {
   assert(append_content_result(input, out, Native.push(out, fact))) by {
     Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.prune("Nickel_crdt.Event_layer.push");
     Tactics.prune("Alloc.Vec.impl_1__as_slice");
     Tactics.prune("Alloc.Vec.from_seq");
     Tactics.prune("Alloc.Vec.impl_1__len");
@@ -430,6 +443,7 @@ proof canonical_selects_whole_facts(input: t_Slice(Native.t_Fact)): unit
     canonical_step_selects_whole_facts(input, out, v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(out))));
     assert(content_step_result(input, v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(out))), Native.canonical_step(input, out))) by {
       Tactics.prune("Nickel_crdt.Edit.canonical_step");
+    Tactics.prune("Nickel_crdt.Event_layer.canonical_step");
       Tactics.smt_sync'(1, 1)
     }
   };
@@ -438,8 +452,10 @@ proof canonical_selects_whole_facts(input: t_Slice(Native.t_Fact)): unit
     ((_: Native.t_Error) => Prims.l_True));
   assert(canonical_content_result(input, Native.canonical(input))) by {
     Tactics.prune("Nickel_crdt.Edit.canonical");
+    Tactics.prune("Nickel_crdt.Event_layer.canonical");
     Tactics.prune("Alloc.Vec.impl__new");
     Tactics.prune("Nickel_crdt.Edit.canonical_step");
+    Tactics.prune("Nickel_crdt.Event_layer.canonical_step");
     Tactics.prune("Nickel.LoopUtil.step_safe");
     Tactics.prune("Nickel.LoopUtil.output_safe");
     Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
@@ -554,6 +570,7 @@ proof push_has_exact_contents(before: facts_vec, fact: Native.t_Fact): unit
 {
   assert(push_exact_result(before, fact, Native.push(before, fact))) by {
     Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.prune("Nickel_crdt.Event_layer.push");
     Tactics.prune("Alloc.Vec.impl_1__as_slice");
     Tactics.prune("Alloc.Vec.from_seq");
     Tactics.prune("Alloc.Vec.impl_1__len");
@@ -665,6 +682,7 @@ proof selected_id_is_least(input: t_Slice(Native.t_Fact), out: t_Slice(Native.t_
     Tactics.prune("Nickel.LoopUtil.output_safe");
     Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
     Tactics.prune("Nickel_crdt.Edit.has_fact");
+    Tactics.prune("Nickel_crdt.Event_layer.has_fact");
     Tactics.prune("Nickel_crdt.Edit.event_lt");
     Tactics.smt_sync'(1, 1)
   }
@@ -691,6 +709,7 @@ proof membership_absence_exact(input: t_Slice(Native.t_Fact), id: Native.t_Event
     absent_lookup(input, id, mk_usize(0));
     assert(Native.has_fact(input, id) == false) by {
       Tactics.prune("Nickel_crdt.Edit.has_fact");
+    Tactics.prune("Nickel_crdt.Event_layer.has_fact");
       Tactics.prune("Core_models.Slice.impl__len");
       Tactics.prune("Rust_primitives.Slice.slice_index");
       Tactics.smt_sync'(1, 1)
@@ -700,6 +719,7 @@ proof membership_absence_exact(input: t_Slice(Native.t_Fact), id: Native.t_Event
   if Native.has_fact(input, id) {
     assert((Native.has_fact(input, id) == false <==> Nickel.EditIdentity.prefix_absent(input, id, mk_usize(0), Nickel.EditIdentity.length(input)))) by {
       Tactics.prune("Nickel_crdt.Edit.has_fact");
+    Tactics.prune("Nickel_crdt.Event_layer.has_fact");
       Tactics.prune("Core_models.Slice.impl__len");
       Tactics.prune("Rust_primitives.Slice.slice_index");
       Tactics.smt_sync'(1, 1)
@@ -708,6 +728,7 @@ proof membership_absence_exact(input: t_Slice(Native.t_Fact), id: Native.t_Event
     membership_absent(input, id);
     assert((Native.has_fact(input, id) == false <==> Nickel.EditIdentity.prefix_absent(input, id, mk_usize(0), Nickel.EditIdentity.length(input)))) by {
       Tactics.prune("Nickel_crdt.Edit.has_fact");
+    Tactics.prune("Nickel_crdt.Event_layer.has_fact");
       Tactics.prune("Core_models.Slice.impl__len");
       Tactics.prune("Rust_primitives.Slice.slice_index");
       Tactics.smt_sync'(1, 1)
@@ -742,6 +763,7 @@ proof push_membership(out: facts_vec, fact: Native.t_Fact, id: Native.t_EventId)
       membership_absence_exact(Alloc.Vec.impl_1__as_slice(next), id);
       assert(absent_after_push(out, fact, id, Native.push(out, fact))) by {
         Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.prune("Nickel_crdt.Event_layer.push");
         Tactics.prune("Alloc.Vec.impl_1__as_slice");
         Tactics.prune("Alloc.Vec.from_seq");
         Tactics.prune("Alloc.Vec.impl_1__len");
@@ -779,6 +801,7 @@ proof append_least_preserves_frontier(input: t_Slice(Native.t_Fact), out: facts_
         assert(Native.push(out, fact) == (next, Result.Result_Ok(())));
         assert(Native.has_fact(Alloc.Vec.impl_1__as_slice(out), Rust_primitives.Slice.slice_index(input, j).f_id) == false) by {
           Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.prune("Nickel_crdt.Event_layer.push");
           Tactics.smt_sync'(1, 1)
         };
         if v(i) < v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(out))) {
@@ -800,6 +823,7 @@ proof append_least_preserves_frontier(input: t_Slice(Native.t_Fact), out: facts_
       {
         assert(Alloc.Vec.impl_1__as_slice(next) == Seq.append(Alloc.Vec.impl_1__as_slice(out), Seq.create(1, fact))) by {
           Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.prune("Nickel_crdt.Event_layer.push");
           Tactics.prune("Alloc.Vec.impl_1__as_slice");
           Tactics.prune("Alloc.Vec.from_seq");
           Tactics.prune("Alloc.Vec.impl_1__len");
@@ -854,13 +878,17 @@ proof canonical_orders_facts(input: t_Slice(Native.t_Fact)): unit
     ((_: Native.t_Error) => Prims.l_True));
   assert(order_step_result(input, Native.canonical(input))) by {
     Tactics.prune("Nickel_crdt.Edit.canonical");
+    Tactics.prune("Nickel_crdt.Event_layer.canonical");
     Tactics.prune("Alloc.Vec.impl__new");
     Tactics.prune("Nickel.LoopUtil.step_safe");
     Tactics.prune("Nickel.LoopUtil.output_safe");
     Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
     Tactics.prune("Nickel_crdt.Edit.canonical_step");
+    Tactics.prune("Nickel_crdt.Event_layer.canonical_step");
     Tactics.prune("Nickel_crdt.Edit.choose_unseen");
+    Tactics.prune("Nickel_crdt.Event_layer.choose_unseen");
     Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.prune("Nickel_crdt.Event_layer.push");
     Tactics.smt_sync'(1, 1)
   }
 }
@@ -1072,9 +1100,11 @@ proof plan_publishes_interpretation(before: Native.t_Replica, fact: Native.t_Fac
   assert(plan_interpretation(Native.impl_Replica__plan(before, fact))) by {
     Tactics.prune("Nickel_crdt.Edit.impl_Replica__with_tree");
     Tactics.prune("Nickel_crdt.Edit.canonical");
+    Tactics.prune("Nickel_crdt.Event_layer.canonical");
     Tactics.prune("Nickel_crdt.Edit.interpret");
     Tactics.prune("Nickel_crdt.Edit.impl_Replica__duplicate");
     Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.prune("Nickel_crdt.Event_layer.push");
     Tactics.smt_sync'(1, 1)
   }
 }
@@ -1182,9 +1212,12 @@ proof canonical_step_succeeds(input: t_Slice(Native.t_Fact), out: facts_vec): un
       push_result_is_exact(out, Native.clone_selected_fact(Rust_primitives.Slice.slice_index(input, k)));
       assert(canonical_total(Native.canonical_step(input, out))) by {
         Tactics.prune("Nickel_crdt.Edit.choose_unseen");
+    Tactics.prune("Nickel_crdt.Event_layer.choose_unseen");
         Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.prune("Nickel_crdt.Event_layer.push");
         Tactics.prune("Nickel_crdt.Edit.clone_selected_fact");
         Tactics.prune("Nickel_crdt.Edit.has_fact");
+    Tactics.prune("Nickel_crdt.Event_layer.has_fact");
         Tactics.smt_sync'(1, 1)
       }
     },
@@ -1222,13 +1255,17 @@ proof canonical_succeeds_for_unique_ids(input: t_Slice(Native.t_Fact)): unit
     ((_: Native.t_Error) => Prims.l_False));
   assert(canonical_total(Native.canonical(input))) by {
     Tactics.prune("Nickel_crdt.Edit.canonical");
+    Tactics.prune("Nickel_crdt.Event_layer.canonical");
     Tactics.prune("Alloc.Vec.impl__new");
     Tactics.prune("Nickel.LoopUtil.step_safe");
     Tactics.prune("Nickel.LoopUtil.output_safe");
     Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
     Tactics.prune("Nickel_crdt.Edit.canonical_step");
+    Tactics.prune("Nickel_crdt.Event_layer.canonical_step");
     Tactics.prune("Nickel_crdt.Edit.choose_unseen");
+    Tactics.prune("Nickel_crdt.Event_layer.choose_unseen");
     Tactics.prune("Nickel_crdt.Edit.push");
+    Tactics.prune("Nickel_crdt.Event_layer.push");
     Tactics.smt_sync'(1, 1)
   }
 }

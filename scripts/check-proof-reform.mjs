@@ -70,6 +70,9 @@ export function checkProofReformFence() {
   for(const native of ['interpret_event','interpret_scheduled'])
     for(const name of ['EditCausal','EditPast'])
       assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel_crdt.Edit.'+native+'")'),new RegExp(name+' reform:'));
+  assertReformedSource('EditPast','Tactics.prune("Nickel.EventGraph.membership_is_exact")');
+  for(const name of ['fixture','EditCausal','EditAtomic','EditIdentity','EditWellFormed','EditPastTotal','EditSchedule'])
+    assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EventGraph.membership_is_exact")'),new RegExp(name+' reform:'));
   assertReformedSource('EditPastTotal','Tactics.prune("Nickel_crdt.Edit.validate_after")');
   assertReformedSource('EditPastTotal','Tactics.prune("Nickel_crdt.Edit.duplicate_events")');
   assert.throws(()=>assertReformedSource('EditPast','Tactics.prune("Nickel_crdt.Edit.duplicate_events")'),/EditPast reform:/);

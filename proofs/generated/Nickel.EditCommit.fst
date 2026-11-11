@@ -32,9 +32,11 @@ let request_bound (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_V
 let authored_fact_binds_request (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) (delete: Alloc.Vec.t_Vec Native.t_BirthId Alloc.Alloc.t_Global) : Lemma (ensures request_bound before gap insert delete (Native.impl_Replica__edit before gap insert delete)) =
   assert (request_bound before gap insert delete (Native.impl_Replica__edit before gap insert delete)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__with_counter";
     Tactics.prune "Nickel_crdt.Edit.next_counter_after";
     Tactics.prune "Nickel_crdt.Edit.frontier";
+    Tactics.prune "Nickel_crdt.Event_layer.frontier";
     Tactics.prune "Nickel_crdt.Edit.invalid";
     Tactics.smt_sync' 1 1
   )
@@ -45,6 +47,9 @@ let received_plan (before: Native.t_Replica) (result: Nickel.EditAtomic.plan_res
 let receive_uses_plan (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures Native.impl_Replica__receive before fact == received_plan before (Native.impl_Replica__plan before fact)) =
   assert (Native.impl_Replica__receive before fact == received_plan before (Native.impl_Replica__plan before fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.smt_sync' 1 1
   )
 
@@ -54,11 +59,15 @@ let authored_fact_replays_same_commit (before: Native.t_Replica) (gap: usize) (i
   match Native.impl_Replica__edit before gap insert delete with | (_, Result.Result_Ok (Native.Local_Authored fact)) -> begin receive_uses_plan before fact;
   assert (same_commit before (Native.impl_Replica__edit before gap insert delete)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__with_counter";
     Tactics.prune "Nickel_crdt.Edit.next_counter_after";
     Tactics.prune "Nickel_crdt.Edit.frontier";
+    Tactics.prune "Nickel_crdt.Event_layer.frontier";
     Tactics.prune "Nickel_crdt.Edit.invalid";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.smt_sync' 1 1
   ) end | _ -> begin () end
 
@@ -74,6 +83,7 @@ let planned_private (before: Native.t_Replica) (result: Nickel.EditAtomic.plan_r
 let plan_preserves_private_state (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures planned_private before (Native.impl_Replica__plan before fact)) [SMTPat (Native.impl_Replica__plan before fact)] =
   assert (planned_private before (Native.impl_Replica__plan before fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__with_tree";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
     Tactics.smt_sync' 1 1
   )
 
@@ -84,7 +94,10 @@ let receive_preserves_private_state (before: Native.t_Replica) (fact: Native.t_F
   receive_uses_plan before fact;
   assert (private_unchanged before (Native.impl_Replica__receive before fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.smt_sync' 1 1
   )
 
@@ -100,6 +113,7 @@ let planned_shared (left: Nickel.EditAtomic.plan_result) (right: Nickel.EditAtom
 let plan_ignores_private_state (before: Native.t_Replica) (remote: Native.t_Replica) (fact: Native.t_Fact) : Lemma (requires same_shared before remote) (ensures planned_shared (Native.impl_Replica__plan before fact) (Native.impl_Replica__plan remote fact)) [SMTPat (Native.impl_Replica__plan before fact); SMTPat (Native.impl_Replica__plan remote fact)] =
   assert (planned_shared (Native.impl_Replica__plan before fact) (Native.impl_Replica__plan remote fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__with_tree";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
     Tactics.smt_sync' 1 1
   )
 
@@ -111,7 +125,10 @@ let admission_ignores_private_state (before: Native.t_Replica) (remote: Native.t
   receive_uses_plan remote fact;
   assert (same_admission (Native.impl_Replica__receive before fact) (Native.impl_Replica__receive remote fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.smt_sync' 1 1
   )
 
@@ -125,5 +142,7 @@ let local_author_remote_admit (before: Native.t_Replica) (remote: Native.t_Repli
   assert (delivered_commit remote (Native.impl_Replica__edit before gap insert delete)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.smt_sync' 1 1
   ) end | _ -> begin () end

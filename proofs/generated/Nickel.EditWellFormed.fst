@@ -84,7 +84,6 @@ let no_validation_success (result: Result.t_Result unit Native.t_Error) : Type0 
   match result with | Result.Result_Err _ -> begin Prims.l_True end | _ -> begin Prims.l_False end
 
 let successful_validation_has_valid_scalars (facts: t_Slice Native.t_Fact) (limits: Native.t_Limits) (fact: Native.t_Fact) : Lemma (ensures validated_scalars fact (Native.impl_Replica__validate_new facts limits fact)) =
-  Nickel.LoopUtil.early_return_preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (fun (_: nat) (_: unit) -> Prims.l_True) no_validation_success;
   Nickel.LoopUtil.early_return_preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (fun (_: nat) (_: usize) -> Prims.l_True) no_validation_success;
   scalar_validation_is_sound (Alloc.Vec.impl_1__as_slice fact.f_insert);
   assert (validated_scalars fact (Native.impl_Replica__validate_new facts limits fact)) by (
@@ -110,7 +109,10 @@ let receive_added_fact_has_valid_scalars (before: Native.t_Replica) (fact: Nativ
   assert (added_scalars fact (Native.impl_Replica__receive before fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__validate_new";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
     Tactics.prune "Alloc.Vec.impl_1__len";
@@ -131,6 +133,8 @@ let receive_preserves_scalar_validity (before: Native.t_Replica) (fact: Native.t
   receive_added_fact_has_valid_scalars before fact;
   match Native.impl_Replica__receive before fact with | (next, Result.Result_Ok Native.Admission_Added) -> begin assert (receive_scalars_preserved (Native.impl_Replica__receive before fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
     Tactics.prune "Alloc.Vec.impl_1__len";
@@ -139,6 +143,8 @@ let receive_preserves_scalar_validity (before: Native.t_Replica) (fact: Native.t
     Tactics.smt_sync' 1 1
   ) end | _ -> begin assert (receive_scalars_preserved (Native.impl_Replica__receive before fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
     Tactics.prune "Alloc.Vec.impl_1__len";
@@ -155,6 +161,8 @@ let edit_authors_only_valid_scalars (before: Native.t_Replica) (gap: usize) (ins
   match Native.impl_Replica__edit before gap insert delete with | (_, Result.Result_Ok (Native.Local_Authored fact)) -> begin receive_added_fact_has_valid_scalars before fact end | _ -> begin () end;
   assert (authored_scalars (Native.impl_Replica__edit before gap insert delete)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
@@ -217,9 +225,11 @@ let membership_result_is_exact (facts: t_Slice Native.t_Fact) (id: Native.t_Even
   event_membership_is_presence facts id;
   match Native.has_fact facts id with | true -> begin assert (membership_result facts id (Native.has_fact facts id)) by (
     Tactics.prune "Nickel_crdt.Edit.has_fact";
+    Tactics.prune "Nickel_crdt.Event_layer.has_fact";
     Tactics.smt_sync' 1 1
   ) end | false -> begin assert (membership_result facts id (Native.has_fact facts id)) by (
     Tactics.prune "Nickel_crdt.Edit.has_fact";
+    Tactics.prune "Nickel_crdt.Event_layer.has_fact";
     Tactics.smt_sync' 1 1
   ) end
 
@@ -242,6 +252,7 @@ let dependency_validation_is_sound (facts: t_Slice Native.t_Fact) (after: t_Slic
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
     Tactics.prune "Nickel_crdt.Edit.has_fact";
+    Tactics.prune "Nickel_crdt.Event_layer.has_fact";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
     Tactics.prune "Alloc.Vec.impl_1__len";
@@ -257,6 +268,7 @@ let present_dependencies_pass_guard (facts: t_Slice Native.t_Fact) (after: t_Sli
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
     Tactics.prune "Nickel_crdt.Edit.has_fact";
+    Tactics.prune "Nickel_crdt.Event_layer.has_fact";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
     Tactics.prune "Alloc.Vec.impl_1__len";
@@ -272,6 +284,7 @@ let successful_past_has_direct_dependencies (facts: t_Slice Native.t_Fact) (afte
   dependency_validation_is_sound facts after;
   assert (past_has_dependencies facts after (Native.past facts after)) by (
     Tactics.prune "Nickel_crdt.Edit.validate_after";
+    Tactics.prune "Nickel_crdt.Event_layer.validate_after";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
     Tactics.prune "Alloc.Vec.impl_1__len";
@@ -293,6 +306,7 @@ let successful_validation_has_direct_dependencies (facts: t_Slice Native.t_Fact)
   successful_past_has_direct_dependencies facts (Alloc.Vec.impl_1__as_slice fact.f_after);
   assert (validation_has_dependencies facts fact (Native.impl_Replica__validate_new facts limits fact)) by (
     Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
     Tactics.prune "Alloc.Vec.impl_1__len";
@@ -314,7 +328,10 @@ let receive_added_has_direct_dependencies (before: Native.t_Replica) (fact: Nati
   assert (added_dependencies before fact (Native.impl_Replica__receive before fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__validate_new";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
     Tactics.prune "Alloc.Vec.impl_1__len";
@@ -395,6 +412,8 @@ let receive_preserves_causal_closure (before: Native.t_Replica) (fact: Native.t_
   match Native.impl_Replica__receive before fact with | (next, Result.Result_Ok Native.Admission_Added) -> begin exact_extension_preserves_causal_closure before.f_facts fact next.f_facts end | _ -> begin () end;
   assert (receive_causally_closed (Native.impl_Replica__receive before fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
@@ -415,6 +434,8 @@ let edit_preserves_causal_closure (before: Native.t_Replica) (gap: usize) (inser
   exact_extension_preserves_causal_closure before.f_facts fact next.f_facts end | _ -> begin () end;
   assert (edit_causally_closed (Native.impl_Replica__edit before gap insert delete)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";

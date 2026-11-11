@@ -19,6 +19,8 @@ module Option = Core_models.Option
 
 open Nickel.Vector
 
+open Nickel.EventShell
+
 type plan_result = Result.t_Result (Option.t_Option Native.t_Replica) Native.t_Error
 
 let plan_result_shape (result: plan_result) : Type0 =
@@ -36,6 +38,7 @@ let plan_duplicate_prefix (duplicate: Result.t_Result bool Native.t_Error) (resu
 let plan_preserves_duplicate_result (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures plan_duplicate_prefix (Native.impl_Replica__duplicate (Alloc.Vec.impl_1__as_slice before.f_facts) fact) (Native.impl_Replica__plan before fact)) [SMTPat (Native.impl_Replica__plan before fact)] =
   assert (plan_duplicate_prefix (Native.impl_Replica__duplicate (Alloc.Vec.impl_1__as_slice before.f_facts) fact) (Native.impl_Replica__plan before fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__duplicate";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
     Tactics.smt_sync' 1 1
   )
 
@@ -50,9 +53,12 @@ let successful_plan_requires_validation (before: Native.t_Replica) (fact: Native
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__validate_new";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__duplicate";
     Tactics.prune "Nickel_crdt.Edit.push";
+    Tactics.prune "Nickel_crdt.Event_layer.push";
     Tactics.prune "Nickel_crdt.Edit.canonical";
+    Tactics.prune "Nickel_crdt.Event_layer.canonical";
     Tactics.prune "Nickel_crdt.Edit.interpret";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__with_tree";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
     Tactics.smt_sync' 1 1
   )
 
@@ -62,6 +68,9 @@ let receive_neutral (before: Native.t_Replica) (outcome: Native.t_Replica & Resu
 let receive_rejection_unchanged (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures receive_neutral before (Native.impl_Replica__receive before fact)) =
   assert (receive_neutral before (Native.impl_Replica__receive before fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.smt_sync' 1 1
   )
 
@@ -71,7 +80,9 @@ let edit_neutral (before: Native.t_Replica) (outcome: Native.t_Replica & Result.
 let edit_rejection_or_empty_unchanged (before: Native.t_Replica) (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) (delete: Alloc.Vec.t_Vec Native.t_BirthId Alloc.Alloc.t_Global) : Lemma (ensures edit_neutral before (Native.impl_Replica__edit before gap insert delete)) =
   assert (edit_neutral before (Native.impl_Replica__edit before gap insert delete)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
     Tactics.prune "Nickel_crdt.Edit.frontier";
+    Tactics.prune "Nickel_crdt.Event_layer.frontier";
     Tactics.prune "Nickel_crdt.Edit.next_counter_after";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__with_counter";
     Tactics.smt_sync' 1 1
@@ -106,9 +117,11 @@ let authored_edit_advances_once (before: Native.t_Replica) (gap: usize) (insert:
   result_has_constructor (Native.frontier (Alloc.Vec.impl_1__as_slice before.f_facts));
   assert (edit_counter_step before (Native.impl_Replica__edit before gap insert delete)) by (
     Tactics.prune "Nickel_crdt.Edit.frontier";
+    Tactics.prune "Nickel_crdt.Event_layer.frontier";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__with_counter";
     Tactics.prune "Nickel_crdt.Edit.next_counter_after";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
     Tactics.smt_sync' 1 1
   )
 

@@ -166,14 +166,7 @@ fn validate_scalars(scalars: &[u32]) -> Result<(), Error> {
     Ok(())
 }
 fn duplicate_events(xs: &[EventId]) -> bool {
-    for i in 0..xs.len() {
-        for j in 0..i {
-            if xs[i] == xs[j] {
-                return true;
-            }
-        }
-    }
-    false
+    crate::event_layer::duplicate_ids(xs, same_event_id)
 }
 fn duplicate_births(xs: &[BirthId]) -> bool {
     for i in 0..xs.len() {
@@ -200,11 +193,7 @@ fn add(a: usize, b: usize) -> Result<usize, Error> {
     Ok(a + b)
 }
 fn push<T>(xs: &mut Vec<T>, value: T) -> Result<(), Error> {
-    if xs.len() == usize::MAX {
-        return Err(Error::Internal);
-    }
-    xs.push(value);
-    Ok(())
+    crate::event_layer::push(xs, value, internal_error)
 }
 fn insert<T>(xs: &mut Vec<T>, at: usize, value: T) -> Result<(), Error> {
     if at > xs.len() || xs.len() == usize::MAX {
@@ -404,12 +393,7 @@ fn next_counter_after(counter: u64) -> Result<u64, Error> {
     }
 }
 fn has_event(ids: &[EventId], id: EventId) -> bool {
-    for i in 0..ids.len() {
-        if ids[i] == id {
-            return true;
-        }
-    }
-    false
+    crate::event_layer::has_id(ids, &id, same_event_id)
 }
 fn has_birth(ids: &[BirthId], id: BirthId) -> bool {
     for old in ids {
@@ -420,52 +404,43 @@ fn has_birth(ids: &[BirthId], id: BirthId) -> bool {
     false
 }
 fn has_fact(facts: &[Fact], id: EventId) -> bool {
-    for i in 0..facts.len() {
-        if facts[i].id == id {
-            return true;
-        }
-    }
-    false
+    crate::event_layer::has_fact(facts, &id, fact_id, same_event_id)
 }
 // Same selection scan, separated so its fresh-choice invariant can be checked.
 fn choose_unseen(facts: &[Fact], out: &[Fact]) -> Result<Option<usize>, Error> {
-    let mut chosen = None;
-    for j in 0..facts.len() {
-        if !has_fact(out, facts[j].id) {
-            match chosen {
-                None => chosen = Some(j),
-                Some(k) => {
-                    if k >= facts.len() {
-                        return Err(Error::Internal);
-                    }
-                    if event_lt(facts[j].id, facts[k].id) {
-                        chosen = Some(j);
-                    }
-                }
-            }
-        }
-    }
-    Ok(chosen)
+    crate::event_layer::choose_unseen(
+        facts,
+        out,
+        fact_id,
+        same_event_id,
+        earlier_event_id,
+        internal_error,
+    )
 }
 // Copying a selected fact is a whole-fact operation, independently of its ID.
 fn clone_selected_fact(fact: &Fact) -> Fact {
     fact.clone()
 }
 fn canonical_step(facts: &[Fact], mut out: Vec<Fact>) -> Result<Vec<Fact>, Error> {
-    let chosen = choose_unseen(facts, &out)?;
-    let i = chosen.ok_or(Error::Internal)?;
-    if i >= facts.len() {
-        return Err(Error::Internal);
-    }
-    push(&mut out, clone_selected_fact(&facts[i]))?;
-    Ok(out)
+    crate::event_layer::canonical_step(
+        facts,
+        out,
+        fact_id,
+        same_event_id,
+        earlier_event_id,
+        internal_error,
+        clone_selected_fact,
+    )
 }
 fn canonical(facts: &[Fact]) -> Result<Vec<Fact>, Error> {
-    let mut out = Vec::new();
-    for _ in 0..facts.len() {
-        out = canonical_step(facts, out)?;
-    }
-    Ok(out)
+    crate::event_layer::canonical(
+        facts,
+        fact_id,
+        same_event_id,
+        earlier_event_id,
+        internal_error,
+        clone_selected_fact,
+    )
 }
 fn deletes(facts: &[Fact], id: BirthId) -> bool {
     for f in facts {
@@ -476,76 +451,51 @@ fn deletes(facts: &[Fact], id: BirthId) -> bool {
     false
 }
 fn ready(after: &[EventId], done: &[EventId]) -> bool {
-    for i in 0..after.len() {
-        if has_event(done, after[i]) {
-            // This predecessor has run; keep checking.
-        } else {
-            return false;
-        }
-    }
-    true
+    crate::event_layer::ready(after, done, same_event_id)
 }
 // Return the first eligible stored event; interpret uses this same scan.
 fn choose_ready(facts: &[Fact], done: &[EventId]) -> Option<usize> {
-    for i in 0..facts.len() {
-        if has_event(done, facts[i].id) {
-            // Already scheduled.
-        } else if ready(&facts[i].after, done) {
-            return Some(i);
-        }
-    }
-    None
+    crate::event_layer::choose_ready(facts, done, fact_id, fact_after, same_event_id)
 }
 fn frontier(facts: &[Fact]) -> Result<Vec<EventId>, Error> {
-    let mut out = Vec::new();
-    for f in facts {
-        let mut child = false;
-        for e in facts {
-            if has_event(&e.after, f.id) {
-                child = true;
-            }
-        }
-        if !child {
-            push(&mut out, f.id)?;
-        }
-    }
-    Ok(out)
+    crate::event_layer::frontier(facts, fact_id, fact_after, same_event_id, internal_error)
 }
 // Direct predecessor admission guard, separated from closure computation.
 fn validate_after(facts: &[Fact], after: &[EventId]) -> Result<(), Error> {
-    for i in 0..after.len() {
-        if !has_fact(facts, after[i]) {
-            return Err(Error::Missing);
-        }
-    }
-    Ok(())
+    crate::event_layer::validate_after(facts, after, fact_id, same_event_id, missing_error)
 }
 // Each layer has an indexed range so its extracted callback has executable
 // LoopUtil semantics; keep expansion order and ordinary error propagation.
 fn extend_past(fact: &Fact, mut selected: Vec<EventId>) -> Result<Vec<EventId>, Error> {
-    if has_event(&selected, fact.id) {
-        for i in 0..fact.after.len() {
-            let id = fact.after[i];
-            if !has_event(&selected, id) {
-                push(&mut selected, id)?;
-            }
-        }
-    }
-    Ok(selected)
+    crate::event_layer::extend_past(
+        fact,
+        selected,
+        fact_id,
+        fact_after,
+        same_event_id,
+        internal_error,
+    )
 }
 fn past_pass(facts: &[Fact], mut selected: Vec<EventId>) -> Result<Vec<EventId>, Error> {
-    for i in 0..facts.len() {
-        selected = extend_past(&facts[i], selected)?;
-    }
-    Ok(selected)
+    crate::event_layer::past_pass(
+        facts,
+        selected,
+        fact_id,
+        fact_after,
+        same_event_id,
+        internal_error,
+    )
 }
 fn past(facts: &[Fact], after: &[EventId]) -> Result<Vec<EventId>, Error> {
-    let mut selected = after.to_vec();
-    validate_after(facts, after)?;
-    for _ in 0..facts.len() {
-        selected = past_pass(facts, selected)?;
-    }
-    Ok(selected)
+    crate::event_layer::past(
+        facts,
+        after,
+        fact_id,
+        fact_after,
+        same_event_id,
+        internal_error,
+        missing_error,
+    )
 }
 fn visible(facts: &[Fact]) -> Result<Vec<BirthId>, Error> {
     let mut ids = Vec::new();
@@ -564,20 +514,27 @@ fn visible(facts: &[Fact]) -> Result<Vec<BirthId>, Error> {
 }
 // Preserve storage order and whole fact values while selecting an author basis.
 fn select_basis(facts: &[Fact], selected: &[EventId]) -> Result<Vec<Fact>, Error> {
-    let mut basis = Vec::new();
-    for i in 0..facts.len() {
-        let fact = &facts[i];
-        if has_event(selected, fact.id) {
-            push(&mut basis, clone_selected_fact(fact))?;
-        }
-    }
-    Ok(basis)
+    crate::event_layer::select_basis(
+        facts,
+        selected,
+        fact_id,
+        same_event_id,
+        internal_error,
+        clone_selected_fact,
+    )
 }
 // The author basis boundary: exact past first, then whole-fact selection.
 fn event_basis(facts: &[Fact], event: &Fact) -> Result<(Vec<EventId>, Vec<Fact>), Error> {
-    let selected = past(facts, &event.after)?;
-    let basis = select_basis(facts, &selected)?;
-    Ok((selected, basis))
+    crate::event_layer::event_basis(
+        facts,
+        event,
+        fact_id,
+        fact_after,
+        same_event_id,
+        internal_error,
+        missing_error,
+        clone_selected_fact,
+    )
 }
 // Replay one operation group without changing its node order.
 fn replay_nodes(mut tree: Tree, nodes: &[Node]) -> Result<Tree, Error> {
@@ -598,7 +555,11 @@ fn replay_author(operations: &[(EventId, Vec<Node>)], selected: &[EventId]) -> R
     Ok(author)
 }
 // Finish author reconstruction before applying the event's own insertions.
-fn author_context(facts: &[Fact], event: &Fact, operations: &[(EventId, Vec<Node>)]) -> Result<(Vec<Fact>, Tree), Error> {
+fn author_context(
+    facts: &[Fact],
+    event: &Fact,
+    operations: &[(EventId, Vec<Node>)],
+) -> Result<(Vec<Fact>, Tree), Error> {
     let (selected, basis) = event_basis(facts, event)?;
     let author = replay_author(operations, &selected)?;
     Ok((basis, author))
@@ -634,22 +595,15 @@ fn interpret_event(
 // Retain the actual done vector as a private scheduling witness; no extra trace
 // is allocated. The ordinary interpreter below erases it at the return boundary.
 fn interpret_scheduled(facts: &[Fact]) -> Result<(Tree, Vec<EventId>), Error> {
-    let mut result = Tree::default();
-    let mut done: Vec<EventId> = Vec::new();
-    let mut operations: Vec<(EventId, Vec<Node>)> = Vec::new();
-    for _ in 0..facts.len() {
-        let index = choose_ready(facts, &done).ok_or(Error::Internal)?;
-        if index >= facts.len() {
-            return Err(Error::Internal);
-        }
-        let event = &facts[index];
-        let pair = interpret_event(facts, event, &operations, result)?;
-        let (next, ops) = pair;
-        result = next;
-        push(&mut done, event.id)?;
-        push(&mut operations, (event.id, ops))?;
-    }
-    Ok((result, done))
+    crate::event_shell::scheduled(
+        facts,
+        Tree::default(),
+        &(),
+        fact_id,
+        scheduled_choose,
+        scheduled_apply,
+        internal_error,
+    )
 }
 fn interpret(facts: &[Fact]) -> Result<Tree, Error> {
     let pair = interpret_scheduled(facts)?;
@@ -706,49 +660,30 @@ impl Replica {
         if fact.id.counter == 0 || fact.id.counter > MAX_COUNTER {
             return Err(invalid(Invalid::Counter));
         }
-        for i in 0..facts.len() {
-            let old = &facts[i];
-            if old.id == fact.id {
-                return if fact_equal(old, fact) {
-                    Ok(true)
-                } else {
-                    Err(invalid(Invalid::Conflict))
-                };
-            }
+        match crate::event_layer::classify(facts, fact, fact_id, same_event_id, fact_equal) {
+            None => Ok(false),
+            Some(true) => Ok(true),
+            Some(false) => Err(invalid(Invalid::Conflict)),
         }
-        Ok(false)
     }
     fn validate_new(facts: &[Fact], limits: Limits, fact: &Fact) -> Result<(), Error> {
-        if facts.len() >= limits.events {
-            return Err(Error::Capacity(Capacity::Events));
-        }
-        if fact.after.len() > limits.dependencies {
-            return Err(Error::Capacity(Capacity::Dependencies));
-        }
-        if duplicate_events(&fact.after) {
-            return Err(invalid(Invalid::DependencyDuplicate));
-        }
-        let selected = past(&facts, &fact.after)?;
-        if fact.id.counter > 1
-            && !has_event(
-                &selected,
-                EventId {
-                    writer: fact.id.writer,
-                    counter: fact.id.counter - 1,
-                },
-            )
-        {
-            return Err(invalid(Invalid::Predecessor));
-        }
-        for i in 0..facts.len() {
-            let e = &facts[i];
-            if has_event(&selected, e.id)
-                && e.id.writer == fact.id.writer
-                && e.id.counter >= fact.id.counter
-            {
-                return Err(invalid(Invalid::Predecessor));
-            }
-        }
+        let selected = crate::event_layer::validate_event(
+            facts,
+            fact,
+            limits.events,
+            limits.dependencies,
+            fact_id,
+            fact_after,
+            same_event_id,
+            required_predecessor,
+            forbidden_ancestor,
+            event_capacity_error,
+            dependency_capacity_error,
+            duplicate_dependency_error,
+            predecessor_error,
+            internal_error,
+            missing_error,
+        )?;
         if fact.insert.len() > limits.scalars {
             return Err(Error::Capacity(Capacity::Scalars));
         }
@@ -798,30 +733,27 @@ impl Replica {
         self
     }
     fn plan(&self, fact: &Fact) -> Result<Option<Self>, Error> {
-        if Self::duplicate(&self.facts, fact)? {
-            return Ok(None);
-        }
-        Self::validate_new(&self.facts, self.limits, fact)?;
-        let mut next = self.clone();
-        push(&mut next.facts, fact.clone())?;
-        next.facts = canonical(&next.facts)?;
-        let tree = interpret(&next.facts)?;
-        if tree.nodes.len() > usize::MAX / 3 {
-            return Err(Error::Internal);
-        }
-        if tree.nodes.len() * 3 > self.limits.ordering_links {
-            return Err(Error::Capacity(Capacity::OrderingLinks));
-        }
-        Ok(Some(next.with_tree(tree)))
+        crate::event_shell::plan(
+            self,
+            fact,
+            &self.limits,
+            plan_duplicate,
+            plan_validate,
+            plan_prepare,
+            plan_execute,
+        )
     }
     /// Consumes and returns the complete instance even on error. The borrowed
     /// input remains the caller's responsibility until Added/Duplicate succeeds.
     pub fn receive(self, fact: &Fact) -> (Self, Result<Admission, Error>) {
-        match self.plan(fact) {
-            Err(error) => (self, Err(error)),
-            Ok(None) => (self, Ok(Admission::Duplicate)),
-            Ok(Some(next)) => (next, Ok(Admission::Added)),
-        }
+        crate::event_shell::receive(
+            self,
+            fact,
+            &(),
+            receive_plan,
+            Admission::Added,
+            Admission::Duplicate,
+        )
     }
     /// One call is one primary edit. Gap is in the pre-edit author's view,
     /// including when this same fact deletes its predecessor or successor.
@@ -882,3 +814,85 @@ mod author_replay_tests;
 #[cfg(test)]
 #[path = "edit/operation_provenance_tests.rs"]
 mod operation_provenance_tests;
+
+// Concrete projections connect the text fact to the arbitrary-event layer.
+fn fact_id(fact: &Fact) -> EventId {
+    fact.id
+}
+fn fact_after(fact: &Fact) -> &[EventId] {
+    &fact.after
+}
+fn same_event_id(a: &EventId, b: &EventId) -> bool {
+    *a == *b
+}
+fn earlier_event_id(a: &EventId, b: &EventId) -> bool {
+    event_lt(*a, *b)
+}
+fn internal_error() -> Error {
+    Error::Internal
+}
+fn missing_error() -> Error {
+    Error::Missing
+}
+fn scheduled_choose(_: &(), facts: &[Fact], done: &[EventId]) -> Option<usize> {
+    choose_ready(facts, done)
+}
+fn scheduled_apply(
+    _: &(),
+    facts: &[Fact],
+    event: &Fact,
+    operations: &[(EventId, Vec<Node>)],
+    result: Tree,
+) -> Result<(Tree, Vec<Node>), Error> {
+    interpret_event(facts, event, operations, result)
+}
+fn plan_duplicate(_: &Limits, before: &Replica, fact: &Fact) -> Result<bool, Error> {
+    Replica::duplicate(&before.facts, fact)
+}
+fn plan_validate(_: &Limits, before: &Replica, fact: &Fact) -> Result<(), Error> {
+    Replica::validate_new(&before.facts, before.limits, fact)
+}
+fn plan_prepare(_: &Limits, mut next: Replica, fact: &Fact) -> Result<Replica, Error> {
+    push(&mut next.facts, fact.clone())?;
+    next.facts = canonical(&next.facts)?;
+    Ok(next)
+}
+fn plan_execute(limits: &Limits, next: Replica) -> Result<Replica, Error> {
+    let tree = interpret(&next.facts)?;
+    if tree.nodes.len() > usize::MAX / 3 {
+        return Err(Error::Internal);
+    }
+    if tree.nodes.len() * 3 > limits.ordering_links {
+        return Err(Error::Capacity(Capacity::OrderingLinks));
+    }
+    Ok(next.with_tree(tree))
+}
+fn receive_plan(_: &(), before: &Replica, fact: &Fact) -> Result<Option<Replica>, Error> {
+    before.plan(fact)
+}
+
+fn required_predecessor(id: &EventId) -> Option<EventId> {
+    if id.counter > 1 {
+        Some(EventId {
+            writer: id.writer,
+            counter: id.counter - 1,
+        })
+    } else {
+        None
+    }
+}
+fn forbidden_ancestor(ancestor: &EventId, current: &EventId) -> bool {
+    ancestor.writer == current.writer && ancestor.counter >= current.counter
+}
+fn event_capacity_error() -> Error {
+    Error::Capacity(Capacity::Events)
+}
+fn dependency_capacity_error() -> Error {
+    Error::Capacity(Capacity::Dependencies)
+}
+fn duplicate_dependency_error() -> Error {
+    invalid(Invalid::DependencyDuplicate)
+}
+fn predecessor_error() -> Error {
+    invalid(Invalid::Predecessor)
+}

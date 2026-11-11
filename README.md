@@ -9,6 +9,15 @@ accept different concurrent subsets. Retained [native capacity witnesses](docs/r
 make this limitation explicit; the crate supplies no general over-capacity
 synchronization or retry-progress policy.
 
+## Shared-layer experiment
+
+The [shared-layer migration](docs/shared-layer-experiment.md) routes the existing
+text engine's admission, graph scans, scheduling and publication through generic
+native code. The atomic record/field-batch example uses that same layer. Try
+`cargo run --locked --example shared-causal`; the main proof gate checks the
+transferred text statements and generic foundations. This remains experimental,
+with client obligations and the unproved semantic boundaries listed in the scope.
+
 ## Ordering research candidates
 
 [FugueMax candidate](docs/fugue-ordering.md) is the current stronger-ordering

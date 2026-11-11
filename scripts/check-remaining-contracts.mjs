@@ -17,11 +17,18 @@ calls('LoopUtil','option_interpret',['unroll','option_run_step','empty','option_
 calls('LoopUtil','break_interpret_any',['break_interpret']);
 calls('LoopUtil','break_interpret',['break_step','break_end','option_run_step','break_interpret']);
 calls('EditIdentity','scan_lookup',['Nickel.LoopUtil.option_run_step','Nickel.LoopUtil.option_run_end','scan_lookup']);
-calls('EditIdentity','duplicate_matches_lookup',['Nickel.LoopUtil.option_interpret_any','scan_lookup']);
+// Migration: duplicate_matches_lookup's old option-interpreter/scan_lookup
+// dependence moved to EventClassifier.classification_is_exact. Keep both
+// generic obligations, then separately test the concrete callback/lookup bridge.
+calls('EventClassifier','classification_is_exact',['Nickel.LoopUtil.option_interpret_any','scan_matches_lookup']);
+calls('EditIdentity','duplicate_matches_lookup',['Nickel.EventClassifier.classification_is_exact','shared_lookup_agrees']);
 calls('EditAtomic','authored_edit_advances_once',['result_has_constructor']);
 calls('EditAtomic','new_has_empty_facts',['Nickel.Vector.empty_vector_contents']);
 for(const owner of ['new_establishes_scalar_validity','new_establishes_causal_closure'])
   calls('EditWellFormed',owner,['Nickel.EditAtomic.new_has_empty_facts']);
+// Migration: the old unit-state pre-scalar loop moved into validate_event's
+// Result<Vec<EventId>, Error> phase. Its redundant unit proof call was retired;
+// keep the actual usize births-loop rule and the scalar-validation callee.
 calls('EditWellFormed','successful_validation_has_valid_scalars',['Nickel.LoopUtil.early_return_preserve_any','scalar_validation_is_sound']);
 for(const owner of ['dependency_validation_is_sound','present_dependencies_pass_guard'])
   calls('EditWellFormed',owner,['Nickel.LoopUtil.result_preserve_any']);
@@ -57,7 +64,14 @@ export async function checkRemainingContracts({proof,output,fstar,models,modelCa
     for(let i=0;i<anchors.length;i++){
       const m=anchors[i],name=[module,owner,callee,i].join('-').replaceAll('.','_');
       const replacement=inline?'()':m[1]+(m[0].trimEnd().endsWith(';')?'();':'()');
-      const changed=body.slice(0,m.index)+replacement+body.slice(m.index+m[0].length);
+      let changed=body.slice(0,m.index)+replacement+body.slice(m.index+m[0].length);
+      if(module==='EditIdentity' && owner==='duplicate_matches_lookup' && callee==='Nickel.EventClassifier.classification_is_exact') {
+        // This callee also has a global pattern; remove the automatic route
+        // at the same concrete assertion, with classify/fold bodies hidden.
+        const anchor='    Tactics.prune "Nickel_crdt.Event_layer.classify";';
+        assert.equal(changed.split(anchor).length,2,'classification callee-prune anchor');
+        changed=changed.replace(anchor,anchor+'\n    Tactics.prune "Nickel.EventClassifier.classification_is_exact";');
+      }
       const view=original.slice(0,a)+changed+original.slice(b),file=path.join(proof,'Nickel.'+module+'.fst');
       try {
         await put(file,view);

@@ -8,7 +8,16 @@ export async function checkPastContracts({proof,output,fstar,models,modelCache})
   const controls=[
     ['past-membership-without-loop-rule',
       /  Nickel\.LoopUtil\.preserve_any[^\n]+;\n/,
-      'Nickel.EditPast.event_membership_is_exact'],
+      'Nickel.EventGraph.membership_is_exact','', 'membership_is_exact'],
+    // Migration: has_event's scan rule now belongs to the generic owner.
+    // Test its concrete caller's callee and exact callback bridge separately,
+    // with both native membership bodies withheld by the existing assertion.
+    ['past-membership-without-generic-contract',
+      /  Graph\.membership_is_exact[^\n]+;\n/,
+      'Nickel.EditPast.event_membership_is_exact','', 'event_membership_is_exact'],
+    ['past-membership-without-concrete-bridge',
+      /  assert \(Shared\.has_id[^\n]+;\n/,
+      'Nickel.EditPast.event_membership_is_exact','', 'event_membership_is_exact'],
     ['past-membership-without-pattern',
       /(?<=let event_membership_is_exact[^\n]*) \[SMTPat \(Native\.has_event ids id\)\]/,
       'Nickel.EditPast.extend_past_preserves'],
@@ -52,14 +61,29 @@ export async function checkPastContracts({proof,output,fstar,models,modelCache})
     ['past-receivers-without-other-totality', /  causally_closed_history_computes_exact_past other roots;\n/, 'Nickel.EditPastTotal.two_closed_receivers_select_same_past'],
     ['past-receivers-without-selection', /  shared_ancestry_selects_same_past into other roots;\n/, 'Nickel.EditPastTotal.two_closed_receivers_select_same_past'],
   ];
-  for(const [control,pattern,theorem,replacement=''] of controls) {
+  for(const [control,pattern,theorem,replacement='',scope] of controls) {
     const name=theorem.split('.').slice(0,2).join('.')+'.fst';
     const original=await fs.readFile(path.join(proof,name),'utf8');
-    assert.equal([...original.matchAll(new RegExp(pattern.source,pattern.flags.includes('g')?pattern.flags:pattern.flags+'g'))].length,1,control+' anchor must be unique');
+    let start=0,end=original.length;
+    if(scope) {
+      const declaration=new RegExp('^let (?:rec )?'+scope+' ','m').exec(original);assert(declaration,control+' declaration');
+      start=declaration.index;
+      const next=/\nlet (?:rec )?\w+ /.exec(original.slice(start+declaration[0].length));
+      end=next?start+declaration[0].length+next.index:original.length;
+    }
+    const body=original.slice(start,end);
+    assert.equal([...body.matchAll(new RegExp(pattern.source,pattern.flags.includes('g')?pattern.flags:pattern.flags+'g'))].length,1,control+' anchor must be unique');
     const dir=path.join(path.dirname(proof),control);
     await fs.rm(dir,{recursive:true,force:true});
     await fs.cp(proof,dir,{recursive:true,preserveTimestamps:true});
-    const view=original.replace(pattern,replacement);await put(path.join(dir,name),view);
+    let changed=body.replace(pattern,replacement);
+    if(control==='past-membership-without-generic-contract') {
+      // Also withhold the callee's automatic SMT-pattern route.
+      const anchor='    Tactics.prune "Nickel_crdt.Edit.has_event";';
+      assert.equal(changed.split(anchor).length,2,control+' callee-prune anchor');
+      changed=changed.replace(anchor,anchor+'\n    Tactics.prune "Nickel.EventGraph.membership_is_exact";');
+    }
+    const view=original.slice(0,start)+changed+original.slice(end);await put(path.join(dir,name),view);
     const result=await verify({dir,roots:[path.join(dir,name)],fstar,models,modelCache});
     await fs.writeFile(path.join(output,control+'.proof.log'),result.log);
     assert(hasOrdinaryTheoremRejection({status:result.status,log:result.log,theorem,view}),

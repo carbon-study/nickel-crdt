@@ -1,0 +1,78 @@
+import Rust_primitives
+import Core_models
+import FStar.Pervasives
+import Native = Nickel_crdt.Edit
+import Shared = Nickel_crdt.Event_layer
+
+// Exact specializations let checked text contracts apply at shared inner calls.
+// Each right-hand side is the actual retained text wrapper, with no new algorithm.
+proof has_fact_is_text_call(facts: t_Slice(Native.t_Fact), id: Native.t_EventId): unit
+  gives Shared.has_fact(facts, id, Native.fact_id, Native.same_event_id) == Native.has_fact(facts, id)
+  hint Shared.has_fact(facts, id, Native.fact_id, Native.same_event_id)
+{ () }
+
+
+proof validate_after_is_text_call(facts: t_Slice(Native.t_Fact), after: t_Slice(Native.t_EventId)): unit
+  gives Shared.validate_after(facts, after, Native.fact_id, Native.same_event_id, Native.missing_error) == Native.validate_after(facts, after)
+  hint Shared.validate_after(facts, after, Native.fact_id, Native.same_event_id, Native.missing_error)
+{ () }
+proof extend_past_is_text_call(fact: Native.t_Fact, selected: Alloc.Vec.t_Vec(Native.t_EventId, Alloc.Alloc.t_Global)): unit
+  gives Shared.extend_past(fact, selected, Native.fact_id, Native.fact_after, Native.same_event_id, Native.internal_error) == Native.extend_past(fact, selected)
+  hint Shared.extend_past(fact, selected, Native.fact_id, Native.fact_after, Native.same_event_id, Native.internal_error)
+{ () }
+proof past_pass_is_text_call(facts: t_Slice(Native.t_Fact), selected: Alloc.Vec.t_Vec(Native.t_EventId, Alloc.Alloc.t_Global)): unit
+  gives Shared.past_pass(facts, selected, Native.fact_id, Native.fact_after, Native.same_event_id, Native.internal_error) == Native.past_pass(facts, selected)
+  hint Shared.past_pass(facts, selected, Native.fact_id, Native.fact_after, Native.same_event_id, Native.internal_error)
+{ () }
+proof past_is_text_call(facts: t_Slice(Native.t_Fact), roots: t_Slice(Native.t_EventId)): unit
+  gives Shared.past(facts, roots, Native.fact_id, Native.fact_after, Native.same_event_id, Native.internal_error, Native.missing_error) == Native.past(facts, roots)
+  hint Shared.past(facts, roots, Native.fact_id, Native.fact_after, Native.same_event_id, Native.internal_error, Native.missing_error)
+{ () }
+proof choose_unseen_is_text_call(facts: t_Slice(Native.t_Fact), out: t_Slice(Native.t_Fact)): unit
+  gives Shared.choose_unseen(facts, out, Native.fact_id, Native.same_event_id, Native.earlier_event_id, Native.internal_error) == Native.choose_unseen(facts, out)
+  hint Shared.choose_unseen(facts, out, Native.fact_id, Native.same_event_id, Native.earlier_event_id, Native.internal_error)
+{ () }
+proof canonical_step_is_text_call(facts: t_Slice(Native.t_Fact), out: Alloc.Vec.t_Vec(Native.t_Fact, Alloc.Alloc.t_Global)): unit
+  gives Shared.canonical_step(facts, out, Native.fact_id, Native.same_event_id, Native.earlier_event_id, Native.internal_error, Native.clone_selected_fact) == Native.canonical_step(facts, out)
+  hint Shared.canonical_step(facts, out, Native.fact_id, Native.same_event_id, Native.earlier_event_id, Native.internal_error, Native.clone_selected_fact)
+{ () }
+proof canonical_is_text_call(facts: t_Slice(Native.t_Fact)): unit
+  gives Shared.canonical(facts, Native.fact_id, Native.same_event_id, Native.earlier_event_id, Native.internal_error, Native.clone_selected_fact) == Native.canonical(facts)
+  hint Shared.canonical(facts, Native.fact_id, Native.same_event_id, Native.earlier_event_id, Native.internal_error, Native.clone_selected_fact)
+{ () }
+proof select_basis_is_text_call(facts: t_Slice(Native.t_Fact), selected: t_Slice(Native.t_EventId)): unit
+  gives Shared.select_basis(facts, selected, Native.fact_id, Native.same_event_id, Native.internal_error, Native.clone_selected_fact) == Native.select_basis(facts, selected)
+  hint Shared.select_basis(facts, selected, Native.fact_id, Native.same_event_id, Native.internal_error, Native.clone_selected_fact)
+{ () }
+proof event_basis_is_text_call(facts: t_Slice(Native.t_Fact), event: Native.t_Fact): unit
+  gives Shared.event_basis(facts, event, Native.fact_id, Native.fact_after, Native.same_event_id, Native.internal_error, Native.missing_error, Native.clone_selected_fact) == Native.event_basis(facts, event)
+  hint Shared.event_basis(facts, event, Native.fact_id, Native.fact_after, Native.same_event_id, Native.internal_error, Native.missing_error, Native.clone_selected_fact)
+{ () }
+proof frontier_is_text_call(facts: t_Slice(Native.t_Fact)): unit
+  gives Shared.frontier(facts, Native.fact_id, Native.fact_after, Native.same_event_id, Native.internal_error) == Native.frontier(facts)
+  hint Shared.frontier(facts, Native.fact_id, Native.fact_after, Native.same_event_id, Native.internal_error)
+{ () }
+
+proof duplicate_ids_is_text_call(ids: t_Slice(Native.t_EventId)): unit
+  gives Shared.duplicate_ids(ids, Native.same_event_id) == Native.duplicate_events(ids)
+  hint Shared.duplicate_ids(ids, Native.same_event_id)
+{ () }
+proof push_is_text_call<item: Type0>(before: Alloc.Vec.t_Vec(item, Alloc.Alloc.t_Global), value: item): unit
+  gives Shared.push(before, value, Native.internal_error) == Native.push(before, value)
+  hint Shared.push(before, value, Native.internal_error)
+{ () }
+proof clone_is_text_call(fact: Native.t_Fact): unit
+  gives Shared.clone_selected_fact(fact, Native.clone_selected_fact) == Native.clone_selected_fact(fact)
+  hint Shared.clone_selected_fact(fact, Native.clone_selected_fact)
+{ () }
+
+// The shared scheduler invokes these exact concrete text callbacks.
+proof scheduler_choice_is_text_call(facts: t_Slice(Native.t_Fact), done: t_Slice(Native.t_EventId)): unit
+  gives Native.scheduled_choose((), facts, done) == Native.choose_ready(facts, done)
+  hint Native.scheduled_choose((), facts, done)
+{ () }
+proof scheduler_application_is_text_call(facts: t_Slice(Native.t_Fact), event: Native.t_Fact,
+  operations: t_Slice((Native.t_EventId, Alloc.Vec.t_Vec(Native.t_Node, Alloc.Alloc.t_Global))), tree: Native.t_Tree): unit
+  gives Native.scheduled_apply((), facts, event, operations, tree) == Native.interpret_event(facts, event, operations, tree)
+  hint Native.scheduled_apply((), facts, event, operations, tree)
+{ () }
