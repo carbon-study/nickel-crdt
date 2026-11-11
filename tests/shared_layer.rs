@@ -1,7 +1,4 @@
-use nickel_crdt::{
-    atomic_map::{BatchReplica, Op, Value},
-    causal::Limits,
-};
+use nickel_crdt::atomic_map::{BatchReplica, Limits, Op, Value};
 
 #[test]
 fn stored_batch_order_is_preserved_after_record_creation() {

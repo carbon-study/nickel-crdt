@@ -1,10 +1,8 @@
 //! Run with `cargo run --locked --example shared-causal`.
-//! Two payload clients, one experimental causal store; no transport or release.
+//! Actual text and batch clients share the graph/planning/publication code.
 use nickel_crdt::{
-    atomic_map::{BatchReplica, Op, Value},
-    causal::Limits,
-    edit::{Local, Writer},
-    shared_text::{event_from_fact, SharedText},
+    atomic_map::{BatchReplica, Op, Value, Limits},
+    edit::{Local, Writer, Replica},
 };
 
 fn value(text: &str) -> Value {
@@ -68,12 +66,12 @@ fn main() {
     println!("batch: two fields relayed; invalid final operation left state, history and counter unchanged");
     assert_eq!(laptop.events().len(), 1);
 
-    let text = SharedText::new(Some(Writer::Alice));
+    let text = Replica::new(Some(Writer::Alice), Default::default()).unwrap();
     let (text, authored) = text.edit(0, "hello".chars().map(|c| c as u32).collect(), vec![]);
     let Local::Authored(fact) = authored.unwrap() else {
         panic!("missing text fact")
     };
-    let (reader, result) = SharedText::new(None).receive(&event_from_fact(&fact));
+    let (reader, result) = Replica::new(None, Default::default()).unwrap().receive(&fact);
     result.unwrap();
     assert_eq!(text.observe(), reader.observe());
     let visible: String = reader
@@ -82,5 +80,5 @@ fn main() {
         .iter()
         .map(|(_, c)| char::from_u32(*c).unwrap())
         .collect();
-    println!("text: {visible}; original per-birth identities retained through the shared envelope");
+    println!("text: {visible}; original per-birth identities retained through the shared implementation");
 }

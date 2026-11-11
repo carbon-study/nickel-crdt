@@ -97,432 +97,112 @@ if(args.length===0){for(const name of Object.keys(families))familyRuns.add(name)
 // digest change (and F*'s own dependency check) forces the extracted module and
 // every dependent proof to recheck; only modules independent of it are reused.
 // Each mutation edits exactly one anchored site of the actual Rust source.
-const mutationRoutes={
-  "native-push-discards-value": [
-    "src/event_layer.rs",
-    "fn push<",
-    "xs.push(value);",
-    "let _ = value;"
-  ],
-  "native-push-prepends": [
-    "src/event_layer.rs",
-    "fn push<",
-    "xs.push(value);",
-    "xs.insert(0, value);"
-  ],
-  "past-refuses-closure": [
-    "src/event_layer.rs",
-    "fn past<",
-    "Ok(selected)",
-    "Err(internal())"
-  ],
-  "duplicate-scan-skips-pairs": [
-    "src/event_layer.rs",
-    "fn duplicate_ids<",
-    "if id_eq(&xs[i], &xs[j]) {",
-    "if false {"
-  ],
-  "past-skips-passes": [
-    "src/event_layer.rs",
-    "fn past<",
-    "for _ in 0..facts.len() {",
-    "for _ in 0..0 {"
-  ],
-  "past-skips-predecessors": [
-    "src/event_layer.rs",
-    "fn extend_past<",
-    "if has_id(&selected, &id(fact), id_eq) {",
-    "if false {"
-  ],
-  "past-drops-roots": [
-    "src/event_layer.rs",
-    "fn past<",
-    "let mut selected = after_ids.to_vec();",
-    "let mut selected = Vec::new();"
-  ],
-  "past-membership-always-false": [
-    "src/event_layer.rs",
-    "fn has_id<",
-    "if id_eq(&ids[i], wanted) {",
-    "if false {"
-  ],
-  "causal-accepts-missing": [
-    "src/event_layer.rs",
-    "fn validate_after<",
-    "if !has_fact(facts, &after[i], id, id_eq) {",
-    "if false {"
-  ],
-  "causal-call-passes-empty": [
-    "src/event_layer.rs",
-    "fn past<",
-    "validate_after(facts, after_ids, id, id_eq, missing)?;",
-    "validate_after(facts, &[], id, id_eq, missing)?;"
-  ],
-  "causal-refuses-present": [
-    "src/event_layer.rs",
-    "fn validate_after<",
-    "Ok(())",
-    "Err(missing())"
-  ],
-  "canonical-step-refuses": [
-    "src/event_layer.rs",
-    "fn canonical_step<",
-    "Ok(out)",
-    "Err(internal())"
-  ],
-  "canonical-refuses": [
-    "src/event_layer.rs",
-    "fn canonical<",
-    "Ok(out)",
-    "Err(internal())"
-  ],
-  "content-omits-facts": [
-    "src/event_layer.rs",
-    "fn canonical<",
-    "for _ in 0..facts.len() {",
-    "for _ in 0..0 {"
-  ],
-  "order-chooses-largest": [
-    "src/event_layer.rs",
-    "fn choose_unseen<",
-    "if id_lt(&id(&facts[j]), &id(&facts[k])) {",
-    "if id_lt(&id(&facts[k]), &id(&facts[j])) {"
-  ],
-  "accepted-reuses-member": [
-    "src/event_layer.rs",
-    "fn choose_unseen<",
-    "if !has_fact(out, &id(&facts[j]), id, id_eq) {",
-    "if true {"
-  ],
-  "accepted-wrong-canonical-push": [
-    "src/event_layer.rs",
-    "fn canonical_step<",
-    "push(&mut out, clone_selected_fact(&facts[i], clone_fact), internal)?;",
-    "push(&mut out, clone_selected_fact(&facts[0], clone_fact), internal)?;"
-  ],
-  "scheduler-ready-skips-dependency": [
-    "src/event_layer.rs",
-    "fn ready<",
-    "if has_id(done, &after[i], id_eq) {",
-    "if true {"
-  ],
-  "scheduler-reselects-done": [
-    "src/event_layer.rs",
-    "fn choose_ready<",
-    "if has_id(done, &id(&facts[i]), id_eq) {",
-    "if false {"
-  ],
-  "scheduler-refuses-ready": [
-    "src/event_layer.rs",
-    "fn choose_ready<",
-    "return Some(i);",
-    "return None;"
-  ],
-  "scheduler-checks-empty-after": [
-    "src/event_layer.rs",
-    "fn choose_ready<",
-    "ready(after(&facts[i]), done, id_eq)",
-    "ready(&[], done, id_eq)"
-  ],
-  "basis-includes-unselected": [
-    "src/event_layer.rs",
-    "fn select_basis<",
-    "if has_id(selected, &id(fact), id_eq) {",
-    "if true {"
-  ],
-  "basis-omits-selected": [
-    "src/event_layer.rs",
-    "fn select_basis<",
-    "if has_id(selected, &id(fact), id_eq) {",
-    "if false {"
-  ],
-  "basis-event-ignores-roots": [
-    "src/event_layer.rs",
-    "fn event_basis<",
-    "past(facts, after(event), id, after, id_eq, internal, missing)?",
-    "past(facts, &[], id, after, id_eq, internal, missing)?"
-  ],
-  "plan-skips-validation": [
-    "src/edit.rs",
-    "fn plan_validate(",
-    "Replica::validate_new(&before.facts, before.limits, fact)",
-    "Ok(())"
-  ],
-  "plan-ignores-duplicate": [
-    "src/edit.rs",
-    "fn plan_duplicate(",
-    "Replica::duplicate(&before.facts, fact)",
-    "let _ = Replica::duplicate(&before.facts, fact)?; Ok(false)"
-  ],
-  "plan-swallows-classifier-error": [
-    "src/edit.rs",
-    "fn plan_duplicate(",
-    "Replica::duplicate(&before.facts, fact)",
-    "match Replica::duplicate(&before.facts, fact) { Ok(found) => Ok(found), Err(_) => Ok(false) }"
-  ],
-  "scheduler-stops-early": [
-    "src/event_shell.rs",
-    "fn scheduled<",
-    "for _ in 0..facts.len() {",
-    "for _ in 0..0 {"
-  ],
-  "scheduler-invents-bookkeeping-error": [
-    "src/edit.rs",
-    "fn scheduled_apply(",
-    "interpret_event(facts, event, operations, result)",
-    "let (next, ops) = interpret_event(facts, event, operations, result)?; if ops.len() == 0 { return Err(Error::Internal); } Ok((next, ops))"
-  ],
-  "plan-clears-private-counter": [
-    "src/edit.rs",
-    "fn plan_prepare(",
-    "push(&mut next.facts, fact.clone())?;",
-    "next.next_counter = 0; push(&mut next.facts, fact.clone())?;"
-  ],
-  "receive-plan-rewrites-counter": [
-    "src/edit.rs",
-    "fn receive_plan(",
-    "before.plan(fact)",
-    "let mut offered = fact.clone(); offered.id.counter = 1; before.plan(&offered)"
-  ],
-  "plan-interprets-uncanonical": [
-    "src/event_shell.rs",
-    "fn plan<",
-    "let next = prepare(context, next, fact)?;\n    let next = execute(context, next)?;",
-    "let next = execute(context, next)?;\n    let next = prepare(context, next, fact)?;"
-  ],
-  "plan-passes-old-tree": [
-    "src/edit.rs",
-    "fn plan_execute(",
-    "Ok(next.with_tree(tree))",
-    "Ok(next.clone().with_tree(next.tree.clone()))"
-  ],
-  "order-discards-canonical": [
-    "src/edit.rs",
-    "fn plan_prepare(",
-    "next.facts = canonical(&next.facts)?;",
-    "let _ = canonical(&next.facts)?;"
-  ],
-  "receive-private-gate": [
-    "src/edit.rs",
-    "fn plan_validate(",
-    "Replica::validate_new(&before.facts, before.limits, fact)",
-    "Replica::validate_new(&before.facts, before.limits, fact)?; if before.writer.is_none() { return Err(Error::Missing); } Ok(())"
-  ],
-  "identity-accepts-conflict": [
-    "src/event_layer.rs",
-    "fn classify<",
-    "return Some(fact_eq(old, fact));",
-    "return Some(fact_eq(old, fact) || id_eq(&id(old), &id(fact)));"
-  ],
-  "identity-skips-later": [
-    "src/event_layer.rs",
-    "fn classify<",
-    "for i in 0..facts.len() {",
-    "for i in 0..0 {"
-  ],
-  "identity-scan-key": [
-    "src/edit.rs",
-    "fn duplicate(",
-    "crate::event_layer::classify(facts, fact, fact_id, same_event_id, fact_equal)",
-    "crate::event_layer::classify(facts, fact, |f| EventId { writer: Writer::Alice, counter: f.id.counter }, same_event_id, fact_equal)"
-  ],
-  "content-changes-whole-fact": [
-    "src/edit.rs",
-    "fn clone_selected_fact(",
-    "fact.clone()",
-    "let mut changed = fact.clone(); changed.gap = None; changed"
-  ],
-  "past-invents-id": [
-    "src/edit.rs",
-    "fn fact_after(",
-    "&fact.after",
-    "&[EventId { writer: Writer::Alice, counter: 0 }]"
-  ],
-  "scheduler-records-wrong-id": [
-    "src/edit.rs",
-    "fn interpret_scheduled(",
-    "fact_id,",
-    "|_| EventId { writer: Writer::Alice, counter: 0 },"
-  ],
-  "scheduler-forgets-completed-tree": [
-    "src/edit.rs",
-    "fn interpret_scheduled(",
-    "crate::event_shell::scheduled(\n        facts,\n        Tree::default(),\n        &(),\n        fact_id,\n        scheduled_choose,\n        scheduled_apply,\n        internal_error,\n    )",
-    "crate::event_shell::scheduled(\n        facts,\n        Tree::default(),\n        &(),\n        fact_id,\n        scheduled_choose,\n        scheduled_apply,\n        internal_error,\n    ).map(|(_, done)| (Tree::default(), done))"
-  ],
-  "receive-error-corrupts-counter": [
-    "src/edit.rs",
-    "fn receive(",
-    "crate::event_shell::receive(\n            self,\n            fact,\n            &(),\n            receive_plan,\n            Admission::Added,\n            Admission::Duplicate,\n        )",
-    "(|(mut next, result): (Self, Result<Admission, Error>)| { if result.is_err() { next.next_counter = 0; } (next, result) })(crate::event_shell::receive(\n            self,\n            fact,\n            &(),\n            receive_plan,\n            Admission::Added,\n            Admission::Duplicate,\n        ))"
-  ],
-  "receive-success-counter": [
-    "src/edit.rs",
-    "fn receive(",
-    "crate::event_shell::receive(\n            self,\n            fact,\n            &(),\n            receive_plan,\n            Admission::Added,\n            Admission::Duplicate,\n        )",
-    "(|(mut next, result): (Self, Result<Admission, Error>)| { if result == Ok(Admission::Added) { next.next_counter = 0; } (next, result) })(crate::event_shell::receive(\n            self,\n            fact,\n            &(),\n            receive_plan,\n            Admission::Added,\n            Admission::Duplicate,\n        ))"
-  ],
-  "causal-validator-passes-empty": [
-    "src/edit.rs",
-    "fn validate_new(",
-    "fact_after,",
-    "|_| &[],"
-  ],
-  "shared-plan-skips-validation": [
-    "src/event_shell.rs",
-    "fn plan<",
-    "validate(context, before, fact)?;",
-    "let _ = validate(context, before, fact);"
-  ],
-  "shared-plan-ignores-duplicate": [
-    "src/event_shell.rs",
-    "fn plan<",
-    "if duplicate(context, before, fact)? {",
-    "if duplicate(context, before, fact)? && false {"
-  ],
-  "shared-plan-swallows-classifier-error": [
-    "src/event_shell.rs",
-    "fn plan<",
-    "if duplicate(context, before, fact)? {",
-    "if match duplicate(context, before, fact) { Ok(found) => found, Err(_) => false } {"
-  ],
-  "identity-call-passes-empty": [
-    "src/edit.rs",
-    "fn duplicate(",
-    "crate::event_layer::classify(facts, fact, fact_id, same_event_id, fact_equal)",
-    "crate::event_layer::classify(&[], fact, fact_id, same_event_id, fact_equal)"
-  ],
-  "identity-call-ignores-payload": [
-    "src/edit.rs",
-    "fn duplicate(",
-    "crate::event_layer::classify(facts, fact, fact_id, same_event_id, fact_equal)",
-    "crate::event_layer::classify(facts, fact, fact_id, same_event_id, |left, right| left.id == right.id)"
-  ],
-  "past-membership-call-passes-empty": [
-    "src/edit.rs",
-    "fn has_event(",
-    "crate::event_layer::has_id(ids, &id, same_event_id)",
-    "crate::event_layer::has_id(&[], &id, same_event_id)"
-  ],
-  "scheduler-readiness-call-passes-empty": [
-    "src/edit.rs",
-    "fn ready(",
-    "crate::event_layer::ready(after, done, same_event_id)",
-    "crate::event_layer::ready(&[], done, same_event_id)"
-  ],
-  "scheduler-choice-call-passes-empty": [
-    "src/edit.rs",
-    "fn choose_ready(",
-    "crate::event_layer::choose_ready(facts, done, fact_id, fact_after, same_event_id)",
-    "crate::event_layer::choose_ready(&[], done, fact_id, fact_after, same_event_id)"
-  ],
-  "plan-interprets-uncanonical-call": [
-    "src/edit.rs",
-    "fn plan(",
-    "plan_prepare,",
-    "|_, mut next, fact| { push(&mut next.facts, fact.clone())?; Ok(next) },"
-  ]
-};
+// Each row is [mode, source owner, item header, anchor, replacement]. This is
+// the sole mutation definition table; the lookup below is only its index.
+const mutationDefinitions=[
+  ["plan-skips-validation","src/edit.rs","fn plan_validate(","Replica::validate_new(&before.facts, before.limits, fact)","Ok(())"],
+  ["tree-publication-uses-private-writer","src/edit.rs","fn with_tree(","self.tree = tree;","if self.writer.is_some() { self.tree = tree; }"],
+  ["tree-publication-clears-private-counter","src/edit.rs","fn with_tree(","self.tree = tree;","self.tree = tree; self.next_counter = 0;"],
+  ["plan-clears-private-counter","src/edit.rs","fn plan_prepare(","push(&mut next.facts, fact.clone())?;","next.next_counter = 0; push(&mut next.facts, fact.clone())?;"],
+  ["plan-ignores-duplicate","src/edit.rs","fn plan_duplicate(","Replica::duplicate(&before.facts, fact)","let _ = Replica::duplicate(&before.facts, fact)?; Ok(false)"],
+  ["plan-swallows-classifier-error","src/edit.rs","fn plan_duplicate(","Replica::duplicate(&before.facts, fact)","match Replica::duplicate(&before.facts, fact) { Ok(found) => Ok(found), Err(_) => Ok(false) }"],
+  ["receive-plan-rewrites-counter","src/edit.rs","fn receive_plan(","before.plan(fact)","let mut offered = fact.clone(); offered.id.counter = 1; before.plan(&offered)"],
+  ["invalid-forgets-reason","src/edit.rs","fn invalid(","Error::Invalid(reason)","Error::Invalid(Invalid::Counter)"],
+  ["writer-index-collides","src/edit.rs","fn writer_index(","Writer::Bo => 1","Writer::Bo => 0"],
+  ["native-push-discards-value","src/event_layer.rs","fn push<","xs.push(value);","let _ = value;"],
+  ["native-push-prepends","src/event_layer.rs","fn push<","xs.push(value);","xs.insert(0, value);"],
+  ["causal-validator-passes-empty","src/edit.rs","fn validate_new(","fact_after,","|_| &[],"],
+  ["causal-accepts-missing","src/event_layer.rs","fn validate_after<","if !has_fact(facts, &after[i], id, id_eq) {","if false {"],
+  ["causal-call-passes-empty","src/event_layer.rs","fn past<","validate_after(facts, after_ids, id, id_eq, missing)?;","validate_after(facts, &[], id, id_eq, missing)?;"],
+  ["causal-refuses-present","src/event_layer.rs","fn validate_after<","Ok(())","Err(missing())"],
+  ["plan-interprets-uncanonical","src/event_shell.rs","fn plan<","let next = prepare(context, next, fact)?;\n    let next = execute(context, next)?;","let next = execute(context, next)?;\n    let next = prepare(context, next, fact)?;"],
+  ["scalar-count-loop-bypasses-check","src/edit.rs","fn validate_new(","births = add(births, facts[i].insert.len())?;","births = add(births, facts[i].insert.len())?; if births > 0 { return Ok(()); }"],
+  ["scalar-accepts-invalid","src/edit.rs","fn validate_scalars(","if scalar > 0x10ffff || (scalar >= 0xd800 && scalar <= 0xdfff) {","if false {"],
+  ["scalar-call-passes-empty","src/edit.rs","fn validate_new(","validate_scalars(&fact.insert)?;","validate_scalars(&[])?;"],
+  ["scalar-refuses-valid","src/edit.rs","fn validate_scalars(","Ok(())","Err(invalid(Invalid::Scalar))"],
+  ["canonical-step-refuses","src/event_layer.rs","fn canonical_step<","Ok(out)","Err(internal())"],
+  ["canonical-refuses","src/event_layer.rs","fn canonical<","Ok(out)","Err(internal())"],
+  ["plan-keeps-old-tree","src/edit.rs","fn with_tree(","self.tree = tree;","let _ = tree;"],
+  ["plan-passes-old-tree","src/edit.rs","fn plan_execute(","Ok(next.with_tree(tree))","Ok(next.clone().with_tree(next.tree.clone()))"],
+  ["order-key-ignores-writer","src/edit.rs","fn event_lt(","writer_index(a.writer) < writer_index(b.writer)\n        || (a.writer == b.writer && a.counter < b.counter)","a.counter < b.counter"],
+  ["order-chooses-largest","src/event_layer.rs","fn choose_unseen<","if id_lt(&id(&facts[j]), &id(&facts[k])) {","if id_lt(&id(&facts[k]), &id(&facts[j])) {"],
+  ["order-discards-canonical","src/edit.rs","fn plan_prepare(","next.facts = canonical(&next.facts)?;","let _ = canonical(&next.facts)?;"],
+  ["local-return-after","src/edit.rs","pub fn edit(","(next, Ok(Local::Authored(fact)))","{ let mut changed = fact; changed.after = Vec::new(); (next, Ok(Local::Authored(changed))) }"],
+  ["edit-call-passes-old-counter","src/edit.rs","pub fn edit(","next = next.with_counter(next_counter);","next = next.with_counter(self.next_counter);"],
+  ["edit-commit-ignores-counter","src/edit.rs","fn with_counter(","self.next_counter = counter;","self.next_counter = self.next_counter;"],
+  ["receive-error-corrupts-counter","src/edit.rs","fn receive(","crate::event_shell::receive(\n            self,\n            fact,\n            &(),\n            receive_plan,\n            Admission::Added,\n            Admission::Duplicate,\n        )","(|(mut next, result): (Self, Result<Admission, Error>)| { if result.is_err() { next.next_counter = 0; } (next, result) })(crate::event_shell::receive(\n            self,\n            fact,\n            &(),\n            receive_plan,\n            Admission::Added,\n            Admission::Duplicate,\n        ))"],
+  ["edit-error-corrupts-counter","src/edit.rs","pub fn edit(","Err(error) => (self, Err(error)),","Err(error) => { let mut damaged = self; damaged.next_counter = 0; (damaged, Err(error)) },"],
+  ["edit-success-reuses-counter","src/edit.rs","fn next_counter_after(","Ok(counter + 1)","Ok(counter)"],
+  ["local-return-gap","src/edit.rs","pub fn edit(","(next, Ok(Local::Authored(fact)))","{ let mut changed = fact; changed.gap = Some(0); (next, Ok(Local::Authored(changed))) }"],
+  ["local-stale-tree","src/edit.rs","pub fn edit(","next = next.with_counter(next_counter);","next = next.with_counter(next_counter); next.tree = self.tree.clone();"],
+  ["receive-success-counter","src/edit.rs","fn receive(","crate::event_shell::receive(\n            self,\n            fact,\n            &(),\n            receive_plan,\n            Admission::Added,\n            Admission::Duplicate,\n        )","(|(mut next, result): (Self, Result<Admission, Error>)| { if result == Ok(Admission::Added) { next.next_counter = 0; } (next, result) })(crate::event_shell::receive(\n            self,\n            fact,\n            &(),\n            receive_plan,\n            Admission::Added,\n            Admission::Duplicate,\n        ))"],
+  ["author-forgets-gap","src/edit.rs","pub fn edit(","Some(gap)","Some(0)"],
+  ["receive-private-gate","src/edit.rs","fn plan_validate(","Replica::validate_new(&before.facts, before.limits, fact)","Replica::validate_new(&before.facts, before.limits, fact)?; if before.writer.is_none() { return Err(Error::Missing); } Ok(())"],
+  ["identity-forgets-gap","src/edit.rs","fn fact_equal(","&& left.gap == right.gap","&& true"],
+  ["identity-accepts-conflict","src/event_layer.rs","fn classify<","return Some(fact_eq(old, fact));","return Some(fact_eq(old, fact) || id_eq(&id(old), &id(fact)));"],
+  ["identity-skips-later","src/event_layer.rs","fn classify<","for i in 0..facts.len() {","for i in 0..0 {"],
+  ["identity-counter-range","src/edit.rs","fn duplicate(","if fact.id.counter == 0 || fact.id.counter > MAX_COUNTER {","if false {"],
+  ["identity-event-equality","src/edit.rs","impl PartialEq for EventId","self.writer == other.writer && self.counter == other.counter","self.writer == other.writer"],
+  ["identity-scan-key","src/edit.rs","fn duplicate(","crate::event_layer::classify(facts, fact, fact_id, same_event_id, fact_equal)","crate::event_layer::classify(facts, fact, |f| EventId { writer: Writer::Alice, counter: f.id.counter }, same_event_id, fact_equal)"],
+  ["identity-birth-equality","src/edit.rs","impl PartialEq for BirthId","self.event == other.event && self.index == other.index","self.event == other.event"],
+  ["identity-writer-equality","src/edit.rs","impl PartialEq for Writer","writer_index(*self) == writer_index(*other)","writer_index(*self) == writer_index(*self)"],
+  ["accepted-reuses-member","src/event_layer.rs","fn choose_unseen<","if !has_fact(out, &id(&facts[j]), id, id_eq) {","if true {"],
+  ["accepted-wrong-canonical-push","src/event_layer.rs","fn canonical_step<","push(&mut out, clone_selected_fact(&facts[i], clone_fact), internal)?;","push(&mut out, clone_selected_fact(&facts[0], clone_fact), internal)?;"],
+  ["accepted-publication-duplicates","src/edit.rs","fn with_tree(","self.tree = tree;","self.tree = tree; if !self.facts.is_empty() && self.facts.len() < usize::MAX { let copy = self.facts[0].clone(); self.facts.push(copy); }"],
+  ["content-changes-whole-fact","src/edit.rs","fn clone_selected_fact(","fact.clone()","let mut changed = fact.clone(); changed.gap = None; changed"],
+  ["content-omits-facts","src/event_layer.rs","fn canonical<","for _ in 0..facts.len() {","for _ in 0..0 {"],
+  ["past-drops-roots","src/event_layer.rs","fn past<","let mut selected = after_ids.to_vec();","let mut selected = Vec::new();"],
+  ["past-invents-id","src/edit.rs","fn fact_after(","&fact.after","&[EventId { writer: Writer::Alice, counter: 0 }]"],
+  ["past-membership-always-false","src/event_layer.rs","fn has_id<","if id_eq(&ids[i], wanted) {","if false {"],
+  ["past-skips-predecessors","src/event_layer.rs","fn extend_past<","if has_id(&selected, &id(fact), id_eq) {","if false {"],
+  ["past-skips-passes","src/event_layer.rs","fn past<","for _ in 0..facts.len() {","for _ in 0..0 {"],
+  ["past-refuses-closure","src/event_layer.rs","fn past<","Ok(selected)","Err(internal())"],
+  ["duplicate-scan-skips-pairs","src/event_layer.rs","fn duplicate_ids<","if id_eq(&xs[i], &xs[j]) {","if false {"],
+  ["scheduler-ready-skips-dependency","src/event_layer.rs","fn ready<","if has_id(done, &after[i], id_eq) {","if true {"],
+  ["scheduler-reselects-done","src/event_layer.rs","fn choose_ready<","if has_id(done, &id(&facts[i]), id_eq) {","if false {"],
+  ["scheduler-refuses-ready","src/event_layer.rs","fn choose_ready<","return Some(i);","return None;"],
+  ["scheduler-checks-empty-after","src/event_layer.rs","fn choose_ready<","ready(after(&facts[i]), done, id_eq)","ready(&[], done, id_eq)"],
+  ["scheduler-records-wrong-id","src/edit.rs","fn interpret_scheduled(","fact_id,","|_| EventId { writer: Writer::Alice, counter: 0 },"],
+  ["scheduler-stops-early","src/event_shell.rs","fn scheduled<","for _ in 0..facts.len() {","for _ in 0..0 {"],
+  ["scheduler-erases-wrong-trace","src/edit.rs","fn interpret(","let pair = interpret_scheduled(facts)?;","let pair = interpret_scheduled(&[])?;"],
+  ["scheduler-invents-bookkeeping-error","src/edit.rs","fn scheduled_apply(","interpret_event(facts, event, operations, result)","let (next, ops) = interpret_event(facts, event, operations, result)?; if ops.len() == 0 { return Err(Error::Internal); } Ok((next, ops))"],
+  ["basis-includes-unselected","src/event_layer.rs","fn select_basis<","if has_id(selected, &id(fact), id_eq) {","if true {"],
+  ["basis-omits-selected","src/event_layer.rs","fn select_basis<","if has_id(selected, &id(fact), id_eq) {","if false {"],
+  ["basis-event-ignores-roots","src/event_layer.rs","fn event_basis<","past(facts, after(event), id, after, id_eq, internal, missing)?","past(facts, &[], id, after, id_eq, internal, missing)?"],
+  ["replay-nodes-skip-first","src/edit.rs","fn replay_nodes(","for i in 0..nodes.len() {","for i in 1..nodes.len() {"],
+  ["replay-nodes-reverse","src/edit.rs","fn replay_nodes(","tree.add(nodes[i].clone())?;","tree.add(nodes[nodes.len() - 1 - i].clone())?;"],
+  ["replay-groups-include-all","src/edit.rs","fn replay_author(","if has_event(selected, id) {","if !has_event(&[], id) {"],
+  ["replay-groups-skip-all","src/edit.rs","fn replay_author(","if has_event(selected, id) {","if has_event(&[], id) {"],
+  ["replay-context-passes-empty","src/edit.rs","fn author_context(","replay_author(operations, &selected)?","replay_author(&[], &selected)?"],
+  ["replay-context-invents-error","src/edit.rs","fn author_context(","let author = replay_author(operations, &selected)?;","let author = replay_author(operations, &selected)?; if operations.is_empty() { return Err(Error::Internal); }"],
+  ["replay-context-contaminates-basis","src/edit.rs","fn author_context(","let (selected, basis) = event_basis(facts, event)?;","let (selected, mut basis) = event_basis(facts, event)?; if !event.after.is_empty() && facts.len() > 2 { push(&mut basis, facts[1].clone())?; }"],
+  ["scheduler-forgets-completed-tree","src/edit.rs","fn interpret_scheduled(","crate::event_shell::scheduled(\n        facts,\n        Tree::default(),\n        &(),\n        fact_id,\n        scheduled_choose,\n        scheduled_apply,\n        internal_error,\n    )","crate::event_shell::scheduled(\n        facts,\n        Tree::default(),\n        &(),\n        fact_id,\n        scheduled_choose,\n        scheduled_apply,\n        internal_error,\n    ).map(|(_, done)| (Tree::default(), done))"],
+  ["plan-interprets-uncanonical-call","src/edit.rs","fn plan(","plan_prepare,","|_, mut next, fact| { push(&mut next.facts, fact.clone())?; Ok(next) },"],
+  ["shared-plan-skips-validation","src/event_shell.rs","fn plan<","validate(context, before, fact)?;","let _ = validate(context, before, fact);"],
+  ["shared-plan-ignores-duplicate","src/event_shell.rs","fn plan<","if duplicate(context, before, fact)? {","if duplicate(context, before, fact)? && false {"],
+  ["shared-plan-swallows-classifier-error","src/event_shell.rs","fn plan<","if duplicate(context, before, fact)? {","if match duplicate(context, before, fact) { Ok(found) => found, Err(_) => false } {"],
+  ["identity-call-passes-empty","src/edit.rs","fn duplicate(","crate::event_layer::classify(facts, fact, fact_id, same_event_id, fact_equal)","crate::event_layer::classify(&[], fact, fact_id, same_event_id, fact_equal)"],
+  ["identity-call-ignores-payload","src/edit.rs","fn duplicate(","crate::event_layer::classify(facts, fact, fact_id, same_event_id, fact_equal)","crate::event_layer::classify(facts, fact, fact_id, same_event_id, |left, right| left.id == right.id)"],
+  ["past-membership-call-passes-empty","src/edit.rs","fn has_event(","crate::event_layer::has_id(ids, &id, same_event_id)","crate::event_layer::has_id(&[], &id, same_event_id)"],
+  ["scheduler-readiness-call-passes-empty","src/edit.rs","fn ready(","crate::event_layer::ready(after, done, same_event_id)","crate::event_layer::ready(&[], done, same_event_id)"],
+  ["scheduler-choice-call-passes-empty","src/edit.rs","fn choose_ready(","crate::event_layer::choose_ready(facts, done, fact_id, fact_after, same_event_id)","crate::event_layer::choose_ready(&[], done, fact_id, fact_after, same_event_id)"]
+];
+const definitionByMode=new Map(mutationDefinitions.map(([mode,...definition])=>[mode,definition]));
+const registeredMutations=modes.filter(mode=>mode!=='positive');
+assert.equal(new Set(registeredMutations).size,registeredMutations.length,'duplicate registered mutation mode');
+assert.equal(definitionByMode.size,mutationDefinitions.length,'duplicate mutation definition');
+assert.deepEqual([...definitionByMode.keys()].sort(),[...registeredMutations].sort(),'mutation definitions must exactly cover registered modes');
+for(const [mode,owner,header,needle,replacement] of mutationDefinitions) {
+  assert.equal(definitionByMode.get(mode).length,4,'mutation definition must have four fields: '+mode);
+  assert(sourceFiles.includes(owner),'unknown mutation source owner: '+mode);
+  assert([header,needle,replacement].every(value=>typeof value==='string'&&value.length>0),'mutation fields must be nonempty strings: '+mode);
+}
 function prepareMutation(mode,sources=original) {
-  const route=mutationRoutes[mode];
-  const owner=route?.[0]??'src/edit.rs';
+  const definition=definitionByMode.get(mode);
+  assert(definition,'mutation without a registered definition: '+mode);
+  const [owner,header,needle,replacement]=definition;
   const source=typeof sources==='string'?sources:sources[owner];
-  const scopes={
-'scheduler-forgets-completed-tree':'fn interpret_scheduled(',
-'replay-nodes-skip-first':'fn replay_nodes(', 'replay-nodes-reverse':'fn replay_nodes(', 'replay-groups-include-all':'fn replay_author(', 'replay-groups-skip-all':'fn replay_author(', 'replay-context-passes-empty':'fn author_context(', 'replay-context-invents-error':'fn author_context(', 'replay-context-contaminates-basis':'fn author_context(',
-'basis-includes-unselected':'fn select_basis(', 'basis-omits-selected':'fn select_basis(', 'basis-event-ignores-roots':'fn event_basis(',
-'duplicate-scan-skips-pairs':'fn duplicate_events(', 'past-refuses-closure':'fn past(', 'past-skips-passes':'fn past(', 'past-skips-predecessors':'fn extend_past(', 'past-drops-roots':'fn past(', 'past-invents-id':'fn extend_past(', 'past-membership-always-false':'fn has_event(',
-'scheduler-records-wrong-id':'fn interpret_scheduled(', 'scheduler-stops-early':'fn interpret_scheduled(', 'scheduler-erases-wrong-trace':'fn interpret(', 'scheduler-invents-bookkeeping-error':'fn interpret_scheduled(',
-'scheduler-ready-skips-dependency':'fn ready(', 'scheduler-reselects-done':'fn choose_ready(', 'scheduler-refuses-ready':'fn choose_ready(', 'scheduler-checks-empty-after':'fn choose_ready(',
-'plan-skips-validation':'fn plan(',
-"tree-publication-uses-private-writer":"fn with_tree(",
-"tree-publication-clears-private-counter":"fn with_tree(",
-"plan-clears-private-counter":"fn plan(",
-'plan-ignores-duplicate':'fn plan(', 'plan-swallows-classifier-error':'fn plan(', 'receive-plan-rewrites-counter':'pub fn receive(', 'invalid-forgets-reason':'fn invalid(', 'writer-index-collides':'fn writer_index(', 'native-push-discards-value':'fn push<T>','native-push-prepends':'fn push<T>','causal-validator-passes-empty':'fn validate_new(','causal-accepts-missing':'fn validate_after(', 'causal-call-passes-empty':'fn past(', 'causal-refuses-present':'fn validate_after(','plan-interprets-uncanonical':'fn plan(','scalar-count-loop-bypasses-check':'fn validate_new(','scalar-accepts-invalid':'fn validate_scalars(', 'scalar-refuses-valid':'fn validate_scalars(', 'scalar-call-passes-empty':'fn validate_new(','canonical-step-refuses':'fn canonical_step(', 'canonical-refuses':'fn canonical(','plan-keeps-old-tree':'fn with_tree(', 'plan-passes-old-tree':'fn plan(','order-key-ignores-writer':'fn event_lt(','order-chooses-largest':'fn choose_unseen(', 'order-discards-canonical':'fn plan(','edit-commit-ignores-counter':'fn with_counter(', 'edit-success-reuses-counter':'fn next_counter_after(', 'content-changes-whole-fact':'fn clone_selected_fact(', 'content-omits-facts':'fn canonical(', 'accepted-reuses-member':'fn choose_unseen(', 'accepted-wrong-canonical-push':'fn canonical_step(', 'accepted-publication-duplicates':'fn with_tree('};
-  const header=route?.[1]??(scopes[mode]??(mode==='identity-writer-equality'?'impl PartialEq for Writer':mode==='identity-birth-equality'?'impl PartialEq for BirthId':mode==='identity-event-equality'?'impl PartialEq for EventId':mode==='identity-forgets-gap'?'fn fact_equal(':mode.startsWith('identity-')?'fn duplicate(':mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit('));const [start]=itemSpan(source,header,mode);
-  const edits={
-    'scheduler-forgets-completed-tree':['Ok((result, done))', 'Ok((Tree::default(), done))'],
-    'replay-nodes-skip-first':['for i in 0..nodes.len() {','for i in 1..nodes.len() {'],
-    'replay-nodes-reverse':['tree.add(nodes[i].clone())?;', 'tree.add(nodes[nodes.len() - 1 - i].clone())?;'],
-    'replay-groups-include-all':['if has_event(selected, id) {','if !has_event(&[], id) {'],
-    'replay-groups-skip-all':['if has_event(selected, id) {','if has_event(&[], id) {'],
-    'replay-context-passes-empty':['replay_author(operations, &selected)?','replay_author(&[], &selected)?'],
-    'replay-context-contaminates-basis':['let (selected, basis) = event_basis(facts, event)?;', 'let (selected, mut basis) = event_basis(facts, event)?; if !event.after.is_empty() && facts.len() > 2 { push(&mut basis, facts[1].clone())?; }'],
-    'replay-context-invents-error':['let author = replay_author(operations, &selected)?;','let author = replay_author(operations, &selected)?; if operations.is_empty() { return Err(Error::Internal); }'],
-    'basis-includes-unselected':['if has_event(selected, fact.id) {','if true {'],
-    'basis-omits-selected':['if has_event(selected, fact.id) {','if false {'],
-    'basis-event-ignores-roots':['past(facts, &event.after)?','past(facts, &[])?'],
-    'scheduler-records-wrong-id':['push(&mut done, event.id)?;', 'push(&mut done, EventId { writer: Writer::Alice, counter: 0 })?;'],
-    'scheduler-stops-early':['for _ in 0..facts.len() {', 'for _ in 0..0 {'],
-    'scheduler-erases-wrong-trace':['let pair = interpret_scheduled(facts)?;', 'let pair = interpret_scheduled(&[])?;'],
-    'scheduler-invents-bookkeeping-error':['let (next, ops) = pair;', 'let (next, ops) = pair; if ops.len() == 0 { return Err(Error::Internal); }'],
-    'scheduler-ready-skips-dependency':['if has_event(done, after[i]) {','if true {'],
-    'scheduler-reselects-done':['if has_event(done, facts[i].id) {','if false {'],
-    'scheduler-refuses-ready':['return Some(i);','return None;'],
-    'scheduler-checks-empty-after':['ready(&facts[i].after, done)','ready(&[], done)'],
-'plan-skips-validation':['Self::validate_new(&self.facts, self.limits, fact)?;', 'let _ = Self::validate_new(&self.facts, self.limits, fact);'],
-"tree-publication-uses-private-writer":["self.tree = tree;","if self.writer.is_some() { self.tree = tree; }"],
-"tree-publication-clears-private-counter":["self.tree = tree;","self.tree = tree; self.next_counter = 0;"],
-"plan-clears-private-counter":["let mut next = self.clone();","let mut next = self.clone(); next.next_counter = 0;"],
-
-    'plan-ignores-duplicate':['if Self::duplicate(&self.facts, fact)? {','if Self::duplicate(&self.facts, fact)? && false {'],
-    'plan-swallows-classifier-error':['if Self::duplicate(&self.facts, fact)? {','if match Self::duplicate(&self.facts, fact) { Ok(found) => found, Err(_) => false } {'],
-    'receive-plan-rewrites-counter':['match self.plan(fact) {','let mut offered = (*fact).clone(); offered.id.counter = 1; match self.plan(&offered) {'],
-    'native-push-discards-value':['xs.push(value);','let _ = value;'],
-    'native-push-prepends':['xs.push(value);','xs.insert(0, value);'],
-    'past-refuses-closure':['Ok(selected)', 'Err(Error::Internal)'],
-    'duplicate-scan-skips-pairs':['if xs[i] == xs[j] {', 'if false {'],
-    'past-skips-passes':['for _ in 0..facts.len() {', 'for _ in 0..0 {'],
-    'past-skips-predecessors':['if has_event(&selected, fact.id) {', 'if false {'],
-    'past-drops-roots':['let mut selected = after.to_vec();','let mut selected = Vec::new();'],
-    'past-invents-id':['push(&mut selected, id)?;', 'push(&mut selected, EventId { writer: Writer::Alice, counter: 0 })?;'],
-    'past-membership-always-false':['if ids[i] == id {','if false {'],
-    'causal-validator-passes-empty':['let selected = past(&facts, &fact.after)?;', 'let selected = past(&facts, &[])?;'],
-    'causal-accepts-missing':['if !has_fact(facts, after[i]) {','if false {'],
-    'causal-call-passes-empty':['validate_after(facts, after)?;', 'validate_after(facts, &[])?;'],
-    'causal-refuses-present':['Ok(())','Err(Error::Missing)'],
-    'scalar-count-loop-bypasses-check':['births = add(births, facts[i].insert.len())?;', 'births = add(births, facts[i].insert.len())?; if births > 0 { return Ok(()); }'],
-    'scalar-accepts-invalid':['if scalar > 0x10ffff || (scalar >= 0xd800 && scalar <= 0xdfff) {', 'if false {'],
-    'scalar-call-passes-empty':['validate_scalars(&fact.insert)?;', 'validate_scalars(&[])?;'],
-    'scalar-refuses-valid':['Ok(())', 'Err(invalid(Invalid::Scalar))'],
-    'canonical-step-refuses':['Ok(out)', 'Err(Error::Internal)'],
-    'canonical-refuses':['Ok(out)', 'Err(Error::Internal)'],
-    'plan-keeps-old-tree':['self.tree = tree;', 'let _ = tree;'],
-    'plan-passes-old-tree':['Ok(Some(next.with_tree(tree)))', 'Ok(Some(next.with_tree(self.tree.clone())))'],
-    'plan-interprets-uncanonical':['next.facts = canonical(&next.facts)?;\n        let tree = interpret(&next.facts)?;', 'let tree = interpret(&next.facts)?;\n        next.facts = canonical(&next.facts)?;'],
-    'order-chooses-largest':['if event_lt(facts[j].id, facts[k].id) {', 'if event_lt(facts[k].id, facts[j].id) {'],
-    'order-key-ignores-writer':['writer_index(a.writer) < writer_index(b.writer)\n        || (a.writer == b.writer && a.counter < b.counter)', 'a.counter < b.counter'],
-    'order-discards-canonical':['next.facts = canonical(&next.facts)?;', 'let _ = canonical(&next.facts)?;'],
-    'edit-call-passes-old-counter':['next = next.with_counter(next_counter);', 'next = next.with_counter(self.next_counter);'],
-    'local-return-after':['(next, Ok(Local::Authored(fact)))','{ let mut changed = fact; changed.after = Vec::new(); (next, Ok(Local::Authored(changed))) }'],
-    'edit-commit-ignores-counter':['self.next_counter = counter;', 'self.next_counter = self.next_counter;'],
-    'content-changes-whole-fact':['fact.clone()', 'let mut changed = fact.clone(); changed.gap = None; changed'],
-    'content-omits-facts':['for _ in 0..facts.len() {', 'for _ in 0..0 {'],
-    'accepted-reuses-member':['if !has_fact(out, facts[j].id) {','if true {'],
-    'accepted-wrong-canonical-push':['push(&mut out, clone_selected_fact(&facts[i]))?;','push(&mut out, clone_selected_fact(&facts[0]))?;'],
-    'accepted-publication-duplicates':['self.tree = tree;','self.tree = tree; if !self.facts.is_empty() && self.facts.len() < usize::MAX { let copy = self.facts[0].clone(); self.facts.push(copy); }'],
-    'invalid-forgets-reason':['Error::Invalid(reason)','Error::Invalid(Invalid::Counter)'],
-    'writer-index-collides':['Writer::Bo => 1','Writer::Bo => 0'],
-    'identity-writer-equality':['writer_index(*self) == writer_index(*other)','writer_index(*self) == writer_index(*self)'],
-    'identity-birth-equality':['self.event == other.event && self.index == other.index','self.event == other.event'],
-    'identity-scan-key':['if old.id == fact.id {','if old.id.counter == fact.id.counter {'],
-    'identity-event-equality':['self.writer == other.writer && self.counter == other.counter','self.writer == other.writer'],
-    'identity-forgets-gap':['&& left.gap == right.gap','&& true'],
-    'identity-accepts-conflict':['return if fact_equal(old, fact) {','return if fact_equal(old, fact) || old.id == fact.id {'],
-    'identity-skips-later':['for i in 0..facts.len() {','for i in 0..0 {'],
-    'identity-counter-range':['if fact.id.counter == 0 || fact.id.counter > MAX_COUNTER {','if false {'],
-    'receive-error-corrupts-counter':['Err(error) => (self, Err(error)),','Err(error) => { let mut damaged = self; damaged.next_counter = 0; (damaged, Err(error)) },'],
-    'edit-error-corrupts-counter':['Err(error) => (self, Err(error)),','Err(error) => { let mut damaged = self; damaged.next_counter = 0; (damaged, Err(error)) },'],
-    'edit-success-reuses-counter':['Ok(counter + 1)','Ok(counter)'],
-    'local-return-gap':['(next, Ok(Local::Authored(fact)))','{ let mut changed = fact; changed.gap = Some(0); (next, Ok(Local::Authored(changed))) }'],
-    'local-stale-tree':['next = next.with_counter(next_counter);','next = next.with_counter(next_counter); next.tree = self.tree.clone();'],
-    'receive-success-counter':['Ok(Some(next)) => (next, Ok(Admission::Added)),','Ok(Some(mut next)) => { next.next_counter = 0; (next, Ok(Admission::Added)) },'],
-    'author-forgets-gap':['Some(gap)','Some(0)'],
-    'receive-private-gate':['Self::validate_new(&self.facts, self.limits, fact)?;', 'Self::validate_new(&self.facts, self.limits, fact)?; if self.writer.is_none() { return Err(Error::Missing); }'],
-  };
-  assert(start>=0,'mutation scope not found: '+mode);
-  assert(Object.hasOwn(edits,mode)||route,'mutation without a registered edit: '+mode);
-  const [needle,replacement]=route?.slice(2)??edits[mode];const at=scopedAnchor(source,header,needle,mode);
+  const at=scopedAnchor(source,header,needle,mode);
   const mutant=source.slice(0,at)+source.slice(at).replace(needle,replacement);
   assert.notEqual(mutant,source);
   return typeof sources==='string'?mutant:{...sources,[owner]:mutant};
@@ -656,7 +336,7 @@ Object.assign(theorems,{
   "scheduler-choice-call-passes-empty": "EditSchedule.scheduler_choice_is_exact"
 });
 for(const [mode,[owner]] of Object.entries(ownerMigrations))theorems[mode]=owner;
-const mutationOwners=Object.fromEntries(modes.filter(mode=>mode!=='positive').map(mode=>[mode,{owner:theorems[mode],priorOwner:priorOwners[mode]??null,reason:ownerMigrations[mode]?.[1]??(priorOwners[mode]?'owning concrete statement retained':'additional generic-body or concrete-caller control'),source:mutationRoutes[mode]?.[0]??'src/edit.rs'}]));
+const mutationOwners=Object.fromEntries(modes.filter(mode=>mode!=='positive').map(mode=>[mode,{owner:theorems[mode],priorOwner:priorOwners[mode]??null,reason:ownerMigrations[mode]?.[1]??(priorOwners[mode]?'owning concrete statement retained':'additional generic-body or concrete-caller control'),source:definitionByMode.get(mode)[0]}]));
 
 // Registration consistency: every selected mutation must have an anchored edit and a
 // named owning theorem before any native test, extraction or compiler starts.
@@ -667,7 +347,7 @@ for(const mode of modes.filter(mode=>mode!=='positive')){assert(Object.hasOwn(th
 // anchor in another source file must never rescue the selected owner's missing
 // anchor. Existing exhaustive literal/lexer controls still run below.
 for(const mode of ['native-push-discards-value','plan-skips-validation']) {
-  const [owner,header,needle]=mutationRoutes[mode];
+  const [owner,header,needle]=definitionByMode.get(mode);
   const source=original[owner], [start,end]=itemSpan(source,header,mode);
   const body=source.slice(start,end);
   const variant=body=>({...original,[owner]:source.slice(0,start)+body+source.slice(end)});

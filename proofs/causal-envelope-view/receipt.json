@@ -4,7 +4,7 @@
     "proofs/CausalEnvelope.lt": "d5829734f594d680e5889bd656e538639c32bdb2820f6948d2a65e02f3407d79",
     "proofs/causal-envelope-view/Nickel.CausalEnvelope.fst": "348e2ebf43693f8920f9869b6db068d91eb3a679a5c0c82ab12e26669cf18181",
     "proofs/causal-envelope-view/Nickel_crdt.Causal.fst": "cd97314db9fd52442c83d01df73e3915d776786e5fc4a4a3d5b32b4f21788bbc",
-    "src/causal.rs": "b14d0a25410252104070d416fad9496689dcfdcbe18d2c5ef0d3a12c00a587db",
+    "src/causal.rs": "0107c0e75077dfea2cb1996451b66b84758121a5010f12cd4667b81f64fde111",
     "proofs/Prelude.lt": "4643d9f8a8df599f3add41d5066c8925b5b035a9e3305d8844dbb98b504fadd0",
     "proofs/LoopUtil.lt": "ebaecb4a8efb17955843bb9d0f9fa61ead4f52a5a2993dcf6f6876e808819606",
     "proofs/generated/Nickel.Prelude.fst": "83c4d2537028795a12e2badff05c07f032042af84315bc8a3675110bd89999b3",

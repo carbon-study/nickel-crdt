@@ -14,7 +14,8 @@ profile remain the compatibility surface. Thin native wrappers keep the old
 proof-facing names and specialize the generic functions at the actual text
 callbacks. They do not contain a second graph algorithm. Some are retained
 explicitly as proof bridges even when a generic inner call no longer calls the
-wrapper itself. Source mutation controls must target the actual shared body or
+wrapper itself. Their [inventory and deletion sequence](shared-wrapper-retirement.md)
+separate proof-only residue from executed specialization callbacks. Source mutation controls must target the actual shared body or
 executed client callback, not such an unused forwarding wrapper.
 
 ## generic core and clients
@@ -33,17 +34,21 @@ proposal or enlarge the accepted text profile. The generic layer's comparison-
 relative statements must not be confused with proving a client's equality,
 ordering, allocation or interpretation obligations.
 
-`atomic_map::BatchReplica` exercises the same shared graph/planning/publication
-code with arbitrary `u64` peers and ordered record/field batches. Application
+`atomic_map::BatchReplica` directly owns its concrete state, history, limits and
+producer counter and exercises the same shared classification/graph/planning/
+publication code with arbitrary `u64` peers and ordered record/field batches.
+The prototype payload-generic `causal::Store` and callback `Client` shell have
+been removed, rather than renamed or hidden behind another wrapper.
+`causal.rs` now only defines the example envelope identity/value and its focused
+equality/classifier proof fixture; it is not a second store or scheduler. Application
 format tags and bytes are opaque. Its example policy is last write in canonical
 replay order, with source events retained. It does not adopt the proposed full
 register/collection/history contracts: there is no remove, Restore, Undo,
 retirement, compaction or general unknown-engine-operation protocol.
 
-`shared_text::SharedText` remains a compatibility example, but it is no longer
-the only way text reaches the layer: ordinary `edit::Replica::edit/receive`
-execute it directly. One fact remains one text operation. Multi-text occurrence
-identity is still open.
+The redundant `shared_text::SharedText` prototype adapter has been removed.
+The runnable example uses ordinary `edit::Replica::edit/receive` directly.
+One fact remains one text operation. Multi-text occurrence identity is still open.
 
 ## proof transfer
 
@@ -85,7 +90,9 @@ that case and the actual wrong implementation.
 Clients must leave borrowed inputs and published reachable data unchanged;
 mutable working data must be detached. `Clone` alone does not guarantee this:
 `Rc<Cell<_>>` can share mutable payloads across clones. External callback effects,
-panics and allocation/process failure are not rolled back. The pinned hax Clone
+panics and allocation/process failure are not rolled back. The concrete batch state is an owned `BTreeMap`; the arbitrary-state clone
+regression now tests the shared publication function directly, not a removed
+generic Store API. The pinned hax Clone
 model promises value-preserving cloning; fidelity of each concrete Rust client
 and of the extraction/models/checker remains an explicit trust boundary, not an
 enforced generic Rust purity type.
