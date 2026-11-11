@@ -126,7 +126,10 @@ let rec shared_lookup_agrees (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact
     begin if not ((Rust_primitives.Slice.slice_index facts at).f_id ==? fact.f_id) then
       begin shared_lookup_agrees facts fact (at +! mk_usize 1) end
     else
-      begin () end end
+      begin assert (Native.fact_equal (Rust_primitives.Slice.slice_index facts at) fact == (Rust_primitives.Slice.slice_index facts at ==? fact)) by (
+        Tactics.prune "Nickel_crdt.Edit.fact_equal";
+        Tactics.smt_sync' 1 1
+      ) end end
   else
     begin () end
 

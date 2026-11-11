@@ -128,7 +128,12 @@ proof! shared_lookup_agrees(facts: t_Slice(Native.t_Fact), fact: Native.t_Fact, 
   if v(at) < v(length(facts)) {
     if !(Rust_primitives.Slice.slice_index(facts, at).f_id ==? fact.f_id) {
       shared_lookup_agrees(facts, fact, at +! mk_usize(1))
-    } else { () }
+    } else {
+      assert(Native.fact_equal(Rust_primitives.Slice.slice_index(facts, at), fact) == (Rust_primitives.Slice.slice_index(facts, at) ==? fact)) by {
+        Tactics.prune("Nickel_crdt.Edit.fact_equal");
+        Tactics.smt_sync'(1, 1)
+      }
+    }
   } else { () }
 }
 
