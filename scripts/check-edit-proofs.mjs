@@ -177,7 +177,7 @@ const mutationDefinitions=[
   ["replay-context-invents-error","src/edit.rs","fn author_context(","let author = replay_author(operations, &selected)?;","let author = replay_author(operations, &selected)?; if operations.is_empty() { return Err(Error::Internal); }"],
   ["replay-context-contaminates-basis","src/edit.rs","fn author_context(","let (selected, basis) = event_basis(facts, event)?;","let (selected, mut basis) = event_basis(facts, event)?; if !event.after.is_empty() && facts.len() > 2 { push(&mut basis, facts[1].clone())?; }"],
   ["scheduler-forgets-completed-tree","src/edit.rs","fn interpret_scheduled(","crate::event_shell::scheduled(\n        facts,\n        Tree::default(),\n        &(),\n        fact_id,\n        scheduled_choose,\n        scheduled_apply,\n        internal_error,\n    )","crate::event_shell::scheduled(\n        facts,\n        Tree::default(),\n        &(),\n        fact_id,\n        scheduled_choose,\n        scheduled_apply,\n        internal_error,\n    ).map(|(_, done)| (Tree::default(), done))"],
-  ["plan-interprets-uncanonical-call","src/edit.rs","fn plan(","plan_prepare,","|_, mut next, fact| { push(&mut next.facts, fact.clone())?; Ok(next) },"],
+  ["plan-interprets-uncanonical-call","src/edit.rs","fn plan(","plan_prepare,","|_, next, fact| { let mut prepared = next; push(&mut prepared.facts, fact.clone())?; Ok(prepared) },"],
   ["shared-plan-skips-validation","src/event_shell.rs","fn plan<","validate(context, before, fact)?;","let _ = validate(context, before, fact);"],
   ["shared-plan-ignores-duplicate","src/event_shell.rs","fn plan<","if duplicate(context, before, fact)? {","if duplicate(context, before, fact)? && false {"],
   ["shared-plan-swallows-classifier-error","src/event_shell.rs","fn plan<","if duplicate(context, before, fact)? {","if match duplicate(context, before, fact) { Ok(found) => found, Err(_) => false } {"],
@@ -292,9 +292,10 @@ const theorems={
 // remain checked; additional concrete callback/call-argument controls above keep
 // caller composition sensitive. Only the exact named new owner may reject a
 // moved-body control; an arbitrary earlier dependency failure is never credited.
-const priorOwners={...theorems};
 theorems['plan-interprets-uncanonical-call']='EditAccepted.plan_publishes_interpretation';
+const priorOwners={...theorems};
 const ownerMigrations={
+  "plan-interprets-uncanonical-call":["EditAccepted.plan_publishes_canonical_facts","added wrong-prepare callback omits canonicalization; exact canonical fact publication owns this fault, while interpretation of the returned facts can still agree"],
   "plan-interprets-uncanonical":["EventShell.planning_is_exact","callback ordering moved from concrete plan to generic plan"],
   "past-membership-always-false": [
     "EventGraph.membership_is_exact",
