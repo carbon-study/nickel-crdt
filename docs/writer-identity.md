@@ -149,10 +149,18 @@ draws really are independent and uniform; a weak or cloned RNG state breaks
 both. Under that assumption a collision is a probabilistic risk, not something
 Nickel can prove absent.
 
-**What Nickel's structural checks are not.** `duplicate`/`fact_equal` reject
-two facts with the same ID and different contents *when they meet in one
-replica*. That is detection after the fact. It is not an allocator, not
-authentication, and not a recovery mechanism for a collision or a reuse.
+**What Nickel's structural checks are not.** `duplicate`/`fact_equal` reject a
+fact whose ID is already present *with different contents*, and only when both
+facts meet in one replica. That is detection after the fact, and only some
+collisions are detected:
+- two producers that issue the same ID with **identical** contents are not
+  distinguished. The second arrival is admitted as `Ok(Admission::Duplicate)`
+  (`src/edit.rs:822`);
+- conflicting facts that never meet in one replica are never compared.
+
+Structural checking is therefore narrower than fresh allocation, and narrower
+than clone/recovery ownership. It is not an allocator, not authentication, and
+not a recovery mechanism for a collision or a reuse.
 
 ## 4. Question C: the laws the proofs need
 
@@ -168,10 +176,20 @@ proposal is that proofs use writers only through these properties:
   (writer order, counter), hence a strict total order on `EventId` consistent
   with equality.
 - **L4 birth order:** `birth_lt` is lexicographic on (`event_lt`, index).
-- **L5 order key** (used by EditAccepted): some injective, order-preserving map
-  of `EventId` into `nat`. For example `key(w, c) = rank(w) · 2^64 + c` with
-  `rank` an order embedding of writers into `nat`. It replaces the two-armed
+- **L5 order key** (used by EditAccepted): an injective, order-preserving map of
+  `EventId` into `nat`, for example `key(w, c) = rank(w) · 2^64 + c` with `rank`
+  an order embedding of writers into `nat`. It replaces the two-armed
   `event_key`.
+  - **L5 is an extra restriction, not a consequence of L1–L4.** An arbitrary
+    total order need not embed into `nat`. The integers in their usual order are
+    an example: no order-preserving map sends them into `nat`.
+  - For a finite-width concrete domain such as `u64`, `rank(w) = w` works, so
+    under T1 L5 holds by construction.
+  - Under T2 there are two choices. Either restrict the allowed peer domains to
+    those with such a ranking, as an explicit interface law. Or replace the
+    global key with a ranking constructed over the finitely many peers of a given
+    history, which is an additional construction to prove. EditAccepted would
+    then be re-proved against it.
 
 **From an arbitrary ordered peer domain to the Rust type.**
 
@@ -197,10 +215,13 @@ must prove, not postulates.
 
 **What the fence does and doesn't do.** A proof-reform rule that refuses
 writer-constructor patterns and literal writer values in `.lt` sources is an
-*authored-syntax regression guard*. It stops new explicit case-splits, and it
-can confine representation unfolding to the named L1–L5 lemmas. It cannot stop
-the SMT context from exploiting a finite inductive domain. That is why the exit
-above is re-verification over the enlarged type, not the fence.
+*authored-syntax regression guard*. It stops new explicit case-splits in
+authored sources, and nothing more. It does not hide a transparent datatype
+definition, a concrete width, imported bodies or other implicit facts from the
+SMT context. So it gives none of the isolation of an abstract interface, and it
+is not a step toward T2 by itself. The exit is re-verification over the enlarged
+type (T1), or a separately checked interface theorem with checked instantiation
+(T2), not the fence.
 
 ## 5. Compatibility: the order is observable
 
