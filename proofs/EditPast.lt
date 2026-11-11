@@ -88,6 +88,13 @@ proof extend_past_preserves(roots: t_Slice(Native.t_EventId), p: Native.t_EventI
   { selected_push_preserves(roots, p, selected, id) };
   FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_push));
   if Native.has_event(Alloc.Vec.impl_1__as_slice(before), fact.f_id) {
+    assert(member(Alloc.Vec.impl_1__as_slice(before), fact.f_id)) by {
+      Tactics.prune("Nickel.EventGraph.membership_is_exact");
+      Tactics.prune("Nickel_crdt.Edit.has_event");
+      Tactics.prune("Nickel_crdt.Event_layer.has_id");
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.smt_sync'(1, 1)
+    };
     member_satisfies(Alloc.Vec.impl_1__as_slice(before), p, fact.f_id);
     assert(all_ids(Alloc.Vec.impl_1__as_slice(fact.f_after), p));
     Nickel.LoopUtil.result_preserve_any(mk_usize(0), Alloc.Vec.impl_1__len(fact.f_after),

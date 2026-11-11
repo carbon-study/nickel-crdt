@@ -86,7 +86,14 @@ let extend_past_preserves (roots: t_Slice Native.t_EventId) (p: Native.t_EventId
   let each_push (selected: ids_vec) (id: Native.t_EventId) : Lemma (requires (selection_ok roots p selected /\ p id)) (ensures push_selection_result roots p (Native.push selected id)) = selected_push_preserves roots p selected id in
   FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_push);
   if Native.has_event (Alloc.Vec.impl_1__as_slice before) fact.f_id then
-    begin member_satisfies (Alloc.Vec.impl_1__as_slice before) p fact.f_id;
+    begin assert (member (Alloc.Vec.impl_1__as_slice before) fact.f_id) by (
+      Tactics.prune "Nickel.EventGraph.membership_is_exact";
+      Tactics.prune "Nickel_crdt.Edit.has_event";
+      Tactics.prune "Nickel_crdt.Event_layer.has_id";
+      Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+      Tactics.smt_sync' 1 1
+    );
+    member_satisfies (Alloc.Vec.impl_1__as_slice before) p fact.f_id;
     assert (all_ids (Alloc.Vec.impl_1__as_slice fact.f_after) p);
     Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Alloc.Vec.impl_1__len fact.f_after) (fun (_: nat) (selected: ids_vec) -> selection_ok roots p selected) (fun (selected: ids_vec) -> selected) (selection_ok roots p) (fun (_: Native.t_Error) -> Prims.l_True);
     assert (selection_result roots p (Native.extend_past fact before)) by (

@@ -165,7 +165,7 @@ const mutationDefinitions=[
   ["scheduler-records-wrong-id","src/edit.rs","fn interpret_scheduled(","fact_id,","|_| EventId { writer: Writer::Alice, counter: 0 },"],
   ["scheduler-stops-early","src/event_shell.rs","fn scheduled<","for _ in 0..facts.len() {","for _ in 0..0 {"],
   ["scheduler-erases-wrong-trace","src/edit.rs","fn interpret(","let pair = interpret_scheduled(facts)?;","let pair = interpret_scheduled(&[])?;"],
-  ["scheduler-invents-bookkeeping-error","src/edit.rs","fn scheduled_apply(","interpret_event(facts, event, operations, result)","let (next, ops) = interpret_event(facts, event, operations, result)?; if ops.len() == 0 { return Err(Error::Internal); } Ok((next, ops))"],
+  ["scheduler-invents-bookkeeping-error","src/event_shell.rs","fn scheduled<","let event_id = id(event);","if operations.len() == 0 { return Err(internal()); } let event_id = id(event);"],
   ["basis-includes-unselected","src/event_layer.rs","fn select_basis<","if has_id(selected, &id(fact), id_eq) {","if true {"],
   ["basis-omits-selected","src/event_layer.rs","fn select_basis<","if has_id(selected, &id(fact), id_eq) {","if false {"],
   ["basis-event-ignores-roots","src/event_layer.rs","fn event_basis<","past(facts, after(event), id, after, id_eq, internal, missing)?","past(facts, &[], id, after, id_eq, internal, missing)?"],
