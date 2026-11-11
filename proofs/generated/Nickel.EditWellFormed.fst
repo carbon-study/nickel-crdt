@@ -372,6 +372,8 @@ let absence_on_whole_facts (facts: t_Slice Native.t_Fact) (id: Native.t_EventId)
     Nickel.Vector.slice_index facts (mk_usize i);
     Nickel.Vector.slice_length facts;
     assert (Prims.l_not (fact.f_id == id)) by (
+      Tactics.prune "Nickel_crdt.Edit.has_fact";
+      Tactics.prune "Nickel_crdt.Event_layer.has_fact";
       Tactics.prune "Nickel.Vector.slice_index";
       Tactics.prune "Nickel.Vector.slice_length";
       Tactics.prune "Rust_primitives.Slice.slice_index";
