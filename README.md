@@ -9,6 +9,15 @@ accept different concurrent subsets. Retained [native capacity witnesses](docs/r
 make this limitation explicit; the crate supplies no general over-capacity
 synchronization or retry-progress policy.
 
+## Shared-layer experiment
+
+An [experimental payload-generic store](docs/shared-layer-experiment.md) now has
+two native clients: the existing text backend through a single-operation
+adapter, and a small ordered atomic record/field-batch example. Try
+`cargo run --locked --example shared-causal`; `nix build --no-link .#shared-native`
+checks its native implementation controls. This parallel API does not replace
+the checked text API or establish the remaining shared-layer/client proofs.
+
 ## Ordering research candidates
 
 [FugueMax candidate](docs/fugue-ordering.md) is the current stronger-ordering

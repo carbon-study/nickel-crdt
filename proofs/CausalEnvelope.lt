@@ -1,0 +1,75 @@
+import Rust_primitives
+import Core_models
+import FStar.Pervasives
+import Nickel.LoopUtil
+import Native = Nickel_crdt.Causal
+import Option = Core_models.Option
+import Seq = FStar.Seq
+import Tactics = FStar.Tactics.V2
+
+function same_id(a: Native.t_Id, b: Native.t_Id): Type0 {
+  a.f_peer == b.f_peer and a.f_counter == b.f_counter
+}
+function absent<p: Type0, model i0: Core_models.Clone.t_Clone(p)>(facts: t_Slice(Native.t_Event(p)), id: Native.t_Id, at: nat): Type0 {
+  forall(j: nat) . (j < at and j < Seq.length(facts)) ==> not same_id(Seq.index(facts, j).f_id, id)
+}
+// The witness is the FIRST matching ID even if the store contains duplicates.
+function classified<p: Type0, model i0: Core_models.Clone.t_Clone(p)>(facts: t_Slice(Native.t_Event(p)), fact: Native.t_Event(p), eq: p => p => bool, r: Option.t_Option(bool)): Type0 {
+  match r {
+    Option.Option_Some(b) => exists(i: nat) . i < Seq.length(facts) and absent(facts, fact.f_id, i) and same_id(Seq.index(facts, i).f_id, fact.f_id) and b == Native.event_equal<#p>(Seq.index(facts, i), fact, eq),
+    Option.Option_None => absent(facts, fact.f_id, Seq.length(facts))
+  }
+}
+proof id_equal_exact(a: Native.t_Id, b: Native.t_Id): unit
+  gives (Native.impl.f_eq(a, b) == true <==> same_id(a, b))
+{ () }
+
+proof classify_first_match<p: Type0, model i0: Core_models.Clone.t_Clone(p)>(facts: t_Slice(Native.t_Event(p)), fact: Native.t_Event(p), eq: p => p => bool): unit
+  gives classified(facts, fact, eq, Native.classify<#p>(facts, fact, eq))
+{
+  Nickel.LoopUtil.preserve_any<#unit, #Option.t_Option(bool)>(mk_usize(0), Core_models.Slice.impl__len<#Native.t_Event(p)>(facts),
+    ((at: nat, _: unit) => absent(facts, fact.f_id, at)),
+    ((_: unit) => absent(facts, fact.f_id, Seq.length(facts))),
+    ((r: Option.t_Option(bool)) => classified(facts, fact, eq, r)));
+  assert(classified(facts, fact, eq, Native.classify<#p>(facts, fact, eq))) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.prune("Nickel_crdt.Causal.event_equal");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+function ids_prefix(a: t_Slice(Native.t_Id), b: t_Slice(Native.t_Id), at: nat): Type0 {
+  forall(j: nat) . (j < at and j < Seq.length(a) and j < Seq.length(b)) ==> same_id(Seq.index(a, j), Seq.index(b, j))
+}
+function ids_equal(a: t_Slice(Native.t_Id), b: t_Slice(Native.t_Id)): Type0 {
+  Seq.length(a) == Seq.length(b) and ids_prefix(a, b, Seq.length(a))
+}
+proof ids_eq_exact(a: t_Slice(Native.t_Id), b: t_Slice(Native.t_Id)): unit
+  gives ((Native.ids_eq(a, b) == true <==> ids_equal(a, b)) and
+    (Native.ids_eq(a, b) == false <==> not ids_equal(a, b)))
+  hint Native.ids_eq(a, b)
+{
+  if Seq.length(a) ==? Seq.length(b) {
+    Nickel.LoopUtil.preserve_any<#unit, #bool>(mk_usize(0), Core_models.Slice.impl__len<#Native.t_Id>(a),
+      ((at: nat, _: unit) => ids_prefix(a, b, at)),
+      ((_: unit) => ids_equal(a, b)),
+      ((r: bool) => r == false and not ids_equal(a, b)));
+    assert(Native.ids_eq(a, b) == true <==> ids_equal(a, b)) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.smt_sync'(1, 1)
+    }
+  } else { () }
+}
+// Equality is supplied by the client; this premise is not a claim about its code.
+proof event_equal_exact<p: Type0, model i0: Core_models.Clone.t_Clone(p)>(left: Native.t_Event(p), right: Native.t_Event(p), eq: p => p => bool): unit
+  takes forall(a: p, b: p) . (eq(a, b) == true <==> a == b)
+  gives (Native.event_equal<#p>(left, right, eq) == true <==>
+    (same_id(left.f_id, right.f_id) and ids_equal(Alloc.Vec.impl_1__as_slice(left.f_after), Alloc.Vec.impl_1__as_slice(right.f_after)) and left.f_payload == right.f_payload))
+{
+  ids_eq_exact(Alloc.Vec.impl_1__as_slice(left.f_after), Alloc.Vec.impl_1__as_slice(right.f_after));
+  assert(Native.event_equal<#p>(left, right, eq) == true <==>
+    (same_id(left.f_id, right.f_id) and ids_equal(Alloc.Vec.impl_1__as_slice(left.f_after), Alloc.Vec.impl_1__as_slice(right.f_after)) and left.f_payload == right.f_payload)) by {
+    Tactics.prune("Nickel_crdt.Causal.ids_eq");
+    Tactics.smt_sync'(1, 1)
+  }
+}

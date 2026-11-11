@@ -71,6 +71,43 @@
         name = "proofs-shard-${toString i}";
         value = mkProofCheck "shard-${toString i}" false [ "shard:${toString i}/${toString proofShards}" ];
       }) proofShards);
+      # Separate experimental implementation controls, not the text proof gate.
+      sharedNativeSource = pkgs.lib.fileset.toSource {
+        root = ./.;
+        fileset = pkgs.lib.fileset.unions [ ./src ./tests/shared_layer.rs
+          ./scripts/check-shared-native.mjs ./scripts/proof-cache.mjs ./scripts/mutation-scope.mjs ];
+      };
+      sharedNative = pkgs.runCommand "nickel-shared-native" {
+        nativeBuildInputs = tools;
+      } ''
+        export HOME="$TMPDIR/home"
+        mkdir -p "$HOME"
+        cp -r ${sharedNativeSource} work
+        chmod -R u+w work
+        cd work
+        node scripts/check-shared-native.mjs "$out"
+      '';
+      sharedProofSource = pkgs.lib.fileset.toSource {
+        root = ./.;
+        fileset = pkgs.lib.fileset.unions [ ./src/causal.rs
+          ./proofs/CausalEnvelope.lt ./proofs/causal-envelope-view
+          ./proofs/Prelude.lt ./proofs/LoopUtil.lt
+          ./proofs/generated/Nickel.Prelude.fst ./proofs/generated/Nickel.LoopUtil.fst
+          ./scripts ];
+      };
+      sharedProof = pkgs.runCommand "nickel-shared-proofs" {
+        nativeBuildInputs = tools;
+      } ''
+        export HOME="$TMPDIR/home"
+        mkdir -p "$HOME"
+        cp -r ${sharedProofSource} work
+        chmod -R u+w work
+        cd work
+        ${modelEnv}
+        export NICKEL_HAX_BIN="${haxBin}/bin/cargo-hax"
+        export NICKEL_FSTAR_MODEL_CACHE="${models}"
+        node scripts/check-causal-envelope.mjs "$out"
+      '';
       editReferenceSource = pkgs.lib.fileset.toSource {
         root = ./.;
         fileset = pkgs.lib.fileset.unions [
@@ -97,6 +134,8 @@
       packages.${system} = {
         default = native;
         inherit native;
+        shared-native = sharedNative;
+        shared-proofs = sharedProof;
         edit-reference = editReference;
         proof-models = models;
         proofs = proofCheck;
@@ -105,7 +144,7 @@
         hax = haxBin;
         hax-fstar = fstar;
       } // proofShardChecks;
-      checks.${system} = { inherit native; proofs = proofCheck; edit-reference = editReference; };
+      checks.${system} = { inherit native; shared-native = sharedNative; shared-proofs = sharedProof; proofs = proofCheck; edit-reference = editReference; };
       devShells.${system} = {
         default = pkgs.mkShell {
           packages = tools ++ [ haxBin fstar ];
