@@ -101,7 +101,9 @@ TargetedOperation = { target: ContainerId, operation: KindOperation }
 The log is parameterized over `P`; a mixed document uses `P = DocumentBatch`.
 Container identity must be stable and distinct from plugin identity. Operations
 are an ordered batch, not a set: repetitions and intra-batch order may matter.
-Event equality includes that order. The batch shares one causal basis, one
+Event equality includes that order. Validation and interpretation must consume
+that same stored order: neither may sort or regroup operations by kind. The
+batch shares one causal basis, one
 producer allocation and one externally visible commit. This is not permission
 to collapse separate user actions or group their future Undo histories.
 
@@ -113,10 +115,23 @@ later operations see earlier ones, before implementation. A possible stable
 sub-operation identity is `(event ID, ordinal)`; this is an **open representation
 choice**, not a change to current `BirthId { event, index }`.
 
-The text adapter should initially encode today's whole text edit as **one**
-payload operation. Keep its pre-edit gap/delete semantics and all existing birth
-IDs under an explicit embedding. Flattening insert scalars into generic
-operations without that mapping would silently change targeting and grouping.
+The compatibility adapter for today's API is explicitly restricted to **at most
+one text operation per event**, encoded as one payload operation. Only in that
+restricted adapter does today's `BirthId { event, index }` retain its meaning
+unchanged. Keep its pre-edit gap/delete semantics and birth IDs under an
+explicit embedding.
+
+A general batch with two text operations cannot independently number both from
+index zero: even distinct containers would produce two births `{event, 0}`.
+Before supporting that case, choose a collision-free identity/targeting scheme:
+container-qualified occurrences (which must also distinguish repeated operations
+on the same container), batch-global birth numbering, or an operation ordinal
+such as `(event, ordinal, scalar-index)`. Every text delete/anchor target must
+resolve an unambiguous occurrence in its intended container. Prove how old
+single-text histories embed and how new occurrences remain distinct, including
+two text operations on the **same** container. No scheme is selected here.
+Flattening insert scalars into generic operations without that mapping would
+silently change targeting and grouping.
 
 A document interpreter dispatches each target operation to its kind. It owes
 cross-kind noninterference/composition laws as well as per-kind laws; two
@@ -153,10 +168,38 @@ objects, intermediate author states and derived structures. Counts such as
 does not prove a batch fits. Today's over-capacity arrival-order limitation
 remains; this proposal supplies no over-capacity synchronization policy.
 
-Unknown operation kinds or unsupported format versions are an open boundary:
-reject/defer the **whole** commit with explicit ownership of the offered input,
-or design a distinct opaque-storage status. Do not call an opaque stored event
-semantically applied, and do not partially execute its known operations.
+### Unsupported data formats are not unknown engine operations
+
+Carbon's newer **value-format** case can still be a known register operation:
+in this candidate, Nickel stores an atomic tagged byte value and computes the register winner
+without interpreting the application's format family/version. Carbon preserves
+the raw value and locks its incompatible editor; other supported fields can
+remain editable. This requires an opaque **register value**, not necessarily
+an unknown CRDT operation or an uninterpreted event. The stored tag must identify
+the format family as well as its version, independently of the handler plugin.
+
+An actually unknown **operation kind** is different: the engine may not know
+its targets, effects, invariants or effect on later validation. Rejecting or
+deferring event counter `c` also prevents admission of `c+1` under the current
+producer-chain rule, and blocks other peers' causal descendants. This is a
+transitive causal stall, not an isolated locked field. Such rejection cannot be
+advertised as Carbon's “newer field locked, other fields editable” behavior.
+
+If mixed engine versions must accept such events and continue their graph
+history, the design needs separate envelope retention/structural admission and
+semantic application states (with explicit frontiers/status), plus a proof of
+which later operations and observations remain safe. Storing an unknown event
+does not certify its payload validity or application, and receiving a descendant
+does not make that descendant interpretable. Do not partially apply the known
+operations of one atomic batch or expose guessed/default state for its unknown
+effects. This can lock dependent state until interpretation becomes available.
+
+Two policies remain to decide: restrict participating engine versions to a
+supported operation vocabulary and expose transitive deferral on mismatch; or
+build that separate opaque-event/application protocol. They are **not equally
+compatible with uninterrupted mixed-engine-version editing**. Neither protocol
+exists today. Offered-input ownership, retry and storage bounds must be explicit;
+no existing `Added` result is silently redefined as “stored but unapplied.”
 
 ## 5. Proof boundary over arbitrary payloads
 
@@ -289,8 +332,17 @@ Future acceptance should include:
    needs its own independent oracle; agreement of two wrong receivers is not
    sufficient.
 5. Arbitrary-peer obligations and three-plus/sparse/high-ID cases from PR90;
-   scalar/birth targeting compatibility from the text embedding; fresh
+   scalar/birth targeting compatibility from the restricted text embedding; fresh
    extraction plus affected semantic/dependency controls before landing.
+6. Two text operations in one event, including on the same container: the
+   selected identity scheme must distinguish their births and delete targets;
+   the restricted compatibility adapter must refuse an unsupported second text
+   operation rather than alias it.
+7. A known register write with an unknown application format must retain its
+   exact bytes without freezing unrelated supported fields. Separately test an
+   unknown engine operation followed by the same producer's next event and a
+   different peer's descendant: expose the causal stall or selected
+   stored/unapplied statuses, never pretend it is only a field-format lock.
 
 Decisions still needed, **not adopted by this proposal**:
 
@@ -299,7 +351,8 @@ Decisions still needed, **not adopted by this proposal**:
 - Which operations/containers the first mixed document supports; same-key and
   record-lifetime policy; intra-batch references and ordering.
 - Common vs per-kind error/resource budgets; unknown-kind storage/defer policy;
-  local no-op detection and public event/sub-operation identities.
+  local no-op detection and public event/sub-operation identities, including
+  multi-text birth identity and unambiguous container targeting.
 - Peer representation and producer recovery choice under PR90; exact ordering
   of those implementation cuts; no automatic allocation policy follows here.
 - Where this work sits in the revised Nickel milestones. Text-first release
