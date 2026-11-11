@@ -81,77 +81,62 @@ pub fn classify<P: Clone>(
     None
 }
 
-fn position<P: Clone>(facts: &[Event<P>], id: Id) -> Option<usize> {
-    let mut i = 0;
-    while i < facts.len() {
-        if facts[i].id == id {
-            return Some(i);
-        }
-        i += 1;
-    }
-    None
+fn event_clone<P: Clone>(event: &Event<P>) -> Event<P> {
+    event.clone()
 }
 
-fn past_marks<P: Clone>(facts: &[Event<P>], roots: &[Id]) -> Result<Vec<bool>, Error<()>> {
-    let mut marks = vec![false; facts.len()];
-    for root in roots {
-        match position(facts, *root) {
-            Some(i) => marks[i] = true,
-            None => return Err(Error::Missing),
-        }
-    }
-    let mut changed = true;
-    while changed {
-        changed = false;
-        let mut i = 0;
-        while i < facts.len() {
-            if marks[i] {
-                for dep in &facts[i].after {
-                    match position(facts, *dep) {
-                        Some(j) => {
-                            if !marks[j] {
-                                marks[j] = true;
-                                changed = true;
-                            }
-                        }
-                        None => return Err(Error::Missing),
-                    }
-                }
-            }
-            i += 1;
-        }
-    }
-    Ok(marks)
+fn identity<P: Clone>(event: &Event<P>) -> Id {
+    event.id
+}
+fn parents<P: Clone>(event: &Event<P>) -> &[Id] {
+    &event.after
+}
+fn id_equal(left: &Id, right: &Id) -> bool {
+    left == right
+}
+fn id_less(left: &Id, right: &Id) -> bool {
+    left < right
+}
+fn invalid<E>() -> Error<E> {
+    Error::Invalid
+}
+fn missing<E>() -> Error<E> {
+    Error::Missing
+}
+
+// Unlike the shared partial-graph closure, this client's policy rejects any
+// unresolved transitive predecessor, including in unrelated supplied facts.
+fn closed_past<P: Clone>(facts: &[Event<P>], roots: &[Id]) -> Result<Vec<Id>, Error<()>> {
+    let selected =
+        crate::event_layer::past(facts, roots, identity, parents, id_equal, invalid, missing)?;
+    crate::event_layer::validate_after(facts, &selected, identity, id_equal, missing)?;
+    Ok(selected)
 }
 
 // Public helpers reject malformed supplied graphs, including unrelated facts.
 fn graph_valid<P: Clone>(facts: &[Event<P>]) -> Result<(), Error<()>> {
-    let mut i = 0;
-    while i < facts.len() {
+    // The original position-based malformed-graph policy resolves a repeated
+    // ID to its first occurrence until that duplicate is itself rejected.
+    // Preserve that error precedence while using the shared closure.
+    let mut first = Vec::new();
+    for fact in facts {
+        if !crate::event_layer::has_fact(&first, &fact.id, identity, id_equal) {
+            crate::event_layer::push(&mut first, fact.clone(), invalid)?;
+        }
+    }
+    for i in 0..facts.len() {
         let fact = &facts[i];
         if fact.id.counter == 0 {
             return Err(Error::Invalid);
         }
-        let mut j = 0;
-        while j < i {
-            if facts[j].id == fact.id {
-                return Err(Error::Invalid);
-            }
-            j += 1;
+        if crate::event_layer::has_fact(&facts[..i], &fact.id, identity, id_equal) {
+            return Err(Error::Invalid);
         }
-        j = 0;
-        while j < fact.after.len() {
-            let mut k = 0;
-            while k < j {
-                if fact.after[k] == fact.after[j] {
-                    return Err(Error::Invalid);
-                }
-                k += 1;
-            }
-            j += 1;
+        if crate::event_layer::duplicate_ids(&fact.after, id_equal) {
+            return Err(Error::Invalid);
         }
-        let marks = past_marks(facts, &fact.after)?;
-        if marks[i] {
+        let selected = closed_past(&first, &fact.after)?;
+        if crate::event_layer::has_id(&selected, &fact.id, id_equal) {
             return Err(Error::Invalid);
         }
         if fact.id.counter > 1 {
@@ -159,12 +144,10 @@ fn graph_valid<P: Clone>(facts: &[Event<P>]) -> Result<(), Error<()>> {
                 peer: fact.id.peer,
                 counter: fact.id.counter - 1,
             };
-            match position(facts, predecessor) {
-                Some(j) if marks[j] => (),
-                _ => return Err(Error::Invalid),
+            if !crate::event_layer::has_id(&selected, &predecessor, id_equal) {
+                return Err(Error::Invalid);
             }
         }
-        i += 1;
     }
     Ok(())
 }
@@ -173,63 +156,44 @@ fn graph_valid<P: Clone>(facts: &[Event<P>]) -> Result<(), Error<()>> {
 /// form a valid whole graph. Repeated roots are invalid, even for an empty past.
 pub fn exact_past<P: Clone>(facts: &[Event<P>], roots: &[Id]) -> Result<Vec<Event<P>>, Error<()>> {
     graph_valid(facts)?;
-    let mut i = 0;
-    while i < roots.len() {
-        let mut j = 0;
-        while j < i {
-            if roots[i] == roots[j] {
-                return Err(Error::Invalid);
-            }
-            j += 1;
-        }
-        i += 1;
+    if crate::event_layer::duplicate_ids(roots, id_equal) {
+        return Err(Error::Invalid);
     }
-    let marks = past_marks(facts, roots)?;
-    let mut result = Vec::new();
-    i = 0;
-    while i < facts.len() {
-        if marks[i] {
-            result.push(facts[i].clone());
-        }
-        i += 1;
-    }
-    Ok(result)
+    let selected = closed_past(facts, roots)?;
+    crate::event_layer::select_basis(facts, &selected, identity, id_equal, invalid, event_clone)
+}
+
+fn choose_scheduled<P: Clone>(_: &(), facts: &[Event<P>], done: &[Id]) -> Option<usize> {
+    crate::event_layer::choose_ready(facts, done, identity, parents, id_equal)
+}
+
+fn collect_scheduled<P: Clone>(
+    _: &(),
+    _: &[Event<P>],
+    event: &Event<P>,
+    _: &[(Id, ())],
+    mut out: Vec<Event<P>>,
+) -> Result<(Vec<Event<P>>, ()), Error<()>> {
+    crate::event_layer::push(&mut out, event.clone(), invalid)?;
+    Ok((out, ()))
 }
 
 /// Repeatedly choose the smallest writer-first id among currently ready facts.
 pub fn schedule<P: Clone>(facts: &[Event<P>]) -> Result<Vec<Event<P>>, Error<()>> {
     graph_valid(facts)?;
-    let mut done = vec![false; facts.len()];
-    let mut result = Vec::new();
-    while result.len() < facts.len() {
-        let mut best: Option<usize> = None;
-        let mut i = 0;
-        while i < facts.len() {
-            if !done[i] {
-                let mut ready = true;
-                for dep in &facts[i].after {
-                    match position(facts, *dep) {
-                        Some(j) if done[j] => (),
-                        _ => ready = false,
-                    }
-                }
-                if ready {
-                    match best {
-                        Some(j) if facts[j].id <= facts[i].id => (),
-                        _ => best = Some(i),
-                    }
-                }
-            }
-            i += 1;
-        }
-        match best {
-            Some(i) => {
-                done[i] = true;
-                result.push(facts[i].clone());
-            }
-            None => return Err(Error::Invalid),
-        }
-    }
+    // The shared ready scan uses input order. Canonicalize a detached view, not
+    // the retained admission-order event store, to select the least ready ID.
+    let ordered =
+        crate::event_layer::canonical(facts, identity, id_equal, id_less, invalid, event_clone)?;
+    let (result, _) = crate::event_shell::scheduled(
+        &ordered,
+        Vec::new(),
+        &(),
+        identity,
+        choose_scheduled,
+        collect_scheduled,
+        invalid,
+    )?;
     Ok(result)
 }
 
@@ -241,6 +205,74 @@ fn lift<E>(error: Error<()>) -> Error<E> {
         Error::Capacity => Error::Capacity,
         Error::Client(()) => Error::Invalid,
     }
+}
+
+struct Client<P: Clone, S: Clone, E> {
+    eq: fn(&P, &P) -> bool,
+    validate: fn(&[Event<P>], &Event<P>) -> Result<(), E>,
+    replay: fn(&[Event<P>]) -> Result<S, E>,
+}
+
+fn duplicate<P: Clone, S: Clone, E>(
+    client: &Client<P, S, E>,
+    before: &Store<P, S>,
+    event: &Event<P>,
+) -> Result<bool, Error<E>> {
+    match classify(&before.events, event, client.eq) {
+        Some(true) => Ok(true),
+        Some(false) => Err(Error::Conflict),
+        None => Ok(false),
+    }
+}
+
+fn validate_incoming<P: Clone, S: Clone, E>(
+    client: &Client<P, S, E>,
+    before: &Store<P, S>,
+    event: &Event<P>,
+) -> Result<(), Error<E>> {
+    if before.events.len() >= before.limits.events || event.after.len() > before.limits.dependencies
+    {
+        return Err(Error::Capacity);
+    }
+    let mut candidate = before.events.clone();
+    crate::event_layer::push(&mut candidate, event.clone(), invalid)?;
+    graph_valid(&candidate).map_err(lift)?;
+    let basis = exact_past(&before.events, &event.after).map_err(lift)?;
+    (client.validate)(&basis, event).map_err(Error::Client)
+}
+
+fn prepare_incoming<P: Clone, S: Clone, E>(
+    _: &Client<P, S, E>,
+    mut candidate: Store<P, S>,
+    event: &Event<P>,
+) -> Result<Store<P, S>, Error<E>> {
+    crate::event_layer::push(&mut candidate.events, event.clone(), invalid)?;
+    Ok(candidate)
+}
+
+fn execute_incoming<P: Clone, S: Clone, E>(
+    client: &Client<P, S, E>,
+    mut candidate: Store<P, S>,
+) -> Result<Store<P, S>, Error<E>> {
+    let ordered = schedule(&candidate.events).map_err(lift)?;
+    candidate.state = (client.replay)(&ordered).map_err(Error::Client)?;
+    Ok(candidate)
+}
+
+fn plan_incoming<P: Clone, S: Clone, E>(
+    client: &Client<P, S, E>,
+    before: &Store<P, S>,
+    event: &Event<P>,
+) -> Result<Option<Store<P, S>>, Error<E>> {
+    crate::event_shell::plan(
+        before,
+        event,
+        client,
+        duplicate,
+        validate_incoming,
+        prepare_incoming,
+        execute_incoming,
+    )
 }
 
 impl<P: Clone, S: Clone> Store<P, S> {
@@ -269,25 +301,19 @@ impl<P: Clone, S: Clone> Store<P, S> {
         validate: fn(&[Event<P>], &Event<P>) -> Result<(), E>,
         replay: fn(&[Event<P>]) -> Result<S, E>,
     ) -> Result<Admission, Error<E>> {
-        match classify(&self.events, &event, eq) {
-            Some(true) => return Ok(Admission::Duplicate),
-            Some(false) => return Err(Error::Conflict),
-            None => (),
-        }
-        if self.events.len() >= self.limits.events || event.after.len() > self.limits.dependencies {
-            return Err(Error::Capacity);
-        }
-        let mut candidate = self.events.clone();
-        candidate.push(event.clone());
-        // Validating the candidate also checks its counter/predecessor and cycles.
-        graph_valid(&candidate).map_err(lift)?;
-        let basis = exact_past(&self.events, &event.after).map_err(lift)?;
-        validate(&basis, &event).map_err(Error::Client)?;
-        let ordered = schedule(&candidate).map_err(lift)?;
-        let state = replay(&ordered).map_err(Error::Client)?;
-        self.events = candidate;
-        self.state = state;
-        Ok(Admission::Added)
+        let client = Client {
+            eq,
+            validate,
+            replay,
+        };
+        crate::event_shell::receive_into(
+            self,
+            &event,
+            &client,
+            plan_incoming,
+            Admission::Added,
+            Admission::Duplicate,
+        )
     }
 }
 
@@ -327,6 +353,79 @@ mod tests {
                 dependencies: 8,
             },
         )
+    }
+
+    #[test]
+    fn neutral_returns_preserve_original_state_with_non_preserving_clone() {
+        // Pure, owned Clone need not preserve the observed value. A failed
+        // detached candidate must never replace the original published state.
+        struct Odd(u32);
+        impl Clone for Odd {
+            fn clone(&self) -> Self {
+                Self(self.0 + 1)
+            }
+        }
+        fn replay_odd(_: &[Event<i32>]) -> Result<Odd, &'static str> {
+            Ok(Odd(77))
+        }
+        fn reject(_: &[Event<i32>], _: &Event<i32>) -> Result<(), &'static str> {
+            Err("validate")
+        }
+        fn reject_replay(_: &[Event<i32>]) -> Result<Odd, &'static str> {
+            Err("replay")
+        }
+        let mut s = Store::new(
+            Odd(0),
+            Limits {
+                events: 0,
+                dependencies: 8,
+            },
+        );
+        let first = event(1, 1, vec![], 9);
+        assert_eq!(
+            s.receive(first.clone(), eq, valid, replay_odd),
+            Err(Error::Capacity)
+        );
+        assert_eq!(s.state().0, 0);
+        assert!(s.events().is_empty());
+        s.limits.events = 4;
+        assert_eq!(
+            s.receive(first.clone(), eq, valid, replay_odd),
+            Ok(Admission::Added)
+        );
+        assert_eq!(s.state().0, 77);
+        assert_eq!(
+            s.receive(first, eq, forbidden, reject_replay),
+            Ok(Admission::Duplicate)
+        );
+        assert_eq!(s.state().0, 77);
+        assert_eq!(
+            s.receive(event(1, 1, vec![], 10), eq, forbidden, reject_replay),
+            Err(Error::Conflict)
+        );
+        assert_eq!(s.state().0, 77);
+        assert_eq!(
+            s.receive(
+                event(2, 1, vec![id(99, 1)], 0),
+                eq,
+                forbidden,
+                reject_replay
+            ),
+            Err(Error::Missing)
+        );
+        assert_eq!(s.state().0, 77);
+        let next = event(2, 1, vec![], 0);
+        assert_eq!(
+            s.receive(next.clone(), eq, reject, replay_odd),
+            Err(Error::Client("validate"))
+        );
+        assert_eq!(s.state().0, 77);
+        assert_eq!(
+            s.receive(next, eq, valid, reject_replay),
+            Err(Error::Client("replay"))
+        );
+        assert_eq!(s.state().0, 77);
+        assert_eq!(s.events().len(), 1);
     }
 
     #[test]
@@ -543,6 +642,17 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn duplicate_error_precedes_dependencies_of_ignored_duplicate() {
+        let facts = vec![
+            event(2, 1, vec![id(1, 1)], 0),
+            event(1, 1, vec![], 0),
+            event(1, 1, vec![id(99, 1)], 0),
+        ];
+        assert!(matches!(schedule(&facts), Err(Error::Invalid)));
+        assert!(matches!(exact_past(&facts, &[]), Err(Error::Invalid)));
     }
 
     #[test]

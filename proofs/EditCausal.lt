@@ -39,6 +39,7 @@ proof present_id_rank_bound(facts: facts_vec, rank: (Native.t_EventId => nat), b
 {
   assert(Native.has_fact(Alloc.Vec.impl_1__as_slice(facts), id) == true) by {
     Tactics.prune("Nickel_crdt.Edit.has_fact");
+    Tactics.prune("Nickel_crdt.Event_layer.has_fact");
     Tactics.prune("Alloc.Vec.impl_1__as_slice");
     Tactics.prune("Core_models.Slice.impl__len");
     Tactics.smt_sync'(1, 1)
@@ -132,6 +133,8 @@ proof receive_preserves_causal_rank(before: Native.t_Replica, fact: Native.t_Fac
           mk_usize(0), Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(before.f_facts)))) by {
         Tactics.prune("Nickel.EditIdentity.prefix_absent");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Event_shell.receive");
+    Tactics.prune("Nickel_crdt.Event_shell.receive_into");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__edit");
         Tactics.smt_sync'(1, 1)
       };
@@ -139,6 +142,8 @@ proof receive_preserves_causal_rank(before: Native.t_Replica, fact: Native.t_Fac
       assert(receive_ranked(rank, bound, fact, Native.impl_Replica__receive(before, fact))) by {
         Tactics.prune("Nickel.EditCausal.causal_rank");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Event_shell.receive");
+    Tactics.prune("Nickel_crdt.Event_shell.receive_into");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__edit");
         Tactics.prune("Alloc.Vec.from_seq");
         Tactics.prune("Alloc.Vec.impl_1__as_slice");
@@ -152,6 +157,8 @@ proof receive_preserves_causal_rank(before: Native.t_Replica, fact: Native.t_Fac
       assert(receive_ranked(rank, bound, fact, Native.impl_Replica__receive(before, fact))) by {
         Tactics.prune("Nickel.EditCausal.causal_rank");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Event_shell.receive");
+    Tactics.prune("Nickel_crdt.Event_shell.receive_into");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__edit");
         Tactics.prune("Alloc.Vec.from_seq");
         Tactics.prune("Alloc.Vec.impl_1__as_slice");
@@ -186,6 +193,8 @@ proof edit_preserves_causal_rank(before: Native.t_Replica, gap: usize, insert: A
           mk_usize(0), Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(before.f_facts)))) by {
         Tactics.prune("Nickel.EditIdentity.prefix_absent");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Event_shell.receive");
+    Tactics.prune("Nickel_crdt.Event_shell.receive_into");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__edit");
         Tactics.smt_sync'(1, 1)
       };
@@ -193,6 +202,8 @@ proof edit_preserves_causal_rank(before: Native.t_Replica, gap: usize, insert: A
       assert(edit_ranked(rank, bound, Native.impl_Replica__edit(before, gap, insert, delete))) by {
         Tactics.prune("Nickel.EditCausal.causal_rank");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Event_shell.receive");
+    Tactics.prune("Nickel_crdt.Event_shell.receive_into");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__edit");
         Tactics.prune("Alloc.Vec.from_seq");
         Tactics.prune("Alloc.Vec.impl_1__as_slice");
@@ -206,6 +217,8 @@ proof edit_preserves_causal_rank(before: Native.t_Replica, gap: usize, insert: A
       assert(edit_ranked(rank, bound, Native.impl_Replica__edit(before, gap, insert, delete))) by {
         Tactics.prune("Nickel.EditCausal.causal_rank");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Event_shell.receive");
+    Tactics.prune("Nickel_crdt.Event_shell.receive_into");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__edit");
         Tactics.prune("Alloc.Vec.from_seq");
         Tactics.prune("Alloc.Vec.impl_1__as_slice");

@@ -3,6 +3,8 @@ module Nickel.EditPastTotal
 
 open Nickel.Prelude
 
+open Nickel.EventGraphText
+
 open Rust_primitives
 
 open Core_models
@@ -133,6 +135,7 @@ let fresh_stored_push_succeeds (facts: facts_vec) (selected: ids_vec) (id: Nativ
   push_result_is_exact selected id;
   assert (stored_push_result facts (Native.push selected id)) by (
     Tactics.prune "Nickel_crdt.Edit.push";
+    Tactics.prune "Nickel_crdt.Event_layer.push";
     Tactics.smt_sync' 1 1
   )
 
@@ -141,6 +144,7 @@ let extend_stored_selection_succeeds (facts: facts_vec) (fact: Native.t_Fact) (b
     fresh_stored_push_succeeds facts selected id;
     assert (stored_push_result facts (Native.push selected id)) by (
       Tactics.prune "Nickel_crdt.Edit.push";
+      Tactics.prune "Nickel_crdt.Event_layer.push";
       Tactics.smt_sync' 1 1
     ) in
   FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_push);
@@ -152,14 +156,18 @@ let extend_stored_selection_succeeds (facts: facts_vec) (fact: Native.t_Fact) (b
       Tactics.prune "Nickel.LoopUtil.step_safe";
       Tactics.prune "Nickel.LoopUtil.output_safe";
       Tactics.prune "Nickel_crdt.Edit.has_event";
+      Tactics.prune "Nickel_crdt.Event_layer.has_id";
       Tactics.prune "Nickel_crdt.Edit.push";
+      Tactics.prune "Nickel_crdt.Event_layer.push";
       Tactics.smt_sync' 1 1
     ) end
   else
     begin assert (stored_result facts (Native.extend_past fact before)) by (
       Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
       Tactics.prune "Nickel_crdt.Edit.has_event";
+      Tactics.prune "Nickel_crdt.Event_layer.has_id";
       Tactics.prune "Nickel_crdt.Edit.push";
+      Tactics.prune "Nickel_crdt.Event_layer.push";
       Tactics.smt_sync' 1 1
     ) end
 
@@ -171,6 +179,7 @@ let stored_pass_succeeds (facts: facts_vec) (before: ids_vec) : Lemma (requires 
     extend_stored_selection_succeeds facts (Seq.index (Alloc.Vec.impl_1__as_slice facts) (v i)) selected;
     assert (stored_result facts (Native.extend_past (Seq.index (Alloc.Vec.impl_1__as_slice facts) (v i)) selected)) by (
       Tactics.prune "Nickel_crdt.Edit.extend_past";
+      Tactics.prune "Nickel_crdt.Event_layer.extend_past";
       Tactics.smt_sync' 1 1
     ) in
   FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_extend);
@@ -180,6 +189,7 @@ let stored_pass_succeeds (facts: facts_vec) (before: ids_vec) : Lemma (requires 
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
     Tactics.prune "Nickel_crdt.Edit.extend_past";
+    Tactics.prune "Nickel_crdt.Event_layer.extend_past";
     Tactics.smt_sync' 1 1
   )
 
@@ -191,6 +201,7 @@ let fitting_closed_history_computes_past (facts: facts_vec) (roots: t_Slice Nati
     stored_pass_succeeds facts selected;
     assert (stored_result facts (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected)) by (
       Tactics.prune "Nickel_crdt.Edit.past_pass";
+      Tactics.prune "Nickel_crdt.Event_layer.past_pass";
       Tactics.smt_sync' 1 1
     ) in
   FStar.Classical.forall_intro (FStar.Classical.move_requires each_pass);
@@ -200,7 +211,9 @@ let fitting_closed_history_computes_past (facts: facts_vec) (roots: t_Slice Nati
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
     Tactics.prune "Nickel_crdt.Edit.past_pass";
+    Tactics.prune "Nickel_crdt.Event_layer.past_pass";
     Tactics.prune "Nickel_crdt.Edit.validate_after";
+    Tactics.prune "Nickel_crdt.Event_layer.validate_after";
     Tactics.smt_sync' 1 1
   )
 
@@ -209,6 +222,7 @@ let fitting_past_is_total_and_exact (facts: facts_vec) (roots: t_Slice Native.t_
   successful_past_is_exact_closure facts roots;
   assert (Prims.l_and (stored_result facts (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) (exact_past_result facts roots (Native.past (Alloc.Vec.impl_1__as_slice facts) roots))) by (
     Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.smt_sync' 1 1
   )
 
@@ -218,6 +232,7 @@ let causally_closed_history_computes_exact_past (facts: facts_vec) (roots: t_Sli
   fitting_past_is_total_and_exact facts roots;
   assert (Prims.l_and (stored_result facts (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) (exact_past_result facts roots (Native.past (Alloc.Vec.impl_1__as_slice facts) roots))) by (
     Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.smt_sync' 1 1
   )
 
@@ -244,7 +259,9 @@ let scanned_roots_compute_exact_past (facts: facts_vec) (roots: t_Slice Native.t
   fitting_past_is_total_and_exact facts roots;
   assert (Prims.l_and (stored_result facts (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) (exact_past_result facts roots (Native.past (Alloc.Vec.impl_1__as_slice facts) roots))) by (
     Tactics.prune "Nickel_crdt.Edit.duplicate_events";
+    Tactics.prune "Nickel_crdt.Event_layer.duplicate_ids";
     Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.smt_sync' 1 1
   )
 
@@ -331,6 +348,7 @@ let shared_ancestry_selects_same_past (into: facts_vec) (other: facts_vec) (root
   shared_ancestry_agrees into other roots;
   assert (Prims.l_and (Prims.l_and (exact_past_result into roots (Native.past (Alloc.Vec.impl_1__as_slice into) roots)) (exact_past_result other roots (Native.past (Alloc.Vec.impl_1__as_slice other) roots))) (forall(id: Native.t_EventId). ancestor into roots id <==> ancestor other roots id)) by (
     Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.prune "Nickel.EditPast.exact_past_result";
     Tactics.prune "Nickel.EditPast.ancestor";
     Tactics.smt_sync' 1 1
@@ -349,6 +367,7 @@ let two_closed_receivers_select_same_past (into: facts_vec) (other: facts_vec) (
   shared_ancestry_selects_same_past into other roots;
   assert (Prims.l_and (both_ok (Native.past (Alloc.Vec.impl_1__as_slice into) roots) (Native.past (Alloc.Vec.impl_1__as_slice other) roots)) (same_members (Native.past (Alloc.Vec.impl_1__as_slice into) roots) (Native.past (Alloc.Vec.impl_1__as_slice other) roots))) by (
     Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.prune "Nickel.EditPastTotal.same_members";
     Tactics.smt_sync' 1 1
   )

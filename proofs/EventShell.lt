@@ -1,0 +1,61 @@
+import Rust_primitives
+import Core_models
+import FStar.Pervasives
+import Native = Nickel_crdt.Event_shell
+import Result = Core_models.Result
+import Option = Core_models.Option
+import Tactics = FStar.Tactics.V2
+
+// The complete callback outcome, including the first error and duplicates.
+// Clients discharge their own validator and interpretation contracts.
+function planned<r: Type0, f: Type0, c: Type0, e: Type0>(before: r, fact: f, context: c,
+  duplicate: c => r => f => Result.t_Result(bool, e),
+  validate: c => r => f => Result.t_Result(unit, e),
+  prepare: c => r => f => Result.t_Result(r, e),
+  execute: c => r => Result.t_Result(r, e)): Result.t_Result(Option.t_Option(r), e) {
+  match duplicate(context, before, fact) {
+    Result.Result_Err(error) => Result.Result_Err(error),
+    Result.Result_Ok(true) => Result.Result_Ok(Option.Option_None),
+    Result.Result_Ok(false) => match validate(context, before, fact) {
+      Result.Result_Err(error) => Result.Result_Err(error),
+      Result.Result_Ok(_) => match prepare(context, before, fact) {
+        Result.Result_Err(error) => Result.Result_Err(error),
+        Result.Result_Ok(next) => match execute(context, next) {
+          Result.Result_Err(error) => Result.Result_Err(error),
+          Result.Result_Ok(next) => Result.Result_Ok(Option.Option_Some(next))
+        }
+      }
+    }
+  }
+}
+proof planning_is_exact<r: Type0, f: Type0, c: Type0, e: Type0, model i0: Core_models.Clone.t_Clone(r)>(before: r, fact: f, context: c,
+  duplicate: c => r => f => Result.t_Result(bool, e),
+  validate: c => r => f => Result.t_Result(unit, e),
+  prepare: c => r => f => Result.t_Result(r, e),
+  execute: c => r => Result.t_Result(r, e)): unit
+  gives Native.plan(before, fact, context, duplicate, validate, prepare, execute) == planned(before, fact, context, duplicate, validate, prepare, execute)
+  hint Native.plan(before, fact, context, duplicate, validate, prepare, execute)
+{ () }
+function received<r: Type0, e: Type0, a: Type0>(before: r, result: Result.t_Result(Option.t_Option(r), e), added: a, duplicate: a): (r, Result.t_Result(a, e)) {
+  match result {
+    Result.Result_Err(error) => (before, Result.Result_Err(error)),
+    Result.Result_Ok(Option.Option_None) => (before, Result.Result_Ok(duplicate)),
+    Result.Result_Ok(Option.Option_Some(next)) => (next, Result.Result_Ok(added))
+  }
+}
+proof borrowed_publication_is_exact<r: Type0, f: Type0, e: Type0, a: Type0, c: Type0>(before: r, fact: f, context: c,
+  plan: c => r => f => Result.t_Result(Option.t_Option(r), e), added: a, duplicate: a): unit
+  gives Native.receive_into(before, fact, context, plan, added, duplicate) == received(before, plan(context, before, fact), added, duplicate)
+  hint Native.receive_into(before, fact, context, plan, added, duplicate)
+{ () }
+
+proof publication_is_exact<r: Type0, f: Type0, e: Type0, a: Type0, c: Type0>(before: r, fact: f, context: c,
+  plan: c => r => f => Result.t_Result(Option.t_Option(r), e), added: a, duplicate: a): unit
+  gives Native.receive(before, fact, context, plan, added, duplicate) == received(before, plan(context, before, fact), added, duplicate)
+  hint Native.receive(before, fact, context, plan, added, duplicate)
+{
+  assert(Native.receive(before, fact, context, plan, added, duplicate) == received(before, plan(context, before, fact), added, duplicate)) by {
+    Tactics.prune("Nickel_crdt.Event_shell.receive_into");
+    Tactics.smt_sync'(1, 1)
+  }
+}

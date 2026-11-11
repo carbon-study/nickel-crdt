@@ -21,8 +21,9 @@ output-location lock is inherited by child processes. Each Rust mode owns its
 Cargo target and a second independently extracted native inventory. The healthy
 extraction must match the retained focused native file byte-for-byte. The
 source/view/native/support hash receipt has a mandatory explicit file inventory.
-No old proof views, native manifests, pin, checker limit, model or rejection
-classifier is changed.
+This focused runner does not write the text proof views, global native manifest,
+pins, checker limits, models or rejection classifier. The main migration gate
+separately checks the transferred text/shared implementation.
 
 The default command verifies the tracked source/view receipt; it does not invoke
 Latte. Optional `NICKEL_LATTE_BIN=/absolute/latte` performs full local emission and

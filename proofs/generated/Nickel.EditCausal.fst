@@ -45,6 +45,7 @@ let present_fact_has_id (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact) : L
 let present_id_rank_bound (facts: facts_vec) (rank: Native.t_EventId -> nat) (bound: nat) (id: Native.t_EventId) : Lemma (requires (causal_rank facts rank bound /\ event_present (Alloc.Vec.impl_1__as_slice facts) id)) (ensures rank id < bound) =
   assert (Native.has_fact (Alloc.Vec.impl_1__as_slice facts) id == true) by (
     Tactics.prune "Nickel_crdt.Edit.has_fact";
+    Tactics.prune "Nickel_crdt.Event_layer.has_fact";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
     Tactics.prune "Core_models.Slice.impl__len";
     Tactics.smt_sync' 1 1
@@ -99,6 +100,8 @@ let receive_preserves_causal_rank (before: Native.t_Replica) (fact: Native.t_Fac
   match Native.impl_Replica__receive before fact with | (next, Result.Result_Ok Native.Admission_Added) -> begin assert (Prims.l_and (Prims.l_and (fact_dependencies_present (Alloc.Vec.impl_1__as_slice before.f_facts) fact) (appended_contents before.f_facts fact next.f_facts)) (Nickel.EditIdentity.prefix_absent (Alloc.Vec.impl_1__as_slice before.f_facts) fact.f_id (mk_usize 0) (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice before.f_facts)))) by (
     Tactics.prune "Nickel.EditIdentity.prefix_absent";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
     Tactics.smt_sync' 1 1
   );
@@ -106,6 +109,8 @@ let receive_preserves_causal_rank (before: Native.t_Replica) (fact: Native.t_Fac
   assert (receive_ranked rank bound fact (Native.impl_Replica__receive before fact)) by (
     Tactics.prune "Nickel.EditCausal.causal_rank";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
@@ -116,6 +121,8 @@ let receive_preserves_causal_rank (before: Native.t_Replica) (fact: Native.t_Fac
   ) end | _ -> begin assert (receive_ranked rank bound fact (Native.impl_Replica__receive before fact)) by (
     Tactics.prune "Nickel.EditCausal.causal_rank";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
@@ -137,6 +144,8 @@ let edit_preserves_causal_rank (before: Native.t_Replica) (gap: usize) (insert: 
   assert (Prims.l_and (Prims.l_and (fact_dependencies_present (Alloc.Vec.impl_1__as_slice before.f_facts) fact) (appended_contents before.f_facts fact next.f_facts)) (Nickel.EditIdentity.prefix_absent (Alloc.Vec.impl_1__as_slice before.f_facts) fact.f_id (mk_usize 0) (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice before.f_facts)))) by (
     Tactics.prune "Nickel.EditIdentity.prefix_absent";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
     Tactics.smt_sync' 1 1
   );
@@ -144,6 +153,8 @@ let edit_preserves_causal_rank (before: Native.t_Replica) (gap: usize) (insert: 
   assert (edit_ranked rank bound (Native.impl_Replica__edit before gap insert delete)) by (
     Tactics.prune "Nickel.EditCausal.causal_rank";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
@@ -154,6 +165,8 @@ let edit_preserves_causal_rank (before: Native.t_Replica) (gap: usize) (insert: 
   ) end | _ -> begin assert (edit_ranked rank bound (Native.impl_Replica__edit before gap insert delete)) by (
     Tactics.prune "Nickel.EditCausal.causal_rank";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";

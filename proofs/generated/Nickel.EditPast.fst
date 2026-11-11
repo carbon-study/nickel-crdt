@@ -3,6 +3,12 @@ module Nickel.EditPast
 
 open Nickel.Prelude
 
+module Shared = Nickel_crdt.Event_layer
+
+module Graph = Nickel.EventGraph
+
+open Nickel.EventGraphText
+
 open Rust_primitives
 
 open Core_models
@@ -34,11 +40,16 @@ let member (ids: t_Slice Native.t_EventId) (id: Native.t_EventId) : Type0 =
   Prims.l_not (absent_prefix ids id (Seq.length ids))
 
 let event_membership_is_exact (ids: t_Slice Native.t_EventId) (id: Native.t_EventId) : Lemma (ensures Native.has_event ids id == true <==> member ids id) [SMTPat (Native.has_event ids id)] =
-  Nickel.LoopUtil.preserve_any (mk_usize 0) (Core_models.Slice.impl__len ids) (fun (at: nat) (_: unit) -> absent_prefix ids id at) (fun (_: unit) -> Prims.l_not (member ids id)) (fun (b: bool) -> Prims.l_and (b == true) (member ids id));
+  assert (Shared.has_id ids id Native.same_event_id == Native.has_event ids id);
+  Graph.membership_is_exact ids id Native.same_event_id;
   assert (Native.has_event ids id == true <==> member ids id) by (
-    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.prune "Nickel_crdt.Edit.has_event";
+    Tactics.prune "Nickel_crdt.Event_layer.has_id";
     Tactics.smt_sync' 1 1
   )
+
+let id_membership_is_text_call (ids: t_Slice Native.t_EventId) (id: Native.t_EventId) : Lemma (ensures Shared.has_id ids id Native.same_event_id == Native.has_event ids id) [SMTPat (Shared.has_id ids id Native.same_event_id)] =
+  ()
 
 unfold type ids_vec = Alloc.Vec.t_Vec Native.t_EventId Alloc.Alloc.t_Global
 
@@ -64,6 +75,7 @@ let selected_push_preserves (roots: t_Slice Native.t_EventId) (p: Native.t_Event
   push_result_is_exact before id;
   assert (push_selection_result roots p (Native.push before id)) by (
     Tactics.prune "Nickel_crdt.Edit.push";
+    Tactics.prune "Nickel_crdt.Event_layer.push";
     Tactics.smt_sync' 1 1
   )
 
@@ -80,14 +92,18 @@ let extend_past_preserves (roots: t_Slice Native.t_EventId) (p: Native.t_EventId
     assert (selection_result roots p (Native.extend_past fact before)) by (
       Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
       Tactics.prune "Nickel_crdt.Edit.has_event";
+      Tactics.prune "Nickel_crdt.Event_layer.has_id";
       Tactics.prune "Nickel_crdt.Edit.push";
+      Tactics.prune "Nickel_crdt.Event_layer.push";
       Tactics.smt_sync' 1 1
     ) end
   else
     begin assert (selection_result roots p (Native.extend_past fact before)) by (
       Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
       Tactics.prune "Nickel_crdt.Edit.has_event";
+      Tactics.prune "Nickel_crdt.Event_layer.has_id";
       Tactics.prune "Nickel_crdt.Edit.push";
+      Tactics.prune "Nickel_crdt.Event_layer.push";
       Tactics.smt_sync' 1 1
     ) end
 
@@ -101,6 +117,7 @@ let past_pass_preserves (roots: t_Slice Native.t_EventId) (p: Native.t_EventId -
   assert (selection_result roots p (Native.past_pass facts before)) by (
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.prune "Nickel_crdt.Edit.extend_past";
+    Tactics.prune "Nickel_crdt.Event_layer.extend_past";
     Tactics.smt_sync' 1 1
   )
 
@@ -115,6 +132,7 @@ let past_stays_in_closed_set (facts: t_Slice Native.t_Fact) (roots: t_Slice Nati
   assert (selection_result roots p (Native.past facts roots)) by (
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.prune "Nickel_crdt.Edit.past_pass";
+    Tactics.prune "Nickel_crdt.Event_layer.past_pass";
     Tactics.smt_sync' 1 1
   )
 
@@ -153,6 +171,7 @@ let past_has_only_ancestors_and_keeps_roots (facts: facts_vec) (roots: t_Slice N
   past_stays_in_closed_set (Alloc.Vec.impl_1__as_slice facts) roots (ancestor facts roots);
   assert (selection_result roots (ancestor facts roots) (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) by (
     Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.smt_sync' 1 1
   )
 
@@ -172,6 +191,7 @@ let extend_past_covers_predecessors (fact: Native.t_Fact) (before: ids_vec) : Le
     push_result_is_exact selected (Seq.index (Alloc.Vec.impl_1__as_slice fact.f_after) (v at));
     assert (((match Native.push selected (Seq.index (Alloc.Vec.impl_1__as_slice fact.f_after) (v at)) with | (next, Result.Result_Ok _) -> begin expanded_prefix fact (v at + 1) next end | _ -> begin Prims.l_True end) <: Type0)) by (
       Tactics.prune "Nickel_crdt.Edit.push";
+      Tactics.prune "Nickel_crdt.Event_layer.push";
       Tactics.smt_sync' 1 1
     ) in
   FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_push);
@@ -184,14 +204,18 @@ let extend_past_covers_predecessors (fact: Native.t_Fact) (before: ids_vec) : Le
     assert (expansion_result fact before (Native.extend_past fact before)) by (
       Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
       Tactics.prune "Nickel_crdt.Edit.has_event";
+      Tactics.prune "Nickel_crdt.Event_layer.has_id";
       Tactics.prune "Nickel_crdt.Edit.push";
+      Tactics.prune "Nickel_crdt.Event_layer.push";
       Tactics.smt_sync' 1 1
     ) end
   else
     begin assert (expansion_result fact before (Native.extend_past fact before)) by (
       Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
       Tactics.prune "Nickel_crdt.Edit.has_event";
+      Tactics.prune "Nickel_crdt.Event_layer.has_id";
       Tactics.prune "Nickel_crdt.Edit.push";
+      Tactics.prune "Nickel_crdt.Event_layer.push";
       Tactics.smt_sync' 1 1
     ) end
 
@@ -218,6 +242,7 @@ let past_pass_covers_edges (facts: t_Slice Native.t_Fact) (before: ids_vec) : Le
     FStar.Classical.forall_intro (FStar.Classical.move_requires each_next);
     assert (((match Native.extend_past (Seq.index facts (v at)) selected with | Result.Result_Ok next -> begin pass_prefix facts before (v at + 1) next end | _ -> begin Prims.l_True end) <: Type0)) by (
       Tactics.prune "Nickel_crdt.Edit.extend_past";
+      Tactics.prune "Nickel_crdt.Event_layer.extend_past";
       Tactics.smt_sync' 1 1
     ) in
   FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_extend);
@@ -225,6 +250,7 @@ let past_pass_covers_edges (facts: t_Slice Native.t_Fact) (before: ids_vec) : Le
   assert (pass_result facts before (Native.past_pass facts before)) by (
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.prune "Nickel_crdt.Edit.extend_past";
+    Tactics.prune "Nickel_crdt.Event_layer.extend_past";
     Tactics.smt_sync' 1 1
   )
 
@@ -265,14 +291,17 @@ let past_covers_bounded_predecessor_paths (facts: facts_vec) (roots: t_Slice Nat
     past_pass_covers_edges (Alloc.Vec.impl_1__as_slice facts) selected;
     assert (pass_result (Alloc.Vec.impl_1__as_slice facts) selected (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected)) by (
       Tactics.prune "Nickel_crdt.Edit.past_pass";
+      Tactics.prune "Nickel_crdt.Event_layer.past_pass";
       Tactics.smt_sync' 1 1
     );
     match Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected with | Result.Result_Ok next -> begin pass_covers_next_depth facts roots (v at) selected next;
     assert (depth_result facts roots (v at + 1) (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected)) by (
       Tactics.prune "Nickel_crdt.Edit.past_pass";
+      Tactics.prune "Nickel_crdt.Event_layer.past_pass";
       Tactics.smt_sync' 1 1
     ) end | Result.Result_Err _ -> begin assert (depth_result facts roots (v at + 1) (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected)) by (
       Tactics.prune "Nickel_crdt.Edit.past_pass";
+      Tactics.prune "Nickel_crdt.Event_layer.past_pass";
       Tactics.smt_sync' 1 1
     ) end in
   FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_pass);
@@ -280,6 +309,7 @@ let past_covers_bounded_predecessor_paths (facts: facts_vec) (roots: t_Slice Nat
   assert (depth_result facts roots (Seq.length (Alloc.Vec.impl_1__as_slice facts)) (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) by (
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.prune "Nickel_crdt.Edit.past_pass";
+    Tactics.prune "Nickel_crdt.Event_layer.past_pass";
     Tactics.smt_sync' 1 1
   )
 
@@ -303,6 +333,7 @@ let past_contains_short_paths (facts: facts_vec) (roots: t_Slice Native.t_EventI
   past_covers_bounded_predecessor_paths facts roots;
   assert (((match Native.past (Alloc.Vec.impl_1__as_slice facts) roots with | Result.Result_Ok selected -> begin member (Alloc.Vec.impl_1__as_slice selected) id end | _ -> begin Prims.l_True end) <: Type0)) by (
     Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.smt_sync' 1 1
   )
 
@@ -396,6 +427,7 @@ let past_contains_every_causal_path (facts: facts_vec) (roots: t_Slice Native.t_
   FStar.Classical.forall_intro (FStar.Classical.move_requires each_short);
   assert (((match Native.past (Alloc.Vec.impl_1__as_slice facts) roots with | Result.Result_Ok selected -> begin member (Alloc.Vec.impl_1__as_slice selected) id end | _ -> begin Prims.l_True end) <: Type0)) by (
     Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.smt_sync' 1 1
   )
 
@@ -411,6 +443,7 @@ let successful_past_is_exact_closure (facts: facts_vec) (roots: t_Slice Native.t
       past_contains_every_causal_path facts roots root steps id;
       assert (member (Alloc.Vec.impl_1__as_slice selected) id) by (
         Tactics.prune "Nickel_crdt.Edit.past";
+        Tactics.prune "Nickel_crdt.Event_layer.past";
         Tactics.smt_sync' 1 1
       ) in
     FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_path);
@@ -418,8 +451,10 @@ let successful_past_is_exact_closure (facts: facts_vec) (roots: t_Slice Native.t
   FStar.Classical.forall_intro each_id;
   assert (exact_past_result facts roots (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) by (
     Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.smt_sync' 1 1
   ) end | Result.Result_Err _ -> begin assert (exact_past_result facts roots (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) by (
     Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.smt_sync' 1 1
   ) end

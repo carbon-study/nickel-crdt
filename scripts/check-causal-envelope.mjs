@@ -29,7 +29,7 @@ for(const f of ['Prelude.lt','LoopUtil.lt','CausalEnvelope.lt'])await fs.copyFil
 await fs.writeFile(path.join(support,'latte.modules.json'),JSON.stringify({schemaVersion:1,module:'Nickel',modules:['*.lt'],prelude:'Nickel.Prelude'}));
 const viewRoot=path.join(root,'proofs/causal-envelope-view');
 const receipt=JSON.parse(await fs.readFile(path.join(viewRoot,'receipt.json'),'utf8'));
-const requiredFiles=['proofs/CausalEnvelope.lt','proofs/causal-envelope-view/Nickel.CausalEnvelope.fst','proofs/causal-envelope-view/Nickel_crdt.Causal.fst','src/causal.rs','proofs/Prelude.lt','proofs/LoopUtil.lt','proofs/generated/Nickel.Prelude.fst','proofs/generated/Nickel.LoopUtil.fst'];
+const requiredFiles=['proofs/CausalEnvelope.lt','proofs/causal-envelope-view/Nickel.CausalEnvelope.fst','proofs/causal-envelope-view/Nickel_crdt.Causal.fst','src/causal.rs','src/event_layer.rs','src/event_shell.rs','proofs/Prelude.lt','proofs/LoopUtil.lt','proofs/generated/Nickel.Prelude.fst','proofs/generated/Nickel.LoopUtil.fst'];
 assert.equal(receipt.schemaVersion,1);assert.deepEqual(Object.keys(receipt.files).sort(),requiredFiles.sort(),'incomplete source/view receipt');
 for(const [file,hash] of Object.entries(receipt.files))assert.equal(digest(await fs.readFile(path.join(root,file))),hash,'stale source/view receipt: '+file);
 const emitted=await fs.readFile(path.join(viewRoot,'Nickel.CausalEnvelope.fst'),'utf8');
@@ -55,7 +55,8 @@ for(const [name,changed,owner] of modes) {
  await fs.mkdir(path.join(crate,'src'),{recursive:true});await fs.mkdir(dir,{recursive:true});
  await fs.rm(extractDir,{recursive:true,force:true});await fs.mkdir(extractDir,{recursive:true});
  await fs.writeFile(path.join(crate,'Cargo.toml'),'[package]\nname="nickel-crdt"\nversion="0.0.0"\nedition="2021"\n[workspace]\n');
- await fs.writeFile(path.join(crate,'src/lib.rs'),'pub mod causal;\n');await fs.writeFile(path.join(crate,'src/causal.rs'),changed);
+ await fs.writeFile(path.join(crate,'src/lib.rs'),'pub mod causal;\npub mod event_layer;\npub mod event_shell;\n');await fs.writeFile(path.join(crate,'src/causal.rs'),changed);
+ for(const file of ['event_layer.rs','event_shell.rs'])await fs.copyFile(path.join(root,'src',file),path.join(crate,'src',file));
  await run('cargo',['generate-lockfile','--offline'],crate,path.join(mode,'lock.log'));
  const extraction=await run(env.NICKEL_HAX_BIN,['-C','--offline','--locked',';','into','--output-dir',extractDir,'-i','-** +nickel_crdt::causal::classify +nickel_crdt::causal::event_equal +nickel_crdt::causal::ids_eq +nickel_crdt::causal::**::eq','fstar'],crate,path.join(mode,'extract.log'),{CARGO_TARGET_DIR:path.join(mode,'target-proof-hax')});
  const inventory=(await fs.readdir(extractDir)).filter(f=>/\.fsti?$/.test(f)).sort();

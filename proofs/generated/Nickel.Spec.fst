@@ -56,6 +56,8 @@ let receive_preserves_valid_facts (before: Native.t_Replica) (fact: Native.t_Fac
   WellFormed.receive_preserves_causal_closure before fact;
   assert (received_facts_valid (Native.impl_Replica__receive before fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.smt_sync' 1 1
   )
 
@@ -83,6 +85,8 @@ let receive_obeys_contract (before: Native.t_Replica) (fact: Native.t_Fact) : Le
   WellFormed.receive_added_has_direct_dependencies before fact;
   assert (receive_contract before fact (Native.impl_Replica__receive before fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.smt_sync' 1 1
   )
 
@@ -101,6 +105,8 @@ let edit_obeys_contract (before: Native.t_Replica) (gap: usize) (insert: Alloc.V
   assert (edit_contract before gap insert delete (Native.impl_Replica__edit before gap insert delete)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.smt_sync' 1 1
   )
 
@@ -108,6 +114,8 @@ let known_identity_is_classified (before: Native.t_Replica) (fact: Native.t_Fact
   Identity.receive_known_identity before fact index;
   assert (Native.impl_Replica__receive before fact == Identity.known_identity before (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice before.f_facts) index) fact) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.smt_sync' 1 1
   )
 
@@ -115,6 +123,8 @@ let invalid_counter_is_rejected (before: Native.t_Replica) (fact: Native.t_Fact)
   Identity.receive_invalid_counter before fact;
   assert (Native.impl_Replica__receive before fact == (before, Result.Result_Err (Native.Error_Invalid Native.Invalid_Counter))) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.smt_sync' 1 1
   )
 
@@ -122,6 +132,8 @@ let equal_shared_history_gives_same_admission (before: Native.t_Replica) (remote
   Commit.admission_ignores_private_state before remote fact;
   assert (Commit.same_admission (Native.impl_Replica__receive before fact) (Native.impl_Replica__receive remote fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.smt_sync' 1 1
   )
 
@@ -130,6 +142,8 @@ let authored_fact_admits_on_equal_shared_history (before: Native.t_Replica) (rem
   assert (Commit.delivered_commit remote (Native.impl_Replica__edit before gap insert delete)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__edit";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.smt_sync' 1 1
   )
 
@@ -137,5 +151,7 @@ let equal_candidate_contents_give_same_rebuild (left: Native.t_Replica) (left_fa
   Accepted.receive_added_shared_state_agrees left left_fact right right_fact;
   assert (Accepted.added_shared_agreement (Native.impl_Replica__receive left left_fact) (Native.impl_Replica__receive right right_fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
     Tactics.smt_sync' 1 1
   )

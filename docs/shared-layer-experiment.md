@@ -1,92 +1,108 @@
-# one-pass shared causal layer experiment
+# shared causal layer migration experiment
 
-This branch adds a payload-generic event store and two clients. An event has a
-peer/counter identity, ordered causal dependencies and an arbitrary payload. The
-store classifies exact duplicates and conflicts, selects an author's causal
-basis, schedules a proposed history, asks the client to validate and rebuild
-privately, and publishes the history and client state together only on success.
+The existing `edit::Replica` now uses the shared layer directly. Its production
+call graph goes through `event_layer` for identity lookup, duplicate scans,
+causal admission guards, exact-past expansion, whole-event canonicalization and
+basis selection. `event_shell` owns planning order, scheduled replay and the
+publication decision. The text client supplies projections, identity policy,
+text validation and tree interpretation. This replaces the first version of
+this branch, which only added a parallel prototype and did not fulfill the
+migration request.
 
-This is an **experimental parallel API**, not a migration of `edit::Replica` or
-a verified CRDT release. The accepted text implementation and its proof sources,
-generated views, receipts and hax snapshots remain unchanged. Their existing
-statements are not automatically theorems about the new store or adapters.
+`Fact`, `EventId`, `BirthId`, public text calls, error categories and bounded text
+profile remain the compatibility surface. Thin native wrappers keep the old
+proof-facing names and specialize the generic functions at the actual text
+callbacks. They do not contain a second graph algorithm. Some are retained
+explicitly as proof bridges even when a generic inner call no longer calls the
+wrapper itself. Source mutation controls must target the actual shared body or
+executed client callback, not such an unused forwarding wrapper.
 
-## clients
+## generic core and clients
 
-`shared_text` carries one text operation per event through the shared store. It
-embeds Alice as peer 1 and Bo as peer 2 and retains the existing two-writer text
-backend. It rebuilds through that backend's public admission interface; this
-also repeats some validation inside the backend. It is a real client of the new
-store, not yet an extraction of every shared responsibility from the old API.
-Its structured experimental error envelope need not reproduce the old API's
-error priority. Multiple text operations in one event remain unsupported: there
-is no new birth/target identity scheme here.
+`event_layer` is generic over the complete event value and identity type. Plain
+function parameters project identity/dependencies and supply comparison, ordering,
+cloning and error construction; the module does not import the text types or
+assume two identity constructors. `event_shell` is generic over candidate state,
+event, interpretation state, operation results, context and errors. Its client
+callbacks are explicit arguments, including the actual arguments used during
+planning and replay.
 
-`atomic_map` is a small non-text client with ordered record-creation and
-field-write batches, including opaque application-format tags and bytes. Its
-example policy is deterministic canonical replay with last write in that replay
-winning. Source events remain retained. This is not the proposed complete
-register/collection API: there is no remove, Restore, Undo, retirement, garbage
-collection or general mixed-version engine-operation protocol. In particular,
-this example policy does not settle the register history contracts.
+The public text client retains Alice and Bo and the existing writer-first order.
+This migration does not implement the separate peer-representation/recovery
+proposal or enlarge the accepted text profile. The generic layer's comparison-
+relative statements must not be confused with proving a client's equality,
+ordering, allocation or interpretation obligations.
 
-Both clients use the same native generic store. Application value-format bytes
-may remain opaque in known writes. Unknown engine operation kinds are not
-silently stored as applied, nor is a partially understood batch published.
+`atomic_map::BatchReplica` exercises the same shared graph/planning/publication
+code with arbitrary `u64` peers and ordered record/field batches. Application
+format tags and bytes are opaque. Its example policy is last write in canonical
+replay order, with source events retained. It does not adopt the proposed full
+register/collection/history contracts: there is no remove, Restore, Undo,
+retirement, compaction or general unknown-engine-operation protocol.
 
-## identity and resource boundary
+`shared_text::SharedText` remains a compatibility example, but it is no longer
+the only way text reaches the layer: ordinary `edit::Replica::edit/receive`
+execute it directly. One fact remains one text operation. Multi-text occurrence
+identity is still open.
 
-The experimental peer representation is `u64` and order is peer-first, then
-counter. This is an experimental choice, not adoption of all the writer-identity
-proposal. A producer must have an exclusive peer and must not reuse counters
-across crash, rollback, cloning or concurrent sessions. There is no persistence,
-peer allocation or producer-counter recovery protocol here. Randomness is not a
-uniqueness proof. The text backend still restricts peers to its explicit
-Alice/Bo embedding; non-text examples exercise more peers.
+## proof transfer
 
-Store event/dependency limits and client-specific bounds are explicit. Publication
-is one store-owned history/state assignment boundary. The generic interface also
-requires client equality, validation and replay to leave their borrowed inputs
-and previously published reachable state unchanged. `Clone` alone does not
-guarantee this: `Rc<Cell<_>>` can share mutable payloads across clones, allowing a
-rejecting callback to alter retained content. Callbacks must be observationally
-pure with respect to published data; mutable working data must be detached.
-External callback effects are not rolled back. The supplied clients use owned
-values and pure equality/validation/replay code, but no generic purity theorem is
-claimed. Under those client obligations, rejection leaves published data unchanged. No over-capacity synchronization policy or
-larger accepted text profile is introduced. Allocation/process failure and Rust,
-hax, F* and model correctness remain trust boundaries.
+The pre-existing text theorem statements retain their original input domains,
+premises, refinements and pattern metadata. Their proof bodies now compose the
+actual generic operations and exact text-specialization bridges. Shared callee
+bodies are withheld where the corresponding old callee bodies were withheld;
+contract-removal controls check that the new contracts actually do work.
+`LoopEquality` proves the needed pointwise range-fold congruence by induction
+from existing checked loop equations, without adding an extensionality axiom.
 
-## acceptance and proof scope
+`EventClassifier`, `EventGraph` and `EventShell` supply generic classifier,
+membership, readiness/first-choice and planning/publication laws. The stronger
+existing exact-past, rank/progress, causal-trace, basis and labelled tree-replay
+claims are rechecked at the text specialization of the actual shared code.
+This is not a claim that every existing semantic statement has become a theorem
+for every arbitrary client. A new client still owes its validity, comparison,
+interpretation, refinement, composition and fitting/progress obligations.
+Neither the old nor the new checked components establish general CRDT convergence
+or text-tree totality.
 
-Run `cargo test --locked --workspace` for native acceptance. The original text
-suite remains in that run. The new tests exercise causal graphs, exact content,
-transactional rejection, text compatibility fixtures and ordered multi-field
-creation. Finite tests are not universal refinement or convergence proofs.
+The gate records explicit mutation-owner migrations when the owning algorithm
+moves to a generic theorem. It retains the original modes and adds concrete
+caller/wiring controls; a failure at an arbitrary earlier theorem is not credited.
+Fresh extraction has a strict three-module edit inventory (`Edit`, `Event_layer`,
+`Event_shell`), separately from the existing smoke module. Changed sources,
+views, receipts, affected owners and controls must agree at the accepted head.
+The existing pins, models, resource limits and ordinary-rejection classifier are
+unchanged.
 
-Run `nix build --no-link .#shared-proofs` for the isolated
-[generic envelope proof](../proofs/causal-envelope-view/README.md). It checks the
-actual new source, not the earlier supplied toy probe: identity equality, exact
-first-ID classification (even for duplicate-ID stores), ordered dependency
-sequence equality, and whole-event equality under an explicit exact client
-payload-equality premise. Fresh per-mode hax output must match its independent
-extraction; the healthy native output also matches the tracked snapshot. Six
-wrong-Rust controls and three callee/range-contract removals must fail ordinarily
-at named owners, with no timeout/type-failure credit. This is a focused extraction
-of classifier/equality roots, not extraction or proof of the entire generic
-store.
+## transaction and trust boundary
 
-The full new Latte document was inspected and emitted through the registered MCP
-and compared byte-for-byte with the immutable producer. The portable gate checks
-tracked source/view/native receipts; optional local re-emission is documented in
-the proof README. The existing global native manifest was not repinned.
+Owned and in-place receive APIs share one publication match. A duplicate or error
+does not publish a candidate or replace the original state. In-place receive must
+not clone the original and unconditionally assign that clone back: even a pure,
+owned Rust `Clone` implementation can change values. A retained regression tests
+that case and the actual wrong implementation.
 
-These theorems do not prove graph closure, scheduling totality, publication,
-counters, client refinement or convergence. Client-supplied payload equality
-still needs its own exactness proof; the logical premise does not certify an
-arbitrary Rust callback. Those missing universal boundaries are required before
-this becomes a replacement for the checked text shell.
+Clients must leave borrowed inputs and published reachable data unchanged;
+mutable working data must be detached. `Clone` alone does not guarantee this:
+`Rc<Cell<_>>` can share mutable payloads across clones. External callback effects,
+panics and allocation/process failure are not rolled back. The pinned hax Clone
+model promises value-preserving cloning; fidelity of each concrete Rust client
+and of the extraction/models/checker remains an explicit trust boundary, not an
+enforced generic Rust purity type.
 
-No old theorem is weakened and no old mutant is reclassified by this experiment.
-Before adopting this as the library's shared layer, the remaining universal
-proofs, adapter bridges and exact-head acceptance require their own closure.
+## run
+
+```
+cargo test --locked --workspace
+cargo run --locked --example shared-causal
+nix build --no-link .#native .#shared-native .#shared-proofs
+```
+
+The main proof gate (`.#proofs` and its CI shards) now includes the transferred
+text proofs and generic foundations. `.#shared-proofs` additionally preserves the
+[first experimental envelope classifier/equality checks](../proofs/causal-envelope-view/README.md);
+that focused component is not a substitute for the migration gate. Full matrices
+belong in CI; local development uses the affected positive roots and scoped
+controls. This experimental branch remains unmerged until its exact-head checks
+and scoped reviews close; no revised roadmap or production interface is adopted
+by the experiment alone.

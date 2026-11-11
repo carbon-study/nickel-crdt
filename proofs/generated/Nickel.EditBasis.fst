@@ -3,6 +3,8 @@ module Nickel.EditBasis
 
 open Nickel.Prelude
 
+open Nickel.EventGraphText
+
 open Rust_primitives
 
 open Core_models
@@ -40,14 +42,18 @@ let actual_basis_is_exact_filter (facts: t_Slice Native.t_Fact) (selected: t_Sli
     selected_fact_is_exact fact;
     assert (Native.clone_selected_fact fact == fact) by (
       Tactics.prune "Nickel_crdt.Edit.clone_selected_fact";
+      Tactics.prune "Nickel_crdt.Event_layer.clone_selected_fact";
       Tactics.smt_sync' 1 1
     ) in
   Nickel.Vector.empty_vector_contents #Native.t_Fact ();
   Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len facts) (basis_prefix facts selected) (fun (basis: facts_vec) -> basis) (fun (basis: facts_vec) -> selected_prefix facts selected (Seq.length facts) (Alloc.Vec.impl_1__as_slice basis)) (fun (_: Native.t_Error) -> Prims.l_False);
   assert (Nickel.LoopUtil.result_safe (fun (basis: facts_vec) -> selected_prefix facts selected (Seq.length facts) (Alloc.Vec.impl_1__as_slice basis)) (fun (_: Native.t_Error) -> Prims.l_False) (Native.select_basis facts selected)) by (
     Tactics.prune "Nickel_crdt.Edit.clone_selected_fact";
+    Tactics.prune "Nickel_crdt.Event_layer.clone_selected_fact";
     Tactics.prune "Nickel_crdt.Edit.has_event";
+    Tactics.prune "Nickel_crdt.Event_layer.has_id";
     Tactics.prune "Nickel_crdt.Edit.push";
+    Tactics.prune "Nickel_crdt.Event_layer.push";
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
@@ -71,10 +77,13 @@ let closed_event_basis_is_exact (facts: facts_vec) (event: Native.t_Fact) : Lemm
     shape ();
     assert (Prims.l_and (result_shape (Native.select_basis input (Alloc.Vec.impl_1__as_slice selected))) (Nickel.LoopUtil.result_safe (fun (basis: facts_vec) -> selected_prefix input (Alloc.Vec.impl_1__as_slice selected) (Seq.length input) (Alloc.Vec.impl_1__as_slice basis)) (fun (_: Native.t_Error) -> Prims.l_False) (Native.select_basis input (Alloc.Vec.impl_1__as_slice selected)))) by (
       Tactics.prune "Nickel_crdt.Edit.select_basis";
+      Tactics.prune "Nickel_crdt.Event_layer.select_basis";
       Tactics.smt_sync' 1 1
     ) in
   assert (exact_event_basis facts roots (Native.event_basis input event)) by (
     Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.prune "Nickel_crdt.Edit.select_basis";
+    Tactics.prune "Nickel_crdt.Event_layer.select_basis";
     Tactics.smt_sync' 1 1
   )

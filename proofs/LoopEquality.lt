@@ -1,0 +1,52 @@
+import Rust_primitives
+import Rust_primitives.Hax.Folds
+import Core_models.Ops.Control_flow
+import FStar.Pervasives
+import FStar.Classical
+import Nickel.LoopUtil
+import Tactics = FStar.Tactics.V2
+
+// Equal steps imply equal loop outcomes; the annotation functions may differ.
+// This compares the actual pinned interpreter without an extensionality axiom.
+proof! pointwise_callbacks<state: Type0, result: Type0>(start: usize, finish: usize where v(start) <= v(finish),
+  left_inv: Nickel.LoopUtil.invariant(state, start, finish), right_inv: Nickel.LoopUtil.invariant(state, start, finish),
+  value: state, left: Nickel.LoopUtil.callback(state, result, start, finish), right: Nickel.LoopUtil.callback(state, result, start, finish)): unit
+  decreases v(finish) - v(start)
+  takes forall(s: state, i: Nickel.LoopUtil.position(start, finish)) . left(s, i) == right(s, i)
+  gives fold_range_return(start, finish, left_inv, value, left) == fold_range_return(start, finish, right_inv, value, right)
+{
+  if v(start) < v(finish) {
+    Nickel.LoopUtil.unroll(start, finish, left_inv, value, left);
+    Nickel.LoopUtil.unroll(start, finish, right_inv, value, right);
+    match left(value, start) {
+      ControlFlow_Continue(next) => pointwise_callbacks(start +! mk_usize(1), finish, left_inv, right_inv, next, left, right),
+      _ => ()
+    };
+    assert(fold_range_return(start, finish, left_inv, value, left) == fold_range_return(start, finish, right_inv, value, right)) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.smt_sync'(1, 1)
+    }
+  } else {
+    Nickel.LoopUtil.empty(start, finish, left_inv, value, left);
+    Nickel.LoopUtil.empty(start, finish, right_inv, value, right)
+  }
+}
+proof pointwise_callbacks_any<state: Type0, result: Type0>(start: usize, finish: usize where v(start) <= v(finish)): unit
+  gives forall(left_inv: Nickel.LoopUtil.invariant(state, start, finish), right_inv: Nickel.LoopUtil.invariant(state, start, finish), value: state,
+    left: Nickel.LoopUtil.callback(state, result, start, finish), right: Nickel.LoopUtil.callback(state, result, start, finish)) .
+    (forall(s: state, i: Nickel.LoopUtil.position(start, finish)) . left(s, i) == right(s, i)) ==>
+    fold_range_return(start, finish, left_inv, value, left) == fold_range_return(start, finish, right_inv, value, right)
+{
+  proof annotations(left_inv: Nickel.LoopUtil.invariant(state, start, finish), right_inv: Nickel.LoopUtil.invariant(state, start, finish), value: state): unit
+    gives forall(left: Nickel.LoopUtil.callback(state, result, start, finish), right: Nickel.LoopUtil.callback(state, result, start, finish)) .
+      (forall(s: state, i: Nickel.LoopUtil.position(start, finish)) . left(s, i) == right(s, i)) ==>
+      fold_range_return(start, finish, left_inv, value, left) == fold_range_return(start, finish, right_inv, value, right)
+  {
+    proof each(left: Nickel.LoopUtil.callback(state, result, start, finish), right: Nickel.LoopUtil.callback(state, result, start, finish)): unit
+      takes forall(s: state, i: Nickel.LoopUtil.position(start, finish)) . left(s, i) == right(s, i)
+      gives fold_range_return(start, finish, left_inv, value, left) == fold_range_return(start, finish, right_inv, value, right)
+    { pointwise_callbacks(start, finish, left_inv, right_inv, value, left, right) };
+    FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each))
+  };
+  FStar.Classical.forall_intro_3(annotations)
+}

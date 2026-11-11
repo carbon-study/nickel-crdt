@@ -5,3 +5,7 @@ pub mod edit;
 pub mod causal;
 pub mod shared_text;
 pub mod atomic_map;
+
+pub mod event_layer;
+
+pub mod event_shell;

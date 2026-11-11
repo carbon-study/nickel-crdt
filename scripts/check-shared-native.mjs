@@ -15,12 +15,12 @@ assert(holdLock(path.join(output,'.shared-native.lock')),'another shared-native 
 const modes=[
   ['payload-equality','causal.rs','fn event_equal<','eq(&left.payload, &right.payload)','true','causal::tests::duplicate_conflict_and_ordered_dependencies'],
   ['dependency-equality','causal.rs','fn event_equal<','ids_eq(&left.after, &right.after)','true','causal::tests::duplicate_conflict_and_ordered_dependencies'],
-  ['early-publication','causal.rs','pub fn receive<','let state = replay(&ordered).map_err(Error::Client)?;','self.events = candidate.clone();\n        let state = replay(&ordered).map_err(Error::Client)?;','causal::tests::validation_and_replay_failures_rollback'],
-  ['empty-author-basis','causal.rs','pub fn receive<','validate(&basis, &event)','validate(&[], &event)','causal::tests::basis_is_exact_and_stored_order'],
-  ['skip-ready-dependency','causal.rs','fn schedule<','Some(j) if done[j] => (),','Some(_j) => (),','causal::tests::independent_closure_and_schedule_oracles_all_small_dags'],
+  ["early-publication","causal.rs","pub fn receive<","crate::event_shell::receive_into(\n            self,\n            &event,\n            &client,\n            plan_incoming,\n            Admission::Added,\n            Admission::Duplicate,\n        )","let result = crate::event_shell::receive_into(\n            self,\n            &event,\n            &client,\n            plan_incoming,\n            Admission::Added,\n            Admission::Duplicate,\n        ); if result.is_err() { self.events.push(event); } result","causal::tests::validation_and_replay_failures_rollback"],
+  ['empty-author-basis','causal.rs','fn validate_incoming<','(client.validate)(&basis, event)','(client.validate)(&[], event)','causal::tests::basis_is_exact_and_stored_order'],
+  ['skip-ready-dependency','event_layer.rs','fn ready<','if has_id(done, &after[i], id_eq) {','if true {','causal::tests::independent_closure_and_schedule_oracles_all_small_dags'],
   ['reverse-operation-order','atomic_map.rs','fn apply(','for op in batch {','for op in batch.iter().rev() {','stored_batch_order_is_preserved_after_record_creation'],
 ];
-const sources=new Map(await Promise.all(['causal.rs','atomic_map.rs'].map(async name=>[name,await fs.readFile(path.join(root,'src',name),'utf8')])));
+const sources=new Map(await Promise.all(['causal.rs','atomic_map.rs','event_layer.rs','event_shell.rs'].map(async name=>[name,await fs.readFile(path.join(root,'src',name),'utf8')])));
 const receipts=[];
 for(const [mode,file,header,anchor,replacement,test] of [['positive',null,null,null,null,null,null],...modes]) {
   const dir=path.join(output,mode);

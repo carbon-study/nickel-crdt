@@ -11,12 +11,12 @@ synchronization or retry-progress policy.
 
 ## Shared-layer experiment
 
-An [experimental payload-generic store](docs/shared-layer-experiment.md) now has
-two native clients: the existing text backend through a single-operation
-adapter, and a small ordered atomic record/field-batch example. Try
-`cargo run --locked --example shared-causal`; `nix build --no-link .#shared-native`
-checks its native implementation controls. This parallel API does not replace
-the checked text API or establish the remaining shared-layer/client proofs.
+The [shared-layer migration](docs/shared-layer-experiment.md) routes the existing
+text engine's admission, graph scans, scheduling and publication through generic
+native code. The atomic record/field-batch example uses that same layer. Try
+`cargo run --locked --example shared-causal`; the main proof gate checks the
+transferred text statements and generic foundations. This remains experimental,
+with client obligations and the unproved semantic boundaries listed in the scope.
 
 ## Ordering research candidates
 
