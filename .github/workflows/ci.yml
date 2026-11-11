@@ -10,10 +10,23 @@
 # builds, and every flake now exposes aarch64-linux.
 name: ci
 
+# Documentation-only changes skip the whole gate. No job reads these paths:
+# the proof derivations name their sources explicitly in flake.nix (not
+# proofs/README.md), and the experiment and questionnaire checks read only
+# their own directories. `*.md` matches root-level files only. Any change
+# outside these paths, including this workflow, still runs every job.
 on:
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'proofs/README.md'
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'proofs/README.md'
 
 concurrency:
   group: ci-${{ github.ref }}
