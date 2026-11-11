@@ -80,13 +80,16 @@ Reuse is checked, not assumed:
 - Every selected mutation must have an owning theorem, an anchored edit and a
   resolvable scope before any native test, extraction or compiler starts.
 - Every registered mutation, selected or not, must name an item header that occurs
-  exactly once and an anchor that occurs exactly once inside that item's
-  brace-matched body (`scripts/mutation-scope.mjs`). Braces in comments and in
-  string, char, byte and raw-string literals do not move the boundary; source the
-  scanner cannot classify is refused. Controls run through the same preparation
-  path: a moved anchor, a duplicated anchor, a missing or duplicated header, braces
-  in comments/literals and an unclassifiable quote. This guarantees exactly one
-  edit inside the intended item, not that the edit is still the named fault.
+  exactly once in code, on token boundaries, and an anchor that occurs exactly once
+  inside that item's brace-matched body, entirely in code (`scripts/mutation-scope.mjs`).
+  A lexer blanks comments and string, char, byte, C-string and raw-string literals
+  first, so headers, anchors and braces inside them do not count; unknown literal
+  prefixes, unclassifiable quotes and unterminated literals or comments are refused.
+  Controls run through the same preparation path on variants of the real file: a
+  moved, duplicated or comment-only anchor; a missing header, one surviving only in a
+  comment or string, and a duplicated header; braces in every comment/literal form;
+  C raw strings spanning two items; and unsupported lexemes. This guarantees exactly
+  one edit inside the intended item, not that the edit is still the named fault.
 - Each hax run writes into a staging directory and is installed as an inventory:
   project sources that are neither authored views nor part of the fresh extraction
   are removed before verification.

@@ -201,14 +201,6 @@ function prepareMutation(mode,source=original) {
   assert(start>=0,'mutation scope not found: '+mode);
   assert(Object.hasOwn(edits,mode),'mutation without a registered edit: '+mode);
   const [needle,replacement]=edits[mode];const at=scopedAnchor(source,header,needle,mode);
-  if(mode==='duplicate-scan-skips-pairs') { const end=source.indexOf('\n}',start)+2;assert(end>start&&at<end);assert.equal(source.slice(start,end).split(needle).length,2,'one actual duplicate-scan anchor'); }
-  if(mode.startsWith('scheduler-')) { const end=source.indexOf('\n}',start)+2;assert(end>start&&at<end);assert.equal(source.slice(start,end).split(needle).length,2,'one actual scheduler anchor: '+mode); }
-  if(mode.startsWith('native-push-')) { const end=source.indexOf('\n}',start)+2;assert(end>start&&at<end);assert.equal(source.slice(start,end).split(needle).length,2,'one actual push-body anchor'); }
-  if(['plan-skips-validation','tree-publication-uses-private-writer','tree-publication-clears-private-counter','plan-clears-private-counter','plan-ignores-duplicate','plan-swallows-classifier-error','receive-plan-rewrites-counter'].includes(mode)) {
-    const next=/\n    (?:pub )?fn /.exec(source.slice(start));
-    const end=next?start+next.index:source.length;
-    assert(at<end);assert.equal(source.slice(start,end).split(needle).length,2,'one actual planner/caller anchor');
-  }
   const mutant=source.slice(0,at)+source.slice(at).replace(needle,replacement);
   assert.notEqual(mutant,source);
   return mutant;
@@ -297,8 +289,8 @@ const theorems={
 // Every registered mode, not only the selected ones, must resolve to exactly one
 // anchor inside its named item; the scope controls exercise the same path.
 for(const mode of modes.filter(mode=>mode!=='positive'))prepareMutation(mode);
-checkMutationScopeControls(prepareMutation,original,'causal-refuses-present','fn validate_after(','Ok(())');
-console.log('PASS mutation scopes: every registered mode resolves to one in-scope anchor; moved/duplicate/missing/ambiguous/literal-brace/unsupported controls');
+checkMutationScopeControls(prepareMutation,original,'causal-refuses-present','fn validate_after(','Ok(())','fn validate_new(');
+console.log('PASS mutation scopes: every registered mode resolves to one in-scope anchor; moved/duplicate/comment-only anchor, missing/comment/string/duplicated header, literal braces, C raw strings across items and unsupported-lexeme controls');
 const prepared=new Map();
 for(const mode of mutations) {
   assert(Object.hasOwn(theorems,mode),'mutation without an owning theorem: '+mode);
