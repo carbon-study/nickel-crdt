@@ -503,16 +503,6 @@ let past_pass
               (v_F -> v_F -> bool)) &
             ((Prims.unit -> v_E) & (Prims.unit -> v_E))))
     : Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E =
-  let
-  ((_: (v_F -> v_I)),
-    (_: (v_F -> t_Slice v_I)),
-    (_: (v_I -> v_I -> bool)),
-    (_: (v_I -> v_I -> bool)),
-    (_: (v_F -> v_F)),
-    (_: (v_F -> v_F -> bool))),
-  ((_: (Prims.unit -> v_E)), (_: (Prims.unit -> v_E))) =
-    ops
-  in
   match
     Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
       (Core_models.Slice.impl__len #v_F facts <: usize)
@@ -575,16 +565,6 @@ let past
               (v_F -> v_F -> bool)) &
             ((Prims.unit -> v_E) & (Prims.unit -> v_E))))
     : Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E =
-  let
-  ((_: (v_F -> v_I)),
-    (_: (v_F -> t_Slice v_I)),
-    (_: (v_I -> v_I -> bool)),
-    (_: (v_I -> v_I -> bool)),
-    (_: (v_F -> v_F)),
-    (_: (v_F -> v_F -> bool))),
-  ((_: (Prims.unit -> v_E)), (_: (Prims.unit -> v_E))) =
-    ops
-  in
   let selected:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = Alloc.Slice.impl__to_vec #v_I after_ids in
   match
     validate_after #v_F #v_I #v_E facts after_ids ops <: Core_models.Result.t_Result Prims.unit v_E
@@ -825,16 +805,6 @@ let canonical
               (v_F -> v_F -> bool)) &
             ((Prims.unit -> v_E) & (Prims.unit -> v_E))))
     : Core_models.Result.t_Result (Alloc.Vec.t_Vec v_F Alloc.Alloc.t_Global) v_E =
-  let
-  ((_: (v_F -> v_I)),
-    (_: (v_F -> t_Slice v_I)),
-    (_: (v_I -> v_I -> bool)),
-    (_: (v_I -> v_I -> bool)),
-    (_: (v_F -> v_F)),
-    (_: (v_F -> v_F -> bool))),
-  ((_: (Prims.unit -> v_E)), (_: (Prims.unit -> v_E))) =
-    ops
-  in
   let out:Alloc.Vec.t_Vec v_F Alloc.Alloc.t_Global = Alloc.Vec.impl__new #v_F () in
   match
     Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
@@ -896,16 +866,6 @@ let ready
               (v_F -> v_F -> bool)) &
             ((Prims.unit -> v_E) & (Prims.unit -> v_E))))
     : bool =
-  let
-  ((_: (v_F -> v_I)),
-    (_: (v_F -> t_Slice v_I)),
-    (_: (v_I -> v_I -> bool)),
-    (_: (v_I -> v_I -> bool)),
-    (_: (v_F -> v_F)),
-    (_: (v_F -> v_F -> bool))),
-  ((_: (Prims.unit -> v_E)), (_: (Prims.unit -> v_E))) =
-    ops
-  in
   match
     Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
       (Core_models.Slice.impl__len #v_I after <: usize)

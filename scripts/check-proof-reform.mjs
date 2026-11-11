@@ -23,6 +23,9 @@ export function checkProofReformFence() {
     for(const name of ['fixture','EventGraph','EditAtomic','EditCommit','Spec'])
       assert.throws(()=>assertReformedSource(name,'Tactics.prune('+JSON.stringify(namespace)+')'),new RegExp(name+' reform:'));
   }
+  assertReformedSource('EditReplay','Tactics.prune("Nickel.EditReplay.group_follows")');
+  for(const name of ['fixture','EditSchedule','EditAccepted'])
+    assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EditReplay.group_follows")'),new RegExp(name+' reform:'));
   assertReformedSource('EditCausal','Tactics.prune("Nickel.EditCausal.causal_rank")');
   assertReformedSource('EditSchedule','Tactics.prune("Nickel.EditCausal.causal_rank")');
   for(const name of ['fixture','EditPast','EditPastTotal','EditWellFormed'])

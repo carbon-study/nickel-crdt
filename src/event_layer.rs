@@ -116,7 +116,6 @@ pub fn extend_past<F, I: Clone, E>(fact: &F, mut selected: Vec<I>, ops: &GraphOp
 }
 
 pub fn past_pass<F, I: Clone, E>(facts: &[F], mut selected: Vec<I>, ops: &GraphOps<F, I, E>) -> Result<Vec<I>, E> {
-    let ((_, _, _, _, _, _), (_, _)) = *ops;
     for i in 0..facts.len() {
         selected = extend_past(&facts[i], selected, ops)?;
     }
@@ -124,7 +123,6 @@ pub fn past_pass<F, I: Clone, E>(facts: &[F], mut selected: Vec<I>, ops: &GraphO
 }
 
 pub fn past<F, I: Clone, E>(facts: &[F], after_ids: &[I], ops: &GraphOps<F, I, E>) -> Result<Vec<I>, E> {
-    let ((_, _, _, _, _, _), (_, _)) = *ops;
     let mut selected = after_ids.to_vec();
     validate_after(facts, after_ids, ops)?;
     for _ in 0..facts.len() {
@@ -170,7 +168,6 @@ pub fn canonical_step<F, I, E>(facts: &[F], mut out: Vec<F>, ops: &GraphOps<F, I
 }
 
 pub fn canonical<F, I, E>(facts: &[F], ops: &GraphOps<F, I, E>) -> Result<Vec<F>, E> {
-    let ((_, _, _, _, _, _), (_, _)) = *ops;
     let mut out = Vec::new();
     for _ in 0..facts.len() {
         out = canonical_step(facts, out, ops)?;
@@ -179,7 +176,6 @@ pub fn canonical<F, I, E>(facts: &[F], ops: &GraphOps<F, I, E>) -> Result<Vec<F>
 }
 
 pub fn ready<F, I, E>(after: &[I], done: &[I], ops: &GraphOps<F, I, E>) -> bool {
-    let ((_, _, _, _, _, _), (_, _)) = *ops;
     for i in 0..after.len() {
         if has_id(done, &after[i], ops) {
             // This predecessor has run; keep checking.

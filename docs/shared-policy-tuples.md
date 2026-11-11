@@ -67,5 +67,10 @@ node scripts/check-edit-proofs.mjs /tmp/nickel-policy-check positive-only \
 node scripts/check-shared-native.mjs /tmp/nickel-batch-policy-check
 ```
 
+`gatepreflight` checks registration and unique in-scope anchors only; it does
+not compile mutants, extract them, or check semantic rejection. Each actual
+mutation gate performs those later stages, and any compilation/extraction
+failure fails the gate. A clean anchor preflight alone is not mutation evidence.
+
 The complete mutation/dependency matrix belongs in CI. Source staging and passing
 selected controls alone do not establish acceptance of the entire port.
