@@ -1,3 +1,4 @@
+import {checkOperationContracts} from './check-operation-contracts.mjs';
 import {checkReplayContracts} from './check-replay-contracts.mjs';
 import {itemSpan,scopedAnchor,checkMutationScopeControls} from './mutation-scope.mjs';
 import {checkBasisContracts} from './check-basis-contracts.mjs';
@@ -67,7 +68,7 @@ const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tre
   'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality',
   'identity-scan-key','identity-birth-equality','identity-writer-equality',
   'accepted-reuses-member','accepted-wrong-canonical-push','accepted-publication-duplicates',
-  'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes','past-refuses-closure','duplicate-scan-skips-pairs','scheduler-ready-skips-dependency','scheduler-reselects-done','scheduler-refuses-ready','scheduler-checks-empty-after','scheduler-records-wrong-id','scheduler-stops-early','scheduler-erases-wrong-trace','scheduler-invents-bookkeeping-error','basis-includes-unselected','basis-omits-selected','basis-event-ignores-roots','replay-nodes-skip-first','replay-nodes-reverse','replay-groups-include-all','replay-groups-skip-all','replay-context-passes-empty','replay-context-invents-error','replay-context-contaminates-basis'];
+  'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes','past-refuses-closure','duplicate-scan-skips-pairs','scheduler-ready-skips-dependency','scheduler-reselects-done','scheduler-refuses-ready','scheduler-checks-empty-after','scheduler-records-wrong-id','scheduler-stops-early','scheduler-erases-wrong-trace','scheduler-invents-bookkeeping-error','basis-includes-unselected','basis-omits-selected','basis-event-ignores-roots','replay-nodes-skip-first','replay-nodes-reverse','replay-groups-include-all','replay-groups-skip-all','replay-context-passes-empty','replay-context-invents-error','replay-context-contaminates-basis','scheduler-forgets-completed-tree'];
 // Contract-dependency families run after the positive chain verifies. With no
 // arguments (CI) every mode and every family runs. Development runs may select
 // `positive-only`, `contracts:<family>` (implies the positive chain) and any
@@ -78,7 +79,7 @@ const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tre
 // also picks up any family added later. `jobs:<n>` (default 1) checks up to n
 // selected mutation modes concurrently, after the positive chain and its
 // families; it selects nothing by itself.
-const families={replay:checkReplayContracts,basis:checkBasisContracts,schedule:checkScheduleContracts,past:checkPastContracts,remaining:checkRemainingContracts,counter:checkCounterContracts,push:checkPushContracts,vector:checkVectorContracts,
+const families={operation:checkOperationContracts,replay:checkReplayContracts,basis:checkBasisContracts,schedule:checkScheduleContracts,past:checkPastContracts,remaining:checkRemainingContracts,counter:checkCounterContracts,push:checkPushContracts,vector:checkVectorContracts,
   scalar:checkScalarContracts,identity:checkIdentityContracts,writer:checkWriterContracts,plan:checkPlanContracts,containment:checkContainmentContracts,accepted:checkAcceptedContracts,spec:checkSpecContracts,private:checkPrivateContracts,shared:checkSharedContracts,commit:checkCommitContracts};
 const jobArgs=process.argv.slice(3).filter(arg=>arg.startsWith('jobs:')),args=process.argv.slice(3).filter(arg=>!arg.startsWith('jobs:'));
 assert(jobArgs.length<=1&&jobArgs.every(arg=>/^jobs:[1-9]\d*$/.test(arg)),'use at most one jobs:<n> with n >= 1');
@@ -98,7 +99,7 @@ for(const arg of args) {
     wantPositive=true;for(const name of Object.keys(families))if(!skip.includes(name))familyRuns.add(name);
   }
   else if(arg.startsWith('contracts:')){const name=arg.slice(10);assert(Object.hasOwn(families,name),'unknown contract family '+name);wantPositive=true;familyRuns.add(name);}
-  else {assert(modes.includes(arg),'unknown mode '+arg);if(arg.startsWith('basis-')||arg.startsWith('replay-'))wantPositive=true;mutations.push(arg);}
+  else {assert(modes.includes(arg),'unknown mode '+arg);if(arg.startsWith('basis-')||arg.startsWith('replay-')||arg==='scheduler-forgets-completed-tree')wantPositive=true;mutations.push(arg);}
 }
 if(args.length===0){for(const name of Object.keys(families))familyRuns.add(name);mutations.push(...modes.filter(mode=>mode!=='positive'));}
 // A fresh mutation workspace starts from the verified positive workspace: same
@@ -108,6 +109,7 @@ if(args.length===0){for(const name of Object.keys(families))familyRuns.add(name)
 // Each mutation edits exactly one anchored site of the actual Rust source.
 function prepareMutation(mode,source=original) {
   const scopes={
+'scheduler-forgets-completed-tree':'fn interpret_scheduled(',
 'replay-nodes-skip-first':'fn replay_nodes(', 'replay-nodes-reverse':'fn replay_nodes(', 'replay-groups-include-all':'fn replay_author(', 'replay-groups-skip-all':'fn replay_author(', 'replay-context-passes-empty':'fn author_context(', 'replay-context-invents-error':'fn author_context(', 'replay-context-contaminates-basis':'fn author_context(',
 'basis-includes-unselected':'fn select_basis(', 'basis-omits-selected':'fn select_basis(', 'basis-event-ignores-roots':'fn event_basis(',
 'duplicate-scan-skips-pairs':'fn duplicate_events(', 'past-refuses-closure':'fn past(', 'past-skips-passes':'fn past(', 'past-skips-predecessors':'fn extend_past(', 'past-drops-roots':'fn past(', 'past-invents-id':'fn extend_past(', 'past-membership-always-false':'fn has_event(',
@@ -120,6 +122,7 @@ function prepareMutation(mode,source=original) {
 'plan-ignores-duplicate':'fn plan(', 'plan-swallows-classifier-error':'fn plan(', 'receive-plan-rewrites-counter':'pub fn receive(', 'invalid-forgets-reason':'fn invalid(', 'writer-index-collides':'fn writer_index(', 'native-push-discards-value':'fn push<T>','native-push-prepends':'fn push<T>','causal-validator-passes-empty':'fn validate_new(','causal-accepts-missing':'fn validate_after(', 'causal-call-passes-empty':'fn past(', 'causal-refuses-present':'fn validate_after(','plan-interprets-uncanonical':'fn plan(','scalar-count-loop-bypasses-check':'fn validate_new(','scalar-accepts-invalid':'fn validate_scalars(', 'scalar-refuses-valid':'fn validate_scalars(', 'scalar-call-passes-empty':'fn validate_new(','canonical-step-refuses':'fn canonical_step(', 'canonical-refuses':'fn canonical(','plan-keeps-old-tree':'fn with_tree(', 'plan-passes-old-tree':'fn plan(','order-key-ignores-writer':'fn event_lt(','order-chooses-largest':'fn choose_unseen(', 'order-discards-canonical':'fn plan(','edit-commit-ignores-counter':'fn with_counter(', 'edit-success-reuses-counter':'fn next_counter_after(', 'content-changes-whole-fact':'fn clone_selected_fact(', 'content-omits-facts':'fn canonical(', 'accepted-reuses-member':'fn choose_unseen(', 'accepted-wrong-canonical-push':'fn canonical_step(', 'accepted-publication-duplicates':'fn with_tree('};
   const header=(scopes[mode]??(mode==='identity-writer-equality'?'impl PartialEq for Writer':mode==='identity-birth-equality'?'impl PartialEq for BirthId':mode==='identity-event-equality'?'impl PartialEq for EventId':mode==='identity-forgets-gap'?'fn fact_equal(':mode.startsWith('identity-')?'fn duplicate(':mode==='receive-private-gate'?'fn plan(':mode.startsWith('receive')?'pub fn receive(':'pub fn edit('));const [start]=itemSpan(source,header,mode);
   const edits={
+    'scheduler-forgets-completed-tree':['Ok((result, done))', 'Ok((Tree::default(), done))'],
     'replay-nodes-skip-first':['for i in 0..nodes.len() {','for i in 1..nodes.len() {'],
     'replay-nodes-reverse':['tree.add(nodes[i].clone())?;', 'tree.add(nodes[nodes.len() - 1 - i].clone())?;'],
     'replay-groups-include-all':['if has_event(selected, id) {','if !has_event(&[], id) {'],
@@ -206,6 +209,7 @@ function prepareMutation(mode,source=original) {
   return mutant;
 }
 const theorems={
+  'scheduler-forgets-completed-tree':'EditSchedule.successful_schedule_has_complete_event_work',
   'replay-nodes-skip-first':'EditReplay.actual_nodes_replay_in_order',
   'replay-nodes-reverse':'EditReplay.actual_nodes_replay_in_order',
   'replay-groups-include-all':'EditReplay.actual_author_replays_selected_groups',
@@ -327,7 +331,7 @@ async function check(mode) {
   // Each mode has its own Cargo target: hax names its metadata by package, not by
   // source tree, so crate copies sharing a target read each other's extraction.
   const env={...process.env,CARGO_TARGET_DIR:path.join(root,'target','edit-proof-check','modes',mode)};
-  const nativeArgs=['test','--offline','--locked','-p','nickel-crdt',...(mode.startsWith('replay-')?['--lib','author_replay_tests']:mode.startsWith('basis-')?['--lib','basis_filter_tests']:((mode.startsWith('past-')||mode.startsWith('scheduler-'))?['--lib','causal_basis_tests']:['--test','edit_admit']))];
+  const nativeArgs=['test','--offline','--locked','-p','nickel-crdt',...(mode==='scheduler-forgets-completed-tree'?['--lib','operation_provenance_tests']:mode.startsWith('replay-')?['--lib','author_replay_tests']:mode.startsWith('basis-')?['--lib','basis_filter_tests']:((mode.startsWith('past-')||mode.startsWith('scheduler-'))?['--lib','causal_basis_tests']:['--test','edit_admit']))];
   const native=await runAsync('edit native '+mode,'cargo',nativeArgs,crate,{env});
   await fs.writeFile(path.join(output,mode+'.native.log'),native.log);
   if(mode==='positive') {
@@ -336,6 +340,10 @@ async function check(mode) {
     await fs.writeFile(path.join(output,'positive.basis-native.log'),basisNative.log);
     assert.equal(basisNative.status,0,basisNative.log);
     assert.match(basisNative.log,/test result: ok\. [1-9]\d* passed;/,'basis native baseline must discover and pass tests: '+basisNative.log);
+    const operationNative=await runAsync('edit operation native baseline','cargo',['test','--offline','--locked','-p','nickel-crdt','--lib','operation_provenance_tests'],crate,{env});
+    await fs.writeFile(path.join(output,'positive.operation-native.log'),operationNative.log);
+    assert.equal(operationNative.status,0,operationNative.log);
+    assert.match(operationNative.log,/test result: ok\. [1-9]\d* passed;/,'operation native baseline must discover and pass tests: '+operationNative.log);
     const replayNative=await runAsync('edit replay native baseline','cargo',['test','--offline','--locked','-p','nickel-crdt','--lib','author_replay_tests'],crate,{env});
     await fs.writeFile(path.join(output,'positive.replay-native.log'),replayNative.log);
     assert.equal(replayNative.status,0,replayNative.log);

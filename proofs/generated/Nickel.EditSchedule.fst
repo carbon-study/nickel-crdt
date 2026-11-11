@@ -492,3 +492,86 @@ let interpret_errors_come_from_tree_work (facts: facts_vec) (rank: Native.t_Even
     Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
     Tactics.smt_sync' 1 1
   )
+
+let complete_event_work (facts: t_Slice Native.t_Fact) (pair: Native.t_Tree & ids_vec) : Type0 =
+  match pair with | (tree, done) -> begin Prims.l_and (complete_causal_trace facts pair) (exists(operations: operations_vec). Prims.l_and (Seq.length (Alloc.Vec.impl_1__as_slice operations) == Seq.length facts) (event_work_prefix facts (Seq.length facts) done operations tree)) end
+
+let successful_schedule_has_complete_event_work (facts: t_Slice Native.t_Fact) : Lemma (ensures Nickel.LoopUtil.result_safe (complete_event_work facts) (fun (_: Native.t_Error) -> Prims.l_True) (Native.interpret_scheduled facts)) =
+  let choice_shape (done: t_Slice Native.t_EventId) : Lemma (ensures Prims.l_or (Native.choose_ready facts done == Option.Option_None) (exists(i: usize). Native.choose_ready facts done == Option.Option_Some i)) [SMTPat (Native.choose_ready facts done)] = () in
+  let event_shape (event: Native.t_Fact) (operations: t_Slice operation_pair) (tree: Native.t_Tree) : Lemma (ensures result_shape (Native.interpret_event facts event operations tree)) [SMTPat (Native.interpret_event facts event operations tree)] = () in
+  let extend_at_call (done: ids_vec) (operations: operations_vec) (tree: Native.t_Tree) (index: usize{v index < Seq.length facts}) : Lemma (requires (event_work_prefix facts (Seq.length (Alloc.Vec.impl_1__as_slice done)) done operations tree /\ Seq.length (Alloc.Vec.impl_1__as_slice done) < Seq.length facts)) (ensures prefix_can_extend_at facts (Seq.length (Alloc.Vec.impl_1__as_slice done)) done operations tree index) [SMTPat (Native.choose_ready facts (Alloc.Vec.impl_1__as_slice done)); SMTPat (Native.interpret_event facts (Seq.index facts (v index)) (Alloc.Vec.impl_1__as_slice operations) tree)] =
+    prefix_extension_is_actual_work facts (Seq.length (Alloc.Vec.impl_1__as_slice done)) done operations tree index;
+    assert (prefix_can_extend_at facts (Seq.length (Alloc.Vec.impl_1__as_slice done)) done operations tree index) by (
+      Tactics.prune "Nickel.EditSchedule.event_work_prefix";
+      Tactics.prune "Nickel_crdt.Edit.interpret_event";
+      Tactics.prune "Nickel_crdt.Edit.choose_ready";
+      Tactics.smt_sync' 0 0
+    ) in
+  prefix_starts_at_actual_empty facts;
+  empty_trace_is_valid facts;
+  Nickel.Vector.empty_vector_contents #Native.t_EventId ();
+  Nickel.Vector.empty_vector_contents #operation_pair ();
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len facts) (schedule_progress_invariant facts) schedule_done (complete_event_work facts) (fun (_: Native.t_Error) -> Prims.l_True);
+  assert (Nickel.LoopUtil.result_safe (complete_event_work facts) (fun (_: Native.t_Error) -> Prims.l_True) (Native.interpret_scheduled facts)) by (
+    Tactics.prune "Nickel.EditSchedule.event_work_prefix";
+    Tactics.prune "Nickel.EditSchedule.causal_trace";
+    Tactics.prune "Nickel_crdt.Edit.interpret_event";
+    Tactics.prune "Nickel_crdt.Edit.choose_ready";
+    Tactics.prune "Nickel_crdt.Edit.push";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.smt_sync' 1 1
+  )
+
+let operation_labels_match (done: ids_vec) (operations: operations_vec) : Type0 =
+  let ids = Alloc.Vec.impl_1__as_slice done in
+  let groups = Alloc.Vec.impl_1__as_slice operations in
+  Prims.l_and (Seq.length ids == Seq.length groups) (forall(i: FStar.Fin.under (Seq.length ids)). (match Seq.index groups i with | (id, _) -> begin id end) == Seq.index ids i)
+
+let rec actual_prefix_groups_match_trace (facts: t_Slice Native.t_Fact) (count: nat) (done: ids_vec) (operations: operations_vec) (tree: Native.t_Tree) : Lemma (requires event_work_prefix facts count done operations tree) (ensures operation_labels_match done operations) (decreases count) =
+  if count ==? 0 then
+    begin () end
+  else
+    begin let transfer (step: event_work_step) : Lemma (requires (match step with | (previous_done, previous_operations, previous_tree, _, _) -> begin event_work_prefix facts (count - 1) previous_done previous_operations previous_tree end /\ prefix_step_valid facts done operations tree step)) (ensures operation_labels_match done operations) = match step with | (previous_done, previous_operations, previous_tree, new_operations, index) -> begin if v index < Seq.length facts then
+      begin actual_prefix_groups_match_trace facts (count - 1) previous_done previous_operations previous_tree;
+      assert (operation_labels_match previous_done previous_operations) by (
+        Tactics.prune "Nickel.EditSchedule.event_work_prefix";
+        Tactics.prune "Nickel_crdt.Edit.interpret_event";
+        Tactics.prune "Nickel_crdt.Edit.choose_ready";
+        Tactics.smt_sync' 0 0
+      );
+      () end
+    else
+      begin () end end in
+    FStar.Classical.forall_intro (FStar.Classical.move_requires transfer);
+    assert (operation_labels_match done operations) by (
+      Tactics.prune "Nickel_crdt.Edit.interpret_event";
+      Tactics.prune "Nickel_crdt.Edit.choose_ready";
+      Tactics.smt_sync' 1 1
+    ) end
+
+let interpretation_event_work (facts: t_Slice Native.t_Fact) (tree: Native.t_Tree) : Type0 =
+  exists(done: ids_vec) (operations: operations_vec). Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Native.interpret_scheduled facts == Result.Result_Ok (tree, done)) (complete_causal_trace facts (tree, done))) (forall(i: FStar.Fin.under (Seq.length facts)). member (Alloc.Vec.impl_1__as_slice done) (Seq.index facts i).f_id)) (Seq.length (Alloc.Vec.impl_1__as_slice operations) == Seq.length facts)) (operation_labels_match done operations)) (event_work_prefix facts (Seq.length facts) done operations tree)
+
+let successful_interpretation_has_operation_provenance (facts: t_Slice Native.t_Fact) (tree: Native.t_Tree) : Lemma (requires Native.interpret facts == Result.Result_Ok tree) (ensures interpretation_event_work facts tree) =
+  successful_schedule_has_complete_event_work facts;
+  interpret_erases_only_schedule facts;
+  let each (done: ids_vec) (operations: operations_vec) : Lemma (requires (Native.interpret_scheduled facts == Result.Result_Ok (tree, done) /\ complete_causal_trace facts (tree, done) /\ Seq.length (Alloc.Vec.impl_1__as_slice operations) == Seq.length facts /\ event_work_prefix facts (Seq.length facts) done operations tree)) (ensures interpretation_event_work facts tree) =
+    full_trace_covers_storage facts done;
+    actual_prefix_groups_match_trace facts (Seq.length facts) done operations tree;
+    assert (interpretation_event_work facts tree) by (
+      Tactics.prune "Nickel.EditSchedule.event_work_prefix";
+      Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
+      Tactics.prune "Nickel_crdt.Edit.interpret";
+      Tactics.smt_sync' 1 1
+    ) in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each);
+  let shape () : Lemma (ensures result_shape (Native.interpret_scheduled facts)) = () in
+  shape ();
+  assert (interpretation_event_work facts tree) by (
+    Tactics.prune "Nickel.EditSchedule.event_work_prefix";
+    Tactics.prune "Nickel_crdt.Edit.interpret_scheduled";
+    Tactics.prune "Nickel_crdt.Edit.interpret";
+    Tactics.smt_sync' 1 1
+  )
