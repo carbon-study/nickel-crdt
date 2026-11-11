@@ -67,6 +67,7 @@ The Boolean fixture is toolchain evidence. The same proof gate also checks the a
 ## API and verification proposal
 
 - [Prospective API and verifier obligations](docs/api-verification.md): operation shapes, preconditions, return/error contracts and the status of each intended theorem.
+- [Shared causal-event layer](docs/causal-event-layer.md) (proposal): source-linked inventory, mixed-document atomic commits, payload/client proof boundary and writer-ID sequencing. No implementation or roadmap change is adopted.
 - [Register contract](docs/register-contract.md) (#67, proposed): one value per caller key, with Ren's register undo outcomes (q13–q17 and five follow-ups) fixed as rules; executable evidence in [experiments/register-candidates](experiments/register-candidates/README.md).
 - [Keyed collection contract](docs/collection-contract.md) (#68, proposed): put/insert, removal that deletes only what it saw, restore, and Ren's collection answers; executable evidence in [experiments/collection-candidates](experiments/collection-candidates/README.md).
 - [Local-undo analysis](docs/undo-semantics.md): selection versus effect semantics, literature alternatives, worked continuations and the unresolved sequence algorithm.
