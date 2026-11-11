@@ -98,8 +98,22 @@ export function itemSpan(source, header, where = header) {
   }
   assert(hits.length > 0, `${where}: mutation scope not found: ${header}`);
   assert.equal(hits.length, 1, `${where}: ambiguous mutation scope: ${header}`);
+  // The header's own body must open before the declaration can end: reaching a
+  // `;` (outside parentheses/brackets, e.g. not `[u8; 4]`) or a `}` first means a
+  // bodyless declaration, and a `{` nested in the signature is an unsupported
+  // shape. Both refuse instead of borrowing a later item's body.
+  let open = -1, nest = (header.match(/[([]/g) ?? []).length - (header.match(/[)\]]/g) ?? []).length;
+  for (let i = hits[0] + header.length; i < code.length && open < 0; i++) {
+    const c = code[i];
+    if (c === '(' || c === '[') nest++;
+    else if (c === ')' || c === ']') nest--;
+    else if (c === '{') { assert.equal(nest, 0, `${where}: unsupported brace in item signature: ${header}`); open = i; }
+    else if (c === ';' && nest <= 0) throw new Error(`${where}: item declaration ends before its body: ${header}`);
+    else if (c === '}') throw new Error(`${where}: item declaration ends before its body: ${header}`);
+  }
+  assert(open >= 0, `${where}: mutation scope has no complete body: ${header}`);
   let depth = 0;
-  for (let i = hits[0]; i < code.length; i++) {
+  for (let i = open; i < code.length; i++) {
     if (code[i] === '{') depth++;
     else if (code[i] === '}') { depth--; assert(depth >= 0, `${where}: unbalanced braces in scope`); if (depth === 0) return [hits[0], i + 1, code]; }
   }
@@ -141,6 +155,16 @@ export function checkMutationScopeControls(prepare, source, mode, header, needle
   refuses(renamed.replace('fn ' + name + '_renamed(', '// ' + header + '\nfn ' + name + '_renamed('), /scope not found/, 'header only in a comment');
   refuses(renamed.replace('fn ' + name + '_renamed(', 'const _: &str = "' + header + '";\nfn ' + name + '_renamed('), /scope not found/, 'header only in a string');
   refuses(source.replace(header, header + ') {}\n' + header), /ambiguous mutation scope/, 'ambiguous scope');
+  // Lynn's bodyless case: the only real header is a trait method declaration,
+  // followed by another method whose body contains the anchor.
+  const signature = source.slice(start, source.indexOf('{', start)).trim();
+  refuses(renamed.replace('fn ' + name + '_renamed(',
+    'trait ScopeGuardProbe {\n    ' + signature + ';\n    fn later() -> Result<(), Error> { ' + needle + ' }\n}\nfn ' + name + '_renamed('),
+    /declaration ends before its body/, 'bodyless declaration');
+  // A `;` inside the signature's brackets is not the end of the declaration.
+  const padded = variant(body.replace(header, header + '_pad: [u8; 1], '));
+  const paddedMutant = prepare(mode, padded), paddedAt = [...paddedMutant].findIndex((c, i) => c !== padded[i]);
+  assert(paddedAt > start && paddedAt < end + 20, 'control array type in signature: edit stays inside the function');
   // Braces in comments and every literal form inside the function must not move
   // its end; the edit stays inside the function.
   const braces = body.replace('{', '{\n    // }\n    /* } /* { */ } */\n    let _ = "}";\n    let _ = \'}\';\n    let _ = b\'}\';\n    let _ = r#"}"#;\n    let _ = br"}";\n    let _ = c"}";\n    let _ = cr#"}"#;\n');
