@@ -55,6 +55,11 @@ states and `A` must satisfy:
 4. **observations:** `facts()`, `next_counter()`, `whole()` and `observe()` are
    functions of `A`, so related states give equal observations.
 
+By induction from 1–3, the relation holds after **any sequence of successive
+calls**, not only at one corresponding point. Every later call, including the
+reveals, insertions and authoring that hidden content affects, starts from
+related states.
+
 These obligations do **not** discharge, and a backend separately owes:
 - its own representation invariants, established and preserved;
 - fit, prefix and intermediate-capacity conditions, and progress, for its own
@@ -139,9 +144,13 @@ Observations:
 - **Splitting on deletion (or on a future Restore) is one possible technique**,
   as opposed to keeping per-birth visibility inside a packed entry. Neither is
   adopted. The obligation is only the §1 relation.
-- **Per-birth placement:** whatever is packed, the bridge must reproduce the
-  per-birth origins and the sibling tie-breaks FugueMax uses (`birth_lt` on
-  individual births).
+- **Per-birth placement:** each birth's actual origins (left and right), parent
+  and side are preserved exactly as FugueMax computed them. Within one authored
+  insertion a birth's left origin is usually its predecessor in that run, but
+  that describes an authored scalar chain, not storage packing. A packed entry
+  may hold births from several events, so physical adjacency must never
+  determine an origin. The sibling tie-breaks (`birth_lt` on individual births)
+  are preserved the same way.
 
 **Incremental tree:** continuation §5's obligations: causal locality, cache
 validity from construction, preservation and all-return refinement. A
