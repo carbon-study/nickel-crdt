@@ -140,8 +140,8 @@ const loopLine=view.split('\n').find(l=>l.startsWith('  Nickel.LoopUtil.plain_pr
 assert(loopLine,'actual winner loop contract');
 const depModes=[
  ['without-validation-byte-contract',withholdPayloadContract('validation_is_exact_basis_checks','Nickel_crdt.Register.bytes_equal',5,['Nickel.Register.bytes_equal_exact'],[
- '  bytes_equal_exact (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed) (Alloc.Vec.impl_1__as_slice (Native.read_history (Alloc.Vec.impl_1__as_slice basis) (Alloc.Vec.impl_1__as_slice before.f_initial) offered.f_payload.f_key));',
- '  bytes_equal_exact (Alloc.Vec.impl_1__as_slice offered.f_payload.f_value) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed);']),'validation_is_exact_basis_checks'],
+ 'bytes_equal_exact (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed) (Alloc.Vec.impl_1__as_slice (Native.read_history (Alloc.Vec.impl_1__as_slice basis) (Alloc.Vec.impl_1__as_slice before.f_initial) offered.f_payload.f_key));',
+ 'bytes_equal_exact (Alloc.Vec.impl_1__as_slice offered.f_payload.f_value) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed);']),'validation_is_exact_basis_checks'],
  ['without-payload-validation-contract',withholdPayloadContract('planned_checks_payload','Nickel_crdt.Register.validate',1,['Nickel.Register.validation_is_exact_basis_checks'],['  validation_is_exact_basis_checks before offered;']),'planned_checks_payload'],
  ['without-payload-planning-contract',withholdPayloadContract('planned_checks_payload','Nickel_crdt.Event_shell.plan',1,['Nickel.EventShell.planning_is_exact','Nickel.Register.shared_success_stages'],['  shared_success_stages before offered () Native.duplicate Native.validate Native.prepare Native.execute;']),'planned_checks_payload'],
  ['without-receive-payload-contract',withholdPayloadContract('receive_added_checks_payload','Nickel_crdt.Register.planned',3,['Nickel.Register.planned_checks_payload'],['  planned_checks_payload before offered;']),'receive_added_checks_payload'],
