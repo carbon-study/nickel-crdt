@@ -59,6 +59,7 @@ const genericVisibility={
   EditWellFormed:new Set(["\"Nickel_crdt.Edit.v_TEXT_OPS\"","\"Nickel_crdt.Event_layer.graph_ops\"","\"Nickel_crdt.Event_layer.event_ops\"","\"Nickel_crdt.Event_shell.plan\"","\"Nickel_crdt.Event_shell.receive\"","\"Nickel_crdt.Event_shell.receive_into\"","\"Nickel_crdt.Event_layer.has_fact\"","\"Nickel_crdt.Event_layer.validate_after\"","\"Nickel_crdt.Event_layer.past\""]),
   EditCausal:new Set(["\"Nickel_crdt.Event_layer.has_fact\"","\"Nickel_crdt.Event_shell.receive\"","\"Nickel_crdt.Event_shell.receive_into\""]),
   Spec:new Set(["\"Nickel_crdt.Event_shell.receive\"","\"Nickel_crdt.Event_shell.receive_into\""]),
+  Register:new Set(["\"Nickel_crdt.Register.later\"","\"Nickel_crdt.Register.winner\"","\"Nickel_crdt.Register.bytes_equal\"","\"Nickel_crdt.Register.planned\"","\"Nickel_crdt.Register.impl_Replica__read\"","\"Nickel_crdt.Register.write_equal\"","\"Nickel_crdt.Event_shell.receive_into\"","\"Nickel_crdt.Causal.event_equal\""]),
   Vector:new Set([])
 };
 export function assertReformedSource(name,source) {

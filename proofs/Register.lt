@@ -1,0 +1,263 @@
+import Rust_primitives
+import Core_models
+import FStar.Pervasives
+import Nickel.LoopUtil
+import Native = Nickel_crdt.Register
+import Envelope = Nickel_crdt.Causal
+import Option = Core_models.Option
+import Seq = FStar.Seq
+import Tactics = FStar.Tactics.V2
+
+type fact = Envelope.t_Event(Native.t_Write)
+
+function bytes_prefix(a: t_Slice(u8), b: t_Slice(u8), at: nat): Type0 {
+  forall(j: nat) . (j < at and j < Seq.length(a) and j < Seq.length(b)) ==>
+    Seq.index(a, j) == Seq.index(b, j)
+}
+function bytes_same(a: t_Slice(u8), b: t_Slice(u8)): Type0 {
+  Seq.length(a) == Seq.length(b) and bytes_prefix(a, b, Seq.length(a))
+}
+proof bytes_equal_exact(a: t_Slice(u8), b: t_Slice(u8)): unit
+  gives ((Native.bytes_equal(a, b) == true <==> bytes_same(a, b)) and
+    (Native.bytes_equal(a, b) == false <==> not bytes_same(a, b)))
+  hint Native.bytes_equal(a, b)
+{
+  if Seq.length(a) ==? Seq.length(b) {
+    Nickel.LoopUtil.preserve_any<#unit, #bool>(mk_usize(0), Core_models.Slice.impl__len<#u8>(a),
+      ((at: nat, _: unit) => bytes_prefix(a, b, at)),
+      ((_: unit) => bytes_same(a, b)),
+      ((r: bool) => r == false and not bytes_same(a, b)));
+    assert((Native.bytes_equal(a, b) == true <==> bytes_same(a, b)) and
+      (Native.bytes_equal(a, b) == false <==> not bytes_same(a, b))) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.smt_sync'(1, 1)
+    }
+  } else { () }
+}
+
+function higher(a: fact, b: fact): Type0 {
+  v(a.f_payload.f_lamport) > v(b.f_payload.f_lamport) or
+  (a.f_payload.f_lamport == b.f_payload.f_lamport and v(a.f_id.f_peer) > v(b.f_id.f_peer))
+}
+proof later_is_priority(a: fact, b: fact): unit
+  gives ((Native.later(a, b) == true <==> higher(a, b)) and
+      (Native.later(a, b) == false <==> not higher(a, b)))
+  hint Native.later(a, b)
+{ () }
+
+function winner_prefix(facts: t_Slice(fact), key: u64, at: nat, choice: Option.t_Option(usize)): Type0 {
+  match choice {
+    Option.Option_None => forall(j: nat) . (j < at and j < Seq.length(facts)) ==>
+      Seq.index(facts, j).f_payload.f_key =!= key,
+    Option.Option_Some(i) => v(i) < at and v(i) < Seq.length(facts) and
+      Seq.index(facts, v(i)).f_payload.f_key == key and
+      (forall(j: nat) . (j < at and j < Seq.length(facts) and Seq.index(facts, j).f_payload.f_key == key) ==>
+        not higher(Seq.index(facts, j), Seq.index(facts, v(i))))
+  }
+}
+function winner_next(facts: t_Slice(fact), key: u64, j: usize where v(j) < Seq.length(facts), choice: Option.t_Option(usize)): Option.t_Option(usize) {
+  if Rust_primitives.Slice.slice_index(facts, j).f_payload.f_key ==? key {
+    match choice {
+      Option.Option_None => Option.Option_Some(j),
+      Option.Option_Some(k) => if v(k) < Seq.length(facts) && Native.later(Rust_primitives.Slice.slice_index(facts, j), Rust_primitives.Slice.slice_index(facts, k)) {
+        Option.Option_Some(j)
+      } else { choice },
+    }
+  } else { choice }
+}
+proof winner_step_preserves(facts: t_Slice(fact), key: u64): unit
+  gives forall(j: usize where v(j) < Seq.length(facts), choice: Option.t_Option(usize)) .
+    winner_prefix(facts, key, v(j), choice) ==> winner_prefix(facts, key, v(j) + 1, winner_next(facts, key, j, choice))
+{
+  proof each(j: usize where v(j) < Seq.length(facts), choice: Option.t_Option(usize)): unit
+    takes winner_prefix(facts, key, v(j), choice)
+    gives winner_prefix(facts, key, v(j) + 1, winner_next(facts, key, j, choice))
+  {
+    match choice {
+      Option.Option_None => { assert(winner_prefix(facts, key, v(j) + 1, winner_next(facts, key, j, choice))) by {
+        Tactics.prune("Nickel_crdt.Register.later");
+        Tactics.smt_sync'(1, 1)
+      } },
+      Option.Option_Some(k) => if v(k) < Seq.length(facts) {
+        later_is_priority(Rust_primitives.Slice.slice_index(facts, j), Rust_primitives.Slice.slice_index(facts, k));
+        assert(winner_prefix(facts, key, v(j) + 1, winner_next(facts, key, j, choice))) by {
+        Tactics.prune("Nickel_crdt.Register.later");
+        Tactics.smt_sync'(1, 1)
+      }
+      } else { () },
+    }
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each))
+}
+proof winner_is_priority_maximum(facts: t_Slice(fact), key: u64): unit
+  gives winner_prefix(facts, key, Seq.length(facts), Native.winner(facts, key))
+{
+  proof each_priority(a: fact, b: fact): unit
+    gives ((Native.later(a, b) == true <==> higher(a, b)) and
+      (Native.later(a, b) == false <==> not higher(a, b)))
+    hint Native.later(a, b)
+  { later_is_priority(a, b) };
+  winner_step_preserves(facts, key);
+  Nickel.LoopUtil.plain_preserve_any<#Option.t_Option(usize)>(
+    mk_usize(0), Core_models.Slice.impl__len<#fact>(facts),
+    ((at: nat where at <= v(Core_models.Slice.impl__len<#fact>(facts)), choice: Option.t_Option(usize)) => winner_prefix(facts, key, at, choice)),
+    ((choice: Option.t_Option(usize)) => winner_prefix(facts, key, Seq.length(facts), choice)));
+  assert(winner_prefix(facts, key, Seq.length(facts), Native.winner(facts, key))) by {
+    Tactics.prune("Nickel_crdt.Register.later");
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+function selected_value(facts: t_Slice(fact), key: u64, initial: t_Slice(u8), value: t_Slice(u8)): Type0 {
+  ((forall(j: nat) . j < Seq.length(facts) ==> Seq.index(facts, j).f_payload.f_key =!= key) and bytes_same(value, initial)) or
+  (exists(i: nat) . i < Seq.length(facts) and Seq.index(facts, i).f_payload.f_key == key and
+    bytes_same(value, Alloc.Vec.impl_1__as_slice(Seq.index(facts, i).f_payload.f_value)) and
+    (forall(j: nat) . (j < Seq.length(facts) and Seq.index(facts, j).f_payload.f_key == key) ==>
+      not higher(Seq.index(facts, j), Seq.index(facts, i))))
+}
+proof none_prefix_is_absent(facts: t_Slice(fact), key: u64, at: nat): unit
+  takes winner_prefix(facts, key, at, Option.Option_None)
+  gives forall(j: nat) . (j < at and j < Seq.length(facts)) ==> Seq.index(facts, j).f_payload.f_key =!= key
+{ () }
+proof initial_copy_preserves_bytes(initial: t_Slice(u8)): unit
+  gives bytes_same(Alloc.Vec.impl_1__as_slice(Alloc.Slice.impl__to_vec<#u8>(initial)), initial)
+{ () }
+proof read_history_selects_maximum(facts: t_Slice(fact), initial: t_Slice(u8), key: u64): unit
+  gives selected_value(facts, key, initial, Alloc.Vec.impl_1__as_slice(Native.read_history(facts, initial, key)))
+{
+  winner_is_priority_maximum(facts, key);
+  initial_copy_preserves_bytes(initial);
+  match Native.winner(facts, key) {
+    Option.Option_None => {
+      assert(winner_prefix(facts, key, Seq.length(facts), Option.Option_None)) by {
+        Tactics.prune("Nickel_crdt.Register.winner");
+        Tactics.smt_sync'(1, 1)
+      };
+      none_prefix_is_absent(facts, key, Seq.length(facts));
+      assert(Native.read_history(facts, initial, key) == Alloc.Slice.impl__to_vec<#u8>(initial)) by {
+        Tactics.prune("Nickel_crdt.Register.winner");
+        Tactics.smt_sync'(1, 1)
+      };
+      assert(selected_value(facts, key, initial, Alloc.Vec.impl_1__as_slice(Native.read_history(facts, initial, key)))) by {
+        Tactics.prune("Nickel_crdt.Register.winner");
+        Tactics.smt_sync'(1, 1)
+      }
+    },
+    Option.Option_Some(i) => {
+      assert(selected_value(facts, key, initial, Alloc.Vec.impl_1__as_slice(Native.read_history(facts, initial, key)))) by {
+        Tactics.prune("Nickel_crdt.Register.winner");
+        Tactics.smt_sync'(1, 1)
+      }
+    },
+  }
+}
+
+import Nickel.EventShell
+import Result = Core_models.Result
+import Shell = Nickel_crdt.Event_shell
+
+proof receive_publication_is_exact(before: Native.t_Replica, offered: fact): unit
+  gives Native.impl_Replica__receive(before, offered) ==
+    Nickel.EventShell.received(before, Native.planned((), before, offered), Native.Admission_Added, Native.Admission_Duplicate)
+  hint Native.impl_Replica__receive(before, offered)
+{
+  Nickel.EventShell.borrowed_publication_is_exact(before, offered, (), Native.planned, Native.Admission_Added, Native.Admission_Duplicate);
+  match Shell.receive_into(before, offered, (), Native.planned, Native.Admission_Added, Native.Admission_Duplicate) {
+    (next, result) => {
+  assert(Native.impl_Replica__receive(before, offered) ==
+    Nickel.EventShell.received(before, Native.planned((), before, offered), Native.Admission_Added, Native.Admission_Duplicate)) by {
+    Tactics.prune("Nickel_crdt.Event_shell.receive_into");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.smt_sync'(1, 1)
+  }
+    }
+  }
+}
+proof public_read_is_history(before: Native.t_Replica, key: u64): unit
+  gives Native.impl_Replica__read(before, key) ==
+    Native.read_history(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(before.f_initial), key)
+  hint Native.impl_Replica__read(before, key)
+{ () }
+
+proof equal_value_write_is_neutral(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  takes Seq.length(Alloc.Vec.impl_1__as_slice(value)) <= v(before.f_limits.f_value_bytes)
+  takes bytes_same(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key)))
+  gives Native.impl_Replica__write(before, key, value) == (before, Result.Result_Ok(Option.Option_None))
+{
+  bytes_equal_exact(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key)));
+  assert(Native.impl_Replica__write(before, key, value) == (before, Result.Result_Ok(Option.Option_None))) by {
+    Tactics.prune("Nickel_crdt.Register.bytes_equal");
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+proof vector_bytes_extensional(a: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global), b: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  takes bytes_same(Alloc.Vec.impl_1__as_slice(a), Alloc.Vec.impl_1__as_slice(b))
+  gives a == b
+{
+  match (a, b) {
+    (Alloc.Vec.Vec(xs, _), Alloc.Vec.Vec(ys, _)) => {
+      Seq.lemma_eq_intro(xs, ys);
+      Seq.lemma_eq_elim(xs, ys)
+    }
+  }
+}
+proof bytes_same_reflexive(a: t_Slice(u8)): unit
+  gives bytes_same(a, a)
+{ () }
+proof write_equal_is_exact(a: Native.t_Write, b: Native.t_Write): unit
+  gives (Native.write_equal(a, b) == true <==> a == b)
+  hint Native.write_equal(a, b)
+{
+  bytes_same_reflexive(Alloc.Vec.impl_1__as_slice(a.f_value));
+  bytes_same_reflexive(Alloc.Vec.impl_1__as_slice(a.f_observed));
+  bytes_equal_exact(Alloc.Vec.impl_1__as_slice(a.f_value), Alloc.Vec.impl_1__as_slice(b.f_value));
+  bytes_equal_exact(Alloc.Vec.impl_1__as_slice(a.f_observed), Alloc.Vec.impl_1__as_slice(b.f_observed));
+  if Native.write_equal(a, b) {
+    assert(bytes_same(Alloc.Vec.impl_1__as_slice(a.f_value), Alloc.Vec.impl_1__as_slice(b.f_value)) and
+      bytes_same(Alloc.Vec.impl_1__as_slice(a.f_observed), Alloc.Vec.impl_1__as_slice(b.f_observed))) by {
+      Tactics.prune("Nickel_crdt.Register.bytes_equal");
+      Tactics.smt_sync'(1, 1)
+    };
+    vector_bytes_extensional(a.f_value, b.f_value);
+    vector_bytes_extensional(a.f_observed, b.f_observed);
+    assert(a == b) by {
+      Tactics.prune("Nickel_crdt.Register.bytes_equal");
+      Tactics.smt_sync'(1, 1)
+    }
+  } else {
+    assert(a =!= b) by {
+      Tactics.prune("Nickel_crdt.Register.bytes_equal");
+      Tactics.smt_sync'(1, 1)
+    }
+  }
+
+}
+proof copy_fact_is_exact(f: fact): unit
+  gives Native.copy_fact(f) == f
+{ () }
+
+import Nickel.CausalEnvelope
+
+proof fact_equal_is_complete(a: fact, b: fact): unit
+  gives (Native.fact_equal(a, b) == true <==>
+    (Nickel.CausalEnvelope.same_id(a.f_id, b.f_id) and
+      Nickel.CausalEnvelope.ids_equal(Alloc.Vec.impl_1__as_slice(a.f_after), Alloc.Vec.impl_1__as_slice(b.f_after)) and
+      a.f_payload == b.f_payload))
+{
+  proof each_payload(x: Native.t_Write, y: Native.t_Write): unit
+    gives (Native.write_equal(x, y) == true <==> x == y)
+    hint Native.write_equal(x, y)
+  { write_equal_is_exact(x, y) };
+  Nickel.CausalEnvelope.event_equal_exact(a, b, Native.write_equal);
+  assert(Native.fact_equal(a, b) == true <==>
+    (Nickel.CausalEnvelope.same_id(a.f_id, b.f_id) and
+      Nickel.CausalEnvelope.ids_equal(Alloc.Vec.impl_1__as_slice(a.f_after), Alloc.Vec.impl_1__as_slice(b.f_after)) and
+      a.f_payload == b.f_payload)) by {
+    Tactics.prune("Nickel_crdt.Causal.event_equal");
+    Tactics.prune("Nickel_crdt.Register.write_equal");
+    Tactics.smt_sync'(1, 1)
+  }
+}

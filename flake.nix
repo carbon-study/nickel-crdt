@@ -108,6 +108,50 @@
         export NICKEL_FSTAR_MODEL_CACHE="${models}"
         node scripts/check-causal-envelope.mjs "$out"
       '';
+      # Bounded checkpoint laws, not complete register refinement or SEC.
+      registerNativeSource = pkgs.lib.fileset.toSource {
+        root = ./.;
+        fileset = pkgs.lib.fileset.unions [
+          ./Cargo.toml ./Cargo.lock ./proof-smoke ./src
+          ./tests/register_checkpoint.rs ./examples/register-checkpoint.rs
+          ./scripts/check-register-native.mjs ./scripts/proof-cache.mjs ./scripts/mutation-scope.mjs
+        ];
+      };
+      registerSource = pkgs.lib.fileset.toSource {
+        root = ./.;
+        fileset = pkgs.lib.fileset.unions [
+          ./Cargo.toml ./Cargo.lock ./proof-smoke ./src ./tests/register_checkpoint.rs
+          ./proofs/Register.lt ./proofs/register-view
+          ./proofs/Prelude.lt ./proofs/LoopUtil.lt ./proofs/EventShell.lt ./proofs/CausalEnvelope.lt
+          ./proofs/generated/Nickel.Prelude.fst ./proofs/generated/Nickel.LoopUtil.fst
+          ./proofs/generated/Nickel.EventShell.fst ./proofs/causal-envelope-view/Nickel.CausalEnvelope.fst
+          ./scripts/check-register-proofs.mjs ./scripts/proof-cache.mjs
+          ./scripts/mutation-scope.mjs ./scripts/negative-proof-evidence.mjs ./scripts/proof-reform.mjs
+        ];
+      };
+      registerNative = pkgs.runCommand "nickel-register-native" {
+        nativeBuildInputs = tools;
+      } ''
+        export HOME="$TMPDIR/home"
+        mkdir -p "$HOME"
+        cp -r ${registerNativeSource} work
+        chmod -R u+w work
+        cd work
+        node scripts/check-register-native.mjs "$out"
+      '';
+      registerProof = pkgs.runCommand "nickel-register-proofs" {
+        nativeBuildInputs = tools;
+      } ''
+        export HOME="$TMPDIR/home"
+        mkdir -p "$HOME"
+        cp -r ${registerSource} work
+        chmod -R u+w work
+        cd work
+        ${modelEnv}
+        export NICKEL_HAX_BIN="${haxBin}/bin/cargo-hax"
+        export NICKEL_FSTAR_MODEL_CACHE="${models}"
+        node scripts/check-register-proofs.mjs "$out"
+      '';
       editReferenceSource = pkgs.lib.fileset.toSource {
         root = ./.;
         fileset = pkgs.lib.fileset.unions [
@@ -136,6 +180,8 @@
         inherit native;
         shared-native = sharedNative;
         shared-proofs = sharedProof;
+        register-native = registerNative;
+        register-proofs = registerProof;
         edit-reference = editReference;
         proof-models = models;
         proofs = proofCheck;
@@ -144,7 +190,7 @@
         hax = haxBin;
         hax-fstar = fstar;
       } // proofShardChecks;
-      checks.${system} = { inherit native; shared-native = sharedNative; shared-proofs = sharedProof; proofs = proofCheck; edit-reference = editReference; };
+      checks.${system} = { register-native = registerNative; register-proofs = registerProof; inherit native; shared-native = sharedNative; shared-proofs = sharedProof; proofs = proofCheck; edit-reference = editReference; };
       devShells.${system} = {
         default = pkgs.mkShell {
           packages = tools ++ [ haxBin fstar ];
