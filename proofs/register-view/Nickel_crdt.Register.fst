@@ -237,17 +237,18 @@ let next_lamport (facts: t_Slice (Nickel_crdt.Causal.t_Event t_Write))
     : Core_models.Result.t_Result u64 t_Error =
   let highest:u64 = mk_u64 0 in
   let highest:u64 =
-    Core_models.Iter.Traits.Iterator.f_fold (Core_models.Iter.Traits.Collect.f_into_iter #(t_Slice
-            (Nickel_crdt.Causal.t_Event t_Write))
-          #FStar.Tactics.Typeclasses.solve
-          facts
-        <:
-        Core_models.Slice.Iter.t_Iter (Nickel_crdt.Causal.t_Event t_Write))
-      highest
-      (fun highest fact ->
+    Rust_primitives.Hax.Folds.fold_range (mk_usize 0)
+      (Core_models.Slice.impl__len #(Nickel_crdt.Causal.t_Event t_Write) facts <: usize)
+      (fun highest temp_1_ ->
           let highest:u64 = highest in
-          let fact:Nickel_crdt.Causal.t_Event t_Write = fact in
-          if fact.Nickel_crdt.Causal.f_payload.f_lamport >. highest <: bool
+          let _:usize = temp_1_ in
+          true)
+      highest
+      (fun highest i ->
+          let highest:u64 = highest in
+          let i:usize = i in
+          let fact:Nickel_crdt.Causal.t_Event t_Write = facts.[ i ] in
+          if fact.Nickel_crdt.Causal.f_payload.f_lamport >. highest
           then
             let highest:u64 = fact.Nickel_crdt.Causal.f_payload.f_lamport in
             highest

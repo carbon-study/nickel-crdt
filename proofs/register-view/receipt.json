@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "files": {
-    "src/register.rs": "ce5cdb3830c0a00f1ce6d81b49118de0c2f8bedd43ac42384bfc43a40ab4a842",
+    "src/register.rs": "aaf60f56ec02722931d31eac7dc74b10c88b1129c0a965d037b3c1b33c4a0c31",
     "src/causal.rs": "0107c0e75077dfea2cb1996451b66b84758121a5010f12cd4667b81f64fde111",
     "src/event_layer.rs": "ba20cf4c88ac750fbec452cfe124d189a36129eba55f94d43928254bac28c0c0",
     "src/event_shell.rs": "7b17301f48ec69d026f2a7b71ad0fcee9c63ff3900fe6f84db13b1c4c9cd7e38",
-    "proofs/Register.lt": "2f288fa09e7de70f89f94275b9742e4e74a40089cad5e8e0b182c44c806f73c6",
+    "proofs/Register.lt": "1b175cf2fa6bafbc7ac913a381ba4581c2e68f3ebc924082461e00740233d82d",
     "proofs/Prelude.lt": "4643d9f8a8df599f3add41d5066c8925b5b035a9e3305d8844dbb98b504fadd0",
     "proofs/LoopUtil.lt": "ebaecb4a8efb17955843bb9d0f9fa61ead4f52a5a2993dcf6f6876e808819606",
     "proofs/EventShell.lt": "21f518a9bb59613b7c2121bc05dfaa6cd1a2e73d4315ca9fc8f436d8db241cc0",
@@ -14,11 +14,11 @@
     "proofs/generated/Nickel.LoopUtil.fst": "8694e425e11140aa75b217c9833781552f08541f01e46412691e41cc4317bca5",
     "proofs/generated/Nickel.EventShell.fst": "678325d0710011da5364d00737b51175a1b4510d7f996c6ca558a59ce0fbcac7",
     "proofs/causal-envelope-view/Nickel.CausalEnvelope.fst": "348e2ebf43693f8920f9869b6db068d91eb3a679a5c0c82ab12e26669cf18181",
-    "proofs/register-view/Nickel.Register.fst": "781b0fc09babc693f9bd71810e08ecf6acfc2f421b1ed27c8e3bf4d658be33a9",
+    "proofs/register-view/Nickel.Register.fst": "70043031927c67cfcc2e23987ae498bfb51b887342b806292b0e539160b11e9f",
     "proofs/register-view/Nickel_crdt.Causal.fst": "f687dc18bc368c9c06035ca27297e766a0f5d88e8d321c10eefa5a321d014bce",
     "proofs/register-view/Nickel_crdt.Event_layer.fst": "df01a7ed539fdc7b147caaa97dc688c8d25af77cc88bb2c3c8c8651bd06ef259",
     "proofs/register-view/Nickel_crdt.Event_shell.fst": "4eb7b1f6ef8de126cdb799864c2073b6086e5af4d91fa4ade2b6ce38d8f37d8c",
-    "proofs/register-view/Nickel_crdt.Register.fst": "161e1891c1af08bb5496f88af8d8812989e6d93ff75f0cdc75390583376d6ad2",
+    "proofs/register-view/Nickel_crdt.Register.fst": "1fdc66864977ebe40ddfa3c358b19e9c9b73ea43cddff2b836f720fbf8afbf4c",
     "Cargo.toml": "f52881af7be723489ab19f34f22519a313eff95fca8a96389f26627ee0622f86",
     "Cargo.lock": "0afcd2289ea99f44276847a3e37e889bf6e5fdfbba902e882fb3284dd4ade8b2",
     "src/lib.rs": "9d08bb7063022d1952e97b3f20f7fd3f4cf45ed5f7927860d91fcd973ad1d30c"

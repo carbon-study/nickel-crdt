@@ -140,9 +140,34 @@ bodies withheld. This does not apply to `Duplicate`, which deliberately skips
 validation, nor assume the prior replica is reachable or valid.
 
 The basis and clock calls remain explicit boundaries: these laws do not yet
-identify the selected basis with independent transitive ancestry or establish
-that the clock computation is the mathematical maximum plus one. They do not
+identify the selected basis with independent transitive ancestry. The separate
+clock theorem below supplies the mathematical maximum law, which does not follow
+from these earlier computational checks alone. They do not
 prove retention through canonicalization, valid-history preservation, fitting
 admission/progress, full refinement or SEC. The validator equivalence is stronger
 than one-way safety over its computed stages; it still is not a guarantee that
 the full receive/write operation succeeds on an independently fitting history.
+
+### mathematical selected-basis clock
+
+`next_lamport_is_maximum_successor` now connects the actual Rust scan to an
+independent maximum condition on every typed input slice, without a valid-history
+premise. `Ok(clock)` is exactly one above the maximum input clock (zero for an
+empty slice). `Err` is exactly `ClockExhausted`, with an input at `u64::MAX`.
+Every key participates in the scan. The invariant records both an upper bound
+and attainment, so an invented larger clock is excluded.
+
+The scan now uses the existing index-for-loop interface. The previous slice
+iterator extracted through the pinned model's unconstrained `iter_fold`; no
+model, compiler or checking option was changed to supply a missing law. The new
+proof consumes `LoopUtil.plain_preserve_any` and withholds the range-fold body.
+The native public signature and arithmetic/overflow behavior are unchanged.
+
+`receive_added_clock_is_maximum_successor` transports that mathematical result
+to the actual public `Added` receive through the checked payload law, with receive,
+clock calculation, shared admission and basis-selection bodies withheld. Its
+basis is still identified by the exact computational admission/selection calls;
+identifying that basis with independent ancestry remains open. This is not yet
+valid-history preservation, independent full client refinement, fitting-write
+progress or SEC, and it does not cover the deliberately unvalidated Duplicate
+path.

@@ -28,6 +28,7 @@ assertReformedSource('Register',await fs.readFile(path.join(root,'proofs/Registe
 assert.throws(()=>assertReformedSource('EditAccepted','Tactics.prune("Nickel_crdt.Register.bytes_equal");'),'new native visibility stays Register-scoped');
 assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Nickel.Register.planned_preserves_private");'),'write caller contract isolation stays Register-scoped');
 assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Nickel_crdt.Register.read_history");'),'payload callee visibility stays Register-scoped');
+assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Nickel.Register.planned_checks_payload");'),'clock payload alternate stays Register-scoped');
 assert.throws(()=>assertReformedSource('Register','Tactics.norm([]);'),'no normalization exception');
 assert.throws(()=>assertReformedSource('Register','Tactics.prune("Nickel_crdt.Register");'),'no broad native namespace exception');
 const view=await fs.readFile(path.join(views,'Nickel.Register.fst'),'utf8');
@@ -38,6 +39,9 @@ if(env.NICKEL_LATTE_BIN){
 }
 const source=await fs.readFile(path.join(root,'src/register.rs'),'utf8');
 const bodyModes=[
+ ['clock-forgets-maximum','pub fn next_lamport(','if fact.payload.lamport > highest','if false && fact.payload.lamport > highest','next_lamport_is_maximum_successor'],
+ ['clock-invents-maximum','pub fn next_lamport(','let mut highest = 0;','let mut highest = 1;','next_lamport_is_maximum_successor'],
+ ['clock-ignores-overflow','pub fn next_lamport(','highest.checked_add(1).ok_or(Error::ClockExhausted)','Ok(0)','next_lamport_is_maximum_successor'],
  ['validate-skips-clock','fn validate(','if fact.payload.lamport != next_lamport(&basis)?','if false && fact.payload.lamport != next_lamport(&basis)?','validation_is_exact_basis_checks'],
  ['validate-skips-observed','fn validate(','if !bytes_equal(&fact.payload.observed,','if false && !bytes_equal(&fact.payload.observed,','validation_is_exact_basis_checks'],
  ['validate-allows-noedit','fn validate(','|| bytes_equal(&fact.payload.value, &fact.payload.observed)','|| false','validation_is_exact_basis_checks'],
@@ -64,7 +68,7 @@ const bodyModes=[
  ['read-wrong-key','pub fn read(','read_history(&self.facts, &self.initial, key)','read_history(&self.facts, &self.initial, 0)','public_read_is_history'],
  ['payload-ignores-observed','fn write_equal(','&& bytes_equal(&a.observed, &b.observed)','&& true','write_equal_is_exact'],
 ];
-assert(selected.every(n=>n==='positive'||bodyModes.some(m=>m[0]===n)||["without-validation-byte-contract","without-payload-validation-contract","without-payload-planning-contract","without-receive-payload-contract","without-added-publication-contract","without-write-receive-publication","without-write-receive-frame","without-winner-loop","without-read-winner","without-publication-contract","without-noedit-byte-contract","without-shared-planning-contract","without-prepare-frame","without-execute-frame","without-receive-publication-frame","without-plan-private-frame"].includes(n)),'unknown selected mode');
+assert(selected.every(n=>n==='positive'||bodyModes.some(m=>m[0]===n)||["without-clock-loop-contract","without-added-clock-contract","without-added-clock-payload","without-validation-byte-contract","without-payload-validation-contract","without-payload-planning-contract","without-receive-payload-contract","without-added-publication-contract","without-write-receive-publication","without-write-receive-frame","without-winner-loop","without-read-winner","without-publication-contract","without-noedit-byte-contract","without-shared-planning-contract","without-prepare-frame","without-execute-frame","without-receive-publication-frame","without-plan-private-frame"].includes(n)),'unknown selected mode');
 const haxArgs=out=>['-C','--offline','--locked','-p','nickel-crdt',';','into','--output-dir',out,'-i','-** +nickel_crdt::register::**::new +nickel_crdt::register::**::write +nickel_crdt::register::**::receive +nickel_crdt::register::**::read +nickel_crdt::register::winner +nickel_crdt::register::later +nickel_crdt::register::bytes_equal +nickel_crdt::register::next_lamport +nickel_crdt::event_shell::receive +nickel_crdt::causal::classify','fstar'];
 const inventory=['Nickel_crdt.Causal.fst','Nickel_crdt.Event_layer.fst','Nickel_crdt.Event_shell.fst','Nickel_crdt.Register.fst'];
 const proofFiles=['Nickel.Prelude.fst','Nickel.LoopUtil.fst','Nickel.EventShell.fst'];
@@ -138,7 +142,12 @@ function withholdPayloadContract(name,boundary,count,laws,calls,sourceView=view)
 }
 const loopLine=view.split('\n').find(l=>l.startsWith('  Nickel.LoopUtil.plain_preserve_any #(Option.t_Option usize)'));
 assert(loopLine,'actual winner loop contract');
+const clockLoopLine=view.split('\n').find(l=>l.startsWith('  Nickel.LoopUtil.plain_preserve_any #u64 '));
+assert(clockLoopLine,'actual clock loop contract');
 const depModes=[
+ ['without-clock-loop-contract',replaceInDeclaration('next_lamport_is_maximum_successor',clockLoopLine,'  ();'),'next_lamport_is_maximum_successor'],
+ ['without-added-clock-contract',withholdPayloadContract('receive_added_clock_is_maximum_successor','Nickel_crdt.Register.next_lamport',2,['Nickel.Register.next_lamport_is_maximum_successor'],['next_lamport_is_maximum_successor (Alloc.Vec.impl_1__as_slice basis);']),'receive_added_clock_is_maximum_successor'],
+ ['without-added-clock-payload',withholdPayloadContract('receive_added_clock_is_maximum_successor','Nickel_crdt.Register.impl_Replica__receive',1,['Nickel.Register.receive_added_checks_payload'],['  receive_added_checks_payload before offered;']),'receive_added_clock_is_maximum_successor'],
  ['without-validation-byte-contract',withholdPayloadContract('validation_is_exact_basis_checks','Nickel_crdt.Register.bytes_equal',5,['Nickel.Register.bytes_equal_exact'],[
  'bytes_equal_exact (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed) (Alloc.Vec.impl_1__as_slice (Native.read_history (Alloc.Vec.impl_1__as_slice basis) (Alloc.Vec.impl_1__as_slice before.f_initial) offered.f_payload.f_key));',
  'bytes_equal_exact (Alloc.Vec.impl_1__as_slice offered.f_payload.f_value) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed);']),'validation_is_exact_basis_checks'],

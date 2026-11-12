@@ -683,3 +683,72 @@ proof receive_added_checks_payload(before: Native.t_Replica, offered: fact): uni
     }
   }
 }
+
+// Maximum of all clocks in a prefix, including writes to other keys.
+function clock_maximum_prefix(facts: t_Slice(fact), at: nat, highest: u64): Type0 {
+  (forall(j: nat) . (j < at and j < Seq.length(facts)) ==>
+    v(Seq.index(facts, j).f_payload.f_lamport) <= v(highest)) and
+  (v(highest) == 0 or (exists(j: nat) . j < at and j < Seq.length(facts) and
+    Seq.index(facts, j).f_payload.f_lamport == highest))
+}
+function clock_successor(facts: t_Slice(fact), clock: u64): Type0 {
+  v(clock) > 0 and
+  (forall(j: nat) . j < Seq.length(facts) ==> v(Seq.index(facts, j).f_payload.f_lamport) < v(clock)) and
+  (v(clock) == 1 or (exists(j: nat) . j < Seq.length(facts) and
+    v(Seq.index(facts, j).f_payload.f_lamport) + 1 == v(clock)))
+}
+function clock_result(facts: t_Slice(fact), result: Result.t_Result(u64, Native.t_Error)): Type0 {
+  match result {
+    Result.Result_Ok(clock) => clock_successor(facts, clock),
+    Result.Result_Err(error) => error == Native.Error_ClockExhausted and
+      (exists(j: nat) . j < Seq.length(facts) and v(Seq.index(facts, j).f_payload.f_lamport) == 18446744073709551615),
+  }
+}
+proof next_lamport_is_maximum_successor(facts: t_Slice(fact)): unit
+  gives clock_result(facts, Native.next_lamport(facts))
+  hint Native.next_lamport(facts)
+{
+  Nickel.LoopUtil.plain_preserve_any<#u64>(mk_usize(0), Core_models.Slice.impl__len<#fact>(facts),
+    ((at: nat where at <= v(Core_models.Slice.impl__len<#fact>(facts)), highest: u64) => clock_maximum_prefix(facts, at, highest)),
+    ((highest: u64) => clock_maximum_prefix(facts, Seq.length(facts), highest)));
+  assert(clock_result(facts, Native.next_lamport(facts))) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// The equations select the actual admitted author basis; ancestry is a separate law.
+function selected_basis_clock_successor(before: Native.t_Replica, offered: fact): Type0 {
+  exists(selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)) .
+    Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
+      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(selected) and
+    Nickel_crdt.Event_layer.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Result.Result_Ok(basis) and
+    clock_successor(Alloc.Vec.impl_1__as_slice(basis), offered.f_payload.f_lamport)
+}
+proof receive_added_clock_is_maximum_successor(before: Native.t_Replica, offered: fact): unit
+  gives forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) ==
+    (next, Result.Result_Ok(Native.Admission_Added)) ==> selected_basis_clock_successor(before, offered)
+{
+  receive_added_checks_payload(before, offered);
+  proof each_basis(basis: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)): unit
+    takes basis_payload_checks(before, offered, basis)
+    gives clock_successor(Alloc.Vec.impl_1__as_slice(basis), offered.f_payload.f_lamport)
+  {
+    next_lamport_is_maximum_successor(Alloc.Vec.impl_1__as_slice(basis));
+    assert(clock_successor(Alloc.Vec.impl_1__as_slice(basis), offered.f_payload.f_lamport)) by {
+      Tactics.prune("Nickel_crdt.Register.next_lamport");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(each_basis));
+  assert(forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) ==
+    (next, Result.Result_Ok(Native.Admission_Added)) ==> selected_basis_clock_successor(before, offered)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel_crdt.Register.next_lamport");
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+    Tactics.smt_sync'(1, 1)
+  }
+}

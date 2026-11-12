@@ -167,3 +167,18 @@ fn every_valid_delivery_matches_independent_causal_maxima() {
     let mut count = 0; walk(&facts, replica(700), BTreeSet::new(), &mut count);
     assert!(count > 1);
 }
+
+#[test]
+fn logical_clock_scans_every_key_and_reports_exact_overflow() {
+    use nickel_crdt::register::next_lamport;
+    let with_clock = |peer, key, lamport| Fact {
+        id: Id { peer, counter: 1 }, after: vec![],
+        payload: Write { key, value: vec![1], observed: vec![0], lamport },
+    };
+    assert_eq!(next_lamport(&[]), Ok(1));
+    let facts = [with_clock(1, 7, 2), with_clock(2, 99, 20), with_clock(3, 7, 4)];
+    assert_eq!(next_lamport(&facts), Ok(21));
+    assert_eq!(next_lamport(&[facts[2].clone(), facts[0].clone(), facts[1].clone()]), Ok(21));
+    assert_eq!(next_lamport(&[with_clock(1, 7, u64::MAX - 1)]), Ok(u64::MAX));
+    assert_eq!(next_lamport(&[with_clock(1, 7, u64::MAX)]), Err(Error::ClockExhausted));
+}

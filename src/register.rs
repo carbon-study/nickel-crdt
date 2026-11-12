@@ -126,7 +126,8 @@ pub fn read_history(facts: &[Fact], initial: &[u8], key: u64) -> Vec<u8> {
 /// Every replicated fact advances logical time, even a write to another key.
 pub fn next_lamport(facts: &[Fact]) -> Result<u64, Error> {
     let mut highest = 0;
-    for fact in facts {
+    for i in 0..facts.len() {
+        let fact = &facts[i];
         if fact.payload.lamport > highest { highest = fact.payload.lamport; }
     }
     highest.checked_add(1).ok_or(Error::ClockExhausted)
