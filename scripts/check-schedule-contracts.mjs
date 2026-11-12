@@ -4,12 +4,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {put,verify} from './proof-cache.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
-export async function checkScheduleContracts({proof,output,fstar,models,modelCache}) {
+export async function checkScheduleContracts({proof,output,fstar,models,modelCache,select=()=>true}) {
   const controls=[
     ['schedule-available-without-choice-contract',/  scheduler_choice_is_exact facts done;\n/,'available_event_is_chosen'],
     ['schedule-ready-without-generic-contract',/  Graph\.readiness_is_exact [^\n]+;\n/,'readiness_is_exact','readiness_is_exact'],
-    ['schedule-ready-without-concrete-bridge',/  assert \(Shared\.ready [^\n]+;\n/,'readiness_is_exact','readiness_is_exact'],
-    ['schedule-choice-without-concrete-bridge',/  assert \(Shared\.choose_ready [^\n]+;\n/,'scheduler_choice_is_exact','scheduler_choice_is_exact'],
+    ['schedule-ready-without-concrete-bridge',/  assert \(Shared\.ready [^\n]+ by \(\n(?:    [^\n]+\n)+  \);\n/,'readiness_is_exact','readiness_is_exact'],
+    ['schedule-choice-without-concrete-bridge',/  assert \(Shared\.choose_ready [^\n]+ by \(\n(?:    [^\n]+\n)+  \);\n/,'scheduler_choice_is_exact','scheduler_choice_is_exact'],
     ['schedule-choice-without-generic-contract',/  Graph\.scheduler_choice_is_exact [^\n]+;\n/,'scheduler_choice_is_exact','scheduler_choice_is_exact'],
     ['schedule-rank-without-induction',/no_choice_finishes_lower_ranks facts done rank bound \(finish - 1\);\n/,'no_choice_finishes_lower_ranks','no_choice_finishes_lower_ranks'],
     ['schedule-unfinished-without-ranks',/    no_choice_finishes_lower_ranks facts done rank bound bound;\n/,'ranked_unfinished_has_eligible','ranked_unfinished_has_eligible'],
@@ -46,9 +46,9 @@ export async function checkScheduleContracts({proof,output,fstar,models,modelCac
   controls.push(
     ['schedule-ready-without-loop',/  Nickel\.LoopUtil\.preserve_any [^\n]+;\n/,'readiness_is_exact','readiness_is_exact','','EventGraph'],
     ['schedule-choice-without-loop',/  Nickel\.LoopUtil\.preserve_any [^\n]+;\n/,'scheduler_choice_is_exact','scheduler_choice_is_exact','','EventGraph'],
-    ['schedule-choice-without-ready-contract',/(?<=let readiness_is_exact[^\n]*) \[SMTPat \(Native\.ready after done eq\)\]/,'scheduler_choice_is_exact',undefined,'','EventGraph']
+    ['schedule-choice-without-ready-contract',/(?<=let readiness_is_exact[^\n]*) \[SMTPat \(Native\.ready after done ops\)\]/,'scheduler_choice_is_exact',undefined,'','EventGraph']
   );
-  for(const [control,pattern,owner,scope,replacement='',module='EditSchedule'] of controls) {
+  for(const [control,pattern,owner,scope,replacement='',module='EditSchedule'] of controls.filter(([name])=>select(name))) {
     const name='Nickel.'+module+'.fst', original=await fs.readFile(path.join(proof,name),'utf8');
     let start=0,end=original.length;
     if(scope) {

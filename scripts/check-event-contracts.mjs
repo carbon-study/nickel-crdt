@@ -25,7 +25,7 @@ export async function checkEventContracts({proof,output,fstar,models,modelCache}
     const needle="    Tactics.smt_sync' 1 1";assert.equal(body.split(needle).length,2,name+' unique owning query');
     body=body.replace(needle,'    Tactics.prune "'+contract+'";\n'+needle);
     if(label==='classifier') {
-      const use='  Nickel.EventClassifier.classification_is_exact facts fact Native.fact_id Native.same_event_id Native.fact_equal;\n';
+      const use='  Nickel.EventClassifier.classification_is_exact facts fact (Nickel.EventGraphText.text_graph_ops ());\n';
       assert.equal(body.split(use).length,2,name+' explicit contract use');body=body.replace(use,'');
     }
     const view=original.slice(0,start)+body+original.slice(end);

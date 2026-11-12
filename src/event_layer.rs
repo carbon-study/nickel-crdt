@@ -2,10 +2,47 @@
 //! Callers supply identity projection, equality, ordering and error values.
 //! Exact-value laws require the supplied clone callback to preserve whole facts.
 
+/// One graph policy: projections/comparisons/copy, then graph errors.
+/// Fields in the first group are id, after, id_eq, id_lt, clone_fact, fact_eq.
+/// Error fields are internal, missing. Function pointers stay opaque client policy.
+pub type GraphOps<F, I, E> = (
+    (fn(&F) -> I, fn(&F) -> &[I], fn(&I, &I) -> bool,
+     fn(&I, &I) -> bool, fn(&F) -> F, fn(&F, &F) -> bool),
+    (fn() -> E, fn() -> E),
+);
+/// Admission adds predecessor/forbidden and ordered error constructors:
+/// event capacity, dependency capacity, duplicate dependency, producer predecessor.
+pub type AdmissionOps<I, E> = (
+    fn(&I) -> Option<I>, fn(&I, &I) -> bool,
+    (fn() -> E, fn() -> E, fn() -> E, fn() -> E),
+);
+pub type EventOps<F, I, E> = (GraphOps<F, I, E>, AdmissionOps<I, E>);
+
+/// Build the graph tuple once, preserving its generic function-arrow type in
+/// fresh extraction as well as naming the construction arguments in one place.
+pub const fn graph_ops<F, I, E>(
+    id: fn(&F) -> I, after: fn(&F) -> &[I], id_eq: fn(&I, &I) -> bool,
+    id_lt: fn(&I, &I) -> bool, clone_fact: fn(&F) -> F,
+    fact_eq: fn(&F, &F) -> bool, internal: fn() -> E, missing: fn() -> E,
+) -> GraphOps<F, I, E> {
+    ((id, after, id_eq, id_lt, clone_fact, fact_eq), (internal, missing))
+}
+
+pub const fn event_ops<F, I, E>(
+    graph: GraphOps<F, I, E>, predecessor: fn(&I) -> Option<I>,
+    forbidden: fn(&I, &I) -> bool, event_capacity: fn() -> E,
+    dep_capacity: fn() -> E, duplicate_error: fn() -> E,
+    predecessor_error: fn() -> E,
+) -> EventOps<F, I, E> {
+    (graph, (predecessor, forbidden,
+        (event_capacity, dep_capacity, duplicate_error, predecessor_error)))
+}
+
+
 /// Classify the first stored identity match, preserving storage-order behavior.
 /// None is a new identity; Some(true) is exact duplicate; Some(false) conflict.
-pub fn classify<F, I>(facts: &[F], fact: &F, id: fn(&F) -> I,
-    id_eq: fn(&I, &I) -> bool, fact_eq: fn(&F, &F) -> bool) -> Option<bool> {
+pub fn classify<F, I, E>(facts: &[F], fact: &F, ops: &GraphOps<F, I, E>) -> Option<bool> {
+    let ((id, _, id_eq, _, _, fact_eq), (_, _)) = *ops;
     for i in 0..facts.len() {
         let old = &facts[i];
         if id_eq(&id(old), &id(fact)) {
@@ -23,7 +60,8 @@ pub fn push<T, E>(xs: &mut Vec<T>, value: T, internal: fn() -> E) -> Result<(), 
     Ok(())
 }
 
-pub fn has_id<I>(ids: &[I], wanted: &I, id_eq: fn(&I, &I) -> bool) -> bool {
+pub fn has_id<F, I, E>(ids: &[I], wanted: &I, ops: &GraphOps<F, I, E>) -> bool {
+    let ((_, _, id_eq, _, _, _), (_, _)) = *ops;
     for i in 0..ids.len() {
         if id_eq(&ids[i], wanted) {
             return true;
@@ -32,7 +70,8 @@ pub fn has_id<I>(ids: &[I], wanted: &I, id_eq: fn(&I, &I) -> bool) -> bool {
     false
 }
 
-pub fn duplicate_ids<I>(xs: &[I], id_eq: fn(&I, &I) -> bool) -> bool {
+pub fn duplicate_ids<F, I, E>(xs: &[I], ops: &GraphOps<F, I, E>) -> bool {
+    let ((_, _, id_eq, _, _, _), (_, _)) = *ops;
     for i in 0..xs.len() {
         for j in 0..i {
             if id_eq(&xs[i], &xs[j]) {
@@ -43,7 +82,8 @@ pub fn duplicate_ids<I>(xs: &[I], id_eq: fn(&I, &I) -> bool) -> bool {
     false
 }
 
-pub fn has_fact<F, I>(facts: &[F], wanted: &I, id: fn(&F) -> I, id_eq: fn(&I, &I) -> bool) -> bool {
+pub fn has_fact<F, I, E>(facts: &[F], wanted: &I, ops: &GraphOps<F, I, E>) -> bool {
+    let ((id, _, id_eq, _, _, _), (_, _)) = *ops;
     for i in 0..facts.len() {
         if id_eq(&id(&facts[i]), wanted) {
             return true;
@@ -52,22 +92,22 @@ pub fn has_fact<F, I>(facts: &[F], wanted: &I, id: fn(&F) -> I, id_eq: fn(&I, &I
     false
 }
 
-pub fn validate_after<F, I, E>(facts: &[F], after: &[I], id: fn(&F) -> I,
-    id_eq: fn(&I, &I) -> bool, missing: fn() -> E) -> Result<(), E> {
+pub fn validate_after<F, I, E>(facts: &[F], after: &[I], ops: &GraphOps<F, I, E>) -> Result<(), E> {
+    let ((_, _, _, _, _, _), (_, missing)) = *ops;
     for i in 0..after.len() {
-        if !has_fact(facts, &after[i], id, id_eq) {
+        if !has_fact(facts, &after[i], ops) {
             return Err(missing());
         }
     }
     Ok(())
 }
 
-pub fn extend_past<F, I: Clone, E>(fact: &F, mut selected: Vec<I>, id: fn(&F) -> I,
-    after: fn(&F) -> &[I], id_eq: fn(&I, &I) -> bool, internal: fn() -> E) -> Result<Vec<I>, E> {
-    if has_id(&selected, &id(fact), id_eq) {
+pub fn extend_past<F, I: Clone, E>(fact: &F, mut selected: Vec<I>, ops: &GraphOps<F, I, E>) -> Result<Vec<I>, E> {
+    let ((id, after, _, _, _, _), (internal, _)) = *ops;
+    if has_id(&selected, &id(fact), ops) {
         for i in 0..after(fact).len() {
             let predecessor = after(fact)[i].clone();
-            if !has_id(&selected, &predecessor, id_eq) {
+            if !has_id(&selected, &predecessor, ops) {
                 push(&mut selected, predecessor, internal)?;
             }
         }
@@ -75,30 +115,27 @@ pub fn extend_past<F, I: Clone, E>(fact: &F, mut selected: Vec<I>, id: fn(&F) ->
     Ok(selected)
 }
 
-pub fn past_pass<F, I: Clone, E>(facts: &[F], mut selected: Vec<I>, id: fn(&F) -> I,
-    after: fn(&F) -> &[I], id_eq: fn(&I, &I) -> bool, internal: fn() -> E) -> Result<Vec<I>, E> {
+pub fn past_pass<F, I: Clone, E>(facts: &[F], mut selected: Vec<I>, ops: &GraphOps<F, I, E>) -> Result<Vec<I>, E> {
     for i in 0..facts.len() {
-        selected = extend_past(&facts[i], selected, id, after, id_eq, internal)?;
+        selected = extend_past(&facts[i], selected, ops)?;
     }
     Ok(selected)
 }
 
-pub fn past<F, I: Clone, E>(facts: &[F], after_ids: &[I], id: fn(&F) -> I,
-    after: fn(&F) -> &[I], id_eq: fn(&I, &I) -> bool, internal: fn() -> E,
-    missing: fn() -> E) -> Result<Vec<I>, E> {
+pub fn past<F, I: Clone, E>(facts: &[F], after_ids: &[I], ops: &GraphOps<F, I, E>) -> Result<Vec<I>, E> {
     let mut selected = after_ids.to_vec();
-    validate_after(facts, after_ids, id, id_eq, missing)?;
+    validate_after(facts, after_ids, ops)?;
     for _ in 0..facts.len() {
-        selected = past_pass(facts, selected, id, after, id_eq, internal)?;
+        selected = past_pass(facts, selected, ops)?;
     }
     Ok(selected)
 }
 
-pub fn choose_unseen<F, I, E>(facts: &[F], out: &[F], id: fn(&F) -> I,
-    id_eq: fn(&I, &I) -> bool, id_lt: fn(&I, &I) -> bool, internal: fn() -> E) -> Result<Option<usize>, E> {
+pub fn choose_unseen<F, I, E>(facts: &[F], out: &[F], ops: &GraphOps<F, I, E>) -> Result<Option<usize>, E> {
+    let ((id, _, _, id_lt, _, _), (internal, _)) = *ops;
     let mut chosen = None;
     for j in 0..facts.len() {
-        if !has_fact(out, &id(&facts[j]), id, id_eq) {
+        if !has_fact(out, &id(&facts[j]), ops) {
             match chosen {
                 None => chosen = Some(j),
                 Some(k) => {
@@ -119,9 +156,9 @@ pub fn clone_selected_fact<F>(fact: &F, clone_fact: fn(&F) -> F) -> F {
     clone_fact(fact)
 }
 
-pub fn canonical_step<F, I, E>(facts: &[F], mut out: Vec<F>, id: fn(&F) -> I,
-    id_eq: fn(&I, &I) -> bool, id_lt: fn(&I, &I) -> bool, internal: fn() -> E, clone_fact: fn(&F) -> F) -> Result<Vec<F>, E> {
-    let chosen = choose_unseen(facts, &out, id, id_eq, id_lt, internal)?;
+pub fn canonical_step<F, I, E>(facts: &[F], mut out: Vec<F>, ops: &GraphOps<F, I, E>) -> Result<Vec<F>, E> {
+    let ((_, _, _, _, clone_fact, _), (internal, _)) = *ops;
+    let chosen = choose_unseen(facts, &out, ops)?;
     let i = chosen.ok_or(internal())?;
     if i >= facts.len() {
         return Err(internal());
@@ -130,18 +167,17 @@ pub fn canonical_step<F, I, E>(facts: &[F], mut out: Vec<F>, id: fn(&F) -> I,
     Ok(out)
 }
 
-pub fn canonical<F, I, E>(facts: &[F], id: fn(&F) -> I,
-    id_eq: fn(&I, &I) -> bool, id_lt: fn(&I, &I) -> bool, internal: fn() -> E, clone_fact: fn(&F) -> F) -> Result<Vec<F>, E> {
+pub fn canonical<F, I, E>(facts: &[F], ops: &GraphOps<F, I, E>) -> Result<Vec<F>, E> {
     let mut out = Vec::new();
     for _ in 0..facts.len() {
-        out = canonical_step(facts, out, id, id_eq, id_lt, internal, clone_fact)?;
+        out = canonical_step(facts, out, ops)?;
     }
     Ok(out)
 }
 
-pub fn ready<I>(after: &[I], done: &[I], id_eq: fn(&I, &I) -> bool) -> bool {
+pub fn ready<F, I, E>(after: &[I], done: &[I], ops: &GraphOps<F, I, E>) -> bool {
     for i in 0..after.len() {
-        if has_id(done, &after[i], id_eq) {
+        if has_id(done, &after[i], ops) {
             // This predecessor has run; keep checking.
         } else {
             return false;
@@ -150,25 +186,25 @@ pub fn ready<I>(after: &[I], done: &[I], id_eq: fn(&I, &I) -> bool) -> bool {
     true
 }
 
-pub fn choose_ready<F, I>(facts: &[F], done: &[I], id: fn(&F) -> I,
-    after: fn(&F) -> &[I], id_eq: fn(&I, &I) -> bool) -> Option<usize> {
+pub fn choose_ready<F, I, E>(facts: &[F], done: &[I], ops: &GraphOps<F, I, E>) -> Option<usize> {
+    let ((id, after, _, _, _, _), (_, _)) = *ops;
     for i in 0..facts.len() {
-        if has_id(done, &id(&facts[i]), id_eq) {
+        if has_id(done, &id(&facts[i]), ops) {
             // Already scheduled.
-        } else if ready(after(&facts[i]), done, id_eq) {
+        } else if ready(after(&facts[i]), done, ops) {
             return Some(i);
         }
     }
     None
 }
 
-pub fn frontier<F, I, E>(facts: &[F], id: fn(&F) -> I,
-    after: fn(&F) -> &[I], id_eq: fn(&I, &I) -> bool, internal: fn() -> E) -> Result<Vec<I>, E> {
+pub fn frontier<F, I, E>(facts: &[F], ops: &GraphOps<F, I, E>) -> Result<Vec<I>, E> {
+    let ((id, after, _, _, _, _), (internal, _)) = *ops;
     let mut out = Vec::new();
     for f in facts {
         let mut child = false;
         for e in facts {
-            if has_id(after(e), &id(f), id_eq) {
+            if has_id(after(e), &id(f), ops) {
                 child = true;
             }
         }
@@ -179,48 +215,45 @@ pub fn frontier<F, I, E>(facts: &[F], id: fn(&F) -> I,
     Ok(out)
 }
 
-pub fn select_basis<F, I, E>(facts: &[F], selected: &[I], id: fn(&F) -> I,
-    id_eq: fn(&I, &I) -> bool, internal: fn() -> E, clone_fact: fn(&F) -> F) -> Result<Vec<F>, E> {
+pub fn select_basis<F, I, E>(facts: &[F], selected: &[I], ops: &GraphOps<F, I, E>) -> Result<Vec<F>, E> {
+    let ((id, _, _, _, clone_fact, _), (internal, _)) = *ops;
     let mut basis = Vec::new();
     for i in 0..facts.len() {
         let fact = &facts[i];
-        if has_id(selected, &id(fact), id_eq) {
+        if has_id(selected, &id(fact), ops) {
             push(&mut basis, clone_selected_fact(fact, clone_fact), internal)?;
         }
     }
     Ok(basis)
 }
 
-pub fn event_basis<F, I: Clone, E>(facts: &[F], event: &F, id: fn(&F) -> I,
-    after: fn(&F) -> &[I], id_eq: fn(&I, &I) -> bool, internal: fn() -> E,
-    missing: fn() -> E, clone_fact: fn(&F) -> F) -> Result<(Vec<I>, Vec<F>), E> {
-    let selected = past(facts, after(event), id, after, id_eq, internal, missing)?;
-    let basis = select_basis(facts, &selected, id, id_eq, internal, clone_fact)?;
+pub fn event_basis<F, I: Clone, E>(facts: &[F], event: &F, ops: &GraphOps<F, I, E>) -> Result<(Vec<I>, Vec<F>), E> {
+    let ((_, after, _, _, _, _), (_, _)) = *ops;
+    let selected = past(facts, after(event), ops)?;
+    let basis = select_basis(facts, &selected, ops)?;
     Ok((selected, basis))
 }
 
 /// Shared graph admission, before application-specific payload validation.
 /// `forbidden` receives the selected ancestor identity, then the offered one.
-pub fn validate_event<F, I: Clone, E>(facts: &[F], fact: &F,
-    events_limit: usize, dependencies_limit: usize,
-    id: fn(&F) -> I, after: fn(&F) -> &[I], id_eq: fn(&I, &I) -> bool,
-    predecessor: fn(&I) -> Option<I>, forbidden: fn(&I, &I) -> bool,
-    event_capacity: fn() -> E, dep_capacity: fn() -> E,
-    duplicate_error: fn() -> E, predecessor_error: fn() -> E,
-    internal: fn() -> E, missing: fn() -> E) -> Result<Vec<I>, E> {
+pub fn validate_event<F, I: Clone, E>(facts: &[F], fact: &F, events_limit: usize, dependencies_limit: usize, ops: &EventOps<F, I, E>) -> Result<Vec<I>, E> {
+    let event_ops = ops;
+    let ops = &event_ops.0;
+    let (predecessor, forbidden, (event_capacity, dep_capacity, duplicate_error, predecessor_error)) = event_ops.1;
+    let ((id, after, _, _, _, _), (_, _)) = *ops;
     if facts.len() >= events_limit {
         return Err(event_capacity());
     }
     if after(fact).len() > dependencies_limit {
         return Err(dep_capacity());
     }
-    if duplicate_ids(after(fact), id_eq) {
+    if duplicate_ids(after(fact), ops) {
         return Err(duplicate_error());
     }
-    let selected = past(facts, after(fact), id, after, id_eq, internal, missing)?;
+    let selected = past(facts, after(fact), ops)?;
     match predecessor(&id(fact)) {
         Some(previous) => {
-            if !has_id(&selected, &previous, id_eq) {
+            if !has_id(&selected, &previous, ops) {
                 return Err(predecessor_error());
             }
         }
@@ -228,7 +261,7 @@ pub fn validate_event<F, I: Clone, E>(facts: &[F], fact: &F,
     }
     for i in 0..facts.len() {
         let e = &facts[i];
-        if has_id(&selected, &id(e), id_eq) && forbidden(&id(e), &id(fact)) {
+        if has_id(&selected, &id(e), ops) && forbidden(&id(e), &id(fact)) {
             return Err(predecessor_error());
         }
     }
@@ -268,10 +301,12 @@ mod tests {
     fn forbidden(ancestor: &String, current: &String) -> bool {
         current.starts_with("third:") && ancestor == "third:3"
     }
+    const OPS: EventOps<Envelope, String, &'static str> = {
+        (((identity, parents, equal, less, clone_envelope, envelope_equal), (internal, missing)),
+         (predecessor, forbidden, (event_capacity, dep_capacity, duplicate_error, predecessor_error)))
+    };
     fn validate(facts: &[Envelope], fact: &Envelope, events: usize, dependencies: usize) -> Result<Vec<String>, &'static str> {
-        validate_event(facts, fact, events, dependencies, identity, parents, equal,
-            predecessor, forbidden, event_capacity, dep_capacity, duplicate_error,
-            predecessor_error, internal, missing)
+        validate_event(facts, fact, events, dependencies, &OPS)
     }
 
     #[test]
@@ -295,8 +330,10 @@ mod tests {
             copy
         }
         let fact = envelope("third:1", &[], 3);
-        assert_eq!(canonical(&[fact.clone()], identity, equal, less, internal, changed), Ok(vec![changed(&fact)]));
-        assert_eq!(select_basis(&[fact.clone()], &["third:1".into()], identity, equal, internal, changed), Ok(vec![changed(&fact)]));
+        let mut changed_ops = OPS.0;
+        (changed_ops.0).4 = changed;
+        assert_eq!(canonical(&[fact.clone()], &changed_ops), Ok(vec![changed(&fact)]));
+        assert_eq!(select_basis(&[fact.clone()], &["third:1".into()], &changed_ops), Ok(vec![changed(&fact)]));
     }
 
     #[test]
@@ -304,20 +341,20 @@ mod tests {
         let exact = envelope("third:1", &["alpha:1"], 3);
         let conflict = envelope("third:1", &["alpha:1"], 4);
         let unrelated = envelope("other:1", &[], 3);
-        assert_eq!(classify(&[unrelated.clone()], &exact, identity, equal, envelope_equal), None);
-        assert_eq!(classify(&[unrelated, exact.clone(), conflict.clone()], &exact, identity, equal, envelope_equal), Some(true));
-        assert_eq!(classify(&[conflict, exact.clone()], &exact, identity, equal, envelope_equal), Some(false));
+        assert_eq!(classify(&[unrelated.clone()], &exact, &OPS.0), None);
+        assert_eq!(classify(&[unrelated, exact.clone(), conflict.clone()], &exact, &OPS.0), Some(true));
+        assert_eq!(classify(&[conflict, exact.clone()], &exact, &OPS.0), Some(false));
         let changed_parents = envelope("third:1", &["other:1"], 3);
-        assert_eq!(classify(&[changed_parents], &exact, identity, equal, envelope_equal), Some(false));
+        assert_eq!(classify(&[changed_parents], &exact, &OPS.0), Some(false));
     }
 
     #[test]
     fn partial_graph_past_preserves_unresolved_transitive_ids() {
         let facts = vec![envelope("third:1", &["absent:1"], 3), envelope("second:1", &["third:1"], 2)];
-        let selected = past(&facts, &["second:1".into()], identity, parents, equal, internal, missing).unwrap();
+        let selected = past(&facts, &["second:1".into()], &OPS.0).unwrap();
         assert_eq!(selected, ["second:1", "third:1", "absent:1"]);
-        assert_eq!(past(&facts, &["absent:1".into()], identity, parents, equal, internal, missing), Err("missing"));
-        let (_, basis) = event_basis(&facts, &envelope("caller", &["second:1"], 0), identity, parents, equal, internal, missing, clone_envelope).unwrap();
+        assert_eq!(past(&facts, &["absent:1".into()], &OPS.0), Err("missing"));
+        let (_, basis) = event_basis(&facts, &envelope("caller", &["second:1"], 0), &OPS.0).unwrap();
         assert_eq!(basis, facts);
     }
 
@@ -325,19 +362,19 @@ mod tests {
     fn canonical_is_id_sorted_and_preserves_complete_payloads() {
         let a = envelope("alpha:1", &[], 41);
         let z = envelope("third:1", &["alpha:1"], 99);
-        assert_eq!(canonical(&[z.clone(), a.clone()], identity, equal, less, internal, clone_envelope), Ok(vec![a.clone(), z]));
+        assert_eq!(canonical(&[z.clone(), a.clone()], &OPS.0), Ok(vec![a.clone(), z]));
         // The old canonical algorithm rejects duplicate identities when its
         // fixed number of passes exhausts unseen IDs, even if payloads differ.
-        assert_eq!(canonical(&[a, envelope("alpha:1", &[], 42)], identity, equal, less, internal, clone_envelope), Err("internal"));
+        assert_eq!(canonical(&[a, envelope("alpha:1", &[], 42)], &OPS.0), Err("internal"));
     }
 
     #[test]
     fn ready_scan_and_frontier_keep_storage_order() {
         let facts = vec![envelope("third:1", &["alpha:1"], 3), envelope("second:1", &[], 2), envelope("alpha:1", &[], 1)];
-        assert_eq!(choose_ready(&facts, &[], identity, parents, equal), Some(1));
-        assert_eq!(choose_ready(&facts, &["alpha:1".into()], identity, parents, equal), Some(0));
-        assert_eq!(frontier(&facts, identity, parents, equal, internal), Ok(vec!["third:1".into(), "second:1".into()]));
-        assert!(duplicate_ids(&["x".into(), "x".into()], equal));
-        assert!(!duplicate_ids(&["x".into(), "y".into()], equal));
+        assert_eq!(choose_ready(&facts, &[], &OPS.0), Some(1));
+        assert_eq!(choose_ready(&facts, &["alpha:1".into()], &OPS.0), Some(0));
+        assert_eq!(frontier(&facts, &OPS.0), Ok(vec!["third:1".into(), "second:1".into()]));
+        assert!(duplicate_ids(&["x".into(), "x".into()], &OPS.0));
+        assert!(!duplicate_ids(&["x".into(), "y".into()], &OPS.0));
     }
 }

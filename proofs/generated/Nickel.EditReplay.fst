@@ -143,6 +143,7 @@ let closed_author_context_is_exact (facts: facts_vec) (event: Native.t_Fact) (op
     let shape () : Lemma (ensures result_shape (Native.replay_author operations (Alloc.Vec.impl_1__as_slice selected))) = () in
     shape ();
     assert (Prims.l_and (author_prefix operations (Alloc.Vec.impl_1__as_slice selected) (Seq.length operations) (Native.replay_author operations (Alloc.Vec.impl_1__as_slice selected))) (result_shape (Native.replay_author operations (Alloc.Vec.impl_1__as_slice selected)))) by (
+      Tactics.prune "Nickel.EditReplay.group_follows";
       Tactics.prune "Nickel_crdt.Edit.replay_author";
       Tactics.prune "Nickel.EditReplay.author_prefix";
       Tactics.smt_sync' 1 1

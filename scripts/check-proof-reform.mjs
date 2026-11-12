@@ -17,6 +17,15 @@ export function checkProofReformFence() {
     "let solve = Tactics.smt_sync'", "Tactics.smt_sync'(4, 4)",
     'Tactics.set_options("--fuel 100")', 'Tactics.prune("Other")', 'let hide = Tactics.prune',
   ])assert.throws(()=>assertReformedSource('fixture',bad),/fixture reform:/,bad);
+  for(const namespace of ['Nickel_crdt.Edit.v_TEXT_OPS','Nickel_crdt.Event_layer.graph_ops','Nickel_crdt.Event_layer.event_ops']) {
+    for(const name of ['EventGraphText','EditIdentity','EditAccepted','EditPast','EditSchedule','EditWellFormed','EditPastTotal','EditBasis'])
+      assertReformedSource(name,'Tactics.prune('+JSON.stringify(namespace)+')');
+    for(const name of ['fixture','EventGraph','EditAtomic','EditCommit','Spec'])
+      assert.throws(()=>assertReformedSource(name,'Tactics.prune('+JSON.stringify(namespace)+')'),new RegExp(name+' reform:'));
+  }
+  assertReformedSource('EditReplay','Tactics.prune("Nickel.EditReplay.group_follows")');
+  for(const name of ['fixture','EditSchedule','EditAccepted'])
+    assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EditReplay.group_follows")'),new RegExp(name+' reform:'));
   assertReformedSource('EditCausal','Tactics.prune("Nickel.EditCausal.causal_rank")');
   assertReformedSource('EditSchedule','Tactics.prune("Nickel.EditCausal.causal_rank")');
   for(const name of ['fixture','EditPast','EditPastTotal','EditWellFormed'])

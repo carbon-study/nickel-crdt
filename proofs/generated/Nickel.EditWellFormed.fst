@@ -3,6 +3,8 @@ module Nickel.EditWellFormed
 
 open Nickel.Prelude
 
+open Nickel.EventGraphText
+
 open Rust_primitives
 
 open Core_models
@@ -246,8 +248,13 @@ let dependency_check_invariant (facts: t_Slice Native.t_Fact) (after: t_Slice Na
   dependency_prefix facts after at
 
 let dependency_validation_is_sound (facts: t_Slice Native.t_Fact) (after: t_Slice Native.t_EventId) : Lemma (ensures dependency_check_result facts after (Native.validate_after facts after)) =
+  Nickel.EventGraphText.text_graph_policy_is_exact ();
+  Nickel.EventGraphText.text_graph_callbacks_are_exact ();
   Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len after) (dependency_check_invariant facts after) (fun (_: unit) -> ()) (fun (_: unit) -> dependencies_present facts after) (fun (_: Native.t_Error) -> Prims.l_True);
   assert (dependency_check_result facts after (Native.validate_after facts after)) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
@@ -262,8 +269,13 @@ let dependency_validation_is_sound (facts: t_Slice Native.t_Fact) (after: t_Slic
   )
 
 let present_dependencies_pass_guard (facts: t_Slice Native.t_Fact) (after: t_Slice Native.t_EventId) : Lemma (requires dependencies_present facts after) (ensures Native.validate_after facts after == Result.Result_Ok ()) =
+  Nickel.EventGraphText.text_graph_policy_is_exact ();
+  Nickel.EventGraphText.text_graph_callbacks_are_exact ();
   Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len after) (fun (_: nat) (_: unit) -> Prims.l_True) (fun (_: unit) -> ()) (fun (_: unit) -> Prims.l_True) (fun (_: Native.t_Error) -> Prims.l_False);
   assert (Native.validate_after facts after == Result.Result_Ok ()) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
@@ -281,8 +293,13 @@ let past_has_dependencies (facts: t_Slice Native.t_Fact) (after: t_Slice Native.
   match result with | Result.Result_Ok _ -> begin dependencies_present facts after end | _ -> begin Prims.l_True end
 
 let successful_past_has_direct_dependencies (facts: t_Slice Native.t_Fact) (after: t_Slice Native.t_EventId) : Lemma (ensures past_has_dependencies facts after (Native.past facts after)) =
+  Nickel.EventGraphText.text_graph_policy_is_exact ();
+  Nickel.EventGraphText.text_graph_callbacks_are_exact ();
   dependency_validation_is_sound facts after;
   assert (past_has_dependencies facts after (Native.past facts after)) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
     Tactics.prune "Nickel_crdt.Edit.validate_after";
     Tactics.prune "Nickel_crdt.Event_layer.validate_after";
     Tactics.prune "Alloc.Vec.from_seq";
@@ -303,8 +320,13 @@ let validation_has_dependencies (facts: t_Slice Native.t_Fact) (fact: Native.t_F
   match result with | Result.Result_Ok _ -> begin fact_dependencies_present facts fact end | _ -> begin Prims.l_True end
 
 let successful_validation_has_direct_dependencies (facts: t_Slice Native.t_Fact) (limits: Native.t_Limits) (fact: Native.t_Fact) : Lemma (ensures validation_has_dependencies facts fact (Native.impl_Replica__validate_new facts limits fact)) =
+  Nickel.EventGraphText.text_graph_policy_is_exact ();
+  Nickel.EventGraphText.text_graph_callbacks_are_exact ();
   successful_past_has_direct_dependencies facts (Alloc.Vec.impl_1__as_slice fact.f_after);
   assert (validation_has_dependencies facts fact (Native.impl_Replica__validate_new facts limits fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
     Tactics.prune "Nickel_crdt.Edit.past";
     Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.prune "Alloc.Vec.from_seq";
@@ -350,6 +372,8 @@ let absence_on_whole_facts (facts: t_Slice Native.t_Fact) (id: Native.t_EventId)
     Nickel.Vector.slice_index facts (mk_usize i);
     Nickel.Vector.slice_length facts;
     assert (Prims.l_not (fact.f_id == id)) by (
+      Tactics.prune "Nickel_crdt.Edit.has_fact";
+      Tactics.prune "Nickel_crdt.Event_layer.has_fact";
       Tactics.prune "Nickel.Vector.slice_index";
       Tactics.prune "Nickel.Vector.slice_length";
       Tactics.prune "Rust_primitives.Slice.slice_index";

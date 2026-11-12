@@ -154,8 +154,8 @@ fn missing<E>() -> Error<E> {
 // unresolved transitive predecessor, including in unrelated supplied facts.
 fn closed_past(facts: &[Event<Batch>], roots: &[Id]) -> Result<Vec<Id>, Error<()>> {
     let selected =
-        crate::event_layer::past(facts, roots, identity, parents, id_equal, invalid, missing)?;
-    crate::event_layer::validate_after(facts, &selected, identity, id_equal, missing)?;
+        crate::event_layer::past(facts, roots, &BATCH_OPS)?;
+    crate::event_layer::validate_after(facts, &selected, &BATCH_OPS)?;
     Ok(selected)
 }
 
@@ -167,7 +167,7 @@ fn graph_valid(facts: &[Event<Batch>]) -> Result<(), Error<()>> {
     // Preserve that error precedence while using the shared closure.
     let mut first = Vec::new();
     for fact in facts {
-        if !crate::event_layer::has_fact(&first, &fact.id, identity, id_equal) {
+        if !crate::event_layer::has_fact(&first, &fact.id, &BATCH_OPS) {
             crate::event_layer::push(&mut first, fact.clone(), invalid)?;
         }
     }
@@ -176,14 +176,14 @@ fn graph_valid(facts: &[Event<Batch>]) -> Result<(), Error<()>> {
         if fact.id.counter == 0 {
             return Err(Error::Invalid);
         }
-        if crate::event_layer::has_fact(&facts[..i], &fact.id, identity, id_equal) {
+        if crate::event_layer::has_fact(&facts[..i], &fact.id, &BATCH_OPS) {
             return Err(Error::Invalid);
         }
-        if crate::event_layer::duplicate_ids(&fact.after, id_equal) {
+        if crate::event_layer::duplicate_ids(&fact.after, &BATCH_OPS) {
             return Err(Error::Invalid);
         }
         let selected = closed_past(&first, &fact.after)?;
-        if crate::event_layer::has_id(&selected, &fact.id, id_equal) {
+        if crate::event_layer::has_id(&selected, &fact.id, &BATCH_OPS) {
             return Err(Error::Invalid);
         }
         if fact.id.counter > 1 {
@@ -191,7 +191,7 @@ fn graph_valid(facts: &[Event<Batch>]) -> Result<(), Error<()>> {
                 peer: fact.id.peer,
                 counter: fact.id.counter - 1,
             };
-            if !crate::event_layer::has_id(&selected, &predecessor, id_equal) {
+            if !crate::event_layer::has_id(&selected, &predecessor, &BATCH_OPS) {
                 return Err(Error::Invalid);
             }
         }
@@ -203,15 +203,15 @@ fn graph_valid(facts: &[Event<Batch>]) -> Result<(), Error<()>> {
 /// form a valid whole graph. Repeated roots are invalid, even for an empty past.
 fn exact_past(facts: &[Event<Batch>], roots: &[Id]) -> Result<Vec<Event<Batch>>, Error<()>> {
     graph_valid(facts)?;
-    if crate::event_layer::duplicate_ids(roots, id_equal) {
+    if crate::event_layer::duplicate_ids(roots, &BATCH_OPS) {
         return Err(Error::Invalid);
     }
     let selected = closed_past(facts, roots)?;
-    crate::event_layer::select_basis(facts, &selected, identity, id_equal, invalid, event_clone)
+    crate::event_layer::select_basis(facts, &selected, &BATCH_OPS)
 }
 
 fn choose_scheduled(_: &(), facts: &[Event<Batch>], done: &[Id]) -> Option<usize> {
-    crate::event_layer::choose_ready(facts, done, identity, parents, id_equal)
+    crate::event_layer::choose_ready(facts, done, &BATCH_OPS)
 }
 
 fn collect_scheduled(
@@ -231,7 +231,7 @@ fn schedule(facts: &[Event<Batch>]) -> Result<Vec<Event<Batch>>, Error<()>> {
     // The shared ready scan uses input order. Canonicalize a detached view, not
     // the retained admission-order event store, to select the least ready ID.
     let ordered =
-        crate::event_layer::canonical(facts, identity, id_equal, id_less, invalid, event_clone)?;
+        crate::event_layer::canonical(facts, &BATCH_OPS)?;
     let (result, _) = crate::event_shell::scheduled(
         &ordered,
         Vec::new(),
@@ -335,7 +335,7 @@ fn duplicate(
     before: &BatchReplica,
     event: &Event<Batch>,
 ) -> Result<bool, Error<BatchError>> {
-    match crate::event_layer::classify(&before.events, event, identity, id_equal, same_event) {
+    match crate::event_layer::classify(&before.events, event, &BATCH_OPS) {
         Some(true) => Ok(true),
         Some(false) => Err(Error::Conflict),
         None => Ok(false),
@@ -427,6 +427,13 @@ mod tests {
                 .collect(),
             replica.next_counter(),
         )
+    }
+
+    #[test]
+    fn batch_policy_keeps_completed_event_excluded() {
+        let id = Id { peer: 7, counter: 1 };
+        let event = Event { id, after: vec![], payload: vec![create("card")] };
+        assert_eq!(choose_scheduled(&(), &[event], &[id]), None);
     }
 
     #[test]
@@ -854,3 +861,10 @@ mod tests {
         assert!(matches!(schedule(&duplicate), Err(Error::Invalid)));
     }
 }
+
+// Concrete example policy, separate from its client admission/materialization rules.
+const BATCH_OPS: crate::event_layer::GraphOps<Event<Batch>, Id, Error<()>> = {
+    crate::event_layer::graph_ops(
+        identity, parents, id_equal, id_less, event_clone, same_event, invalid, missing,
+    )
+};

@@ -31,16 +31,32 @@ let ready_prefix (after: t_Slice Native.t_EventId) (done: t_Slice Native.t_Event
   forall(i: usize{v i < Seq.length after}). v i < finish ==> member done (Seq.index after (v i))
 
 let readiness_is_exact (after: t_Slice Native.t_EventId) (done: t_Slice Native.t_EventId) : Lemma (ensures Native.ready after done == true <==> all_ids after (member done)) [SMTPat (Native.ready after done)] =
-  assert (Shared.ready after done Native.same_event_id == Native.ready after done);
-  Graph.readiness_is_exact after done Native.same_event_id;
+  Nickel.EventGraphText.text_graph_policy_is_exact ();
+  Nickel.EventGraphText.text_graph_callbacks_are_exact ();
+  assert (Shared.ready after done (Nickel.EventGraphText.text_graph_ops ()) == Native.ready after done) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
+    Tactics.smt_sync' 1 1
+  );
+  Graph.readiness_is_exact after done (Nickel.EventGraphText.text_graph_ops ());
   assert (Native.ready after done == true <==> all_ids after (member done)) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
     Tactics.prune "Nickel_crdt.Edit.ready";
     Tactics.prune "Nickel_crdt.Event_layer.ready";
     Tactics.smt_sync' 1 1
   )
 
-let ready_is_text_call (after: t_Slice Native.t_EventId) (done: t_Slice Native.t_EventId) : Lemma (ensures Shared.ready after done Native.same_event_id == Native.ready after done) [SMTPat (Shared.ready after done Native.same_event_id)] =
-  ()
+let ready_is_text_call (after: t_Slice Native.t_EventId) (done: t_Slice Native.t_EventId) : Lemma (ensures Shared.ready after done (Nickel.EventGraphText.text_graph_ops ()) == Native.ready after done) [SMTPat (Shared.ready after done (Nickel.EventGraphText.text_graph_ops ()))] =
+  Nickel.EventGraphText.text_graph_policy_is_exact ();
+  assert (Shared.ready after done (Nickel.EventGraphText.text_graph_ops ()) == Native.ready after done) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
+    Tactics.smt_sync' 1 1
+  )
 
 let eligible (facts: t_Slice Native.t_Fact) (done: t_Slice Native.t_EventId) (i: nat{i < Seq.length facts}) : Type0 =
   Prims.l_and (Prims.l_not (member done (Seq.index facts i).f_id)) (all_ids (Alloc.Vec.impl_1__as_slice (Seq.index facts i).f_after) (member done))
@@ -52,16 +68,32 @@ let chosen_is_first (facts: t_Slice Native.t_Fact) (done: t_Slice Native.t_Event
   match result with | Option.Option_None -> begin no_eligible_prefix facts done (Seq.length facts) end | Option.Option_Some i -> begin Prims.l_and (v i < Seq.length facts) (Prims.l_and (v i < Seq.length facts ==> eligible facts done (v i)) (no_eligible_prefix facts done (v i))) end
 
 let scheduler_choice_is_exact (facts: t_Slice Native.t_Fact) (done: t_Slice Native.t_EventId) : Lemma (ensures chosen_is_first facts done (Native.choose_ready facts done)) =
-  assert (Shared.choose_ready facts done Native.fact_id Native.fact_after Native.same_event_id == Native.choose_ready facts done);
-  Graph.scheduler_choice_is_exact facts done Native.fact_id Native.fact_after Native.same_event_id;
+  Nickel.EventGraphText.text_graph_policy_is_exact ();
+  Nickel.EventGraphText.text_graph_callbacks_are_exact ();
+  assert (Shared.choose_ready facts done (Nickel.EventGraphText.text_graph_ops ()) == Native.choose_ready facts done) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
+    Tactics.smt_sync' 1 1
+  );
+  Graph.scheduler_choice_is_exact facts done (Nickel.EventGraphText.text_graph_ops ());
   assert (chosen_is_first facts done (Native.choose_ready facts done)) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
     Tactics.prune "Nickel_crdt.Edit.choose_ready";
     Tactics.prune "Nickel_crdt.Event_layer.choose_ready";
     Tactics.smt_sync' 1 1
   )
 
-let choose_ready_is_text_call (facts: t_Slice Native.t_Fact) (done: t_Slice Native.t_EventId) : Lemma (ensures Shared.choose_ready facts done Native.fact_id Native.fact_after Native.same_event_id == Native.choose_ready facts done) [SMTPat (Shared.choose_ready facts done Native.fact_id Native.fact_after Native.same_event_id)] =
-  ()
+let choose_ready_is_text_call (facts: t_Slice Native.t_Fact) (done: t_Slice Native.t_EventId) : Lemma (ensures Shared.choose_ready facts done (Nickel.EventGraphText.text_graph_ops ()) == Native.choose_ready facts done) [SMTPat (Shared.choose_ready facts done (Nickel.EventGraphText.text_graph_ops ()))] =
+  Nickel.EventGraphText.text_graph_policy_is_exact ();
+  assert (Shared.choose_ready facts done (Nickel.EventGraphText.text_graph_ops ()) == Native.choose_ready facts done) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
+    Tactics.smt_sync' 1 1
+  )
 
 let available_event_is_chosen (facts: t_Slice Native.t_Fact) (done: t_Slice Native.t_EventId) (available: usize{v available < Seq.length facts}) : Lemma (requires eligible facts done (v available)) (ensures Prims.l_not (Native.choose_ready facts done == Option.Option_None)) =
   scheduler_choice_is_exact facts done;

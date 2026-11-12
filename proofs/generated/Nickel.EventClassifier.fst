@@ -11,6 +11,8 @@ open FStar.Pervasives
 
 open Nickel.LoopUtil
 
+open Nickel.EventGraph
+
 module Native = Nickel_crdt.Event_layer
 
 module Option = Core_models.Option
@@ -52,10 +54,10 @@ let rec scan_matches_lookup (#f: Type0) (#i: Type0) (facts: t_Slice f) (fact: f)
   else
     begin Nickel.LoopUtil.option_run_end (Core_models.Slice.impl__len facts) at () (scan_next facts fact id eq) (scan_stop facts fact same) scan_done end
 
-let classification_is_exact (#f: Type0) (#i: Type0) (facts: t_Slice f) (fact: f) (id: f -> i) (eq: i -> i -> bool) (same: f -> f -> bool) : Lemma (ensures Native.classify facts fact id eq same == lookup facts fact id eq same (mk_usize 0)) [SMTPat (Native.classify facts fact id eq same)] =
-  Nickel.LoopUtil.option_interpret_any (mk_usize 0) (Core_models.Slice.impl__len facts) (scan_next facts fact id eq) (scan_stop facts fact same) scan_done;
-  scan_matches_lookup facts fact id eq same (mk_usize 0);
-  assert (Native.classify facts fact id eq same == lookup facts fact id eq same (mk_usize 0)) by (
+let classification_is_exact (#f: Type0) (#i: Type0) (#e: Type0) (facts: t_Slice f) (fact: f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (ensures Native.classify facts fact ops == lookup facts fact ops._1._1 ops._1._3 ops._1._6 (mk_usize 0)) [SMTPat (Native.classify facts fact ops)] =
+  Nickel.LoopUtil.option_interpret_any (mk_usize 0) (Core_models.Slice.impl__len facts) (scan_next facts fact ops._1._1 ops._1._3) (scan_stop facts fact ops._1._6) scan_done;
+  scan_matches_lookup facts fact ops._1._1 ops._1._3 ops._1._6 (mk_usize 0);
+  assert (Native.classify facts fact ops == lookup facts fact ops._1._1 ops._1._3 ops._1._6 (mk_usize 0)) by (
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.prune "Nickel.LoopUtil.option_run";
     Tactics.smt_sync' 1 1

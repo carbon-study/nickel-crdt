@@ -22,6 +22,14 @@ calls('EditIdentity','scan_lookup',['Nickel.LoopUtil.option_run_step','Nickel.Lo
 // generic obligations, then separately test the concrete callback/lookup bridge.
 calls('EventClassifier','classification_is_exact',['Nickel.LoopUtil.option_interpret_any','scan_matches_lookup']);
 calls('EditIdentity','duplicate_matches_lookup',['Nickel.EventClassifier.classification_is_exact','shared_lookup_agrees']);
+// Bundling does not expose constructor/constant bodies at client consumption.
+// These patternless contracts must be called; each removal has an exact owner.
+calls('EventGraphText','text_graph_callbacks_are_exact',['Nickel.EventGraph.graph_ops_preserve_callbacks']);
+calls('EventGraphText','text_graph_policy_is_exact',['text_policy_is_exact','Nickel.EventGraph.event_ops_preserve_callbacks']);
+calls('EditIdentity','duplicate_matches_lookup',['Nickel.EventGraphText.text_graph_policy_is_exact','Nickel.EventGraphText.text_graph_callbacks_are_exact']);
+calls('EditAccepted','selected_id_is_unseen',['Nickel.EventGraphText.text_graph_policy_is_exact','Nickel.EventGraphText.text_graph_callbacks_are_exact']);
+calls('EditPast','event_membership_is_exact',['Nickel.EventGraphText.text_graph_policy_is_exact','Nickel.EventGraphText.text_graph_callbacks_are_exact']);
+calls('EditSchedule','readiness_is_exact',['Nickel.EventGraphText.text_graph_policy_is_exact','Nickel.EventGraphText.text_graph_callbacks_are_exact']);
 calls('EditAtomic','authored_edit_advances_once',['result_has_constructor']);
 calls('EditAtomic','new_has_empty_facts',['Nickel.Vector.empty_vector_contents']);
 for(const owner of ['new_establishes_scalar_validity','new_establishes_causal_closure'])

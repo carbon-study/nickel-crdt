@@ -2,6 +2,7 @@ import Rust_primitives
 import Core_models
 import FStar.Pervasives
 import Nickel.LoopUtil
+import Nickel.EventGraph
 import Native = Nickel_crdt.Event_layer
 import Option = Core_models.Option
 import Tactics = FStar.Tactics.V2
@@ -39,13 +40,13 @@ proof! scan_matches_lookup<f: Type0, i: Type0>(facts: t_Slice(f), fact: f, id: f
     Nickel.LoopUtil.option_run_end(Core_models.Slice.impl__len(facts), at, (), scan_next(facts, fact, id, eq), scan_stop(facts, fact, same), scan_done)
   }
 }
-proof classification_is_exact<f: Type0, i: Type0>(facts: t_Slice(f), fact: f, id: f => i, eq: i => i => bool, same: f => f => bool): unit
-  gives Native.classify(facts, fact, id, eq, same) == lookup(facts, fact, id, eq, same, mk_usize(0))
-  hint Native.classify(facts, fact, id, eq, same)
+proof classification_is_exact<f: Type0, i: Type0, e: Type0>(facts: t_Slice(f), fact: f, ops: Nickel.EventGraph.graph_ops(f, i, e)): unit
+  gives Native.classify(facts, fact, ops) == lookup(facts, fact, ops._1._1, ops._1._3, ops._1._6, mk_usize(0))
+  hint Native.classify(facts, fact, ops)
 {
-  Nickel.LoopUtil.option_interpret_any(mk_usize(0), Core_models.Slice.impl__len(facts), scan_next(facts, fact, id, eq), scan_stop(facts, fact, same), scan_done);
-  scan_matches_lookup(facts, fact, id, eq, same, mk_usize(0));
-  assert(Native.classify(facts, fact, id, eq, same) == lookup(facts, fact, id, eq, same, mk_usize(0))) by {
+  Nickel.LoopUtil.option_interpret_any(mk_usize(0), Core_models.Slice.impl__len(facts), scan_next(facts, fact, ops._1._1, ops._1._3), scan_stop(facts, fact, ops._1._6), scan_done);
+  scan_matches_lookup(facts, fact, ops._1._1, ops._1._3, ops._1._6, mk_usize(0));
+  assert(Native.classify(facts, fact, ops) == lookup(facts, fact, ops._1._1, ops._1._3, ops._1._6, mk_usize(0))) by {
     Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
     Tactics.prune("Nickel.LoopUtil.option_run");
     Tactics.smt_sync'(1, 1)

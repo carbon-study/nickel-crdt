@@ -13,6 +13,7 @@ mkdirSync(output,{recursive:true});
 // Lock the actual workspace location, including across distinct checkouts.
 assert(holdLock(path.join(output,'.shared-native.lock')),'another shared-native invocation holds this output workspace');
 const modes=[
+  ["batch-policy-swaps-eq-lt", "atomic_map.rs", "const BATCH_OPS:", "id_equal, id_less,", "id_less, id_equal,", "atomic_map::tests::batch_policy_keeps_completed_event_excluded"],
   [
     "payload-equality",
     "causal.rs",
@@ -49,7 +50,7 @@ const modes=[
     "skip-ready-dependency",
     "event_layer.rs",
     "fn ready<",
-    "if has_id(done, &after[i], id_eq) {",
+    "if has_id(done, &after[i], ops) {",
     "if true {",
     "atomic_map::tests::independent_closure_and_schedule_oracles_all_small_dags"
   ],
