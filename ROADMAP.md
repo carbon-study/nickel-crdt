@@ -21,19 +21,16 @@ the batch example's semantics. The whole-codebase contract/loop reform is closed
 2. Deliver the [native keyed-register slice](docs/register-first-cut.md): writes,
    reads and replication through the actual shared layer, with retained losing
    writes, transactional outcomes, implementation-linked proofs and an external
-   native caller. Undo/Redo is outside this first subset. **Proposed staging,
-   awaiting Ren's decision:** a single-write checkpoint followed by atomic
-   multi-write register events, including Carbon's multi-field creation, before
-   keyed collections. Single-write-only is not an approved delivery restriction.
+   native caller. Undo/Redo is outside this first subset. **Approved staging:**
+   a single-write checkpoint followed by atomic multi-write register events,
+   including Carbon's multi-field creation, before keyed collections.
    This subset does not close the full register/history contract.
 3. **Return to text at register-slice acceptance.** Before starting another CRDT
    kind's implementation, review the shared convergence result against the actual
-   text transition and name its next proof/refinement slice. Do not wait for all
+   text transition, then implement and accept one agreed semantic/refinement slice. Do not wait for all
    collection/history work or accumulate an indefinite chain of non-text types.
    Collection contracts and their open choices may proceed alongside this return;
    completing all text work is not a new prerequisite for collections.
-   **Proposed strengthening, awaiting Ren's decision:** implement and accept one
-   agreed text semantic/refinement slice here, rather than only naming it.
 4. Deliver keyed collections under their chosen mutable-record contracts. Preserve
    Ren's K1/K2 answers; removal with locked fields, Restore and field coupling need
    explicit contracts. Continue the preserved text track below through independent

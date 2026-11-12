@@ -2,10 +2,9 @@
 
 **Status: scope approved, implementation not delivered.** The first subset
 supports writing, reading and replicating keyed register values through the
-actual shared causal layer. It excludes Undo/Redo. A single-write-only first
-checkpoint is Lynn's proposed staging, not an approved restriction. The proposal
-is to follow that checkpoint with atomic multi-write register events, including
-Carbon's multi-field creation, before keyed collections; Ren's decision is pending.
+actual shared causal layer. It excludes Undo/Redo. Ren approved a single-write
+checkpoint followed by atomic multi-write register events, including Carbon's
+multi-field creation, before keyed collections.
 This does not close the full [register contract](register-contract.md) or remove
 its history requirements. The reference experiments are not the native implementation.
 
@@ -93,16 +92,11 @@ No whole-CRDT strong eventual consistency theorem is delivered by this plan.
 ## return point and remaining scope
 
 At basic register-slice acceptance, revisit the shared convergence result against
-the actual text engine and select its next semantic/refinement slice before
-starting another CRDT kind's implementation. This is a concrete return point,
+the actual text engine, then implement and accept one agreed semantic/refinement
+slice before starting another CRDT kind's implementation. This is a concrete return point,
 not a requirement to finish every text feature before collections. Collection
 contracts can progress alongside it. Text meaning/progress/admission, anchors and
 history retain their eventual acceptance requirements.
-
-The current return point requires selecting the next text slice. Lynn recommends
-strengthening it to implementing and accepting one agreed text semantic/refinement
-slice before another CRDT kind's implementation; Ren's decision is pending.
-This recommendation is not already adopted by the approval of register-first.
 
 Register Undo/Redo remains a distinct follow-up with the answered q13–q17/f1–f7
 histories intact. Blocked-Redo consumption and new-work redo choices are not
