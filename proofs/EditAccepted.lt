@@ -814,6 +814,9 @@ proof append_least_preserves_frontier(input: t_Slice(Native.t_Fact), out: facts_
         push_membership(out, fact, Rust_primitives.Slice.slice_index(input, j).f_id);
         assert(Native.push(out, fact) == (next, Result.Result_Ok(())));
         assert(Native.has_fact(Alloc.Vec.impl_1__as_slice(out), Rust_primitives.Slice.slice_index(input, j).f_id) == false) by {
+          // Consume push_membership without reopening either membership scan.
+          Tactics.prune("Nickel_crdt.Edit.has_fact");
+          Tactics.prune("Nickel_crdt.Event_layer.has_fact");
           Tactics.prune("Nickel_crdt.Edit.push");
     Tactics.prune("Nickel_crdt.Event_layer.push");
           Tactics.smt_sync'(1, 1)
