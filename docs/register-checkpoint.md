@@ -143,7 +143,7 @@ The basis and clock calls remain explicit boundaries: these laws do not yet
 identify the selected basis with independent transitive ancestry. The separate
 clock theorem below supplies the mathematical maximum law, which does not follow
 from these earlier computational checks alone. They do not
-prove retention through canonicalization, valid-history preservation, fitting
+by themselves prove retention through canonicalization, valid-history preservation, fitting
 admission/progress, full refinement or SEC. The validator equivalence is stronger
 than one-way safety over its computed stages; it still is not a guarantee that
 the full receive/write operation succeeds on an independently fitting history.
@@ -171,3 +171,46 @@ identifying that basis with independent ancestry remains open. This is not yet
 valid-history preservation, independent full client refinement, fitting-write
 progress or SEC, and it does not cover the deliberately unvalidated Duplicate
 path.
+
+### exact whole-fact retention through the shared canonicalizer
+
+`Canonical.canonical_preserves_exact_contents` is a payload-, identity- and
+error-generic law about the actual shared Rust canonicalizer. On success, the
+output has the input length and exactly the same whole fact values. Its explicit
+policy premises require logical ID equality, whole-fact copying and logical
+whole-fact equality. This law needs no text placement, register clock or reachable
+state premise. It does not prove that canonicalization succeeds, that the output
+has a particular order, or that two clients interpret equal histories equally.
+
+The proof composes checked choice, copying, append and loop laws, with those
+native bodies withheld at their callers. It first establishes that each output
+slot selects an original whole fact and has a fresh ID. A finite pigeonhole
+argument then rules out a missing original. The checked vector models remain a
+trust boundary; the native helper bodies are not replaced by authored algorithms.
+
+The register discharges the actual constructed policy's value premises.
+`prepare_appends_exact_fact` and `execute_preserves_exact_fact_contents` connect
+that generic result to the actual planning stages. The actual public
+`receive_added_retains_exact_facts` and `write_counted_retains_exact_facts` then
+state: an Added receive or counted successful write retains every old whole fact,
+adds the exact offered/returned fact, introduces no other whole fact, and increases
+the retained length by one. These are conditional success laws on every typed
+replica, not only reachable replicas. Earlier publication, frame and installation
+laws still cover their separate all-return obligations.
+
+This closes content retention through successful canonicalization. Independent
+ancestry/valid-history preservation, canonical ordering and history agreement,
+full client refinement and fitting admission/progress remain open. An operation
+that always refuses is not excluded by these success-only laws. No SEC or
+checkpoint acceptance follows from this cut alone. Rust APIs and implementation
+bytes are unchanged; the native extraction roots include the complete shared
+layer so the full generic EventGraph module can be checked rather than sliced.
+
+The focused controls cover wrong shared push/selection/output bodies, wrong
+register append/canonical-input arguments, and checked loop, policy, planning,
+publication and installation dependencies. A further diagnostic omitting the
+step's append-contract call fails a nonterminal typing query while its final
+explicit assertion succeeds. It is retained but is **not** counted as an ordinary
+semantic dependency rejection; the append-to-step contract-dependence edge is
+not certified by that probe. No theorem, checking limit or rejection criterion
+was changed to accept it.

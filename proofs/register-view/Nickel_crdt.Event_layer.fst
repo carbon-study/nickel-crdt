@@ -857,6 +857,111 @@ let canonical
     <:
     Core_models.Result.t_Result (Alloc.Vec.t_Vec v_F Alloc.Alloc.t_Global) v_E
 
+let ready
+      (#v_F #v_I #v_E: Type0)
+      (after done: t_Slice v_I)
+      (ops:
+          (((v_F -> v_I) & (v_F -> t_Slice v_I) & (v_I -> v_I -> bool) & (v_I -> v_I -> bool) &
+              (v_F -> v_F) &
+              (v_F -> v_F -> bool)) &
+            ((Prims.unit -> v_E) & (Prims.unit -> v_E))))
+    : bool =
+  match
+    Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
+      (Core_models.Slice.impl__len #v_I after <: usize)
+      (fun temp_0_ temp_1_ ->
+          let _:Prims.unit = temp_0_ in
+          let _:usize = temp_1_ in
+          true)
+      ()
+      (fun temp_0_ i ->
+          let _:Prims.unit = temp_0_ in
+          let i:usize = i in
+          if has_id #v_F #v_I #v_E done (after.[ i ] <: v_I) ops <: bool
+          then
+            Core_models.Ops.Control_flow.ControlFlow_Continue ()
+            <:
+            Core_models.Ops.Control_flow.t_ControlFlow
+              (Core_models.Ops.Control_flow.t_ControlFlow bool (Prims.unit & Prims.unit)) Prims.unit
+          else
+            Core_models.Ops.Control_flow.ControlFlow_Break
+            (Core_models.Ops.Control_flow.ControlFlow_Break false
+              <:
+              Core_models.Ops.Control_flow.t_ControlFlow bool (Prims.unit & Prims.unit))
+            <:
+            Core_models.Ops.Control_flow.t_ControlFlow
+              (Core_models.Ops.Control_flow.t_ControlFlow bool (Prims.unit & Prims.unit)) Prims.unit
+      )
+    <:
+    Core_models.Ops.Control_flow.t_ControlFlow bool Prims.unit
+  with
+  | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
+  | Core_models.Ops.Control_flow.ControlFlow_Continue _ -> true
+
+let choose_ready
+      (#v_F #v_I #v_E: Type0)
+      (facts: t_Slice v_F)
+      (done: t_Slice v_I)
+      (ops:
+          (((v_F -> v_I) & (v_F -> t_Slice v_I) & (v_I -> v_I -> bool) & (v_I -> v_I -> bool) &
+              (v_F -> v_F) &
+              (v_F -> v_F -> bool)) &
+            ((Prims.unit -> v_E) & (Prims.unit -> v_E))))
+    : Core_models.Option.t_Option usize =
+  let
+  ((id: (v_F -> v_I)),
+    (after: (v_F -> t_Slice v_I)),
+    (_: (v_I -> v_I -> bool)),
+    (_: (v_I -> v_I -> bool)),
+    (_: (v_F -> v_F)),
+    (_: (v_F -> v_F -> bool))),
+  ((_: (Prims.unit -> v_E)), (_: (Prims.unit -> v_E))) =
+    ops
+  in
+  match
+    Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
+      (Core_models.Slice.impl__len #v_F facts <: usize)
+      (fun temp_0_ temp_1_ ->
+          let _:Prims.unit = temp_0_ in
+          let _:usize = temp_1_ in
+          true)
+      ()
+      (fun temp_0_ i ->
+          let _:Prims.unit = temp_0_ in
+          let i:usize = i in
+          if has_id #v_F #v_I #v_E done (id (facts.[ i ] <: v_F)) ops <: bool
+          then
+            Core_models.Ops.Control_flow.ControlFlow_Continue ()
+            <:
+            Core_models.Ops.Control_flow.t_ControlFlow
+              (Core_models.Ops.Control_flow.t_ControlFlow (Core_models.Option.t_Option usize)
+                  (Prims.unit & Prims.unit)) Prims.unit
+          else
+            if ready #v_F #v_I #v_E (after (facts.[ i ] <: v_F)) done ops <: bool
+            then
+              Core_models.Ops.Control_flow.ControlFlow_Break
+              (Core_models.Ops.Control_flow.ControlFlow_Break
+                (Core_models.Option.Option_Some i <: Core_models.Option.t_Option usize)
+                <:
+                Core_models.Ops.Control_flow.t_ControlFlow (Core_models.Option.t_Option usize)
+                  (Prims.unit & Prims.unit))
+              <:
+              Core_models.Ops.Control_flow.t_ControlFlow
+                (Core_models.Ops.Control_flow.t_ControlFlow (Core_models.Option.t_Option usize)
+                    (Prims.unit & Prims.unit)) Prims.unit
+            else
+              Core_models.Ops.Control_flow.ControlFlow_Continue ()
+              <:
+              Core_models.Ops.Control_flow.t_ControlFlow
+                (Core_models.Ops.Control_flow.t_ControlFlow (Core_models.Option.t_Option usize)
+                    (Prims.unit & Prims.unit)) Prims.unit)
+    <:
+    Core_models.Ops.Control_flow.t_ControlFlow (Core_models.Option.t_Option usize) Prims.unit
+  with
+  | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
+  | Core_models.Ops.Control_flow.ControlFlow_Continue _ ->
+    Core_models.Option.Option_None <: Core_models.Option.t_Option usize
+
 let frontier
       (#v_F #v_I #v_E: Type0)
       (facts: t_Slice v_F)
@@ -1042,6 +1147,58 @@ let select_basis
     Core_models.Result.Result_Ok basis
     <:
     Core_models.Result.t_Result (Alloc.Vec.t_Vec v_F Alloc.Alloc.t_Global) v_E
+
+let event_basis
+      (#v_F #v_I #v_E: Type0)
+      (#[FStar.Tactics.Typeclasses.tcresolve ()] i0: Core_models.Clone.t_Clone v_I)
+      (facts: t_Slice v_F)
+      (event: v_F)
+      (ops:
+          (((v_F -> v_I) & (v_F -> t_Slice v_I) & (v_I -> v_I -> bool) & (v_I -> v_I -> bool) &
+              (v_F -> v_F) &
+              (v_F -> v_F -> bool)) &
+            ((Prims.unit -> v_E) & (Prims.unit -> v_E))))
+    : Core_models.Result.t_Result
+      (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global & Alloc.Vec.t_Vec v_F Alloc.Alloc.t_Global) v_E =
+  let
+  ((_: (v_F -> v_I)),
+    (after: (v_F -> t_Slice v_I)),
+    (_: (v_I -> v_I -> bool)),
+    (_: (v_I -> v_I -> bool)),
+    (_: (v_F -> v_F)),
+    (_: (v_F -> v_F -> bool))),
+  ((_: (Prims.unit -> v_E)), (_: (Prims.unit -> v_E))) =
+    ops
+  in
+  match
+    past #v_F #v_I #v_E facts (after event) ops
+    <:
+    Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E
+  with
+  | Core_models.Result.Result_Ok selected ->
+    (match
+        select_basis #v_F #v_I #v_E facts (Alloc.Vec.impl_1__as_slice selected <: t_Slice v_I) ops
+        <:
+        Core_models.Result.t_Result (Alloc.Vec.t_Vec v_F Alloc.Alloc.t_Global) v_E
+      with
+      | Core_models.Result.Result_Ok basis ->
+        Core_models.Result.Result_Ok
+        (selected, basis
+          <:
+          (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global & Alloc.Vec.t_Vec v_F Alloc.Alloc.t_Global))
+        <:
+        Core_models.Result.t_Result
+          (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global & Alloc.Vec.t_Vec v_F Alloc.Alloc.t_Global) v_E
+      | Core_models.Result.Result_Err err ->
+        Core_models.Result.Result_Err err
+        <:
+        Core_models.Result.t_Result
+          (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global & Alloc.Vec.t_Vec v_F Alloc.Alloc.t_Global) v_E)
+  | Core_models.Result.Result_Err err ->
+    Core_models.Result.Result_Err err
+    <:
+    Core_models.Result.t_Result
+      (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global & Alloc.Vec.t_Vec v_F Alloc.Alloc.t_Global) v_E
 
 /// Shared graph admission, before application-specific payload validation.
 /// `forbidden` receives the selected ancestor identity, then the offered one.

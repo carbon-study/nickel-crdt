@@ -121,9 +121,10 @@
         root = ./.;
         fileset = pkgs.lib.fileset.unions [
           ./Cargo.toml ./Cargo.lock ./proof-smoke ./src ./tests/register_checkpoint.rs
-          ./proofs/Register.lt ./proofs/register-view
-          ./proofs/Prelude.lt ./proofs/LoopUtil.lt ./proofs/EventShell.lt ./proofs/CausalEnvelope.lt
+          ./proofs/Register.lt ./proofs/Canonical.lt ./proofs/register-view
+          ./proofs/Prelude.lt ./proofs/LoopUtil.lt ./proofs/Vector.lt ./proofs/EventGraph.lt ./proofs/EventShell.lt ./proofs/CausalEnvelope.lt
           ./proofs/generated/Nickel.Prelude.fst ./proofs/generated/Nickel.LoopUtil.fst
+          ./proofs/generated/Nickel.Vector.fst ./proofs/generated/Nickel.EventGraph.fst
           ./proofs/generated/Nickel.EventShell.fst ./proofs/causal-envelope-view/Nickel.CausalEnvelope.fst
           ./scripts/check-register-proofs.mjs ./scripts/proof-cache.mjs
           ./scripts/mutation-scope.mjs ./scripts/negative-proof-evidence.mjs ./scripts/proof-reform.mjs

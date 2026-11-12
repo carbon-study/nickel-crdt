@@ -397,8 +397,8 @@ let validate (_: Prims.unit) (before: t_Replica) (fact: Nickel_crdt.Causal.t_Eve
                   <:
                   Core_models.Result.t_Result u64 t_Error
                 with
-                | Core_models.Result.Result_Ok hoist39 ->
-                  if fact.Nickel_crdt.Causal.f_payload.f_lamport <>. hoist39
+                | Core_models.Result.Result_Ok hoist41 ->
+                  if fact.Nickel_crdt.Causal.f_payload.f_lamport <>. hoist41
                   then
                     Core_models.Result.Result_Err (Error_Invalid <: t_Error)
                     <:
@@ -449,8 +449,8 @@ let execute (_: Prims.unit) (next: t_Replica) : Core_models.Result.t_Result t_Re
     Core_models.Result.t_Result
       (Alloc.Vec.t_Vec (Nickel_crdt.Causal.t_Event t_Write) Alloc.Alloc.t_Global) t_Error
   with
-  | Core_models.Result.Result_Ok hoist43 ->
-    let next:t_Replica = { next with f_facts = hoist43 } <: t_Replica in
+  | Core_models.Result.Result_Ok hoist45 ->
+    let next:t_Replica = { next with f_facts = hoist45 } <: t_Replica in
     Core_models.Result.Result_Ok next <: Core_models.Result.t_Result t_Replica t_Error
   | Core_models.Result.Result_Err err ->
     Core_models.Result.Result_Err err <: Core_models.Result.t_Result t_Replica t_Error
@@ -534,7 +534,7 @@ let impl_Replica__write
             Core_models.Result.t_Result
               (Alloc.Vec.t_Vec Nickel_crdt.Causal.t_Id Alloc.Alloc.t_Global) t_Error
           with
-          | Core_models.Result.Result_Ok hoist33 ->
+          | Core_models.Result.Result_Ok hoist35 ->
             (match
                 next_lamport (Alloc.Vec.impl_1__as_slice self.f_facts
                     <:
@@ -542,7 +542,7 @@ let impl_Replica__write
                 <:
                 Core_models.Result.t_Result u64 t_Error
               with
-              | Core_models.Result.Result_Ok hoist31 ->
+              | Core_models.Result.Result_Ok hoist33 ->
                 let fact:Nickel_crdt.Causal.t_Event t_Write =
                   {
                     Nickel_crdt.Causal.f_id
@@ -553,10 +553,10 @@ let impl_Replica__write
                     }
                     <:
                     Nickel_crdt.Causal.t_Id;
-                    Nickel_crdt.Causal.f_after = hoist33;
+                    Nickel_crdt.Causal.f_after = hoist35;
                     Nickel_crdt.Causal.f_payload
                     =
-                    { f_key = key; f_value = value; f_observed = observed; f_lamport = hoist31 }
+                    { f_key = key; f_value = value; f_observed = observed; f_lamport = hoist33 }
                     <:
                     t_Write
                   }
@@ -576,14 +576,14 @@ let impl_Replica__write
                 in
                 let candidate:t_Replica = tmp0 in
                 (match out <: Core_models.Result.t_Result t_Admission t_Error with
-                  | Core_models.Result.Result_Ok hoist35 ->
+                  | Core_models.Result.Result_Ok hoist37 ->
                     let
                     ((candidate: t_Replica), (self: t_Replica)),
                     (hax_temp_output:
                       Core_models.Result.t_Result
                         (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error)
                     =
-                      match hoist35 <: t_Admission with
+                      match hoist37 <: t_Admission with
                       | Admission_Duplicate  ->
                         (candidate, self <: (t_Replica & t_Replica)),
                         (Core_models.Result.Result_Err (Error_Conflict <: t_Error)

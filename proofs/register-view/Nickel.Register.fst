@@ -449,3 +449,134 @@ let receive_added_clock_is_maximum_successor (before: Native.t_Replica) (offered
     Tactics.prune "Nickel_crdt.Event_layer.select_basis";
     Tactics.smt_sync' 1 1
   )
+
+open Nickel.Canonical
+
+let id_vectors_are_extensional (a: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (b: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) : Lemma (requires Nickel.CausalEnvelope.ids_equal (Alloc.Vec.impl_1__as_slice a) (Alloc.Vec.impl_1__as_slice b)) (ensures a == b) =
+  match (a, b) with | (Alloc.Vec.Vec xs _, Alloc.Vec.Vec ys _) -> begin Seq.lemma_eq_intro xs ys;
+  Seq.lemma_eq_elim xs ys end
+
+let fact_equal_is_whole_value (a: fact) (b: fact) : Lemma (ensures Native.fact_equal a b == true <==> a == b) =
+  fact_equal_is_complete a b;
+  if Native.fact_equal a b then
+    begin id_vectors_are_extensional a.f_after b.f_after;
+    assert (a == b) by (
+      Tactics.prune "Nickel_crdt.Register.fact_equal";
+      Tactics.smt_sync' 1 1
+    ) end
+  else
+    begin () end
+
+let id_policy_is_native_call (eq: Envelope.t_Id -> Envelope.t_Id -> bool) (a: Envelope.t_Id) (b: Envelope.t_Id) : Lemma (requires eq == Native.same_id) (ensures eq a b == Native.same_id a b) =
+  ()
+
+let copy_policy_is_native_call (copy: fact -> fact) (item: fact) : Lemma (requires copy == Native.copy_fact) (ensures copy item == Native.copy_fact item) =
+  ()
+
+let fact_policy_is_native_call (same: fact -> fact -> bool) (a: fact) (b: fact) : Lemma (requires same == Native.fact_equal) (ensures same a b == Native.fact_equal a b) =
+  ()
+
+let register_canonical_values_are_exact () : Lemma (ensures Nickel.Canonical.exact_values Native.v_OPS._1) =
+  let graph = Nickel_crdt.Event_layer.graph_ops Native.identity Native.parents Native.same_id Native.less_id Native.copy_fact Native.fact_equal Native.invalid Native.missing in
+  Nickel.EventGraph.graph_ops_preserve_callbacks Native.identity Native.parents Native.same_id Native.less_id Native.copy_fact Native.fact_equal Native.invalid Native.missing;
+  Nickel.EventGraph.event_ops_preserve_callbacks graph Native.previous Native.forbidden Native.capacity Native.capacity Native.invalid Native.invalid;
+  assert (Prims.l_and (Prims.l_and (Prims.l_and (Native.v_OPS._1 == graph) (graph._1._3 == Native.same_id)) (graph._1._5 == Native.copy_fact)) (graph._1._6 == Native.fact_equal)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
+    Tactics.smt_sync' 1 1
+  );
+  let native_id (a: Envelope.t_Id) (b: Envelope.t_Id) : Lemma (ensures Native.same_id a b == true <==> a == b) = () in
+  let each_id (a: Envelope.t_Id) (b: Envelope.t_Id) : Lemma (ensures graph._1._3 a b == true <==> a == b) =
+    native_id a b;
+    id_policy_is_native_call graph._1._3 a b;
+    assert (graph._1._3 a b == true <==> a == b) by (
+      Tactics.prune "Nickel_crdt.Register.same_id";
+      Tactics.smt_sync' 1 1
+    ) in
+  let each_copy (item: fact) : Lemma (ensures graph._1._5 item == item) =
+    copy_fact_is_exact item;
+    copy_policy_is_native_call graph._1._5 item;
+    assert (graph._1._5 item == item) by (
+      Tactics.prune "Nickel_crdt.Register.copy_fact";
+      Tactics.smt_sync' 1 1
+    ) in
+  let each_same (a: fact) (b: fact) : Lemma (ensures graph._1._6 a b == true <==> a == b) =
+    fact_equal_is_whole_value a b;
+    fact_policy_is_native_call graph._1._6 a b;
+    assert (graph._1._6 a b == true <==> a == b) by (
+      Tactics.prune "Nickel_crdt.Register.fact_equal";
+      Tactics.smt_sync' 1 1
+    ) in
+  FStar.Classical.forall_intro_2 each_id;
+  FStar.Classical.forall_intro each_copy;
+  FStar.Classical.forall_intro_2 each_same;
+  assert (Nickel.Canonical.exact_values Native.v_OPS._1) by (
+    Tactics.prune "Nickel_crdt.Register.same_id";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
+    Tactics.prune "Nickel_crdt.Register.copy_fact";
+    Tactics.prune "Nickel_crdt.Register.fact_equal";
+    Tactics.smt_sync' 1 1
+  )
+
+let appended_facts (before: Native.t_Replica) (offered: fact) (next: Native.t_Replica) : Type0 =
+  Prims.l_and (Seq.length (Alloc.Vec.impl_1__as_slice next.f_facts) == Seq.length (Alloc.Vec.impl_1__as_slice before.f_facts) + 1) (forall(item: fact). Nickel.Canonical.present (Alloc.Vec.impl_1__as_slice next.f_facts) item <==> Prims.l_or (Nickel.Canonical.present (Alloc.Vec.impl_1__as_slice before.f_facts) item) (item == offered))
+
+let prepare_appends_exact_fact (before: Native.t_Replica) (offered: fact) : Lemma (ensures forall(next: Native.t_Replica). Native.prepare () before offered == Result.Result_Ok next ==> appended_facts before offered next) [SMTPat (Native.prepare () before offered)] =
+  Nickel.Canonical.push_is_exact before.f_facts offered Native.invalid;
+  assert (forall(next: Native.t_Replica). Native.prepare () before offered == Result.Result_Ok next ==> appended_facts before offered next) by (
+    Tactics.prune "Nickel_crdt.Event_layer.push";
+    Tactics.smt_sync' 1 1
+  )
+
+let execute_preserves_exact_fact_contents (before: Native.t_Replica) : Lemma (ensures forall(next: Native.t_Replica). Native.execute () before == Result.Result_Ok next ==> Nickel.Canonical.exact_contents (Alloc.Vec.impl_1__as_slice before.f_facts) next.f_facts) [SMTPat (Native.execute () before)] =
+  register_canonical_values_are_exact ();
+  assert (Nickel.Canonical.exact_values Native.v_OPS._1) by (
+    Tactics.prune "Nickel_crdt.Register.v_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
+    Tactics.smt_sync' 1 1
+  );
+  Nickel.Canonical.canonical_preserves_exact_contents (Alloc.Vec.impl_1__as_slice before.f_facts) Native.v_OPS._1;
+  assert (forall(next: Native.t_Replica). Native.execute () before == Result.Result_Ok next ==> Nickel.Canonical.exact_contents (Alloc.Vec.impl_1__as_slice before.f_facts) next.f_facts) by (
+    Tactics.prune "Nickel_crdt.Event_layer.canonical";
+    Tactics.prune "Nickel_crdt.Register.v_OPS";
+    Tactics.smt_sync' 1 1
+  )
+
+let planned_adds_exact_fact (before: Native.t_Replica) (offered: fact) : Lemma (ensures forall(next: Native.t_Replica). Native.planned () before offered == Result.Result_Ok (Option.Option_Some next) ==> appended_facts before offered next) [SMTPat (Native.planned () before offered)] =
+  shared_success_stages before offered () Native.duplicate Native.validate Native.prepare Native.execute;
+  prepare_appends_exact_fact before offered;
+  let each_execute (prepared: Native.t_Replica) : Lemma (ensures forall(next: Native.t_Replica). Native.execute () prepared == Result.Result_Ok next ==> Nickel.Canonical.exact_contents (Alloc.Vec.impl_1__as_slice prepared.f_facts) next.f_facts) [SMTPat (Native.execute () prepared)] = execute_preserves_exact_fact_contents prepared in
+  assert (forall(next: Native.t_Replica). Native.planned () before offered == Result.Result_Ok (Option.Option_Some next) ==> appended_facts before offered next) by (
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
+    Tactics.prune "Nickel_crdt.Register.prepare";
+    Tactics.prune "Nickel_crdt.Register.execute";
+    Tactics.smt_sync' 1 1
+  )
+
+let receive_added_retains_exact_facts (before: Native.t_Replica) (offered: fact) : Lemma (ensures forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> appended_facts before offered next) =
+  receive_publication_is_exact before offered;
+  planned_adds_exact_fact before offered;
+  match Native.planned () before offered with | Result.Result_Err _ -> begin assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> appended_facts before offered next) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok option -> begin match option with | Option.Option_None -> begin assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> appended_facts before offered next) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  ) end | Option.Option_Some candidate -> begin assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> appended_facts before offered next) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  ) end end
+
+let write_counted_retains_exact_facts (before: Native.t_Replica) (key: u64) (value: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (ensures forall(next: Native.t_Replica) (authored: fact). Native.impl_Replica__write before key value == (next, Result.Result_Ok (Option.Option_Some authored)) ==> appended_facts before authored next) =
+  write_installs_successful_candidate before key value;
+  let each_authored (authored: fact) : Lemma (ensures forall(candidate: Native.t_Replica). Native.planned () before authored == Result.Result_Ok (Option.Option_Some candidate) ==> appended_facts before authored candidate) [SMTPat (Native.planned () before authored)] = planned_adds_exact_fact before authored in
+  assert (forall(next: Native.t_Replica) (authored: fact). Native.impl_Replica__write before key value == (next, Result.Result_Ok (Option.Option_Some authored)) ==> appended_facts before authored next) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__write";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  )
