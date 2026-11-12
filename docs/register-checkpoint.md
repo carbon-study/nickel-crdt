@@ -76,12 +76,17 @@ successful compilation. These are native controls, not F* owner rejections.
 
 The authored Register proof work concerns exact byte comparison, priority
 selection/read projection, exact shared-shell publication and equal-value no-edit.
-The actual public write now has an all-return publication law: every error and
+The actual public write has an all-return neutrality/identity/counter law: every error and
 no-edit preserves the entire replica exactly; a counted success returns the
 pre-write producer identity and advances the private counter by exactly one.
 This law withholds receive, frontier, clock, read and byte-comparison bodies: it
 does not assume the detached planner is correct. Successful retained contents,
 configuration framing and history/clock validity still need their own laws.
+The current theorem name, `write_publication_on_every_return`, does not mean
+successful candidate installation is proved. A faulty write that returns the
+right fact and advances its counter without installing the candidate can satisfy
+this law; the native tests catch that fault, but a retained-content law is still
+required.
 Native and proof controls cover premature counter publication; additional proof
 controls corrupt the successful counter and returned identity.
 
