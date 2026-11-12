@@ -1,23 +1,60 @@
 # toward a usable Nickel library
 
-**Status: implementation in progress; release profile still proposed.** The
-destination is a Rust crate a caller can edit, replicate and resume, with proofs
-about its actual transitions. The Python
-experiment helps choose that behavior; extending it is not the release goal.
-Ren authorized FugueMax for the experimental Rust edit/admit cut. PR18 is
-merged; it does not complete the verified slice or history milestone. The
-[post-merge continuation plan](docs/edit-admit-continuation.md) owns the next
-proof slices. Ren now puts whole-proof-codebase contracts/patterns and a simple
-for-loop interface first, as a gate before further semantic work. The larger
-release requirements below remain in force. Status lives on the
-[nickel roadmap board](https://github.com/orgs/carbon-study/projects/2) and the
-milestones M1 (edit-only verified argument), M2 (experimental native crate), M3
-(full profile, continuation and recovery) and M4 (verified v0.1); this document
-keeps the reasoning.
+**Status: register-first native delivery approved; no verified release or stable
+public API.** The destination is a Rust crate a caller can edit, replicate and
+resume, with proofs about its actual transitions. Registers and keyed
+collections now come earlier for Carbon; finishing the text v0.1 profile is not
+a prerequisite for basic non-text delivery. The checked text work is preserved.
+
+The actual text engine uses the shared causal graph/scheduling/publication layer
+and constructed policy values. Generic foundations and transferred concrete text
+contracts are checked; this does not establish arbitrary-client convergence or
+the batch example's semantics. The whole-codebase contract/loop reform is closed.
+[Shared-layer scope](docs/shared-layer-experiment.md),
+[policy tuples](docs/shared-policy-tuples.md) and
+[wrapper retirement](docs/shared-wrapper-retirement.md) retain the boundaries.
+
+## current delivery order and the return to text
+
+1. Keep the existing register/collection assertion scripts in the light reference
+   gate. Their proposed alternatives remain proposed even when their tests pass.
+2. Deliver the [native keyed-register slice](docs/register-first-cut.md): writes,
+   reads and replication through the actual shared layer, with retained losing
+   writes, transactional outcomes, implementation-linked proofs and an external
+   native caller. Undo/Redo is outside this first subset. **Approved staging:**
+   a single-write checkpoint followed by atomic multi-write register events,
+   including Carbon's multi-field creation, before keyed collections.
+   This subset does not close the full register/history contract.
+3. **Return to text at register-slice acceptance.** Before starting another CRDT
+   kind's implementation, review the shared convergence result against the actual
+   text transition, then implement and accept one agreed semantic/refinement slice. Do not wait for all
+   collection/history work or accumulate an indefinite chain of non-text types.
+   Collection contracts and their open choices may proceed alongside this return;
+   completing all text work is not a new prerequisite for collections.
+4. Deliver keyed collections under their chosen mutable-record contracts. Preserve
+   Ren's K1/K2 answers; removal with locked fields, Restore and field coupling need
+   explicit contracts. Continue the preserved text track below through independent
+   meaning, fitting/progress, admission, anchors and history.
+
+Aim to share the strong-convergence argument through the actual causal layer,
+then instantiate it for registers and text. That requires extensional history and
+canonicalization laws, exact publication and each client's semantic refinement.
+An arbitrary interpretation function or a shared total order alone supplies no
+client correctness result. Eventual delivery, termination and fitting under
+resource limits are separate obligations/assumptions; finite capacities can
+make receivers admit different subsets. [The cut](docs/register-first-cut.md)
+keeps these distinctions explicit. No full strong eventual consistency claim has
+been established yet.
+
+The board's M1–M4 sequence requirements and sections 1–4 below retain the proposed
+text-release track; their numbering no longer imposes a text-first delivery
+order on registers. Reviews test artifacts; Ren selects intended behavior and
+scope. The next task is the register slice, not another prose pass or a wholesale
+wrapper-cleanup prerequisite.
 
 ## the first usable release
 
-The proposed v0.1 profile is one plain-text sequence per document, independent
+The retained proposed text v0.1 profile is one plain-text sequence per document, independent
 of Carbon, Dark, workers, storage and transport. A native caller should be able
 to:
 
@@ -40,8 +77,8 @@ zero-change Loro swap is required to pretend the core works. A Wasm binding is
 optional; if shipped, its actual boundary and checked UTF-16 conversions must
 also pass. Native support alone must not be described as JavaScript acceptance.
 
-Registers and keyed collections come later. Their semantics can be researched
-in parallel, but they must not postpone the first sequence release. Rich text,
+Registers and keyed collections have their own earlier delivery track above.
+The retained text profile is not being reduced to make that delivery easier. Rich text,
 general remote selective undo, permissions, distributed identity allocation,
 automatic history GC and server/storage/UI implementations are outside this cut.
 This does not reopen Dark or the Loro fork. Sequence text and anchors alone do
@@ -62,6 +99,7 @@ earlier delivery does not quietly remove anchors, children or recovery from it.
 
 | available now | what it does not establish |
 | --- | --- |
+| actual shared native graph/shell used by text and a batch example, with constructed policies, generic foundations and checked concrete text bridges | generic past/canonical/semantic convergence and second-client refinement remain obligations; wrapper retirement is incomplete |
 | experimental Rust edit/admit and source-linked return, identity, exact publication, canonical storage and partial WF laws | independent semantic refinement, full WF, valid-fitting admission progress and whole-CRDT convergence remain open |
 | locked Rust → hax → F* scaffold, authored Latte proofs and semantic mutation controls | hax translation/models remain trusted; no Rust/F* equivalence theorem |
 | restricted identity-set edit/Undo/Restore sessions with frozen masks, creator withdrawal and private checkpoints | no text order, anchors, general session algorithm or public Rust API |
@@ -268,8 +306,8 @@ Safety proofs do not imply interactive latency or bounded memory by themselves.
 **Exit:** that consumer is usable within the stated budgets, the release scope
 and proof coverage agree, the locked checks reproduce the shipped sources, and
 known unsupported cases reject or are explicitly outside the API. Only then
-call this v0.1. Consumer integration and later registers/collections get their
-own milestones rather than being smuggled into this exit.
+call this v0.1. Consumer integration and the register/collection track have their own acceptance
+requirements; they are not smuggled into this text-profile exit.
 
 ## how we choose the next task
 
