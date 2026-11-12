@@ -1,6 +1,6 @@
 # register candidates
 
-The executable evidence behind [docs/register-contract.md](../../docs/register-contract.md) (#67, phase 1). It is a research model, not the Rust core. It is not wired into CI. The adopted traces belong in the eventual implementation gate.
+The executable evidence behind [docs/register-contract.md](../../docs/register-contract.md) (#67, phase 1). It is a research model, not the Rust core. Its assertion scripts run in the reference CI gate. Passing this reference gate does not adopt still-proposed rules or verify the native core. The traces also belong in the eventual implementation gate.
 
 ```sh
 node model.mjs 4      # 64 variants vs Ren's q13–q17, then a search of all histories up to 4 commands (~3 s)
@@ -16,3 +16,12 @@ node check-claims.mjs # asserts the contract's claims about the Y stack variants
 - **Variant names:** `family/blocked/redo/noEdit/clear`. See the header of `model.mjs`.
 - **Y:** added after Ren's f6/f7 answer. The 5-command sweep (1,474,110 histories) ran over the first 48 variants. Y is checked on the listed traces, not re-swept.
 - **Coverage:** the search covers only these variants within the stated bound (three independently named writers, two values). It is evidence, not a completeness proof.
+
+Run both reference assertion sets from the repository root:
+
+```sh
+nix develop .#references --command bash scripts/check-register-collection-references.sh
+```
+
+The CI runner executes the listed assertion scripts, not the reporting-only
+`model.mjs` search or an exhaustive history enumeration.

@@ -114,7 +114,7 @@ jobs:
           primary-key: ${{ steps.key.outputs.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}
 
   # The reference gates use the light `.#references` shell (node and the
-  # nested Python shell, no proof toolchain). Budget: 10 + 5 x 5 = 35 min of
+  # nested Python shell, no proof toolchain). Budget: 10 + 5 x 5 + 1 = 36 min of
   # wrapper limits, under 45.
   research:
     name: reference experiments
@@ -146,6 +146,10 @@ jobs:
         run: .github/scripts/check.sh order-effect-bridge-fugue 300 nix develop .#references --command bash experiments/order-effect-bridge/check.sh --fugue
       - name: pending recovery
         run: .github/scripts/check.sh pending-recovery 300 nix develop .#references --command bash experiments/pending-recovery/check.sh
+      # These assertions cover answered stories and explicitly proposed variants;
+      # CI does not adopt the proposals or certify the future native client.
+      - name: register and collection reference assertions
+        run: .github/scripts/check.sh register-collection-references 60 nix develop .#references --command bash scripts/check-register-collection-references.sh
 
   # Budget: 15 min check, under 20.
   questionnaire:

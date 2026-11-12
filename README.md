@@ -1,6 +1,6 @@
 # nickel-crdt
 
-An application-independent sequence CRDT library, intended for Carbon and potentially Dark, with proofs tied to its Rust implementation through hax and Latte. Lynn owns and maintains it.
+An application-independent CRDT library, intended for Carbon and potentially Dark, with proofs tied to its Rust implementation through hax and Latte. Lynn owns and maintains it.
 
 This repository contains an [experimental Rust edit/admit candidate](docs/rust-edit-admit.md), the toolchain scaffold and restricted executable references. Two Rust producers can exchange insert/delete/replace facts using FugueMax ordering. Transactional return paths, same-history two-instance commit coherence, accepted event-ID uniqueness and exact successful fact publication have implementation-linked proofs; general semantic refinement, convergence and ordering proofs remain open. **There is no verified CRDT release or stable public API.**
 
@@ -17,6 +17,15 @@ native code. The atomic record/field-batch example uses that same layer. Try
 `cargo run --locked --example shared-causal`; the main proof gate checks the
 transferred text statements and generic foundations. This remains experimental,
 with client obligations and the unproved semantic boundaries listed in the scope.
+
+## Next native delivery
+
+The [register-first slice](docs/register-first-cut.md) is the next approved
+delivery: keyed write/read/replication with implementation-linked obligations.
+It is not implemented yet. Text remains a preserved track, with an explicit
+return point after that slice and a goal of sharing the convergence argument
+where the actual client laws support it. No strong eventual consistency claim
+is delivered by this plan.
 
 ## Ordering research candidates
 
