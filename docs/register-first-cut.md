@@ -2,11 +2,12 @@
 
 **Status: scope approved, implementation not delivered.** The first subset
 supports writing, reading and replicating keyed register values through the
-actual shared causal layer. It excludes Undo/Redo and starts with one write per
-event. This does not close the full [register contract](register-contract.md),
-remove its history requirements, or discard ordered atomic batches/multi-field
-creation from the eventual profile. The reference experiments are not the native
-implementation.
+actual shared causal layer. It excludes Undo/Redo. A single-write-only first
+checkpoint is Lynn's proposed staging, not an approved restriction. The proposal
+is to follow that checkpoint with atomic multi-write register events, including
+Carbon's multi-field creation, before keyed collections; Ren's decision is pending.
+This does not close the full [register contract](register-contract.md) or remove
+its history requirements. The reference experiments are not the native implementation.
 
 ## what the caller must be able to do
 
@@ -98,11 +99,16 @@ not a requirement to finish every text feature before collections. Collection
 contracts can progress alongside it. Text meaning/progress/admission, anchors and
 history retain their eventual acceptance requirements.
 
+The current return point requires selecting the next text slice. Lynn recommends
+strengthening it to implementing and accepting one agreed text semantic/refinement
+slice before another CRDT kind's implementation; Ren's decision is pending.
+This recommendation is not already adopted by the approval of register-first.
+
 Register Undo/Redo remains a distinct follow-up with the answered q13–q17/f1–f7
 histories intact. Blocked-Redo consumption and new-work redo choices are not
 silently adopted. Partial write prefixes are not acceptance of those histories.
 Collection K1/K2 answers stay fixed; mutable-field Restore, locked-record removal,
-key shape and coupling require their own contracts. The single-write initial
-subset does not decide multi-write occurrence/targeting semantics or the open
-multi-text BirthId question. Runs, incrementality, codecs, persistence, arbitrary
+key shape and coupling require their own contracts. Atomic multi-write register
+events need explicit within-batch observation/counting semantics and whole-batch
+rejection/publication. They do not decide the open multi-text BirthId question. Runs, incrementality, codecs, persistence, arbitrary
 writer allocation and Carbon integration remain separate work.
