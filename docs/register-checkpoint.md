@@ -60,7 +60,24 @@ successful candidate. Clock/counter exhaustion returns an explicit error.
 
 Missing dependencies require the external caller to retry after delivering them.
 Finite capacities can make receivers admit different subsets under different
-offers. There is no unconditional eventual delivery/admission or SEC result.
+offers. A local counted write cites the entire current frontier, so its dependency
+bound must cover that frontier. For example, three concurrent single-event heads
+can all be received with a dependency limit of two, yet subsequent counted writes
+on those fully synchronized instances return Capacity. Their no-edit calls remain
+neutral successes. This is a bound on concurrent frontier width, not the total
+number of historical writers.
+
+Without another joining event, a closed cohort already at that over-width
+frontier cannot author its own first joining write through the current API.
+It is not globally unrecoverable: a fresh producer knowing only two heads can
+supply a valid joining write, which the synchronized replicas can receive and
+which can reduce the frontier enough to permit further writes. That witness is
+not an adopted automatic recovery policy. Changing cited causal context, adding
+merge events or counting equal-value writes needs an explicit contract decision;
+this candidate silently does none of them. A fitting/progress theorem must make
+the frontier and numeric-exhaustion conditions explicit or derive them. This
+local write-availability limitation is not itself a convergence counterexample.
+There is no unconditional eventual delivery/admission or SEC result.
 Rust allocation failure, the hax translation and its pinned models remain trust
 boundaries; finite tests are not universal validity or progress proofs.
 
