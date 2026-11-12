@@ -81,7 +81,12 @@ no-edit preserves the entire replica exactly; a counted success returns the
 pre-write producer identity and advances the private counter by exactly one.
 This law withholds receive, frontier, clock, read and byte-comparison bodies: it
 does not assume the detached planner is correct. Successful retained contents,
-configuration framing and history/clock validity still need their own laws.
+successful-write configuration framing and history/clock validity still need their
+own laws. Receiving now has a separate all-return private-state frame law: added
+facts, duplicates and every error preserve the writer, private producer counter,
+initial bytes and limits. Its composition checks actual prepare/execute policies
+and the shared planning/publication contracts with those bodies withheld. It
+does not establish which facts canonicalization retains.
 The current theorem name, `write_publication_on_every_return`, does not mean
 successful candidate installation is proved. A faulty write that returns the
 right fact and advances its counter without installing the candidate can satisfy

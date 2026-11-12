@@ -330,3 +330,104 @@ proof write_publication_on_every_return(before: Native.t_Replica, key: u64,
     }
   }
 }
+
+// Fixed document configuration and private producer state. Facts are separate.
+function private_frame(before: Native.t_Replica, next: Native.t_Replica): Type0 {
+  next.f_writer == before.f_writer and
+  next.f_next_counter == before.f_next_counter and
+  next.f_initial == before.f_initial and next.f_limits == before.f_limits
+}
+proof prepare_preserves_private(before: Native.t_Replica, offered: fact): unit
+  gives forall(next: Native.t_Replica) . Native.prepare((), before, offered) == Result.Result_Ok(next) ==> private_frame(before, next)
+  hint Native.prepare((), before, offered)
+{
+  assert(forall(next: Native.t_Replica) . Native.prepare((), before, offered) == Result.Result_Ok(next) ==> private_frame(before, next)) by {
+    Tactics.prune("Nickel_crdt.Event_layer.push");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof execute_preserves_private(before: Native.t_Replica): unit
+  gives forall(next: Native.t_Replica) . Native.execute((), before) == Result.Result_Ok(next) ==> private_frame(before, next)
+  hint Native.execute((), before)
+{
+  assert(forall(next: Native.t_Replica) . Native.execute((), before) == Result.Result_Ok(next) ==> private_frame(before, next)) by {
+    Tactics.prune("Nickel_crdt.Event_layer.canonical");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// Invert the shared contract with abstract function arguments, before specializing.
+proof shared_success_stages<r: Type0, f: Type0, c: Type0, e: Type0, model i0: Core_models.Clone.t_Clone(r)>(before: r, offered: f, context: c,
+  duplicate: c => r => f => Result.t_Result(bool, e),
+  validate: c => r => f => Result.t_Result(unit, e),
+  prepare: c => r => f => Result.t_Result(r, e),
+  execute: c => r => Result.t_Result(r, e)): unit
+  gives forall(next: r) . Shell.plan(before, offered, context, duplicate, validate, prepare, execute) == Result.Result_Ok(Option.Option_Some(next)) ==>
+    (duplicate(context, before, offered) == Result.Result_Ok(false) and
+    validate(context, before, offered) == Result.Result_Ok(()) and
+    (exists(candidate: r) . prepare(context, before, offered) == Result.Result_Ok(candidate) and execute(context, candidate) == Result.Result_Ok(next)))
+{
+  Nickel.EventShell.planning_is_exact(before, offered, context, duplicate, validate, prepare, execute);
+  assert(forall(next: r) . Shell.plan(before, offered, context, duplicate, validate, prepare, execute) == Result.Result_Ok(Option.Option_Some(next)) ==>
+    (duplicate(context, before, offered) == Result.Result_Ok(false) and
+    validate(context, before, offered) == Result.Result_Ok(()) and
+    (exists(candidate: r) . prepare(context, before, offered) == Result.Result_Ok(candidate) and execute(context, candidate) == Result.Result_Ok(next)))) by {
+    Tactics.prune("Nickel_crdt.Event_shell.plan");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof planned_preserves_private(before: Native.t_Replica, offered: fact): unit
+  gives forall(next: Native.t_Replica) . Native.planned((), before, offered) == Result.Result_Ok(Option.Option_Some(next)) ==> private_frame(before, next)
+  hint Native.planned((), before, offered)
+{
+  shared_success_stages(before, offered, (), Native.duplicate, Native.validate, Native.prepare, Native.execute);
+  prepare_preserves_private(before, offered);
+  assert(forall(next: Native.t_Replica) . Native.planned((), before, offered) == Result.Result_Ok(Option.Option_Some(next)) ==> private_frame(before, next)) by {
+    Tactics.prune("Nickel_crdt.Event_shell.plan");
+    Tactics.prune("Nickel_crdt.Register.prepare");
+    Tactics.prune("Nickel_crdt.Register.execute");
+    Tactics.prune("Nickel_crdt.Register.duplicate");
+    Tactics.prune("Nickel_crdt.Register.validate");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+function receive_frame(before: Native.t_Replica,
+  outcome: (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error))): Type0 {
+  match outcome { (next, _) => private_frame(before, next) }
+}
+proof receive_preserves_private(before: Native.t_Replica, offered: fact): unit
+  gives receive_frame(before, Native.impl_Replica__receive(before, offered))
+  hint Native.impl_Replica__receive(before, offered)
+{
+  receive_publication_is_exact(before, offered);
+  planned_preserves_private(before, offered);
+  match Native.planned((), before, offered) {
+    Result.Result_Err(_) => {
+      assert(receive_frame(before, Native.impl_Replica__receive(before, offered))) by {
+        Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+        Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.smt_sync'(1, 1)
+      }
+    },
+    Result.Result_Ok(option) => match option {
+      Option.Option_None => {
+        assert(receive_frame(before, Native.impl_Replica__receive(before, offered))) by {
+          Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+          Tactics.prune("Nickel_crdt.Register.planned");
+          Tactics.smt_sync'(1, 1)
+        }
+      },
+      Option.Option_Some(candidate) => {
+        assert(private_frame(before, candidate)) by {
+          Tactics.prune("Nickel_crdt.Register.planned");
+          Tactics.smt_sync'(1, 1)
+        };
+        assert(receive_frame(before, Native.impl_Replica__receive(before, offered))) by {
+          Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+          Tactics.prune("Nickel_crdt.Register.planned");
+          Tactics.smt_sync'(1, 1)
+        }
+      }
+    }
+  }
+}

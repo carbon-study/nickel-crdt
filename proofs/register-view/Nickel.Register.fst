@@ -211,3 +211,61 @@ let write_publication_on_every_return (before: Native.t_Replica) (key: u64) (val
     Tactics.prune "Nickel_crdt.Register.impl_Replica__read";
     Tactics.smt_sync' 1 1
   ) end end end
+
+let private_frame (before: Native.t_Replica) (next: Native.t_Replica) : Type0 =
+  Prims.l_and (Prims.l_and (Prims.l_and (next.f_writer == before.f_writer) (next.f_next_counter == before.f_next_counter)) (next.f_initial == before.f_initial)) (next.f_limits == before.f_limits)
+
+let prepare_preserves_private (before: Native.t_Replica) (offered: fact) : Lemma (ensures forall(next: Native.t_Replica). Native.prepare () before offered == Result.Result_Ok next ==> private_frame before next) [SMTPat (Native.prepare () before offered)] =
+  assert (forall(next: Native.t_Replica). Native.prepare () before offered == Result.Result_Ok next ==> private_frame before next) by (
+    Tactics.prune "Nickel_crdt.Event_layer.push";
+    Tactics.smt_sync' 1 1
+  )
+
+let execute_preserves_private (before: Native.t_Replica) : Lemma (ensures forall(next: Native.t_Replica). Native.execute () before == Result.Result_Ok next ==> private_frame before next) [SMTPat (Native.execute () before)] =
+  assert (forall(next: Native.t_Replica). Native.execute () before == Result.Result_Ok next ==> private_frame before next) by (
+    Tactics.prune "Nickel_crdt.Event_layer.canonical";
+    Tactics.smt_sync' 1 1
+  )
+
+let shared_success_stages (#r: Type0) (#f: Type0) (#c: Type0) (#e: Type0) {| i0 : Core_models.Clone.t_Clone r |} (before: r) (offered: f) (context: c) (duplicate: c -> r -> f -> Result.t_Result bool e) (validate: c -> r -> f -> Result.t_Result unit e) (prepare: c -> r -> f -> Result.t_Result r e) (execute: c -> r -> Result.t_Result r e) : Lemma (ensures forall(next: r). Shell.plan before offered context duplicate validate prepare execute == Result.Result_Ok (Option.Option_Some next) ==> Prims.l_and (Prims.l_and (duplicate context before offered == Result.Result_Ok false) (validate context before offered == Result.Result_Ok ())) (exists(candidate: r). Prims.l_and (prepare context before offered == Result.Result_Ok candidate) (execute context candidate == Result.Result_Ok next))) =
+  Nickel.EventShell.planning_is_exact before offered context duplicate validate prepare execute;
+  assert (forall(next: r). Shell.plan before offered context duplicate validate prepare execute == Result.Result_Ok (Option.Option_Some next) ==> Prims.l_and (Prims.l_and (duplicate context before offered == Result.Result_Ok false) (validate context before offered == Result.Result_Ok ())) (exists(candidate: r). Prims.l_and (prepare context before offered == Result.Result_Ok candidate) (execute context candidate == Result.Result_Ok next))) by (
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
+    Tactics.smt_sync' 1 1
+  )
+
+let planned_preserves_private (before: Native.t_Replica) (offered: fact) : Lemma (ensures forall(next: Native.t_Replica). Native.planned () before offered == Result.Result_Ok (Option.Option_Some next) ==> private_frame before next) [SMTPat (Native.planned () before offered)] =
+  shared_success_stages before offered () Native.duplicate Native.validate Native.prepare Native.execute;
+  prepare_preserves_private before offered;
+  assert (forall(next: Native.t_Replica). Native.planned () before offered == Result.Result_Ok (Option.Option_Some next) ==> private_frame before next) by (
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
+    Tactics.prune "Nickel_crdt.Register.prepare";
+    Tactics.prune "Nickel_crdt.Register.execute";
+    Tactics.prune "Nickel_crdt.Register.duplicate";
+    Tactics.prune "Nickel_crdt.Register.validate";
+    Tactics.smt_sync' 1 1
+  )
+
+let receive_frame (before: Native.t_Replica) (outcome: Native.t_Replica & Result.t_Result Native.t_Admission Native.t_Error) : Type0 =
+  match outcome with | (next, _) -> begin private_frame before next end
+
+let receive_preserves_private (before: Native.t_Replica) (offered: fact) : Lemma (ensures receive_frame before (Native.impl_Replica__receive before offered)) [SMTPat (Native.impl_Replica__receive before offered)] =
+  receive_publication_is_exact before offered;
+  planned_preserves_private before offered;
+  match Native.planned () before offered with | Result.Result_Err _ -> begin assert (receive_frame before (Native.impl_Replica__receive before offered)) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok option -> begin match option with | Option.Option_None -> begin assert (receive_frame before (Native.impl_Replica__receive before offered)) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  ) end | Option.Option_Some candidate -> begin assert (private_frame before candidate) by (
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  );
+  assert (receive_frame before (Native.impl_Replica__receive before offered)) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  ) end end
