@@ -109,3 +109,23 @@ Its checked statements and remaining control/integration frontier are tracked
 with the candidate; none of these alone establishes full register refinement,
 valid-history preservation, shared canonical convergence or the multi-write
 contract. The existing text theorem statements and implementation are unchanged.
+
+### added-receive payload boundary
+
+`validation_is_exact_basis_checks` characterizes the actual validator in both
+directions: the actual shared admission and basis-selection calls succeed, the
+counter is nonzero and byte bounds hold, the observed bytes equal the read of
+that selected basis, the new bytes differ, and its clock equals the actual
+`next_lamport` result on that basis. `planned_checks_payload` and
+`receive_added_checks_payload` transport those checks to the actual public
+`Added` result through checked planning and publication contracts, with their
+bodies withheld. This does not apply to `Duplicate`, which deliberately skips
+validation, nor assume the prior replica is reachable or valid.
+
+The basis and clock calls remain explicit boundaries: these laws do not yet
+identify the selected basis with independent transitive ancestry or establish
+that the clock computation is the mathematical maximum plus one. They do not
+prove retention through canonicalization, valid-history preservation, fitting
+admission/progress, full refinement or SEC. The validator equivalence is stronger
+than one-way safety over its computed stages; it still is not a guarantee that
+the full receive/write operation succeeds on an independently fitting history.

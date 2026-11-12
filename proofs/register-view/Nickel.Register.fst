@@ -335,3 +335,79 @@ let write_installs_successful_candidate (before: Native.t_Replica) (key: u64) (v
     Tactics.prune "Nickel_crdt.Register.impl_Replica__read";
     Tactics.smt_sync' 1 1
   ) end end end end end
+
+let basis_payload_checks (before: Native.t_Replica) (offered: fact) (basis: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global) : Type0 =
+  Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (v offered.f_id.f_counter > 0) (Seq.length (Alloc.Vec.impl_1__as_slice offered.f_payload.f_value) <= v before.f_limits.f_value_bytes)) (Seq.length (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed) <= v before.f_limits.f_value_bytes)) (bytes_same (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed) (Alloc.Vec.impl_1__as_slice (Native.read_history (Alloc.Vec.impl_1__as_slice basis) (Alloc.Vec.impl_1__as_slice before.f_initial) offered.f_payload.f_key)))) (Prims.l_not (bytes_same (Alloc.Vec.impl_1__as_slice offered.f_payload.f_value) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed)))) (Native.next_lamport (Alloc.Vec.impl_1__as_slice basis) == Result.Result_Ok offered.f_payload.f_lamport)
+
+let selected_basis_checks (before: Native.t_Replica) (offered: fact) : Type0 =
+  exists(selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global). Prims.l_and (Prims.l_and (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS == Result.Result_Ok selected) (Nickel_crdt.Event_layer.select_basis (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) Native.v_OPS._1 == Result.Result_Ok basis)) (basis_payload_checks before offered basis)
+
+let validation_is_exact_basis_checks (before: Native.t_Replica) (offered: fact) : Lemma (ensures Native.validate () before offered == Result.Result_Ok () <==> selected_basis_checks before offered) [SMTPat (Native.validate () before offered)] =
+  match Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS with | Result.Result_Err _ -> begin assert (Native.validate () before offered == Result.Result_Ok () <==> selected_basis_checks before offered) by (
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel_crdt.Event_layer.select_basis";
+    Tactics.prune "Nickel_crdt.Register.next_lamport";
+    Tactics.prune "Nickel_crdt.Register.read_history";
+    Tactics.prune "Nickel_crdt.Register.bytes_equal";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok selected -> begin match Nickel_crdt.Event_layer.select_basis (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) Native.v_OPS._1 with | Result.Result_Err _ -> begin assert (Native.validate () before offered == Result.Result_Ok () <==> selected_basis_checks before offered) by (
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel_crdt.Event_layer.select_basis";
+    Tactics.prune "Nickel_crdt.Register.next_lamport";
+    Tactics.prune "Nickel_crdt.Register.read_history";
+    Tactics.prune "Nickel_crdt.Register.bytes_equal";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok basis -> begin bytes_equal_exact (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed) (Alloc.Vec.impl_1__as_slice (Native.read_history (Alloc.Vec.impl_1__as_slice basis) (Alloc.Vec.impl_1__as_slice before.f_initial) offered.f_payload.f_key));
+  bytes_equal_exact (Alloc.Vec.impl_1__as_slice offered.f_payload.f_value) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed);
+  match Native.next_lamport (Alloc.Vec.impl_1__as_slice basis) with | Result.Result_Err _ -> begin assert (Native.validate () before offered == Result.Result_Ok () <==> selected_basis_checks before offered) by (
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel_crdt.Event_layer.select_basis";
+    Tactics.prune "Nickel_crdt.Register.next_lamport";
+    Tactics.prune "Nickel_crdt.Register.read_history";
+    Tactics.prune "Nickel_crdt.Register.bytes_equal";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok clock -> begin assert (selected_basis_checks before offered <==> basis_payload_checks before offered basis) by (
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel_crdt.Event_layer.select_basis";
+    Tactics.prune "Nickel_crdt.Register.next_lamport";
+    Tactics.prune "Nickel_crdt.Register.read_history";
+    Tactics.prune "Nickel_crdt.Register.bytes_equal";
+    Tactics.smt_sync' 1 1
+  );
+  assert (Native.validate () before offered == Result.Result_Ok () <==> selected_basis_checks before offered) by (
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel_crdt.Event_layer.select_basis";
+    Tactics.prune "Nickel_crdt.Register.next_lamport";
+    Tactics.prune "Nickel_crdt.Register.read_history";
+    Tactics.prune "Nickel_crdt.Register.bytes_equal";
+    Tactics.smt_sync' 1 1
+  ) end end end
+
+let planned_checks_payload (before: Native.t_Replica) (offered: fact) : Lemma (ensures forall(next: Native.t_Replica). Native.planned () before offered == Result.Result_Ok (Option.Option_Some next) ==> selected_basis_checks before offered) [SMTPat (Native.planned () before offered)] =
+  shared_success_stages before offered () Native.duplicate Native.validate Native.prepare Native.execute;
+  validation_is_exact_basis_checks before offered;
+  assert (forall(next: Native.t_Replica). Native.planned () before offered == Result.Result_Ok (Option.Option_Some next) ==> selected_basis_checks before offered) by (
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
+    Tactics.prune "Nickel_crdt.Register.validate";
+    Tactics.prune "Nickel_crdt.Register.duplicate";
+    Tactics.prune "Nickel_crdt.Register.prepare";
+    Tactics.prune "Nickel_crdt.Register.execute";
+    Tactics.smt_sync' 1 1
+  )
+
+let receive_added_checks_payload (before: Native.t_Replica) (offered: fact) : Lemma (ensures forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> selected_basis_checks before offered) =
+  receive_publication_is_exact before offered;
+  planned_checks_payload before offered;
+  match Native.planned () before offered with | Result.Result_Err _ -> begin assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> selected_basis_checks before offered) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok option -> begin match option with | Option.Option_None -> begin assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> selected_basis_checks before offered) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  ) end | Option.Option_Some candidate -> begin assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> selected_basis_checks before offered) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  ) end end

@@ -553,3 +553,133 @@ proof write_installs_successful_candidate(before: Native.t_Replica, key: u64,
     }
   }
 }
+
+// Client payload checks over the exact selected basis; not an ancestry theorem.
+function basis_payload_checks(before: Native.t_Replica, offered: fact,
+  basis: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)): Type0 {
+  v(offered.f_id.f_counter) > 0 and
+  Seq.length(Alloc.Vec.impl_1__as_slice(offered.f_payload.f_value)) <= v(before.f_limits.f_value_bytes) and
+  Seq.length(Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed)) <= v(before.f_limits.f_value_bytes) and
+  bytes_same(Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed),
+    Alloc.Vec.impl_1__as_slice(Native.read_history(Alloc.Vec.impl_1__as_slice(basis), Alloc.Vec.impl_1__as_slice(before.f_initial), offered.f_payload.f_key))) and
+  not bytes_same(Alloc.Vec.impl_1__as_slice(offered.f_payload.f_value), Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed)) and
+  Native.next_lamport(Alloc.Vec.impl_1__as_slice(basis)) == Result.Result_Ok(offered.f_payload.f_lamport)
+}
+function selected_basis_checks(before: Native.t_Replica, offered: fact): Type0 {
+  exists(selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)) .
+    Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
+      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(selected) and
+    Nickel_crdt.Event_layer.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Result.Result_Ok(basis) and
+    basis_payload_checks(before, offered, basis)
+}
+proof validation_is_exact_basis_checks(before: Native.t_Replica, offered: fact): unit
+  gives (Native.validate((), before, offered) == Result.Result_Ok(())) <==> selected_basis_checks(before, offered)
+  hint Native.validate((), before, offered)
+{
+  match Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
+    before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) {
+    Result.Result_Err(_) => {
+      assert((Native.validate((), before, offered) == Result.Result_Ok(())) <==> selected_basis_checks(before, offered)) by {
+        Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+        Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+        Tactics.prune("Nickel_crdt.Register.next_lamport");
+        Tactics.prune("Nickel_crdt.Register.read_history");
+        Tactics.prune("Nickel_crdt.Register.bytes_equal");
+        Tactics.smt_sync'(1, 1)
+      }
+    },
+    Result.Result_Ok(selected) => match Nickel_crdt.Event_layer.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) {
+      Result.Result_Err(_) => {
+        assert((Native.validate((), before, offered) == Result.Result_Ok(())) <==> selected_basis_checks(before, offered)) by {
+          Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+          Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+          Tactics.prune("Nickel_crdt.Register.next_lamport");
+          Tactics.prune("Nickel_crdt.Register.read_history");
+          Tactics.prune("Nickel_crdt.Register.bytes_equal");
+          Tactics.smt_sync'(1, 1)
+        }
+      },
+      Result.Result_Ok(basis) => {
+        bytes_equal_exact(Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed),
+          Alloc.Vec.impl_1__as_slice(Native.read_history(Alloc.Vec.impl_1__as_slice(basis), Alloc.Vec.impl_1__as_slice(before.f_initial), offered.f_payload.f_key)));
+        bytes_equal_exact(Alloc.Vec.impl_1__as_slice(offered.f_payload.f_value), Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed));
+        match Native.next_lamport(Alloc.Vec.impl_1__as_slice(basis)) {
+          Result.Result_Err(_) => {
+            assert((Native.validate((), before, offered) == Result.Result_Ok(())) <==> selected_basis_checks(before, offered)) by {
+              Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+              Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+              Tactics.prune("Nickel_crdt.Register.next_lamport");
+              Tactics.prune("Nickel_crdt.Register.read_history");
+              Tactics.prune("Nickel_crdt.Register.bytes_equal");
+              Tactics.smt_sync'(1, 1)
+            }
+          },
+          Result.Result_Ok(clock) => {
+            assert(selected_basis_checks(before, offered) <==> basis_payload_checks(before, offered, basis)) by {
+              Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+              Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+              Tactics.prune("Nickel_crdt.Register.next_lamport");
+              Tactics.prune("Nickel_crdt.Register.read_history");
+              Tactics.prune("Nickel_crdt.Register.bytes_equal");
+              Tactics.smt_sync'(1, 1)
+            };
+            assert((Native.validate((), before, offered) == Result.Result_Ok(())) <==> selected_basis_checks(before, offered)) by {
+              Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+              Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+              Tactics.prune("Nickel_crdt.Register.next_lamport");
+              Tactics.prune("Nickel_crdt.Register.read_history");
+              Tactics.prune("Nickel_crdt.Register.bytes_equal");
+              Tactics.smt_sync'(1, 1)
+            }
+          }
+            }
+      }
+    }
+  }
+}
+proof planned_checks_payload(before: Native.t_Replica, offered: fact): unit
+  gives forall(next: Native.t_Replica) . Native.planned((), before, offered) == Result.Result_Ok(Option.Option_Some(next)) ==> selected_basis_checks(before, offered)
+  hint Native.planned((), before, offered)
+{
+  shared_success_stages(before, offered, (), Native.duplicate, Native.validate, Native.prepare, Native.execute);
+  validation_is_exact_basis_checks(before, offered);
+  assert(forall(next: Native.t_Replica) . Native.planned((), before, offered) == Result.Result_Ok(Option.Option_Some(next)) ==> selected_basis_checks(before, offered)) by {
+    Tactics.prune("Nickel_crdt.Event_shell.plan");
+    Tactics.prune("Nickel_crdt.Register.validate");
+    Tactics.prune("Nickel_crdt.Register.duplicate");
+    Tactics.prune("Nickel_crdt.Register.prepare");
+    Tactics.prune("Nickel_crdt.Register.execute");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof receive_added_checks_payload(before: Native.t_Replica, offered: fact): unit
+  gives forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Added)) ==> selected_basis_checks(before, offered)
+{
+  receive_publication_is_exact(before, offered);
+  planned_checks_payload(before, offered);
+  match Native.planned((), before, offered) {
+    Result.Result_Err(_) => {
+      assert(forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Added)) ==> selected_basis_checks(before, offered)) by {
+        Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+        Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.smt_sync'(1, 1)
+      }
+    },
+    Result.Result_Ok(option) => match option {
+      Option.Option_None => {
+        assert(forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Added)) ==> selected_basis_checks(before, offered)) by {
+          Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+          Tactics.prune("Nickel_crdt.Register.planned");
+          Tactics.smt_sync'(1, 1)
+        }
+      },
+      Option.Option_Some(candidate) => {
+        assert(forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Added)) ==> selected_basis_checks(before, offered)) by {
+          Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+          Tactics.prune("Nickel_crdt.Register.planned");
+          Tactics.smt_sync'(1, 1)
+        }
+      }
+    }
+  }
+}
