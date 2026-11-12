@@ -80,18 +80,24 @@ The actual public write has an all-return neutrality/identity/counter law: every
 no-edit preserves the entire replica exactly; a counted success returns the
 pre-write producer identity and advances the private counter by exactly one.
 This law withholds receive, frontier, clock, read and byte-comparison bodies: it
-does not assume the detached planner is correct. Successful retained contents,
-successful-write configuration framing and history/clock validity still need their
-own laws. Receiving now has a separate all-return private-state frame law: added
+does not assume the detached planner is correct. The separate `write_installs_successful_candidate` law now binds every counted
+success to the exact detached planner candidate for the returned fact. That fact
+has the pre-write producer identity, requested key/value, pre-write observed read,
+and the exact returned frontier/next-clock results. Candidate facts and
+configuration are installed unchanged, with private state framed before the
+separately proved counter advancement. Errors/no-edit preserve the whole replica.
+Its caller withholds receive/planned and the frontier/clock/read/byte bodies;
+publication and private-frame contracts supply the connection. This still does
+not prove which facts the planner/canonicalizer retains or history/clock validity. Receiving now has a separate all-return private-state frame law: added
 facts, duplicates and every error preserve the writer, private producer counter,
 initial bytes and limits. Its composition checks actual prepare/execute policies
 and the shared planning/publication contracts with those bodies withheld. It
 does not establish which facts canonicalization retains.
 The current theorem name, `write_publication_on_every_return`, does not mean
-successful candidate installation is proved. A faulty write that returns the
-right fact and advances its counter without installing the candidate can satisfy
-this law; the native tests catch that fault, but a retained-content law is still
-required.
+successful candidate installation follows from that law alone. The new
+installation law is separate: the counter-bump-without-installation fault that
+satisfied the old counter law is its dedicated actual-source control. A full
+independent retained-history meaning law remains required.
 Native and proof controls cover premature counter publication; additional proof
 controls corrupt the successful counter and returned identity.
 

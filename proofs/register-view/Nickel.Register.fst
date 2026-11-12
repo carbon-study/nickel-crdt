@@ -269,3 +269,69 @@ let receive_preserves_private (before: Native.t_Replica) (offered: fact) : Lemma
     Tactics.prune "Nickel_crdt.Register.planned";
     Tactics.smt_sync' 1 1
   ) end end
+
+let installed_candidate (candidate: Native.t_Replica) (next: Native.t_Replica) : Type0 =
+  Prims.l_and (Prims.l_and (Prims.l_and (next.f_writer == candidate.f_writer) (next.f_initial == candidate.f_initial)) (next.f_limits == candidate.f_limits)) (next.f_facts == candidate.f_facts)
+
+let write_installation (before: Native.t_Replica) (key: u64) (value: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) (outcome: Native.t_Replica & Result.t_Result (Option.t_Option fact) Native.t_Error) : Type0 =
+  match outcome with | (next, result) -> begin match result with | Result.Result_Err _ -> begin next == before end | Result.Result_Ok option -> begin match option with | Option.Option_None -> begin next == before end | Option.Option_Some authored -> begin Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (authored.f_id.f_peer == before.f_writer) (authored.f_id.f_counter == before.f_next_counter)) (authored.f_payload.f_key == key)) (authored.f_payload.f_value == value)) (authored.f_payload.f_observed == Native.impl_Replica__read before key)) (Nickel_crdt.Event_layer.frontier (Alloc.Vec.impl_1__as_slice before.f_facts) Native.v_OPS._1 == Result.Result_Ok authored.f_after)) (Native.next_lamport (Alloc.Vec.impl_1__as_slice before.f_facts) == Result.Result_Ok authored.f_payload.f_lamport)) (exists(candidate: Native.t_Replica). Prims.l_and (Prims.l_and (Native.planned () before authored == Result.Result_Ok (Option.Option_Some candidate)) (installed_candidate candidate next)) (private_frame before candidate)) end end end
+
+let write_installs_successful_candidate (before: Native.t_Replica) (key: u64) (value: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (ensures write_installation before key value (Native.impl_Replica__write before key value)) =
+  match Core_models.Num.impl_u64__checked_add before.f_next_counter (mk_u64 1) with | Option.Option_None -> begin assert (write_installation before key value (Native.impl_Replica__write before key value)) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.Register.planned_preserves_private";
+    Tactics.prune "Nickel_crdt.Event_layer.frontier";
+    Tactics.prune "Nickel_crdt.Register.next_lamport";
+    Tactics.prune "Nickel_crdt.Register.bytes_equal";
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__read";
+    Tactics.smt_sync' 1 1
+  ) end | Option.Option_Some counter -> begin match Nickel_crdt.Event_layer.frontier (Alloc.Vec.impl_1__as_slice before.f_facts) Native.v_OPS._1 with | Result.Result_Err _ -> begin assert (write_installation before key value (Native.impl_Replica__write before key value)) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.Register.planned_preserves_private";
+    Tactics.prune "Nickel_crdt.Event_layer.frontier";
+    Tactics.prune "Nickel_crdt.Register.next_lamport";
+    Tactics.prune "Nickel_crdt.Register.bytes_equal";
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__read";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok parents -> begin match Native.next_lamport (Alloc.Vec.impl_1__as_slice before.f_facts) with | Result.Result_Err _ -> begin assert (write_installation before key value (Native.impl_Replica__write before key value)) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.Register.planned_preserves_private";
+    Tactics.prune "Nickel_crdt.Event_layer.frontier";
+    Tactics.prune "Nickel_crdt.Register.next_lamport";
+    Tactics.prune "Nickel_crdt.Register.bytes_equal";
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__read";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok clock -> begin let (authored: fact) = { Envelope.f_id = { Envelope.f_peer = before.f_writer; f_counter = before.f_next_counter }; f_after = parents; f_payload = { Native.f_key = key; f_value = value; f_observed = Native.impl_Replica__read before key; f_lamport = clock } } in
+  receive_publication_is_exact before authored;
+  receive_preserves_private before authored;
+  match Native.planned () before authored with | Result.Result_Err _ -> begin assert (write_installation before key value (Native.impl_Replica__write before key value)) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.Register.planned_preserves_private";
+    Tactics.prune "Nickel_crdt.Event_layer.frontier";
+    Tactics.prune "Nickel_crdt.Register.next_lamport";
+    Tactics.prune "Nickel_crdt.Register.bytes_equal";
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__read";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok option -> begin match option with | Option.Option_None -> begin assert (write_installation before key value (Native.impl_Replica__write before key value)) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.Register.planned_preserves_private";
+    Tactics.prune "Nickel_crdt.Event_layer.frontier";
+    Tactics.prune "Nickel_crdt.Register.next_lamport";
+    Tactics.prune "Nickel_crdt.Register.bytes_equal";
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__read";
+    Tactics.smt_sync' 1 1
+  ) end | Option.Option_Some candidate -> begin assert (write_installation before key value (Native.impl_Replica__write before key value)) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.Register.planned_preserves_private";
+    Tactics.prune "Nickel_crdt.Event_layer.frontier";
+    Tactics.prune "Nickel_crdt.Register.next_lamport";
+    Tactics.prune "Nickel_crdt.Register.bytes_equal";
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__read";
+    Tactics.smt_sync' 1 1
+  ) end end end end end

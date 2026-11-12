@@ -26,6 +26,7 @@ assert.equal(receipt.schemaVersion,1);assert.deepEqual(Object.keys(receipt.files
 for(const [f,h]of Object.entries(receipt.files))assert.equal(digest(await fs.readFile(path.join(root,f))),h,'stale checkpoint receipt: '+f);
 assertReformedSource('Register',await fs.readFile(path.join(root,'proofs/Register.lt'),'utf8'));
 assert.throws(()=>assertReformedSource('EditAccepted','Tactics.prune("Nickel_crdt.Register.bytes_equal");'),'new native visibility stays Register-scoped');
+assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Nickel.Register.planned_preserves_private");'),'write caller contract isolation stays Register-scoped');
 assert.throws(()=>assertReformedSource('Register','Tactics.norm([]);'),'no normalization exception');
 assert.throws(()=>assertReformedSource('Register','Tactics.prune("Nickel_crdt.Register");'),'no broad native namespace exception');
 const view=await fs.readFile(path.join(views,'Nickel.Register.fst'),'utf8');
@@ -36,6 +37,10 @@ if(env.NICKEL_LATTE_BIN){
 }
 const source=await fs.readFile(path.join(root,'src/register.rs'),'utf8');
 const bodyModes=[
+ ['write-authors-wrong-key','pub fn write(','payload: Write { key, value, observed,','payload: Write { key: 0, value, observed,','write_installs_successful_candidate'],
+ ['write-skips-installation','pub fn write(','*self = candidate;','self.next_counter = next;','write_installs_successful_candidate'],
+ ['write-installs-wrong-facts','pub fn write(','*self = candidate;','candidate.facts = Vec::new(); *self = candidate;','write_installs_successful_candidate'],
+ ['write-receives-wrong-key','pub fn write(','candidate.receive(fact.clone())','candidate.receive({ let mut offered = fact.clone(); offered.payload.key = 0; offered })','write_installs_successful_candidate'],
  ['prepare-corrupts-counter','fn prepare(','graph::push(&mut next.facts, fact.clone(), invalid)?;','graph::push(&mut next.facts, fact.clone(), invalid)?; next.next_counter = 0;','prepare_preserves_private'],
  ['execute-corrupts-writer','fn execute(','next.facts = graph::canonical(&next.facts, &OPS.0)?;','next.facts = graph::canonical(&next.facts, &OPS.0)?; next.writer = 0;','execute_preserves_private'],
  ['plan-wrong-prepare-policy','fn planned(','duplicate, validate, prepare, execute','duplicate, validate, |context, next, fact| { let mut n = prepare(context, next, fact)?; n.writer = 0; Ok(n) }, execute','planned_preserves_private'],
@@ -53,7 +58,7 @@ const bodyModes=[
  ['read-wrong-key','pub fn read(','read_history(&self.facts, &self.initial, key)','read_history(&self.facts, &self.initial, 0)','public_read_is_history'],
  ['payload-ignores-observed','fn write_equal(','&& bytes_equal(&a.observed, &b.observed)','&& true','write_equal_is_exact'],
 ];
-assert(selected.every(n=>n==='positive'||bodyModes.some(m=>m[0]===n)||["without-winner-loop","without-read-winner","without-publication-contract","without-noedit-byte-contract","without-shared-planning-contract","without-prepare-frame","without-execute-frame","without-receive-publication-frame","without-plan-private-frame"].includes(n)),'unknown selected mode');
+assert(selected.every(n=>n==='positive'||bodyModes.some(m=>m[0]===n)||["without-write-receive-publication","without-write-receive-frame","without-winner-loop","without-read-winner","without-publication-contract","without-noedit-byte-contract","without-shared-planning-contract","without-prepare-frame","without-execute-frame","without-receive-publication-frame","without-plan-private-frame"].includes(n)),'unknown selected mode');
 const haxArgs=out=>['-C','--offline','--locked','-p','nickel-crdt',';','into','--output-dir',out,'-i','-** +nickel_crdt::register::**::new +nickel_crdt::register::**::write +nickel_crdt::register::**::receive +nickel_crdt::register::**::read +nickel_crdt::register::winner +nickel_crdt::register::later +nickel_crdt::register::bytes_equal +nickel_crdt::register::next_lamport +nickel_crdt::event_shell::receive +nickel_crdt::causal::classify','fstar'];
 const inventory=['Nickel_crdt.Causal.fst','Nickel_crdt.Event_layer.fst','Nickel_crdt.Event_shell.fst','Nickel_crdt.Register.fst'];
 const proofFiles=['Nickel.Prelude.fst','Nickel.LoopUtil.fst','Nickel.EventShell.fst'];
@@ -105,9 +110,21 @@ function withholdReceivePublication(sourceView=view){
  decl=decl.replace('  receive_publication_is_exact before offered;','  ();');
  return sourceView.slice(0,start)+decl+sourceView.slice(end);
 }
+function withholdWriteContract(law,sourceView=view){
+ const name='write_installs_successful_candidate',start=sourceView.indexOf('let '+name+' ');assert(start>=0);
+ const next=/\nlet (?:rec )?\w+ /.exec(sourceView.slice(start+4)),end=next?start+4+next.index:sourceView.length;
+ let decl=sourceView.slice(start,end);const needle='Tactics.prune "Nickel_crdt.Register.planned";';
+ assert.equal(decl.split(needle).length,7,'six write-installation query boundaries');
+ decl=decl.replaceAll(needle,needle+'\n    Tactics.prune "Nickel.Register.'+law+'";');
+ const call='  '+law+' before authored;';assert.equal(decl.split(call).length,2,'one explicit write contract use');
+ decl=decl.replace(call,'  ();');
+ return sourceView.slice(0,start)+decl+sourceView.slice(end);
+}
 const loopLine=view.split('\n').find(l=>l.startsWith('  Nickel.LoopUtil.plain_preserve_any #(Option.t_Option usize)'));
 assert(loopLine,'actual winner loop contract');
 const depModes=[
+ ['without-write-receive-publication',withholdWriteContract('receive_publication_is_exact'),'write_installs_successful_candidate'],
+ ['without-write-receive-frame',withholdWriteContract('receive_preserves_private'),'write_installs_successful_candidate'],
  ['without-shared-planning-contract',replaceInDeclaration('shared_success_stages','    Tactics.prune "Nickel_crdt.Event_shell.plan";','    Tactics.prune "Nickel_crdt.Event_shell.plan";\n    Tactics.prune "Nickel.EventShell.planning_is_exact";',replaceInDeclaration('shared_success_stages','  Nickel.EventShell.planning_is_exact before offered context duplicate validate prepare execute;','  ();')),'shared_success_stages'],
  ['without-prepare-frame',replaceInDeclaration('prepare_preserves_private',' [SMTPat (Native.prepare () before offered)]','',replaceInDeclaration('planned_preserves_private','  prepare_preserves_private before offered;','  ();')),'planned_preserves_private'],
  ['without-execute-frame',replaceInDeclaration('execute_preserves_private',' [SMTPat (Native.execute () before)]',''),'planned_preserves_private'],

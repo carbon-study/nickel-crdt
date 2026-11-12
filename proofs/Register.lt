@@ -431,3 +431,125 @@ proof receive_preserves_private(before: Native.t_Replica, offered: fact): unit
     }
   }
 }
+
+// Every write return, including the exact installed successful detached candidate.
+// This does not yet establish the candidate's retained-history meaning.
+function installed_candidate(candidate: Native.t_Replica, next: Native.t_Replica): Type0 {
+  next.f_writer == candidate.f_writer and next.f_initial == candidate.f_initial and
+  next.f_limits == candidate.f_limits and next.f_facts == candidate.f_facts
+}
+function write_installation(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global),
+  outcome: (Native.t_Replica, Result.t_Result(Option.t_Option(fact), Native.t_Error))): Type0 {
+  match outcome { (next, result) => match result {
+    Result.Result_Err(_) => next == before,
+    Result.Result_Ok(option) => match option {
+      Option.Option_None => next == before,
+      Option.Option_Some(authored) =>
+        authored.f_id.f_peer == before.f_writer and authored.f_id.f_counter == before.f_next_counter and
+        authored.f_payload.f_key == key and authored.f_payload.f_value == value and
+        authored.f_payload.f_observed == Native.impl_Replica__read(before, key) and
+        Nickel_crdt.Event_layer.frontier(Alloc.Vec.impl_1__as_slice(before.f_facts), Native.v_OPS._1) == Result.Result_Ok(authored.f_after) and
+        Native.next_lamport(Alloc.Vec.impl_1__as_slice(before.f_facts)) == Result.Result_Ok(authored.f_payload.f_lamport) and
+        (exists(candidate: Native.t_Replica) .
+        Native.planned((), before, authored) == Result.Result_Ok(Option.Option_Some(candidate)) and
+        installed_candidate(candidate, next) and private_frame(before, candidate))
+    }
+  }}
+}
+proof write_installs_successful_candidate(before: Native.t_Replica, key: u64,
+  value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  gives write_installation(before, key, value, Native.impl_Replica__write(before, key, value))
+{
+  match Core_models.Num.impl_u64__checked_add(before.f_next_counter, mk_u64(1)) {
+    Option.Option_None => {
+      assert(write_installation(before, key, value, Native.impl_Replica__write(before, key, value))) by {
+        Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+        Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.prune("Nickel.Register.planned_preserves_private");
+        Tactics.prune("Nickel_crdt.Event_layer.frontier");
+        Tactics.prune("Nickel_crdt.Register.next_lamport");
+        Tactics.prune("Nickel_crdt.Register.bytes_equal");
+        Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+        Tactics.smt_sync'(1, 1)
+      }
+    },
+    Option.Option_Some(counter) => match Nickel_crdt.Event_layer.frontier(Alloc.Vec.impl_1__as_slice(before.f_facts), Native.v_OPS._1) {
+      Result.Result_Err(_) => {
+        assert(write_installation(before, key, value, Native.impl_Replica__write(before, key, value))) by {
+          Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+          Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.prune("Nickel.Register.planned_preserves_private");
+          Tactics.prune("Nickel_crdt.Event_layer.frontier");
+          Tactics.prune("Nickel_crdt.Register.next_lamport");
+          Tactics.prune("Nickel_crdt.Register.bytes_equal");
+          Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+          Tactics.smt_sync'(1, 1)
+        }
+      },
+      Result.Result_Ok(parents) => match Native.next_lamport(Alloc.Vec.impl_1__as_slice(before.f_facts)) {
+        Result.Result_Err(_) => {
+          assert(write_installation(before, key, value, Native.impl_Replica__write(before, key, value))) by {
+            Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+            Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.prune("Nickel.Register.planned_preserves_private");
+            Tactics.prune("Nickel_crdt.Event_layer.frontier");
+            Tactics.prune("Nickel_crdt.Register.next_lamport");
+            Tactics.prune("Nickel_crdt.Register.bytes_equal");
+            Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+            Tactics.smt_sync'(1, 1)
+          }
+        },
+        Result.Result_Ok(clock) => {
+          const (authored: fact) = {
+            Envelope.f_id: { Envelope.f_peer: before.f_writer, f_counter: before.f_next_counter },
+            f_after: parents,
+            f_payload: { Native.f_key: key, f_value: value,
+              f_observed: Native.impl_Replica__read(before, key), f_lamport: clock }
+          };
+          receive_publication_is_exact(before, authored);
+          receive_preserves_private(before, authored);
+          match Native.planned((), before, authored) {
+            Result.Result_Err(_) => {
+              assert(write_installation(before, key, value, Native.impl_Replica__write(before, key, value))) by {
+                Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+                Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.prune("Nickel.Register.planned_preserves_private");
+                Tactics.prune("Nickel_crdt.Event_layer.frontier");
+                Tactics.prune("Nickel_crdt.Register.next_lamport");
+                Tactics.prune("Nickel_crdt.Register.bytes_equal");
+                Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+                Tactics.smt_sync'(1, 1)
+              }
+            },
+            Result.Result_Ok(option) => match option {
+              Option.Option_None => {
+                assert(write_installation(before, key, value, Native.impl_Replica__write(before, key, value))) by {
+                  Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+                  Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.prune("Nickel.Register.planned_preserves_private");
+                  Tactics.prune("Nickel_crdt.Event_layer.frontier");
+                  Tactics.prune("Nickel_crdt.Register.next_lamport");
+                  Tactics.prune("Nickel_crdt.Register.bytes_equal");
+                  Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+                  Tactics.smt_sync'(1, 1)
+                }
+              },
+              Option.Option_Some(candidate) => {
+                assert(write_installation(before, key, value, Native.impl_Replica__write(before, key, value))) by {
+                  Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+                  Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.prune("Nickel.Register.planned_preserves_private");
+                  Tactics.prune("Nickel_crdt.Event_layer.frontier");
+                  Tactics.prune("Nickel_crdt.Register.next_lamport");
+                  Tactics.prune("Nickel_crdt.Register.bytes_equal");
+                  Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+                  Tactics.smt_sync'(1, 1)
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
