@@ -86,6 +86,10 @@ has the pre-write producer identity, requested key/value, pre-write observed rea
 and the exact returned frontier/next-clock results. Candidate facts and
 configuration are installed unchanged, with private state framed before the
 separately proved counter advancement. Errors/no-edit preserve the whole replica.
+Both write laws are all-return safety statements: a write that always returns
+an unchanged-state error satisfies them. They do not prove that a fitting, valid
+write succeeds; that admission/progress obligation remains open. Native tests
+exercise actual successful writes, but do not supply a universal success theorem.
 Its caller withholds receive/planned and the frontier/clock/read/byte bodies;
 publication and private-frame contracts supply the connection. This still does
 not prove which facts the planner/canonicalizer retains or history/clock validity. Receiving now has a separate all-return private-state frame law: added
