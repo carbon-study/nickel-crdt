@@ -261,3 +261,72 @@ proof fact_equal_is_complete(a: fact, b: fact): unit
     Tactics.smt_sync'(1, 1)
   }
 }
+
+// This law covers every return, including counted writes that fail admission.
+// It does not assume the detached planner is semantically correct.
+function write_outcome(before: Native.t_Replica,
+  outcome: (Native.t_Replica, Result.t_Result(Option.t_Option(fact), Native.t_Error))): Type0 {
+  match outcome {
+    (next, result) => match result {
+      Result.Result_Err(_) => next == before,
+      Result.Result_Ok(option) => match option {
+        Option.Option_None => next == before,
+        Option.Option_Some(authored) =>
+          authored.f_id.f_peer == before.f_writer and
+          authored.f_id.f_counter == before.f_next_counter and
+          v(next.f_next_counter) == v(before.f_next_counter) + 1
+      }
+    }
+  }
+}
+proof write_publication_on_every_return(before: Native.t_Replica, key: u64,
+  value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  gives write_outcome(before, Native.impl_Replica__write(before, key, value))
+{
+  match Core_models.Num.impl_u64__checked_add(before.f_next_counter, mk_u64(1)) {
+    Option.Option_None => {
+      assert(write_outcome(before, Native.impl_Replica__write(before, key, value))) by {
+        Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+        Tactics.prune("Nickel_crdt.Event_layer.frontier");
+        Tactics.prune("Nickel_crdt.Register.next_lamport");
+        Tactics.prune("Nickel_crdt.Register.bytes_equal");
+        Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+        Tactics.smt_sync'(1, 1)
+      }
+    },
+    Option.Option_Some(next) => match Nickel_crdt.Event_layer.frontier(Alloc.Vec.impl_1__as_slice(before.f_facts), Native.v_OPS._1) {
+      Result.Result_Err(_) => {
+        assert(write_outcome(before, Native.impl_Replica__write(before, key, value))) by {
+          Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+          Tactics.prune("Nickel_crdt.Event_layer.frontier");
+          Tactics.prune("Nickel_crdt.Register.next_lamport");
+          Tactics.prune("Nickel_crdt.Register.bytes_equal");
+          Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+          Tactics.smt_sync'(1, 1)
+        }
+      },
+      Result.Result_Ok(parents) => match Native.next_lamport(Alloc.Vec.impl_1__as_slice(before.f_facts)) {
+        Result.Result_Err(_) => {
+          assert(write_outcome(before, Native.impl_Replica__write(before, key, value))) by {
+            Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+            Tactics.prune("Nickel_crdt.Event_layer.frontier");
+            Tactics.prune("Nickel_crdt.Register.next_lamport");
+            Tactics.prune("Nickel_crdt.Register.bytes_equal");
+            Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+            Tactics.smt_sync'(1, 1)
+          }
+        },
+        Result.Result_Ok(clock) => {
+          assert(write_outcome(before, Native.impl_Replica__write(before, key, value))) by {
+            Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+            Tactics.prune("Nickel_crdt.Event_layer.frontier");
+            Tactics.prune("Nickel_crdt.Register.next_lamport");
+            Tactics.prune("Nickel_crdt.Register.bytes_equal");
+            Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+            Tactics.smt_sync'(1, 1)
+          }
+        }
+      }
+    }
+  }
+}

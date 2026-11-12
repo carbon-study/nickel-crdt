@@ -36,6 +36,9 @@ if(env.NICKEL_LATTE_BIN){
 }
 const source=await fs.readFile(path.join(root,'src/register.rs'),'utf8');
 const bodyModes=[
+ ['write-advances-before-admission','pub fn write(','let mut candidate = self.clone();','self.next_counter = next; let mut candidate = self.clone();','write_publication_on_every_return'],
+ ['write-publishes-wrong-counter','pub fn write(','candidate.next_counter = next;','candidate.next_counter = 0;','write_publication_on_every_return'],
+ ['write-returns-wrong-identity','pub fn write(','Ok(Some(fact))','{ let mut returned = fact; returned.id.counter = 0; Ok(Some(returned)) }','write_publication_on_every_return'],
  ['winner-forgets-result','pub fn winner(','    found\n}','    None\n}','winner_is_priority_maximum'],
  ['read-discards-selected-value','pub fn read_history(','facts[i].payload.value.clone()','initial.to_vec()','read_history_selects_maximum'],
  ['fact-equality-wrong-argument','fn fact_equal(','crate::causal::event_equal(a, b, write_equal)','crate::causal::event_equal(a, a, write_equal)','fact_equal_is_complete'],

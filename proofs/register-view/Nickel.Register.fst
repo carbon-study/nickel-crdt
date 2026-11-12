@@ -177,3 +177,37 @@ let fact_equal_is_complete (a: fact) (b: fact) : Lemma (ensures Native.fact_equa
     Tactics.prune "Nickel_crdt.Register.write_equal";
     Tactics.smt_sync' 1 1
   )
+
+let write_outcome (before: Native.t_Replica) (outcome: Native.t_Replica & Result.t_Result (Option.t_Option fact) Native.t_Error) : Type0 =
+  match outcome with | (next, result) -> begin match result with | Result.Result_Err _ -> begin next == before end | Result.Result_Ok option -> begin match option with | Option.Option_None -> begin next == before end | Option.Option_Some authored -> begin Prims.l_and (Prims.l_and (authored.f_id.f_peer == before.f_writer) (authored.f_id.f_counter == before.f_next_counter)) (v next.f_next_counter == v before.f_next_counter + 1) end end end
+
+let write_publication_on_every_return (before: Native.t_Replica) (key: u64) (value: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (ensures write_outcome before (Native.impl_Replica__write before key value)) =
+  match Core_models.Num.impl_u64__checked_add before.f_next_counter (mk_u64 1) with | Option.Option_None -> begin assert (write_outcome before (Native.impl_Replica__write before key value)) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_layer.frontier";
+    Tactics.prune "Nickel_crdt.Register.next_lamport";
+    Tactics.prune "Nickel_crdt.Register.bytes_equal";
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__read";
+    Tactics.smt_sync' 1 1
+  ) end | Option.Option_Some next -> begin match Nickel_crdt.Event_layer.frontier (Alloc.Vec.impl_1__as_slice before.f_facts) Native.v_OPS._1 with | Result.Result_Err _ -> begin assert (write_outcome before (Native.impl_Replica__write before key value)) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_layer.frontier";
+    Tactics.prune "Nickel_crdt.Register.next_lamport";
+    Tactics.prune "Nickel_crdt.Register.bytes_equal";
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__read";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok parents -> begin match Native.next_lamport (Alloc.Vec.impl_1__as_slice before.f_facts) with | Result.Result_Err _ -> begin assert (write_outcome before (Native.impl_Replica__write before key value)) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_layer.frontier";
+    Tactics.prune "Nickel_crdt.Register.next_lamport";
+    Tactics.prune "Nickel_crdt.Register.bytes_equal";
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__read";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok clock -> begin assert (write_outcome before (Native.impl_Replica__write before key value)) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_layer.frontier";
+    Tactics.prune "Nickel_crdt.Register.next_lamport";
+    Tactics.prune "Nickel_crdt.Register.bytes_equal";
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__read";
+    Tactics.smt_sync' 1 1
+  ) end end end

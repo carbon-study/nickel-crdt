@@ -40,7 +40,7 @@ capacity increase or buffering policy is selected.
 A fact carries its ID, direct causal parents, key, new value, frozen observed
 value and Lamport clock. Only counted writes become facts. The observed value is
 checked against the exact transitive author basis, never the receiver's unrelated
-concurrent state. Its Lamport clock is1 plus the maximum over *all* facts in that
+concurrent state. Its Lamport clock is 1 plus the maximum over *all* facts in that
 basis, including other keys. Receiving does not advance the private author counter.
 
 Read chooses the highest (Lamport, writer) at that key, or the initial value if
@@ -52,7 +52,7 @@ stored. Storage canonicalization is writer-first and is not read priority.
 
 Whole-fact duplicate classification comes first, before capacity and validation.
 Same ID with different parents or payload is a conflict. For a new identity:
-counter0 is invalid; shared graph admission checks limits, repeated/missing
+counter 0 is invalid; shared graph admission checks limits, repeated/missing
 dependencies and producer ancestry; the client then checks value bounds, frozen
 observation, a counted change and the exact next clock. Errors and duplicates
 publish nothing. A new local write advances its counter only in the detached
@@ -76,6 +76,15 @@ successful compilation. These are native controls, not F* owner rejections.
 
 The authored Register proof work concerns exact byte comparison, priority
 selection/read projection, exact shared-shell publication and equal-value no-edit.
+The actual public write now has an all-return publication law: every error and
+no-edit preserves the entire replica exactly; a counted success returns the
+pre-write producer identity and advances the private counter by exactly one.
+This law withholds receive, frontier, clock, read and byte-comparison bodies: it
+does not assume the detached planner is correct. Successful retained contents,
+configuration framing and history/clock validity still need their own laws.
+Native and proof controls cover premature counter publication; additional proof
+controls corrupt the successful counter and returned identity.
+
 Its checked statements and remaining control/integration frontier are tracked
 with the candidate; none of these alone establishes full register refinement,
 valid-history preservation, shared canonical convergence or the multi-write
