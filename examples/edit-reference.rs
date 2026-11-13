@@ -1,7 +1,7 @@
 //! Development fixture exporter, not a public serialization format.
 use nickel_crdt::edit::*;
 fn new(w: Option<Writer>) -> Replica {
-    Replica::new(w, Limits::default()).unwrap()
+    Replica::new(w).unwrap()
 }
 fn edit(r: Replica, gap: usize, s: &str, delete: Vec<BirthId>) -> (Replica, Fact) {
     let (r, result) = r.edit(gap, s.chars().map(u32::from).collect(), delete);

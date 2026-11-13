@@ -179,9 +179,9 @@ let edit_preserves_causal_rank (before: Native.t_Replica) (gap: usize) (insert: 
 let new_ranked (outcome: Result.t_Result Native.t_Replica Native.t_Error) : Type0 =
   match outcome with | Result.Result_Ok state -> begin causal_rank state.f_facts (fun (_: Native.t_EventId) -> 0) 0 end | _ -> begin Prims.l_True end
 
-let new_establishes_causal_rank (writer: Option.t_Option Native.t_Writer) (limits: Native.t_Limits) : Lemma (ensures new_ranked (Native.impl_Replica__new writer limits)) =
-  Nickel.EditAtomic.new_has_empty_facts writer limits;
-  assert (new_ranked (Native.impl_Replica__new writer limits)) by (
+let new_establishes_causal_rank (writer: Option.t_Option Native.t_Writer) : Lemma (ensures new_ranked (Native.impl_Replica__new writer)) =
+  Nickel.EditAtomic.new_has_empty_facts writer;
+  assert (new_ranked (Native.impl_Replica__new writer)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__new";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
@@ -208,7 +208,7 @@ let rec causal_path_descends (facts: facts_vec) (rank: Native.t_EventId -> nat) 
 let rank_excludes_nonempty_cycles (facts: facts_vec) (rank: Native.t_EventId -> nat) (bound: nat) (start: Native.t_EventId) (steps: Prims.list Native.t_EventId) : Lemma (requires (causal_rank facts rank bound /\ causal_path facts start steps start)) (ensures steps == Prims.Nil) =
   causal_path_descends facts rank bound start steps start
 
-let clone_preserves_causal_rank (before: Native.t_Replica) (rank: Native.t_EventId -> nat) (bound: nat) : Lemma (requires causal_rank before.f_facts rank bound) (ensures causal_rank (Native.impl_82.f_clone before).f_facts rank bound) =
+let clone_preserves_causal_rank (before: Native.t_Replica) (rank: Native.t_EventId -> nat) (bound: nat) : Lemma (requires causal_rank before.f_facts rank bound) (ensures causal_rank (Native.impl_75.f_clone before).f_facts rank bound) =
   ()
 
 let actual_reference_is_edge (facts: facts_vec) (fact: Native.t_Fact) (i: usize{v i < v (Core_models.Slice.impl__len (Alloc.Vec.impl_1__as_slice fact.f_after))}) : Lemma (requires fact_present (Alloc.Vec.impl_1__as_slice facts) fact) (ensures causal_edge facts fact.f_id (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice fact.f_after) i)) =

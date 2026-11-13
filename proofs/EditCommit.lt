@@ -16,7 +16,6 @@ function same_commit(before: Native.t_Replica, outcome: (Native.t_Replica, Resul
           next.f_facts == admitted.f_facts and
           next.f_tree == admitted.f_tree and
           next.f_writer == admitted.f_writer and
-          next.f_limits == admitted.f_limits and
           v(next.f_next_counter) == v(before.f_next_counter) + 1,
         _ => Prims.l_False
       },
@@ -101,8 +100,7 @@ proof authored_fact_replays_same_commit(before: Native.t_Replica, gap: usize, in
 
 // Publication must preserve the instance's private writer and allocator state.
 function same_private(before: Native.t_Replica, next: Native.t_Replica): Type0 {
-  next.f_writer == before.f_writer and next.f_next_counter == before.f_next_counter and
-  next.f_limits == before.f_limits
+  next.f_writer == before.f_writer and next.f_next_counter == before.f_next_counter
 }
 proof tree_publication_keeps_private(state: Native.t_Replica, tree: Native.t_Tree): unit
   gives same_private(state, Native.impl_Replica__with_tree(state, tree))
@@ -143,7 +141,7 @@ proof receive_preserves_private_state(before: Native.t_Replica, fact: Native.t_F
 }
 
 function same_shared(left: Native.t_Replica, right: Native.t_Replica): Type0 {
-  left.f_facts == right.f_facts and left.f_tree == right.f_tree and left.f_limits == right.f_limits
+  left.f_facts == right.f_facts and left.f_tree == right.f_tree
 }
 // Equal shared inputs remain equal through the same tree publication.
 // This is relational; it does not assert that the supplied tree was installed.

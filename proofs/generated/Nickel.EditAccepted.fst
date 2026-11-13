@@ -301,7 +301,7 @@ let edit_preserves_unique_ids (before: Native.t_Replica) (gap: usize) (insert: A
 let new_state_unique (outcome: Result.t_Result Native.t_Replica Native.t_Error) : Type0 =
   match outcome with | Result.Result_Ok state -> begin ids_unique state.f_facts end | _ -> begin Prims.l_True end
 
-let new_establishes_unique_ids (writer: Option.t_Option Native.t_Writer) (limits: Native.t_Limits) : Lemma (ensures new_state_unique (Native.impl_Replica__new writer limits)) =
+let new_establishes_unique_ids (writer: Option.t_Option Native.t_Writer) : Lemma (ensures new_state_unique (Native.impl_Replica__new writer)) =
   empty_has_unique_ids ()
 
 let selected_fact_is_exact (fact: Native.t_Fact) : Lemma (ensures Native.clone_selected_fact fact == fact) =
@@ -695,9 +695,9 @@ let edit_preserves_fact_order (before: Native.t_Replica) (gap: usize) (insert: A
 let new_state_ordered (outcome: Result.t_Result Native.t_Replica Native.t_Error) : Type0 =
   match outcome with | Result.Result_Ok state -> begin facts_ordered state.f_facts end | _ -> begin Prims.l_True end
 
-let new_establishes_fact_order (writer: Option.t_Option Native.t_Writer) (limits: Native.t_Limits) : Lemma (ensures new_state_ordered (Native.impl_Replica__new writer limits)) =
-  Nickel.EditAtomic.new_has_empty_facts writer limits;
-  assert (new_state_ordered (Native.impl_Replica__new writer limits)) by (
+let new_establishes_fact_order (writer: Option.t_Option Native.t_Writer) : Lemma (ensures new_state_ordered (Native.impl_Replica__new writer)) =
+  Nickel.EditAtomic.new_has_empty_facts writer;
+  assert (new_state_ordered (Native.impl_Replica__new writer)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__new";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
     Tactics.prune "Core_models.Slice.impl__len";

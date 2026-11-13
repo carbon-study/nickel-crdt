@@ -85,10 +85,10 @@ let validated_scalars (fact: Native.t_Fact) (result: Result.t_Result unit Native
 let no_validation_success (result: Result.t_Result unit Native.t_Error) : Type0 =
   match result with | Result.Result_Err _ -> begin Prims.l_True end | _ -> begin Prims.l_False end
 
-let successful_validation_has_valid_scalars (facts: t_Slice Native.t_Fact) (limits: Native.t_Limits) (fact: Native.t_Fact) : Lemma (ensures validated_scalars fact (Native.impl_Replica__validate_new facts limits fact)) =
+let successful_validation_has_valid_scalars (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact) : Lemma (ensures validated_scalars fact (Native.impl_Replica__validate_new facts fact)) =
   Nickel.LoopUtil.early_return_preserve_any (mk_usize 0) (Nickel.EditIdentity.length facts) (fun (_: nat) (_: usize) -> Prims.l_True) no_validation_success;
   scalar_validation_is_sound (Alloc.Vec.impl_1__as_slice fact.f_insert);
-  assert (validated_scalars fact (Native.impl_Replica__validate_new facts limits fact)) by (
+  assert (validated_scalars fact (Native.impl_Replica__validate_new facts fact)) by (
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.prune "Nickel.LoopUtil.step_safe";
     Tactics.prune "Nickel.LoopUtil.output_safe";
@@ -105,7 +105,7 @@ let added_scalars (fact: Native.t_Fact) (outcome: Native.t_Replica & Result.t_Re
   match outcome with | (_, Result.Result_Ok Native.Admission_Added) -> begin fact_scalars_valid fact end | _ -> begin Prims.l_True end
 
 let receive_added_fact_has_valid_scalars (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures added_scalars fact (Native.impl_Replica__receive before fact)) =
-  successful_validation_has_valid_scalars (Alloc.Vec.impl_1__as_slice before.f_facts) before.f_limits fact;
+  successful_validation_has_valid_scalars (Alloc.Vec.impl_1__as_slice before.f_facts) fact;
   Nickel.EditAtomic.successful_plan_requires_validation before fact;
   Nickel.EditCommit.receive_uses_plan before fact;
   assert (added_scalars fact (Native.impl_Replica__receive before fact)) by (
@@ -202,9 +202,9 @@ let edit_preserves_scalar_validity (before: Native.t_Replica) (gap: usize) (inse
 let new_scalars_valid (outcome: Result.t_Result Native.t_Replica Native.t_Error) : Type0 =
   match outcome with | Result.Result_Ok state -> begin facts_scalars_valid state.f_facts end | _ -> begin Prims.l_True end
 
-let new_establishes_scalar_validity (writer: Option.t_Option Native.t_Writer) (limits: Native.t_Limits) : Lemma (ensures new_scalars_valid (Native.impl_Replica__new writer limits)) =
-  Nickel.EditAtomic.new_has_empty_facts writer limits;
-  assert (new_scalars_valid (Native.impl_Replica__new writer limits)) by (
+let new_establishes_scalar_validity (writer: Option.t_Option Native.t_Writer) : Lemma (ensures new_scalars_valid (Native.impl_Replica__new writer)) =
+  Nickel.EditAtomic.new_has_empty_facts writer;
+  assert (new_scalars_valid (Native.impl_Replica__new writer)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__new";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
@@ -319,11 +319,11 @@ let fact_dependencies_present (facts: t_Slice Native.t_Fact) (fact: Native.t_Fac
 let validation_has_dependencies (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact) (result: Result.t_Result unit Native.t_Error) : Type0 =
   match result with | Result.Result_Ok _ -> begin fact_dependencies_present facts fact end | _ -> begin Prims.l_True end
 
-let successful_validation_has_direct_dependencies (facts: t_Slice Native.t_Fact) (limits: Native.t_Limits) (fact: Native.t_Fact) : Lemma (ensures validation_has_dependencies facts fact (Native.impl_Replica__validate_new facts limits fact)) =
+let successful_validation_has_direct_dependencies (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact) : Lemma (ensures validation_has_dependencies facts fact (Native.impl_Replica__validate_new facts fact)) =
   Nickel.EventGraphText.text_graph_policy_is_exact ();
   Nickel.EventGraphText.text_graph_callbacks_are_exact ();
   successful_past_has_direct_dependencies facts (Alloc.Vec.impl_1__as_slice fact.f_after);
-  assert (validation_has_dependencies facts fact (Native.impl_Replica__validate_new facts limits fact)) by (
+  assert (validation_has_dependencies facts fact (Native.impl_Replica__validate_new facts fact)) by (
     Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
     Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
     Tactics.prune "Nickel_crdt.Event_layer.event_ops";
@@ -344,7 +344,7 @@ let added_dependencies (before: Native.t_Replica) (fact: Native.t_Fact) (outcome
   match outcome with | (_, Result.Result_Ok Native.Admission_Added) -> begin fact_dependencies_present (Alloc.Vec.impl_1__as_slice before.f_facts) fact end | _ -> begin Prims.l_True end
 
 let receive_added_has_direct_dependencies (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures added_dependencies before fact (Native.impl_Replica__receive before fact)) =
-  successful_validation_has_direct_dependencies (Alloc.Vec.impl_1__as_slice before.f_facts) before.f_limits fact;
+  successful_validation_has_direct_dependencies (Alloc.Vec.impl_1__as_slice before.f_facts) fact;
   Nickel.EditAtomic.successful_plan_requires_validation before fact;
   Nickel.EditCommit.receive_uses_plan before fact;
   assert (added_dependencies before fact (Native.impl_Replica__receive before fact)) by (
@@ -472,9 +472,9 @@ let edit_preserves_causal_closure (before: Native.t_Replica) (gap: usize) (inser
 let new_causally_closed (outcome: Result.t_Result Native.t_Replica Native.t_Error) : Type0 =
   match outcome with | Result.Result_Ok state -> begin facts_causally_closed state.f_facts end | _ -> begin Prims.l_True end
 
-let new_establishes_causal_closure (writer: Option.t_Option Native.t_Writer) (limits: Native.t_Limits) : Lemma (ensures new_causally_closed (Native.impl_Replica__new writer limits)) =
-  Nickel.EditAtomic.new_has_empty_facts writer limits;
-  assert (new_causally_closed (Native.impl_Replica__new writer limits)) by (
+let new_establishes_causal_closure (writer: Option.t_Option Native.t_Writer) : Lemma (ensures new_causally_closed (Native.impl_Replica__new writer)) =
+  Nickel.EditAtomic.new_has_empty_facts writer;
+  assert (new_causally_closed (Native.impl_Replica__new writer)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__new";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";

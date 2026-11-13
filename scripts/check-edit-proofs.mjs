@@ -50,7 +50,7 @@ checkNegativeProofEvidence();
 await checkProofReform(root);
 const sourceFiles=['src/edit.rs','src/event_layer.rs','src/event_shell.rs'];
 const original=Object.fromEntries(await Promise.all(sourceFiles.map(async name=>[name,await fs.readFile(path.join(root,name),'utf8')])));
-const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tree-publication-clears-private-counter","plan-clears-private-counter",'positive','plan-ignores-duplicate','plan-swallows-classifier-error','receive-plan-rewrites-counter','invalid-forgets-reason','writer-index-collides','native-push-discards-value','native-push-prepends','causal-validator-passes-empty','causal-accepts-missing','causal-call-passes-empty','causal-refuses-present','plan-interprets-uncanonical','scalar-count-loop-bypasses-check','scalar-accepts-invalid','scalar-call-passes-empty','scalar-refuses-valid','canonical-step-refuses','canonical-refuses','plan-keeps-old-tree','plan-passes-old-tree','order-key-ignores-writer','order-chooses-largest','order-discards-canonical','local-return-after','edit-call-passes-old-counter','edit-commit-ignores-counter','receive-error-corrupts-counter','edit-error-corrupts-counter','edit-success-reuses-counter',
+const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tree-publication-clears-private-counter","plan-clears-private-counter",'positive','plan-ignores-duplicate','plan-swallows-classifier-error','receive-plan-rewrites-counter','invalid-forgets-reason','writer-index-collides','native-push-discards-value','native-push-prepends','causal-validator-passes-empty','causal-accepts-missing','causal-call-passes-empty','causal-refuses-present','plan-interprets-uncanonical','scalar-validation-bypasses-on-history','scalar-accepts-invalid','scalar-call-passes-empty','scalar-refuses-valid','canonical-step-refuses','canonical-refuses','plan-keeps-old-tree','plan-passes-old-tree','order-key-ignores-writer','order-chooses-largest','order-discards-canonical','local-return-after','edit-call-passes-old-counter','edit-commit-ignores-counter','receive-error-corrupts-counter','edit-error-corrupts-counter','edit-success-reuses-counter',
   'local-return-gap','local-stale-tree','receive-success-counter','author-forgets-gap','receive-private-gate',
   'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality',
   'identity-scan-key','identity-birth-equality','identity-writer-equality',
@@ -101,7 +101,7 @@ if(args.length===0){for(const name of Object.keys(families))familyRuns.add(name)
 // Each row is [mode, source owner, item header, anchor, replacement]. This is
 // the sole mutation definition table; the lookup below is only its index.
 const mutationDefinitions=[
-  ["plan-skips-validation","src/edit.rs","fn plan_validate(","Replica::validate_new(&before.facts, before.limits, fact)","Ok(())"],
+  ["plan-skips-validation","src/edit.rs","fn plan_validate(","Replica::validate_new(&before.facts, fact)","Ok(())"],
   ["tree-publication-uses-private-writer","src/edit.rs","fn with_tree(","self.tree = tree;","if self.writer.is_some() { self.tree = tree; }"],
   ["tree-publication-clears-private-counter","src/edit.rs","fn with_tree(","self.tree = tree;","self.tree = tree; self.next_counter = 0;"],
   ["plan-clears-private-counter","src/edit.rs","fn plan_prepare(","push(&mut next.facts, fact.clone())?;","next.next_counter = 0; push(&mut next.facts, fact.clone())?;"],
@@ -112,12 +112,12 @@ const mutationDefinitions=[
   ["writer-index-collides","src/edit.rs","fn writer_index(","Writer::Bo => 1","Writer::Bo => 0"],
   ["native-push-discards-value","src/event_layer.rs","fn push<","xs.push(value);","let _ = value;"],
   ["native-push-prepends","src/event_layer.rs","fn push<","xs.push(value);","xs.insert(0, value);"],
-  ["causal-validator-passes-empty","src/edit.rs","fn validate_new(","&TEXT_OPS)","&crate::event_layer::event_ops(crate::event_layer::graph_ops(fact_id, |_| &[], same_event_id, earlier_event_id, clone_selected_fact, fact_equal, internal_error, missing_error), required_predecessor, forbidden_ancestor, event_capacity_error, dependency_capacity_error, duplicate_dependency_error, predecessor_error))"],
+  ["causal-validator-passes-empty","src/edit.rs","fn validate_new(","&TEXT_OPS)","&crate::event_layer::event_ops(crate::event_layer::graph_ops(fact_id, |_| &[], same_event_id, earlier_event_id, clone_selected_fact, fact_equal, internal_error, missing_error), required_predecessor, forbidden_ancestor, duplicate_dependency_error, predecessor_error))"],
   ["causal-accepts-missing","src/event_layer.rs","fn validate_after<","if !has_fact(facts, &after[i], ops) {","if false {"],
   ["causal-call-passes-empty","src/event_layer.rs","fn past<","validate_after(facts, after_ids, ops)?;","validate_after(facts, &[], ops)?;"],
   ["causal-refuses-present","src/event_layer.rs","fn validate_after<","Ok(())","Err(missing())"],
   ["plan-interprets-uncanonical","src/event_shell.rs","fn plan<","let next = prepare(context, next, fact)?;\n    let next = execute(context, next)?;","let next = execute(context, next)?;\n    let next = prepare(context, next, fact)?;"],
-  ["scalar-count-loop-bypasses-check","src/edit.rs","fn validate_new(","births = add(births, facts[i].insert.len())?;","births = add(births, facts[i].insert.len())?; if births > 0 { return Ok(()); }"],
+  ["scalar-validation-bypasses-on-history","src/edit.rs","fn validate_new(","validate_scalars(&fact.insert)?;","if facts.is_empty() { validate_scalars(&fact.insert)?; }"],
   ["scalar-accepts-invalid","src/edit.rs","fn validate_scalars(","if scalar > 0x10ffff || (scalar >= 0xd800 && scalar <= 0xdfff) {","if false {"],
   ["scalar-call-passes-empty","src/edit.rs","fn validate_new(","validate_scalars(&fact.insert)?;","validate_scalars(&[])?;"],
   ["scalar-refuses-valid","src/edit.rs","fn validate_scalars(","Ok(())","Err(invalid(Invalid::Scalar))"],
@@ -138,7 +138,7 @@ const mutationDefinitions=[
   ["local-stale-tree","src/edit.rs","pub fn edit(","next = next.with_counter(next_counter);","next = next.with_counter(next_counter); next.tree = self.tree.clone();"],
   ["receive-success-counter","src/edit.rs","fn receive(","crate::event_shell::receive(\n            self,\n            fact,\n            &(),\n            receive_plan,\n            Admission::Added,\n            Admission::Duplicate,\n        )","{ let (mut next, result) = crate::event_shell::receive(\n            self,\n            fact,\n            &(),\n            receive_plan,\n            Admission::Added,\n            Admission::Duplicate,\n        ); if matches!(result, Ok(Admission::Added)) { next.next_counter = 0; } (next, result) }"],
   ["author-forgets-gap","src/edit.rs","pub fn edit(","Some(gap)","Some(0)"],
-  ["receive-private-gate","src/edit.rs","fn plan_validate(","Replica::validate_new(&before.facts, before.limits, fact)","Replica::validate_new(&before.facts, before.limits, fact)?; if before.writer.is_none() { return Err(Error::Missing); } Ok(())"],
+  ["receive-private-gate","src/edit.rs","fn plan_validate(","Replica::validate_new(&before.facts, fact)","Replica::validate_new(&before.facts, fact)?; if before.writer.is_none() { return Err(Error::Missing); } Ok(())"],
   ["identity-forgets-gap","src/edit.rs","fn fact_equal(","&& left.gap == right.gap","&& true"],
   ["identity-accepts-conflict","src/event_layer.rs","fn classify<","return Some(fact_eq(old, fact));","return Some(fact_eq(old, fact) || id_eq(&id(old), &id(fact)));"],
   ["identity-skips-later","src/event_layer.rs","fn classify<","for i in 0..facts.len() {","for i in 0..0 {"],
@@ -189,7 +189,7 @@ const mutationDefinitions=[
   ["scheduler-choice-call-passes-empty","src/edit.rs","fn choose_ready(","crate::event_layer::choose_ready(facts, done, &TEXT_OPS.0)","crate::event_layer::choose_ready(&[], done, &TEXT_OPS.0)"],
   ["text-policy-swaps-eq-lt","src/edit.rs","const TEXT_OPS:","same_event_id, earlier_event_id,","earlier_event_id, same_event_id,"],
   ["graph-policy-swaps-eq-lt","src/event_layer.rs","const fn graph_ops<","(id, after, id_eq, id_lt, clone_fact, fact_eq)","(id, after, id_lt, id_eq, clone_fact, fact_eq)"],
-  ["admission-policy-swaps-errors","src/event_layer.rs","const fn event_ops<","(event_capacity, dep_capacity, duplicate_error, predecessor_error)","(dep_capacity, event_capacity, duplicate_error, predecessor_error)"]
+  ["admission-policy-swaps-errors","src/event_layer.rs","const fn event_ops<","(duplicate_error, predecessor_error)","(predecessor_error, duplicate_error)"]
 ];
 const definitionByMode=new Map(mutationDefinitions.map(([mode,...definition])=>[mode,definition]));
 const registeredMutations=modes.filter(mode=>mode!=='positive');
@@ -252,7 +252,7 @@ const theorems={
   'past-membership-always-false':'EditPast.event_membership_is_exact',
   'causal-call-passes-empty':'EditWellFormed.successful_past_has_direct_dependencies',
   'causal-refuses-present':'EditWellFormed.present_dependencies_pass_guard',
-  'scalar-count-loop-bypasses-check':'EditWellFormed.successful_validation_has_valid_scalars',
+  'scalar-validation-bypasses-on-history':'EditWellFormed.successful_validation_has_valid_scalars',
   'scalar-accepts-invalid':'EditWellFormed.scalar_validation_is_sound',
   'scalar-call-passes-empty':'EditWellFormed.successful_validation_has_valid_scalars',
   'scalar-refuses-valid':'EditWellFormed.valid_scalar_input_succeeds',

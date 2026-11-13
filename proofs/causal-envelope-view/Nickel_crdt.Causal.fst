@@ -8,6 +8,9 @@ type t_Id = {
   f_counter:u64
 }
 
+let impl_1: Core_models.Clone.t_Clone t_Id =
+  { f_clone = (fun x -> x); f_clone_pre = (fun _ -> True); f_clone_post = (fun _ _ -> True) }
+
 [@@ FStar.Tactics.Typeclasses.tcinstance]
 let impl: Core_models.Cmp.t_PartialEq t_Id t_Id =
   {
@@ -24,6 +27,13 @@ type t_Event (v_P: Type0) {| i0: Core_models.Clone.t_Clone v_P |} = {
   f_after:Alloc.Vec.t_Vec t_Id Alloc.Alloc.t_Global;
   f_payload:v_P
 }
+
+let impl_7
+      (#v_P: Type0)
+      (#[FStar.Tactics.Typeclasses.tcresolve ()] i0: Core_models.Clone.t_Clone v_P)
+      (#[FStar.Tactics.Typeclasses.tcresolve ()] i1: Core_models.Clone.t_Clone v_P)
+    : Core_models.Clone.t_Clone (t_Event v_P) =
+  { f_clone = (fun x -> x); f_clone_pre = (fun _ -> True); f_clone_post = (fun _ _ -> True) }
 
 let ids_eq (left right: t_Slice t_Id) : bool =
   if

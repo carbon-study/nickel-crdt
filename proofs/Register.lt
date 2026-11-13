@@ -181,7 +181,6 @@ proof public_read_is_history(before: Native.t_Replica, key: u64): unit
 { () }
 
 proof equal_value_write_is_neutral(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
-  takes Seq.length(Alloc.Vec.impl_1__as_slice(value)) <= v(before.f_limits.f_value_bytes)
   takes bytes_same(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key)))
   gives Native.impl_Replica__write(before, key, value) == (before, Result.Result_Ok(Option.Option_None))
 {
@@ -335,7 +334,7 @@ proof write_publication_on_every_return(before: Native.t_Replica, key: u64,
 function private_frame(before: Native.t_Replica, next: Native.t_Replica): Type0 {
   next.f_writer == before.f_writer and
   next.f_next_counter == before.f_next_counter and
-  next.f_initial == before.f_initial and next.f_limits == before.f_limits
+  next.f_initial == before.f_initial
 }
 proof prepare_preserves_private(before: Native.t_Replica, offered: fact): unit
   gives forall(next: Native.t_Replica) . Native.prepare((), before, offered) == Result.Result_Ok(next) ==> private_frame(before, next)
@@ -436,7 +435,7 @@ proof receive_preserves_private(before: Native.t_Replica, offered: fact): unit
 // This does not yet establish the candidate's retained-history meaning.
 function installed_candidate(candidate: Native.t_Replica, next: Native.t_Replica): Type0 {
   next.f_writer == candidate.f_writer and next.f_initial == candidate.f_initial and
-  next.f_limits == candidate.f_limits and next.f_facts == candidate.f_facts
+  next.f_facts == candidate.f_facts
 }
 function write_installation(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global),
   outcome: (Native.t_Replica, Result.t_Result(Option.t_Option(fact), Native.t_Error))): Type0 {
@@ -558,8 +557,6 @@ proof write_installs_successful_candidate(before: Native.t_Replica, key: u64,
 function basis_payload_checks(before: Native.t_Replica, offered: fact,
   basis: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)): Type0 {
   v(offered.f_id.f_counter) > 0 and
-  Seq.length(Alloc.Vec.impl_1__as_slice(offered.f_payload.f_value)) <= v(before.f_limits.f_value_bytes) and
-  Seq.length(Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed)) <= v(before.f_limits.f_value_bytes) and
   bytes_same(Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed),
     Alloc.Vec.impl_1__as_slice(Native.read_history(Alloc.Vec.impl_1__as_slice(basis), Alloc.Vec.impl_1__as_slice(before.f_initial), offered.f_payload.f_key))) and
   not bytes_same(Alloc.Vec.impl_1__as_slice(offered.f_payload.f_value), Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed)) and
@@ -567,8 +564,7 @@ function basis_payload_checks(before: Native.t_Replica, offered: fact,
 }
 function selected_basis_checks(before: Native.t_Replica, offered: fact): Type0 {
   exists(selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)) .
-    Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
-      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(selected) and
+    Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered, Native.v_OPS) == Result.Result_Ok(selected) and
     Nickel_crdt.Event_layer.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Result.Result_Ok(basis) and
     basis_payload_checks(before, offered, basis)
 }
@@ -576,8 +572,7 @@ proof validation_is_exact_basis_checks(before: Native.t_Replica, offered: fact):
   gives (Native.validate((), before, offered) == Result.Result_Ok(())) <==> selected_basis_checks(before, offered)
   hint Native.validate((), before, offered)
 {
-  match Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
-    before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) {
+  match Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered, Native.v_OPS) {
     Result.Result_Err(_) => {
       assert((Native.validate((), before, offered) == Result.Result_Ok(())) <==> selected_basis_checks(before, offered)) by {
         Tactics.prune("Nickel_crdt.Event_layer.validate_event");
@@ -720,8 +715,7 @@ proof next_lamport_is_maximum_successor(facts: t_Slice(fact)): unit
 // The equations select the actual admitted author basis; ancestry is a separate law.
 function selected_basis_clock_successor(before: Native.t_Replica, offered: fact): Type0 {
   exists(selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)) .
-    Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
-      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(selected) and
+    Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered, Native.v_OPS) == Result.Result_Ok(selected) and
     Nickel_crdt.Event_layer.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Result.Result_Ok(basis) and
     clock_successor(Alloc.Vec.impl_1__as_slice(basis), offered.f_payload.f_lamport)
 }
@@ -796,7 +790,7 @@ proof register_canonical_values_are_exact(): unit
 {
   const graph = Nickel_crdt.Event_layer.graph_ops(Native.identity, Native.parents, Native.same_id, Native.less_id, Native.copy_fact, Native.fact_equal, Native.invalid, Native.missing);
   Nickel.EventGraph.graph_ops_preserve_callbacks(Native.identity, Native.parents, Native.same_id, Native.less_id, Native.copy_fact, Native.fact_equal, Native.invalid, Native.missing);
-  Nickel.EventGraph.event_ops_preserve_callbacks(graph, Native.previous, Native.forbidden, Native.capacity, Native.capacity, Native.invalid, Native.invalid);
+  Nickel.EventGraph.event_ops_preserve_callbacks(graph, Native.previous, Native.forbidden, Native.invalid, Native.invalid);
   assert(Native.v_OPS._1 == graph and graph._1._3 == Native.same_id and graph._1._5 == Native.copy_fact and graph._1._6 == Native.fact_equal) by {
     Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
     Tactics.prune("Nickel_crdt.Event_layer.event_ops");

@@ -15,12 +15,17 @@ PR18 is merged as an experimental development baseline. The
 [continuation plan](edit-admit-continuation.md) sequences the remaining semantic,
 progress and usability obligations without changing this contract.
 
+The artificial engine policy ceilings described in the original experimental
+profile below have moved to the [test harness](policy-budgets.md). The old
+capacity witnesses are retained as caller-policy witnesses, not engine limits.
+Real identity/integer overflow boundaries remain.
+
 ## using the boundary
 
 ```rust
 use nickel_crdt::edit::*;
-let alice = Replica::new(Some(Writer::Alice), Limits::default()).unwrap();
-let bo = Replica::new(Some(Writer::Bo), Limits::default()).unwrap();
+let alice = Replica::new(Some(Writer::Alice)).unwrap();
+let bo = Replica::new(Some(Writer::Bo)).unwrap();
 let (alice, result) = alice.edit(0, vec!['a' as u32, 'b' as u32], vec![]);
 let Local::Authored(fact) = result.unwrap() else { unreachable!() };
 let (bo, result) = bo.receive(&fact);
@@ -69,14 +74,14 @@ public-API witness intentionally violates producer fencing:
 ```rust
 use nickel_crdt::edit::*;
 fn main() {
-    let producer = Replica::new(Some(Writer::Alice), Limits::default()).unwrap();
+    let producer = Replica::new(Some(Writer::Alice)).unwrap();
     let (_, Ok(Local::Authored(x))) = producer.clone().edit(0, vec!['x' as u32], vec![])
         else { panic!("expected authored x") };
     let (_, Ok(Local::Authored(y))) = producer.edit(0, vec!['y' as u32], vec![])
         else { panic!("expected authored y") };
     assert_eq!(x.id, y.id);
     assert_ne!(x, y);
-    let observer = Replica::new(None, Limits::default()).unwrap();
+    let observer = Replica::new(None).unwrap();
     let (left, added) = observer.clone().receive(&x);
     assert_eq!(added, Ok(Admission::Added));
     let (right, added) = observer.receive(&y);

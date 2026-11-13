@@ -11,10 +11,10 @@ pub type GraphOps<F, I, E> = (
     (fn() -> E, fn() -> E),
 );
 /// Admission adds predecessor/forbidden and ordered error constructors:
-/// event capacity, dependency capacity, duplicate dependency, producer predecessor.
+/// duplicate dependency, producer predecessor.
 pub type AdmissionOps<I, E> = (
     fn(&I) -> Option<I>, fn(&I, &I) -> bool,
-    (fn() -> E, fn() -> E, fn() -> E, fn() -> E),
+    (fn() -> E, fn() -> E),
 );
 pub type EventOps<F, I, E> = (GraphOps<F, I, E>, AdmissionOps<I, E>);
 
@@ -30,12 +30,11 @@ pub const fn graph_ops<F, I, E>(
 
 pub const fn event_ops<F, I, E>(
     graph: GraphOps<F, I, E>, predecessor: fn(&I) -> Option<I>,
-    forbidden: fn(&I, &I) -> bool, event_capacity: fn() -> E,
-    dep_capacity: fn() -> E, duplicate_error: fn() -> E,
+    forbidden: fn(&I, &I) -> bool, duplicate_error: fn() -> E,
     predecessor_error: fn() -> E,
 ) -> EventOps<F, I, E> {
     (graph, (predecessor, forbidden,
-        (event_capacity, dep_capacity, duplicate_error, predecessor_error)))
+        (duplicate_error, predecessor_error)))
 }
 
 
@@ -236,17 +235,13 @@ pub fn event_basis<F, I: Clone, E>(facts: &[F], event: &F, ops: &GraphOps<F, I, 
 
 /// Shared graph admission, before application-specific payload validation.
 /// `forbidden` receives the selected ancestor identity, then the offered one.
-pub fn validate_event<F, I: Clone, E>(facts: &[F], fact: &F, events_limit: usize, dependencies_limit: usize, ops: &EventOps<F, I, E>) -> Result<Vec<I>, E> {
+pub fn validate_event<F, I: Clone, E>(facts: &[F], fact: &F, ops: &EventOps<F, I, E>) -> Result<Vec<I>, E> {
     let event_ops = ops;
     let ops = &event_ops.0;
-    let (predecessor, forbidden, (event_capacity, dep_capacity, duplicate_error, predecessor_error)) = event_ops.1;
+    let (predecessor, forbidden, (duplicate_error, predecessor_error)) = event_ops.1;
     let ((id, after, _, _, _, _), (_, _)) = *ops;
-    if facts.len() >= events_limit {
-        return Err(event_capacity());
-    }
-    if after(fact).len() > dependencies_limit {
-        return Err(dep_capacity());
-    }
+
+
     if duplicate_ids(after(fact), ops) {
         return Err(duplicate_error());
     }
@@ -291,8 +286,6 @@ mod tests {
     fn missing() -> &'static str { "missing" }
     fn envelope_equal(a: &Envelope, b: &Envelope) -> bool { a == b }
     fn clone_envelope(e: &Envelope) -> Envelope { e.clone() }
-    fn event_capacity() -> &'static str { "events" }
-    fn dep_capacity() -> &'static str { "dependencies" }
     fn duplicate_error() -> &'static str { "duplicate" }
     fn predecessor_error() -> &'static str { "predecessor" }
     fn predecessor(id: &String) -> Option<String> {
@@ -303,23 +296,21 @@ mod tests {
     }
     const OPS: EventOps<Envelope, String, &'static str> = {
         (((identity, parents, equal, less, clone_envelope, envelope_equal), (internal, missing)),
-         (predecessor, forbidden, (event_capacity, dep_capacity, duplicate_error, predecessor_error)))
+         (predecessor, forbidden, (duplicate_error, predecessor_error)))
     };
-    fn validate(facts: &[Envelope], fact: &Envelope, events: usize, dependencies: usize) -> Result<Vec<String>, &'static str> {
-        validate_event(facts, fact, events, dependencies, &OPS)
+    fn validate(facts: &[Envelope], fact: &Envelope) -> Result<Vec<String>, &'static str> {
+        validate_event(facts, fact, &OPS)
     }
 
     #[test]
     fn graph_admission_preserves_error_order_and_producer_arguments() {
         let facts = vec![envelope("third:1", &[], 1), envelope("third:3", &[], 3)];
         let duplicate_missing = envelope("third:2", &["absent", "absent"], 2);
-        assert_eq!(validate(&facts, &duplicate_missing, 2, 0), Err("events"));
-        assert_eq!(validate(&facts, &duplicate_missing, 3, 1), Err("dependencies"));
-        assert_eq!(validate(&facts, &duplicate_missing, 3, 2), Err("duplicate"));
-        assert_eq!(validate(&facts, &envelope("third:2", &["absent"], 2), 3, 2), Err("missing"));
-        assert_eq!(validate(&facts, &envelope("third:2", &[], 2), 3, 2), Err("predecessor"));
-        assert_eq!(validate(&facts, &envelope("third:2", &["third:1"], 2), 3, 2), Ok(vec!["third:1".into()]));
-        assert_eq!(validate(&facts, &envelope("third:2", &["third:1", "third:3"], 2), 3, 2), Err("predecessor"));
+        assert_eq!(validate(&facts, &duplicate_missing), Err("duplicate"));
+        assert_eq!(validate(&facts, &envelope("third:2", &["absent"], 2)), Err("missing"));
+        assert_eq!(validate(&facts, &envelope("third:2", &[], 2)), Err("predecessor"));
+        assert_eq!(validate(&facts, &envelope("third:2", &["third:1"], 2)), Ok(vec!["third:1".into()]));
+        assert_eq!(validate(&facts, &envelope("third:2", &["third:1", "third:3"], 2)), Err("predecessor"));
     }
 
     #[test]
