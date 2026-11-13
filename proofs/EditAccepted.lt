@@ -672,7 +672,15 @@ proof least_extends_all(input: t_Slice(Native.t_Fact), out: t_Slice(Native.t_Fac
 {
   proof each(j: usize where v(j) < v(Nickel.EditIdentity.length(input)), choice: Option.t_Option(usize)): unit
     gives least_choice(input, out, v(j), choice) ==> least_choice(input, out, v(j) + 1, least_next(input, out, j, choice))
-  { () };
+  {
+    // One case per least_next branch, so each query sees one shape of the step.
+    if Native.has_fact(out, Rust_primitives.Slice.slice_index(input, j).f_id) { () } else {
+      match choice {
+        Option.Option_None => (),
+        Option.Option_Some(k) => ()
+      }
+    }
+  };
   FStar.Classical.forall_intro_2(each)
 }
 proof selected_id_is_least(input: t_Slice(Native.t_Fact), out: t_Slice(Native.t_Fact)): unit
@@ -788,6 +796,28 @@ proof push_membership(out: facts_vec, fact: Native.t_Fact, id: Native.t_EventId)
     }, _ => ()
   }
 }
+// A successful push appends exactly one fact. Proved in its own small context;
+// the frontier proof consumes it where it previously re-derived the shape.
+function appended_shape(out: facts_vec, fact: Native.t_Fact, result: (facts_vec, Result.t_Result(unit, Native.t_Error))): Type0 {
+  match result { (next, Result.Result_Ok(_)) => Alloc.Vec.impl_1__as_slice(next) == Seq.append(Alloc.Vec.impl_1__as_slice(out), Seq.create(1, fact)), _ => Prims.l_True }
+}
+proof push_appends_one(out: facts_vec, fact: Native.t_Fact): unit
+  gives appended_shape(out, fact, Native.push(out, fact))
+{
+  match Native.push(out, fact) {
+    (next, Result.Result_Ok(_)) => {
+      assert(Alloc.Vec.impl_1__as_slice(next) == Seq.append(Alloc.Vec.impl_1__as_slice(out), Seq.create(1, fact))) by {
+        Tactics.prune("Nickel_crdt.Edit.push");
+        Tactics.prune("Nickel_crdt.Event_layer.push");
+        Tactics.prune("Alloc.Vec.impl_1__as_slice");
+        Tactics.prune("Alloc.Vec.from_seq");
+        Tactics.prune("Alloc.Vec.impl_1__len");
+        Tactics.smt_sync'(1, 1)
+      }
+    },
+    _ => ()
+  }
+}
 // Instantiate the frontier contract before exposing a native append's arrays.
 proof frontier_bounds_unseen(input: t_Slice(Native.t_Fact), out: facts_vec,
   i: usize where v(i) < v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(out))),
@@ -824,7 +854,11 @@ proof append_least_preserves_frontier(input: t_Slice(Native.t_Fact), out: facts_
         if v(i) < v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(out))) {
           assert(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), i) == Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), i));
           frontier_bounds_unseen(input, out, i, j);
-          assert(event_key(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), i).f_id) <= event_key(Rust_primitives.Slice.slice_index(input, j).f_id))
+          assert(event_key(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), i).f_id) <= event_key(Rust_primitives.Slice.slice_index(input, j).f_id)) by {
+            // Consume the frontier contract; do not re-instantiate order_frontier here.
+            Tactics.prune("Nickel.EditAccepted.order_frontier");
+            Tactics.smt_sync'(1, 1)
+          }
         } else {
           assert(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), i) == fact);
           assert(event_key(fact.f_id) <= event_key(Rust_primitives.Slice.slice_index(input, j).f_id))
@@ -838,14 +872,7 @@ proof append_least_preserves_frontier(input: t_Slice(Native.t_Fact), out: facts_
       proof each_pair(i: usize where v(i) < v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(next))), j: usize where v(j) < v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(next)))): unit
         gives v(i) < v(j) ==> event_key(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), i).f_id) <= event_key(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), j).f_id)
       {
-        assert(Alloc.Vec.impl_1__as_slice(next) == Seq.append(Alloc.Vec.impl_1__as_slice(out), Seq.create(1, fact))) by {
-          Tactics.prune("Nickel_crdt.Edit.push");
-    Tactics.prune("Nickel_crdt.Event_layer.push");
-          Tactics.prune("Alloc.Vec.impl_1__as_slice");
-          Tactics.prune("Alloc.Vec.from_seq");
-          Tactics.prune("Alloc.Vec.impl_1__len");
-          Tactics.smt_sync'(1, 1)
-        };
+        push_appends_one(out, fact);
         if v(i) < v(j) {
           assert(v(i) < v(Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(out))));
           assert(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), i) == Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), i));
