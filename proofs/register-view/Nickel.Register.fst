@@ -437,6 +437,7 @@ let receive_added_clock_is_maximum_successor (before: Native.t_Replica) (offered
     next_lamport_is_maximum_successor (Alloc.Vec.impl_1__as_slice basis);
     assert (clock_successor (Alloc.Vec.impl_1__as_slice basis) offered.f_payload.f_lamport) by (
       Tactics.prune "Nickel_crdt.Register.next_lamport";
+      Tactics.prune "Nickel_crdt.Register.read_history";
       Tactics.smt_sync' 1 1
     ) in
   FStar.Classical.forall_intro (FStar.Classical.move_requires each_basis);
