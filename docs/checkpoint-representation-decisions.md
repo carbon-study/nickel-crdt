@@ -61,8 +61,13 @@ adopted here.
 
 ## producer identity does not settle Undo ownership
 
-These decisions do not equate a producer stream with a person. Generalizing the
-writer representation does not decide whether two streams belonging to one
-person count as the same author under the proposed register/collection Undo
-rules. That product decision remains explicit and separate from basic native
-write/read/replication. No native register Undo is delivered by this cut.
+Undo and redo belong to the user's own captured history. Their decisions stay
+frozen: another user's later Undo does not revise, re-enable or retarget them,
+and another user's counted intervening write still blocks an older Undo even
+after that write is undone. Those outcomes are settled.
+
+Generalizing producer IDs must preserve that rule; it does not authorize
+composing Undo across users. Connecting producer streams to the ownership
+needed by a future history API is an implementation obligation, not another
+outcome question or an extra prerequisite for basic native write/read/replication.
+No account/author-tag protocol or native register Undo is delivered here.
