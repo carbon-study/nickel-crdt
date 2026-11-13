@@ -64,7 +64,7 @@
       proofCheck = mkProofCheck "smoke" true [ ];
       # Smoke, the positive chain, every contract family and cache safety, in two
       # roughly equal halves; the second takes every family the first omits.
-      proofCoreFamilies = [ "remaining" "spec" ];
+      proofCoreFamilies = [ "remaining" "spec" "accepted" ];
       proofCoreA = mkProofCheck "core-a" true ([ "cache-safety" ] ++ map (f: "contracts:${f}") proofCoreFamilies);
       proofCoreB = mkProofCheck "core-b" false [ "contracts-except:${builtins.concatStringsSep "," proofCoreFamilies}" ];
       proofShardChecks = builtins.listToAttrs (builtins.genList (i: {
