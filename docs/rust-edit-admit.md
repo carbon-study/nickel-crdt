@@ -106,43 +106,34 @@ index; callers cannot pair a different birth ID with a scalar. The same-writer
 predecessor must be in the fact's causal closure. A fact's deletion targets must
 be visible in that closure, independently of additional receiver facts.
 
-Default experimental ceilings: 128 accepted events, 512 retained births,
-64 scalars per fact, 64 direct dependencies per fact, 512 deletion targets per
-fact, and 1536 logical ordering links. `Replica::new` allows smaller ceilings,
-not increases beyond this profile. Ordering links count three parent/origin
-slots per retained birth, including sentinels. **They do not bound heap usage,
-child arrays, temporary clones, replay time or input allocation.** Deletions do
-not reclaim retained births. Full reconstruction and repeated author snapshots
-are deliberately expensive; no incremental index or useful-scale claim is made.
-The [native latency diagnostic](#native-latency-diagnostic) below makes that
-limitation concrete; the profile ceilings are not interactive-latency budgets.
+The original experimental profile used 128 events, 512 retained births,
+64 scalars and direct dependencies per fact, 512 deletion targets and 1536
+logical ordering links. Those are now caller-harness budgets; constructors
+accept no Limits parameter and enforce none of these ceilings. They never
+bounded heap usage, temporary clones or replay time. Deletions still do not
+reclaim retained births. Full reconstruction and repeated author snapshots
+remain expensive; no incremental index or useful-scale claim follows.
 
 ### capacity is an admission boundary, not a synchronization policy
 
-At an aggregate ceiling, the same **offered** facts can leave different
-**accepted** subsets. This is an executable limitation of the current candidate:
-two observers accept root `x`, then receive concurrent append facts `y` and `z`
-in opposite orders. With room for only one of them, their texts remain `xy` and
-`xz`. This happens independently at the event, retained-birth and ordering-link
-ceilings. Both producers can author their branches under that same small
-profile: local fit does not ensure that their concurrent union fits. The
-second addition returns `Capacity` without changing either
-instance. Repeating the rejected offer against that unchanged full instance
-still returns `Capacity`; retaining a fact is not a progress guarantee.
+The old engine admitted different subsets of the same offered facts at an
+aggregate policy ceiling. The retained tests now put that policy in an explicit
+caller guard: two observers accept root x and concurrent appends y/z in opposite
+orders, but the guard permits only one branch. They retain xy/xz until the caller
+reconstructs from all offers without that budget. Repeating a guard-refused offer
+does not itself make progress. The guard is a workload budget, not an exact
+reimplementation of the old error precedence; Budget can precede semantic Missing.
 
-Run the retained negative boundary witnesses and fitting-history controls with:
+Run these policy witnesses and their unrestricted-engine controls with:
 
 ```sh
 cargo test --offline --locked -p nickel-crdt --test capacity_boundary -- --nocapture
 ```
 
-These tests deliberately demonstrate the limitation; their passing does **not**
-close a convergence obligation. They also reconstruct fresh read-only observers
-from all caller-retained offers under a larger fitting profile and check exact
-agreement. This is a finite control, not an implemented promotion/inbox API,
-producer/allocator recovery, or a solution beyond the hard experimental ceiling.
-Reconstruction from only one observer's accepted facts would omit the other
-branch's failed offer. Deletion does not reclaim these retained resource counts.
+Their passing does not close a convergence obligation, supply an inbox/promotion
+API or restore a producer counter. Reconstruction from only one observer's
+accepted facts would omit the other branch's refused offer. The engine itself
+now has no artificial event/birth/link policy ceiling.
 
 The [fixed-fact/prefix-budget obligation](rust-transition-cut.md) already
 requires a valid fitting final fact set and eventual admission; it explicitly

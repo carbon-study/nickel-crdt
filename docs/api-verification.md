@@ -22,12 +22,12 @@ The first profile has one plain-text sequence per document. No public representa
 
 ## 2. proposed operation shapes
 
-The following is typed pseudocode, **not a compilable or implemented Rust module**. All fallible mutations return `Result`; errors have the neutrality contract in §3. Names replace the overview's earlier illustrative list if this proposal is accepted.
+The following is typed pseudocode, **not a compilable or implemented Rust module**. All fallible mutations return `Result`; errors have the neutrality contract in §3. Names replace the overview's earlier illustrative list if this proposal is accepted. Earlier versions supplied Limits to construction/loading; that policy is superseded by [caller budgets](policy-budgets.md), not an adopted engine configuration.
 
 ```text
-Replica.create(DocumentId, fresh WriterId, Limits) -> Replica
-Replica.load(Snapshot, fresh WriterId, Limits) -> Result<Replica, LoadError>
-Replica.resume(Checkpoint, Limits) -> Result<Replica, LoadError>
+Replica.create(DocumentId, fresh WriterId) -> Replica
+Replica.load(Snapshot, fresh WriterId) -> Result<Replica, LoadError>
+Replica.resume(Checkpoint) -> Result<Replica, LoadError>
 
 view(&Replica) -> View { revision: ViewRevision, text: Scalars }
 version(&Replica) -> Version

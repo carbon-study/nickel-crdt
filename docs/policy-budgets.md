@@ -24,7 +24,10 @@ then authors a register write after synchronizing 65 concurrent heads. It also
 relays a 4097-byte value and retains 130 register facts. These are finite test
 workloads, not new promised bounds. `tests/support` owns the old workload budgets;
 the capacity tests retain the old order-dependent policy witnesses through an
-explicit caller guard while the underlying engine admits the complete history.
+explicit caller guard while the underlying engine admits the complete history. The guard checks all
+budgets before semantic admission; it intentionally does not preserve the old
+engine error precedence. A missing dependency plus an oversized insertion can
+therefore return Budget from the harness while the engine returns Missing.
 
 The batch fixture no longer caps operation count, nonempty name length or value
 bytes. Empty batches/names and missing records remain invalid. No collection,
@@ -65,3 +68,10 @@ No preparation/type error is counted as semantic rejection.
 This remains a migration candidate pending focused controls, source-linked review
 and complete exact-head CI. It does not accept the native register checkpoint,
 activate a new compiler or close the remaining text-side sequencing audit.
+
+Removing the ordering-link policy also removes the native text test's reachable
+post-prepare failure. The replacement test checks successful replacement. There
+is currently no retained end-to-end native text witness of failure after prepare;
+that transactional case remains covered by the implementation-linked proof
+controls, not a claimed native late-failure test. No production fault hook was
+added to manufacture one.
