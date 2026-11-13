@@ -254,6 +254,7 @@ proof closed_author_context_is_exact(facts: facts_vec, event: Native.t_Fact, ope
       // Consume the author replay contract without unfolding its group-step relation.
       Tactics.prune("Nickel.EditReplay.group_follows");
       Tactics.prune("Nickel_crdt.Edit.replay_author");
+      Tactics.prune("Nickel_crdt.Edit.impl_Tree__add");
       Tactics.prune("Nickel.EditReplay.author_prefix");
       Tactics.smt_sync'(1, 1)
     }

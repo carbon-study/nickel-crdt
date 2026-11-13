@@ -115,7 +115,14 @@ pub fn extend_past<F, I: Clone, E>(fact: &F, mut selected: Vec<I>, ops: &GraphOp
 }
 
 pub fn past_pass<F, I: Clone, E>(facts: &[F], mut selected: Vec<I>, ops: &GraphOps<F, I, E>) -> Result<Vec<I>, E> {
-    for i in 0..facts.len() {
+    // Scanning from the end closes a chain of one writer's facts in one pass when
+    // they are stored in counter order. Canonical order is by ID, not causal (an
+    // earlier-stored alice:1 may depend on bo:2), so mixed chains can take more
+    // passes; nothing depends on the order, since past repeats passes until one
+    // adds nothing. Scan order changes only the order of the returned IDs; every
+    // caller uses them as a set.
+    for offset in 0..facts.len() {
+        let i = facts.len() - 1 - offset;
         selected = extend_past(&facts[i], selected, ops)?;
     }
     Ok(selected)
@@ -124,8 +131,15 @@ pub fn past_pass<F, I: Clone, E>(facts: &[F], mut selected: Vec<I>, ops: &GraphO
 pub fn past<F, I: Clone, E>(facts: &[F], after_ids: &[I], ops: &GraphOps<F, I, E>) -> Result<Vec<I>, E> {
     let mut selected = after_ids.to_vec();
     validate_after(facts, after_ids, ops)?;
+    // A pass that adds no ID is a fixpoint: every later pass returns it unchanged,
+    // so the remaining iterations skip the scan.
+    let mut closed = false;
     for _ in 0..facts.len() {
-        selected = past_pass(facts, selected, ops)?;
+        if !closed {
+            let before = selected.len();
+            selected = past_pass(facts, selected, ops)?;
+            closed = selected.len() == before;
+        }
     }
     Ok(selected)
 }

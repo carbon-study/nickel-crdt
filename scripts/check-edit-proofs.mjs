@@ -55,7 +55,7 @@ const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tre
   'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality',
   'identity-scan-key','identity-birth-equality','identity-writer-equality',
   'accepted-reuses-member','accepted-wrong-canonical-push','accepted-publication-duplicates',
-  'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes','past-refuses-closure','duplicate-scan-skips-pairs','scheduler-ready-skips-dependency','scheduler-reselects-done','scheduler-refuses-ready','scheduler-checks-empty-after','scheduler-records-wrong-id','scheduler-stops-early','scheduler-erases-wrong-trace','scheduler-invents-bookkeeping-error','basis-includes-unselected','basis-omits-selected','basis-event-ignores-roots','replay-nodes-skip-first','replay-nodes-reverse','replay-groups-include-all','replay-groups-skip-all','replay-context-passes-empty','replay-context-invents-error','replay-context-contaminates-basis','scheduler-forgets-completed-tree'];
+  'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes','past-refuses-closure','past-closes-after-one-pass','past-pass-rescans-last','duplicate-scan-skips-pairs','scheduler-ready-skips-dependency','scheduler-reselects-done','scheduler-refuses-ready','scheduler-checks-empty-after','scheduler-records-wrong-id','scheduler-stops-early','scheduler-erases-wrong-trace','scheduler-invents-bookkeeping-error','basis-includes-unselected','basis-omits-selected','basis-event-ignores-roots','replay-nodes-skip-first','replay-nodes-reverse','replay-groups-include-all','replay-groups-skip-all','replay-context-passes-empty','replay-context-invents-error','replay-context-contaminates-basis','scheduler-forgets-completed-tree'];
 modes.push('plan-interprets-uncanonical-call', ...["shared-plan-skips-validation","shared-plan-ignores-duplicate","shared-plan-swallows-classifier-error","identity-call-passes-empty","identity-call-ignores-payload","past-membership-call-passes-empty","scheduler-readiness-call-passes-empty","scheduler-choice-call-passes-empty"]);
 modes.push('text-policy-swaps-eq-lt','graph-policy-swaps-eq-lt','admission-policy-swaps-errors');
 // Contract-dependency families run after the positive chain verifies. With no
@@ -156,8 +156,10 @@ const mutationDefinitions=[
   ["past-invents-id","src/event_layer.rs","fn extend_past<","if has_id(&selected, &id(fact), ops) {","if true {"],
   ["past-membership-always-false","src/event_layer.rs","fn has_id<","if id_eq(&ids[i], wanted) {","if false {"],
   ["past-skips-predecessors","src/event_layer.rs","fn extend_past<","if has_id(&selected, &id(fact), ops) {","if false {"],
-  ["past-skips-passes","src/event_layer.rs","fn past<","for _ in 0..facts.len() {","for _ in 0..0 {"],
+  ["past-skips-passes","src/event_layer.rs","fn past<","for _ in 0..facts.len() {","for _ in 0..0usize {"],
   ["past-refuses-closure","src/event_layer.rs","fn past<","Ok(selected)","Err((ops.1.0)())"],
+  ["past-closes-after-one-pass","src/event_layer.rs","fn past<","closed = selected.len() == before;","closed = true;"],
+  ["past-pass-rescans-last","src/event_layer.rs","fn past_pass<","let i = facts.len() - 1 - offset;","let i = facts.len() - 1;"],
   ["duplicate-scan-skips-pairs","src/event_layer.rs","fn duplicate_ids<","if id_eq(&xs[i], &xs[j]) {","if false {"],
   ["scheduler-ready-skips-dependency","src/event_layer.rs","fn ready<","if has_id(done, &after[i], ops) {","if true {"],
   ["scheduler-reselects-done","src/event_layer.rs","fn choose_ready<","if has_id(done, &id(&facts[i]), ops) {","if false {"],
@@ -246,6 +248,8 @@ const theorems={
   'past-refuses-closure':'EditPastTotal.fitting_closed_history_computes_past',
   'duplicate-scan-skips-pairs':'EditPastTotal.duplicate_scan_is_exact',
   'past-skips-passes':'EditPast.past_stays_in_closed_set',
+  'past-closes-after-one-pass':'EditPast.past_covers_bounded_predecessor_paths',
+  'past-pass-rescans-last':'EditPast.past_pass_covers_edges',
   'past-skips-predecessors':'EditPast.extend_past_covers_predecessors',
   'past-drops-roots':'EditPast.past_stays_in_closed_set',
   'past-invents-id':'EditPast.extend_past_preserves',
@@ -307,6 +311,10 @@ const ownerMigrations={
   "past-membership-always-false": [
     "EventGraph.membership_is_exact",
     "membership loop moved unchanged to comparison-relative has_id"
+  ],
+  "past-skips-passes": [
+    "EditPast.past_covers_bounded_predecessor_paths",
+    "returning only the roots still satisfies past_stays_in_closed_set (soundness); skipped passes break bounded-depth completeness"
   ],
   "scheduler-ready-skips-dependency": [
     "EventGraph.readiness_is_exact",
