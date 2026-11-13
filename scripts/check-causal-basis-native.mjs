@@ -6,16 +6,20 @@ import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
+import {scopedAnchor} from './mutation-scope.mjs';
 const root = fileURLToPath(new URL('..', import.meta.url));
 assert(process.argv[2], 'usage: node scripts/check-causal-basis-native.mjs OUTPUT_DIRECTORY');
 const output = path.resolve(process.argv[2]);
 await fs.mkdir(output, {recursive: true});
-const original = await fs.readFile(path.join(root, 'src/edit.rs'), 'utf8');
+// Each fault names its owning file and item; the anchor must be unique code inside
+// that item (scopedAnchor), so moved or duplicated code refuses instead of drifting.
 const cases = [
-  ['past-no-expansion', 'for _ in 0..facts.len() {\n        selected = past_pass', 'for _ in 0..0 {\n        selected = past_pass', 'exact_past_on_all_four_vertex_dags_and_storage_permutations', 'assertion `left == right` failed'],
-  ['past-skips-root-check', '    validate_after(facts, after)?;', '    // skipped direct validation', 'past_roots_missing_and_transitive_domain_boundary', 'assertion `left == right` failed'],
-  ['ready-ignores-missing', 'if !has_event(done, *id) {', 'if false {', 'readiness_is_exact_direct_inclusion', 'assertion `left == right` failed'],
-  ['receiver-contaminates-author', 'if has_event(&selected, id) {', 'if true {', 'receiver_extras_preserve_exact_author_placements_through_public_admission', 'author basis changed with receiver extras'],
+  ['past-no-expansion', 'src/event_layer.rs', 'pub fn past<', 'for _ in 0..facts.len() {', 'for _ in 0..0usize {', 'exact_past_on_all_four_vertex_dags_and_storage_permutations', 'assertion `left == right` failed'],
+  ['past-skips-root-check', 'src/event_layer.rs', 'pub fn past<', 'validate_after(facts, after_ids, ops)?;', '// skipped direct validation', 'past_roots_missing_and_transitive_domain_boundary', 'assertion `left == right` failed'],
+  // The shared scan returns false for the first predecessor not in done; treating
+  // every predecessor as done is the same fault as the former `if false` skip.
+  ['ready-ignores-missing', 'src/event_layer.rs', 'pub fn ready<', 'if has_id(done, &after[i], ops) {', 'if true {', 'readiness_is_exact_direct_inclusion', 'assertion `left == right` failed'],
+  ['receiver-contaminates-author', 'src/edit.rs', 'fn replay_author(', 'if has_event(selected, id) {', 'if true {', 'receiver_extras_preserve_exact_author_placements_through_public_admission', 'author basis changed with receiver extras'],
 ];
 function run(cwd, test, target) {
   return spawnSync('cargo', ['test', '--offline', '--locked', '--lib', test, '--', '--nocapture'], {
@@ -26,15 +30,17 @@ function run(cwd, test, target) {
 const positive = run(root, 'causal_basis_tests', path.join(output, 'positive-target'));
 await fs.writeFile(path.join(output, 'positive.log'), positive.stdout + positive.stderr);
 assert.equal(positive.status, 0, 'positive native acceptance failed (see positive.log)');
-for (const [name, from, to, test, marker] of cases) {
-  assert.equal(original.split(from).length, 2, name + ': mutation anchor must be unique');
+for (const [name, file, header, from, to, test, marker] of cases) {
+  const original = await fs.readFile(path.join(root, file), 'utf8');
+  const at = scopedAnchor(original, header, from, name);
+  const mutated = original.slice(0, at) + to + original.slice(at + from.length);
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'nickel-past-control-'));
   try {
     for (const p of ['Cargo.toml', 'Cargo.lock', 'src', 'proof-smoke']) {
       await fs.cp(path.join(root, p), path.join(dir, p), {recursive: true});
     }
-    await fs.writeFile(path.join(dir, 'src/edit.rs'), original.replace(from, to));
-    await fs.writeFile(path.join(output, name + '.mutation.json'), JSON.stringify({from, to, test}, null, 2) + '\n');
+    await fs.writeFile(path.join(dir, file), mutated);
+    await fs.writeFile(path.join(output, name + '.mutation.json'), JSON.stringify({file, header, from, to, test}, null, 2) + '\n');
     const result = run(dir, test, path.join(output, 'control-target'));
     const log = result.stdout + result.stderr;
     await fs.writeFile(path.join(output, name + '.log'), log);
