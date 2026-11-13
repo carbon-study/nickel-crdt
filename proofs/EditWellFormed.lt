@@ -77,7 +77,8 @@ function no_validation_success(result: Result.t_Result(unit, Native.t_Error)): T
 proof successful_validation_has_valid_scalars(facts: t_Slice(Native.t_Fact), fact: Native.t_Fact): unit
   gives validated_scalars(fact, Native.impl_Replica__validate_new(facts, fact))
 {
-  Nickel.LoopUtil.early_return_preserve_any(mk_usize(0), Nickel.EditIdentity.length(facts), ((_: nat, _: usize) => Prims.l_True), no_validation_success);
+  // The removed policy birth-count loop preceded scalar validation.
+  // validate_new now reaches validate_scalars directly after shared admission.
   scalar_validation_is_sound(Alloc.Vec.impl_1__as_slice(fact.f_insert));
   assert(validated_scalars(fact, Native.impl_Replica__validate_new(facts, fact))) by {
     Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
