@@ -239,6 +239,21 @@ impl Tree {
             Ok(usize::MAX)
         }
     }
+    // Only a right-side insert among siblings compares origin ranks, so only it
+    // builds the full order (whole() is quadratic in retained nodes). An unknown
+    // right origin is refused on every path. Kept out of add so its `?`s do not
+    // duplicate add's continuation in the extraction.
+    fn origin_order(&self, ranked: bool, origin: Option<BirthId>) -> Result<(Vec<BirthId>, usize), Error> {
+        if let Some(id) = origin {
+            self.position(id)?;
+        }
+        if !ranked {
+            return Ok((Vec::new(), usize::MAX));
+        }
+        let whole = self.whole()?;
+        let rank = Self::rank(&whole, origin)?;
+        Ok((whole, rank))
+    }
     fn add(&mut self, mut node: Node) -> Result<(), Error> {
         for old in self.nodes.iter() {
             if old.id == node.id {
@@ -267,15 +282,8 @@ impl Tree {
             }
         };
         let mut at = siblings.len();
-        // Only a right-side insert among siblings compares origin ranks, so only it
-        // builds the full order (whole() is quadratic in retained nodes). An
-        // unknown right origin is still refused on every path.
-        if let Some(id) = node.right_origin {
-            self.position(id)?;
-        }
         let ranked = matches!(node.side, Side::Right) && !siblings.is_empty();
-        let whole = if ranked { self.whole()? } else { Vec::new() };
-        let rank = if ranked { Self::rank(&whole, node.right_origin)? } else { usize::MAX };
+        let (whole, rank) = self.origin_order(ranked, node.right_origin)?;
         for i in 0..siblings.len() {
             let old = self.node(siblings[i])?;
             let before = if matches!(node.side, Side::Right) {

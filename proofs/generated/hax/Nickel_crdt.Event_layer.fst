@@ -520,8 +520,8 @@ let past_pass
             <:
             Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E
           with
-          | Core_models.Result.Result_Ok hoist67 ->
-            let selected:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = hoist67 in
+          | Core_models.Result.Result_Ok hoist68 ->
+            let selected:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = hoist68 in
             Core_models.Ops.Control_flow.ControlFlow_Continue selected
             <:
             Core_models.Ops.Control_flow.t_ControlFlow
@@ -592,8 +592,8 @@ let past
                   <:
                   Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E
                 with
-                | Core_models.Result.Result_Ok hoist68 ->
-                  let selected:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = hoist68 in
+                | Core_models.Result.Result_Ok hoist69 ->
+                  let selected:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = hoist69 in
                   let closed:bool =
                     (Alloc.Vec.impl_1__len #v_I #Alloc.Alloc.t_Global selected <: usize) =. before
                   in
@@ -842,8 +842,8 @@ let canonical
             <:
             Core_models.Result.t_Result (Alloc.Vec.t_Vec v_F Alloc.Alloc.t_Global) v_E
           with
-          | Core_models.Result.Result_Ok hoist72 ->
-            Core_models.Ops.Control_flow.ControlFlow_Continue hoist72
+          | Core_models.Result.Result_Ok hoist73 ->
+            Core_models.Ops.Control_flow.ControlFlow_Continue hoist73
             <:
             Core_models.Ops.Control_flow.t_ControlFlow
               (Core_models.Ops.Control_flow.t_ControlFlow
