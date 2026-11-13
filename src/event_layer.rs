@@ -115,7 +115,11 @@ pub fn extend_past<F, I: Clone, E>(fact: &F, mut selected: Vec<I>, ops: &GraphOp
 }
 
 pub fn past_pass<F, I: Clone, E>(facts: &[F], mut selected: Vec<I>, ops: &GraphOps<F, I, E>) -> Result<Vec<I>, E> {
-    for i in 0..facts.len() {
+    // Stored facts are canonical (predecessors first), so scanning from the end
+    // expands a whole predecessor chain in one pass. Scan order changes only the
+    // order of the returned IDs; every caller uses them as a set.
+    for offset in 0..facts.len() {
+        let i = facts.len() - 1 - offset;
         selected = extend_past(&facts[i], selected, ops)?;
     }
     Ok(selected)

@@ -509,16 +509,20 @@ let past_pass
           let _:usize = temp_1_ in
           true)
       selected
-      (fun selected i ->
+      (fun selected offset ->
           let selected:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = selected in
-          let i:usize = i in
+          let offset:usize = offset in
+          let i:usize =
+            ((Core_models.Slice.impl__len #v_F facts <: usize) -! mk_usize 1 <: usize) -! offset
+          in
           match
             extend_past #v_F #v_I #v_E (facts.[ i ] <: v_F) selected ops
             <:
             Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E
           with
           | Core_models.Result.Result_Ok hoist67 ->
-            Core_models.Ops.Control_flow.ControlFlow_Continue hoist67
+            let selected:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = hoist67 in
+            Core_models.Ops.Control_flow.ControlFlow_Continue selected
             <:
             Core_models.Ops.Control_flow.t_ControlFlow
               (Core_models.Ops.Control_flow.t_ControlFlow

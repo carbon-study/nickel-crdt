@@ -267,8 +267,15 @@ impl Tree {
             }
         };
         let mut at = siblings.len();
-        let whole = if matches!(node.side, Side::Right) && !siblings.is_empty() { self.whole()? } else { Vec::new() };
-        let rank = if whole.is_empty() { 0 } else { Self::rank(&whole, node.right_origin)? };
+        // Only a right-side insert among siblings compares origin ranks, so only it
+        // builds the full order (whole() is quadratic in retained nodes). An
+        // unknown right origin is still refused on every path.
+        if let Some(id) = node.right_origin {
+            self.position(id)?;
+        }
+        let ranked = matches!(node.side, Side::Right) && !siblings.is_empty();
+        let whole = if ranked { self.whole()? } else { Vec::new() };
+        let rank = if ranked { Self::rank(&whole, node.right_origin)? } else { usize::MAX };
         for i in 0..siblings.len() {
             let old = self.node(siblings[i])?;
             let before = if matches!(node.side, Side::Right) {

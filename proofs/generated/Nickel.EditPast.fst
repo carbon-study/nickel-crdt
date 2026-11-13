@@ -270,7 +270,10 @@ let pass_result (facts: t_Slice Native.t_Fact) (before: ids_vec) (result: Result
 let retains_member (before: ids_vec) (next: ids_vec) (id: Native.t_EventId) : Lemma (requires (retains (Alloc.Vec.impl_1__as_slice before) next /\ member (Alloc.Vec.impl_1__as_slice before) id)) (ensures member (Alloc.Vec.impl_1__as_slice next) id) =
   ()
 
-let expansion_composes (facts: t_Slice Native.t_Fact) (before: ids_vec) (at: usize{v at < Seq.length facts}) (selected: ids_vec) (next: ids_vec) : Lemma (requires (pass_prefix facts before (v at) selected /\ expansion_ok (Seq.index facts (v at)) selected next)) (ensures pass_prefix facts before (v at + 1) next) =
+let pass_from (facts: t_Slice Native.t_Fact) (before: ids_vec) (start: int) (next: ids_vec) : Type0 =
+  Prims.l_and (retains (Alloc.Vec.impl_1__as_slice before) next) (forall(i: usize{v i < Seq.length facts}). start <= v i ==> expansion_ok (Seq.index facts (v i)) before next)
+
+let expansion_composes (facts: t_Slice Native.t_Fact) (before: ids_vec) (at: usize{v at < Seq.length facts}) (selected: ids_vec) (next: ids_vec) : Lemma (requires (pass_from facts before (v at + 1) selected /\ expansion_ok (Seq.index facts (v at)) selected next)) (ensures pass_from facts before (v at) next) =
   let each_id (id: Native.t_EventId) : Lemma (requires member (Alloc.Vec.impl_1__as_slice selected) id) (ensures member (Alloc.Vec.impl_1__as_slice next) id) = retains_member selected next id in
   FStar.Classical.forall_intro (FStar.Classical.move_requires each_id);
   let prior_member (id: Native.t_EventId) : Lemma (requires member (Alloc.Vec.impl_1__as_slice before) id) (ensures member (Alloc.Vec.impl_1__as_slice selected) id) = retains_member before selected id in
@@ -279,11 +282,12 @@ let expansion_composes (facts: t_Slice Native.t_Fact) (before: ids_vec) (at: usi
 
 let past_pass_covers_edges (facts: t_Slice Native.t_Fact) (before: ids_vec) : Lemma (ensures pass_result facts before (Native.past_pass facts before)) =
   Nickel.EventGraphText.text_graph_policy_is_exact ();
-  let each_extend (selected: ids_vec) (at: usize{v at < Seq.length facts}) : Lemma (requires pass_prefix facts before (v at) selected) (ensures ((match Native.extend_past (Seq.index facts (v at)) selected with | Result.Result_Ok next -> begin pass_prefix facts before (v at + 1) next end | _ -> begin Prims.l_True end) <: Type0)) =
+  let each_extend (selected: ids_vec) (offset: usize{v offset < Seq.length facts}) : Lemma (requires pass_from facts before (Seq.length facts - v offset) selected) (ensures ((match Native.extend_past (Seq.index facts (Seq.length facts - 1 - v offset)) selected with | Result.Result_Ok next -> begin pass_from facts before (Seq.length facts - 1 - v offset) next end | _ -> begin Prims.l_True end) <: Type0)) =
+    let at = mk_usize (Seq.length facts - 1 - v offset) in
     extend_past_covers_predecessors (Seq.index facts (v at)) selected;
-    let each_next (next: ids_vec) : Lemma (requires expansion_ok (Seq.index facts (v at)) selected next) (ensures pass_prefix facts before (v at + 1) next) = expansion_composes facts before at selected next in
+    let each_next (next: ids_vec) : Lemma (requires expansion_ok (Seq.index facts (v at)) selected next) (ensures pass_from facts before (v at) next) = expansion_composes facts before at selected next in
     FStar.Classical.forall_intro (FStar.Classical.move_requires each_next);
-    assert (((match Native.extend_past (Seq.index facts (v at)) selected with | Result.Result_Ok next -> begin pass_prefix facts before (v at + 1) next end | _ -> begin Prims.l_True end) <: Type0)) by (
+    assert (((match Native.extend_past (Seq.index facts (Seq.length facts - 1 - v offset)) selected with | Result.Result_Ok next -> begin pass_from facts before (Seq.length facts - 1 - v offset) next end | _ -> begin Prims.l_True end) <: Type0)) by (
       Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
       Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
       Tactics.prune "Nickel_crdt.Event_layer.event_ops";
@@ -292,7 +296,7 @@ let past_pass_covers_edges (facts: t_Slice Native.t_Fact) (before: ids_vec) : Le
       Tactics.smt_sync' 1 1
     ) in
   FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_extend);
-  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len facts) (pass_prefix facts before) (fun (selected: ids_vec) -> selected) (fun (next: ids_vec) -> pass_prefix facts before (Seq.length facts) next) (fun (_: Native.t_Error) -> Prims.l_True);
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len facts) (fun (done: nat) (selected: ids_vec) -> pass_from facts before (Seq.length facts - done) selected) (fun (selected: ids_vec) -> selected) (fun (next: ids_vec) -> pass_prefix facts before (Seq.length facts) next) (fun (_: Native.t_Error) -> Prims.l_True);
   assert (pass_result facts before (Native.past_pass facts before)) by (
     Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
     Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
