@@ -1,0 +1,51 @@
+{
+  "text": [
+    "check-accepted-contracts.mjs",
+    "check-basis-contracts.mjs",
+    "check-basis-reform.mjs",
+    "check-cache-safety.mjs",
+    "check-commit-contracts.mjs",
+    "check-containment-contracts.mjs",
+    "check-counter-contracts.mjs",
+    "check-edit-proofs.mjs",
+    "check-event-contracts.mjs",
+    "check-identity-contracts.mjs",
+    "check-loop-contracts.mjs",
+    "check-negative-proof-evidence.mjs",
+    "check-operation-contracts.mjs",
+    "check-past-contracts.mjs",
+    "check-plan-contracts.mjs",
+    "check-private-contracts.mjs",
+    "check-proof-reform.mjs",
+    "check-proofs.mjs",
+    "check-push-contracts.mjs",
+    "check-remaining-contracts.mjs",
+    "check-replay-contracts.mjs",
+    "check-replay-reform.mjs",
+    "check-schedule-contracts.mjs",
+    "check-shared-contracts.mjs",
+    "check-spec-contracts.mjs",
+    "check-vector-contracts.mjs",
+    "check-writer-contracts.mjs",
+    "mutation-scope.mjs",
+    "negative-proof-evidence.mjs",
+    "proof-cache.mjs",
+    "proof-reform.mjs"
+  ],
+  "shared": [
+    "check-causal-envelope.mjs",
+    "mutation-scope.mjs",
+    "negative-proof-evidence.mjs",
+    "proof-cache.mjs"
+  ],
+  "sharedNative": [
+    "check-shared-native.mjs",
+    "mutation-scope.mjs",
+    "proof-cache.mjs"
+  ],
+  "models": [
+    "build-proof-models.mjs",
+    "check-proof-timeouts.mjs",
+    "proof-cache.mjs"
+  ]
+}

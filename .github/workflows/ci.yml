@@ -96,7 +96,7 @@ jobs:
       - name: build ${{ matrix.target }}
         run: |
           if [ "${{ matrix.target }}" = native ]; then
-            .github/scripts/check.sh native 9000 nix build -L --no-link .#checks.aarch64-linux.native .#checks.aarch64-linux.edit-reference
+            .github/scripts/check.sh native 9000 nix build -L --no-link .#checks.aarch64-linux.native .#checks.aarch64-linux.edit-reference .#checks.aarch64-linux.gate-inputs
           else
             .github/scripts/check.sh ${{ matrix.target }} 9000 nix build -L --no-link .#packages.aarch64-linux.${{ matrix.target }}
           fi
