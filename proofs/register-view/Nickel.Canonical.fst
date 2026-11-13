@@ -114,19 +114,41 @@ let step_preserves_content (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f
     Tactics.prune "Nickel_crdt.Event_layer.choose_unseen";
     Tactics.smt_sync' 1 1
   );
-  match Native.choose_unseen input (Alloc.Vec.impl_1__as_slice out) ops with | Result.Result_Ok (Option.Option_Some k) -> begin if v k < Seq.length input then
-    begin copy_selected_is_exact (Rust_primitives.Slice.slice_index input k) ops._1._5;
-    assert (present input (Rust_primitives.Slice.slice_index input k));
-    append_preserves_content input out (Rust_primitives.Slice.slice_index input k) ops end
-  else
-    begin () end end | _ -> begin () end;
-  assert (Nickel.LoopUtil.result_safe (fun (next: vector f) -> content_prefix input (at + 1) next ops._1._1) (fun (_: e) -> Prims.l_True) (Native.canonical_step input out ops)) by (
+  match Native.choose_unseen input (Alloc.Vec.impl_1__as_slice out) ops with | Result.Result_Err _ -> begin assert (Nickel.LoopUtil.result_safe (fun (next: vector f) -> content_prefix input (at + 1) next ops._1._1) (fun (_: e) -> Prims.l_True) (Native.canonical_step input out ops)) by (
     Tactics.prune "Nickel_crdt.Event_layer.choose_unseen";
     Tactics.prune "Nickel_crdt.Event_layer.canonical_step";
     Tactics.prune "Nickel_crdt.Event_layer.clone_selected_fact";
     Tactics.prune "Nickel_crdt.Event_layer.push";
+    Tactics.prune "Nickel.Canonical.push_is_exact";
     Tactics.smt_sync' 1 1
-  )
+  ) end | Result.Result_Ok Option.Option_None -> begin assert (Nickel.LoopUtil.result_safe (fun (next: vector f) -> content_prefix input (at + 1) next ops._1._1) (fun (_: e) -> Prims.l_True) (Native.canonical_step input out ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.choose_unseen";
+    Tactics.prune "Nickel_crdt.Event_layer.canonical_step";
+    Tactics.prune "Nickel_crdt.Event_layer.clone_selected_fact";
+    Tactics.prune "Nickel_crdt.Event_layer.push";
+    Tactics.prune "Nickel.Canonical.push_is_exact";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok (Option.Option_Some k) -> begin if v k < Seq.length input then
+    begin copy_selected_is_exact (Rust_primitives.Slice.slice_index input k) ops._1._5;
+    assert (present input (Rust_primitives.Slice.slice_index input k));
+    append_preserves_content input out (Rust_primitives.Slice.slice_index input k) ops;
+    assert (Nickel.LoopUtil.result_safe (fun (next: vector f) -> content_prefix input (at + 1) next ops._1._1) (fun (_: e) -> Prims.l_True) (Native.canonical_step input out ops)) by (
+      Tactics.prune "Nickel_crdt.Event_layer.choose_unseen";
+      Tactics.prune "Nickel_crdt.Event_layer.canonical_step";
+      Tactics.prune "Nickel_crdt.Event_layer.clone_selected_fact";
+      Tactics.prune "Nickel_crdt.Event_layer.push";
+      Tactics.prune "Nickel.Canonical.push_is_exact";
+      Tactics.smt_sync' 1 1
+    ) end
+  else
+    begin assert (Nickel.LoopUtil.result_safe (fun (next: vector f) -> content_prefix input (at + 1) next ops._1._1) (fun (_: e) -> Prims.l_True) (Native.canonical_step input out ops)) by (
+      Tactics.prune "Nickel_crdt.Event_layer.choose_unseen";
+      Tactics.prune "Nickel_crdt.Event_layer.canonical_step";
+      Tactics.prune "Nickel_crdt.Event_layer.clone_selected_fact";
+      Tactics.prune "Nickel_crdt.Event_layer.push";
+      Tactics.prune "Nickel.Canonical.push_is_exact";
+      Tactics.smt_sync' 1 1
+    ) end end
 
 let canonical_selects_whole_facts (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (requires exact_values ops) (ensures Nickel.LoopUtil.result_safe (fun (out: vector f) -> content_prefix input (Seq.length input) out ops._1._1) (fun (_: e) -> Prims.l_True) (Native.canonical input ops)) =
   Nickel.Vector.empty_vector_value #f ();
@@ -178,5 +200,11 @@ let exact_contents (#f: Type0) (input: t_Slice f) (out: vector f) : Type0 =
 
 let canonical_preserves_exact_contents (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (requires exact_values ops) (ensures Nickel.LoopUtil.result_safe (exact_contents input) (fun (_: e) -> Prims.l_True) (Native.canonical input ops)) =
   canonical_selects_whole_facts input ops;
-  match Native.canonical input ops with | Result.Result_Ok out -> begin whole_selection_covers input out ops end | _ -> begin () end;
-  ()
+  match Native.canonical input ops with | Result.Result_Ok out -> begin whole_selection_covers input out ops;
+  assert (Nickel.LoopUtil.result_safe (exact_contents input) (fun (_: e) -> Prims.l_True) (Native.canonical input ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.canonical";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Err _ -> begin assert (Nickel.LoopUtil.result_safe (exact_contents input) (fun (_: e) -> Prims.l_True) (Native.canonical input ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.canonical";
+    Tactics.smt_sync' 1 1
+  ) end

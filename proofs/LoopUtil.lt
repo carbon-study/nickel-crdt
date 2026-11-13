@@ -58,12 +58,21 @@ proof! preserve<state: Type0, result: Type0>(start: usize, finish: usize where v
     unroll(start, finish, inv, value, f);
     assert(step_safe(p, post, returned, v(start), f(value, start)));
     match f(value, start) {
-      ControlFlow_Break(_) => (),
-      ControlFlow_Continue(next) => preserve(start +! mk_int(1), finish, inv, next, f, p, post, returned),
-    };
-    assert(output_safe(post, returned, fold_range_return(start, finish, inv, value, f))) by {
-      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
-      Tactics.smt_sync'(1, 1)
+      ControlFlow_Break(ControlFlow_Break(ret)) => { assert(output_safe(post, returned, fold_range_return(start, finish, inv, value, f))) by {
+        Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+        Tactics.smt_sync'(1, 1)
+      } },
+      ControlFlow_Break(ControlFlow_Continue((_, next))) => { assert(output_safe(post, returned, fold_range_return(start, finish, inv, value, f))) by {
+        Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+        Tactics.smt_sync'(1, 1)
+      } },
+      ControlFlow_Continue(next) => {
+        preserve(start +! mk_int(1), finish, inv, next, f, p, post, returned);
+        assert(output_safe(post, returned, fold_range_return(start, finish, inv, value, f))) by {
+        Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+        Tactics.smt_sync'(1, 1)
+      }
+      },
     }
   } else {
     empty(start, finish, inv, value, f);

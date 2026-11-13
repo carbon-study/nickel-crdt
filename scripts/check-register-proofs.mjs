@@ -25,6 +25,7 @@ const required=['Cargo.toml','Cargo.lock','src/lib.rs','src/register.rs','src/ca
  ...['Register','Nickel_crdt.Register','Nickel_crdt.Causal','Nickel_crdt.Event_layer','Nickel_crdt.Event_shell'].map(n=>'proofs/register-view/'+(n==='Register'?'Nickel.Register':n)+'.fst')];
 assert.equal(receipt.schemaVersion,1);assert.deepEqual(Object.keys(receipt.files).sort(),required.sort(),'complete checkpoint receipt required');
 for(const [f,h]of Object.entries(receipt.files))assert.equal(digest(await fs.readFile(path.join(root,f))),h,'stale checkpoint receipt: '+f);
+assertReformedSource('LoopUtil',await fs.readFile(path.join(root,'proofs/LoopUtil.lt'),'utf8'));
 assertReformedSource('Canonical',await fs.readFile(path.join(root,'proofs/Canonical.lt'),'utf8'));
 assertReformedSource('Register',await fs.readFile(path.join(root,'proofs/Register.lt'),'utf8'));
 assert.throws(()=>assertReformedSource('EditAccepted','Tactics.prune("Nickel_crdt.Register.bytes_equal");'),'new native visibility stays Register-scoped');
@@ -35,10 +36,14 @@ assert.throws(()=>assertReformedSource('Register','Tactics.norm([]);'),'no norma
 assert.throws(()=>assertReformedSource('Register','Tactics.prune("Nickel_crdt.Register");'),'no broad native namespace exception');
 assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Alloc.Vec.impl__new");'),'new vector visibility stays Canonical-scoped');
 assert.throws(()=>assertReformedSource('Canonical','Tactics.prune("Nickel_crdt.Register");'),'no broad client visibility');
+assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Nickel.Canonical.push_is_exact");'),'lower append-contract visibility stays Canonical-scoped');
+assert.throws(()=>assertReformedSource('Register','Tactics.prune("Nickel_crdt.Event_layer");'),'no broad shared namespace exception');
+const loopView=await fs.readFile(path.join(root,'proofs/generated/Nickel.LoopUtil.fst'),'utf8');
 const canonicalView=await fs.readFile(path.join(views,'Nickel.Canonical.fst'),'utf8');
 const view=await fs.readFile(path.join(views,'Nickel.Register.fst'),'utf8');
 for(const checkedView of [view,canonicalView])assert(!/\b(?:admit|assume|lax|admit_smt_queries)\b/.test(checkedView));
 if(env.NICKEL_LATTE_BIN){
+ const l=await runAsync('loop producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/LoopUtil.lt')],root,{env});assert.equal(l.status,0);assert.equal(l.stdout,loopView,'complete loop producer/view parity');
  const c=await runAsync('canonical producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/Canonical.lt')],root,{env});assert.equal(c.status,0);assert.equal(c.stdout,canonicalView,'complete generic producer/view parity');
  const p=await runAsync('checkpoint producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/Register.lt')],root,{env});
  await fs.writeFile(path.join(output,'producer.log'),p.log);assert.equal(p.status,0);assert.equal(p.stdout,view,'full producer/view parity');
@@ -82,7 +87,7 @@ const bodyModes=[
  ['read-wrong-key','pub fn read(','read_history(&self.facts, &self.initial, key)','read_history(&self.facts, &self.initial, 0)','public_read_is_history'],
  ['payload-ignores-observed','fn write_equal(','&& bytes_equal(&a.observed, &b.observed)','&& true','write_equal_is_exact'],
 ];
-assert(selected.every(n=>n==='positive'||bodyModes.some(m=>m[0]===n)||["without-generic-step-equation","without-generic-push-contract","without-generic-membership-contract","without-generic-choice-loop","without-generic-canonical-loop","without-generic-choice-contract","without-generic-step-contract","without-register-canonical-policy","without-register-canonical-content","without-prepare-content","without-plan-prepared-content","without-receive-retention-plan","without-write-retention-installation","without-clock-loop-contract","without-added-clock-contract","without-added-clock-payload","without-validation-byte-contract","without-payload-validation-contract","without-payload-planning-contract","without-receive-payload-contract","without-added-publication-contract","without-write-receive-publication","without-write-receive-frame","without-winner-loop","without-read-winner","without-publication-contract","without-noedit-byte-contract","without-shared-planning-contract","without-prepare-frame","without-execute-frame","without-receive-publication-frame","without-plan-private-frame"].includes(n)),'unknown selected mode');
+assert(selected.every(n=>n==='positive'||bodyModes.some(m=>m[0]===n)||["without-generic-append-contract","without-canonical-selection-contract","without-canonical-coverage-contract","without-loop-unroll","without-loop-recursion","without-loop-empty","without-generic-step-equation","without-generic-push-contract","without-generic-membership-contract","without-generic-choice-loop","without-generic-canonical-loop","without-generic-choice-contract","without-generic-step-contract","without-register-canonical-policy","without-register-canonical-content","without-prepare-content","without-plan-prepared-content","without-receive-retention-plan","without-write-retention-installation","without-clock-loop-contract","without-added-clock-contract","without-added-clock-payload","without-validation-byte-contract","without-payload-validation-contract","without-payload-planning-contract","without-receive-payload-contract","without-added-publication-contract","without-write-receive-publication","without-write-receive-frame","without-winner-loop","without-read-winner","without-publication-contract","without-noedit-byte-contract","without-shared-planning-contract","without-prepare-frame","without-execute-frame","without-receive-publication-frame","without-plan-private-frame"].includes(n)),'unknown selected mode');
 const haxArgs=out=>['-C','--offline','--locked','-p','nickel-crdt',';','into','--output-dir',out,'-i','-** +nickel_crdt::register::**::new +nickel_crdt::register::**::write +nickel_crdt::register::**::receive +nickel_crdt::register::**::read +nickel_crdt::register::winner +nickel_crdt::register::later +nickel_crdt::register::bytes_equal +nickel_crdt::register::next_lamport +nickel_crdt::event_shell::receive +nickel_crdt::causal::classify +nickel_crdt::event_layer::**','fstar'];
 const inventory=['Nickel_crdt.Causal.fst','Nickel_crdt.Event_layer.fst','Nickel_crdt.Event_shell.fst','Nickel_crdt.Register.fst'];
 const proofFiles=['Nickel.Prelude.fst','Nickel.LoopUtil.fst','Nickel.EventShell.fst','Nickel.Vector.fst','Nickel.EventGraph.fst'];
@@ -163,16 +168,22 @@ assert(clockLoopLine,'actual clock loop contract');
 const canonicalChoiceLoop=canonicalView.split('\n').find(l=>l.startsWith('  Nickel.LoopUtil.result_preserve_any')&&l.includes('fresh_prefix'));
 const canonicalWholeLoop=canonicalView.split('\n').find(l=>l.startsWith('  Nickel.LoopUtil.result_preserve_any')&&l.includes('content_prefix'));
 assert(canonicalChoiceLoop&&canonicalWholeLoop,'actual generic loop interfaces');
-// The append-call omission probe failed a nonterminal typing query, not the
-// required final semantic query. It is retained as diagnostic evidence, not
-// registered or counted as an ordinary dependency rejection.
+// Branch-local queries make the formerly uncredited append probe a registered
+// control. The earlier nonterminal attempt remains retained.
 const depModes=[
- ['without-generic-step-equation',withholdPayloadContract('step_preserves_content','Nickel_crdt.Event_layer.canonical_step',1,['Nickel.Canonical.step_uses_selected_fact'],['  step_uses_selected_fact input out ops;'],canonicalView),'Canonical.step_preserves_content'],
+ ['without-generic-append-contract',withholdPayloadContract('step_preserves_content','Nickel_crdt.Event_layer.push',4,['Nickel.Canonical.append_preserves_content'],['append_preserves_content input out (Rust_primitives.Slice.slice_index input k) ops;'],canonicalView),'Canonical.step_preserves_content'],
+ ['without-canonical-selection-contract',withholdPayloadContract('canonical_preserves_exact_contents','Nickel_crdt.Event_layer.canonical',2,['Nickel.Canonical.canonical_selects_whole_facts'],['  canonical_selects_whole_facts input ops;'],canonicalView),'Canonical.canonical_preserves_exact_contents'],
+ ['without-canonical-coverage-contract',withholdPayloadContract('canonical_preserves_exact_contents','Nickel_crdt.Event_layer.canonical',2,['Nickel.Canonical.whole_selection_covers'],['whole_selection_covers input out ops;'],canonicalView),'Canonical.canonical_preserves_exact_contents'],
+ ['without-loop-unroll',withholdPayloadContract('rec preserve','Rust_primitives.Hax.Folds.fold_range_return',4,['Nickel.LoopUtil.unroll'],['unroll start finish inv value f;'],loopView),'LoopUtil.preserve'],
+ ['without-loop-recursion',replaceInDeclaration('rec preserve','preserve (start +! mk_int 1) finish inv next f p post returned;','();',loopView),'LoopUtil.preserve'],
+ ['without-loop-empty',withholdPayloadContract('rec preserve','Rust_primitives.Hax.Folds.fold_range_return',4,['Nickel.LoopUtil.empty'],['empty start finish inv value f;'],loopView),'LoopUtil.preserve'],
+
+ ['without-generic-step-equation',withholdPayloadContract('step_preserves_content','Nickel_crdt.Event_layer.canonical_step',4,['Nickel.Canonical.step_uses_selected_fact'],['  step_uses_selected_fact input out ops;'],canonicalView),'Canonical.step_preserves_content'],
  ['without-generic-push-contract',withholdPayloadContract('append_preserves_content','Nickel_crdt.Event_layer.push',1,['Nickel.Canonical.push_is_exact'],['  push_is_exact out item ops._2._1;'],canonicalView),'Canonical.append_preserves_content'],
  ['without-generic-membership-contract',withholdPayloadContract('append_preserves_content','Nickel_crdt.Event_layer.has_fact',2,['Nickel.EventGraph.fact_membership_is_exact'],['  Nickel.EventGraph.fact_membership_is_exact (Alloc.Vec.impl_1__as_slice out) (ops._1._1 item) ops;'],canonicalView),'Canonical.append_preserves_content'],
  ['without-generic-choice-loop',replaceInDeclaration('choose_is_fresh',canonicalChoiceLoop,'  ();',canonicalView),'Canonical.choose_is_fresh'],
  ['without-generic-canonical-loop',replaceInDeclaration('canonical_selects_whole_facts',canonicalWholeLoop,'  ();',canonicalView),'Canonical.canonical_selects_whole_facts'],
- ['without-generic-choice-contract',withholdPayloadContract('step_preserves_content','Nickel_crdt.Event_layer.choose_unseen',2,['Nickel.Canonical.choose_is_fresh'],['  choose_is_fresh input (Alloc.Vec.impl_1__as_slice out) ops;'],canonicalView),'Canonical.step_preserves_content'],
+ ['without-generic-choice-contract',withholdPayloadContract('step_preserves_content','Nickel_crdt.Event_layer.choose_unseen',5,['Nickel.Canonical.choose_is_fresh'],['  choose_is_fresh input (Alloc.Vec.impl_1__as_slice out) ops;'],canonicalView),'Canonical.step_preserves_content'],
  ['without-generic-step-contract',withholdPayloadContract('canonical_selects_whole_facts','Nickel_crdt.Event_layer.canonical_step',2,['Nickel.Canonical.step_preserves_content'],['    step_preserves_content input out (Seq.length (Alloc.Vec.impl_1__as_slice out)) ops;'],canonicalView),'Canonical.canonical_selects_whole_facts'],
  ['without-register-canonical-policy',withholdPayloadContract('execute_preserves_exact_fact_contents','Nickel_crdt.Register.v_OPS',2,['Nickel.Register.register_canonical_values_are_exact'],['  register_canonical_values_are_exact ();']),'execute_preserves_exact_fact_contents'],
  ['without-register-canonical-content',withholdPayloadContract('execute_preserves_exact_fact_contents','Nickel_crdt.Event_layer.canonical',1,['Nickel.Canonical.canonical_preserves_exact_contents'],['  Nickel.Canonical.canonical_preserves_exact_contents (Alloc.Vec.impl_1__as_slice before.f_facts) Native.v_OPS._1;']),'execute_preserves_exact_fact_contents'],
@@ -204,9 +215,10 @@ const depModes=[
 ];
 for(const [name,changed,owner]of depModes){
  if(selected.length&&!selected.includes(name))continue;
- const generic=owner.startsWith('Canonical.'),ownerFile=generic?path.join(positive,'Nickel.Canonical.fst'):file;
+ const generic=owner.startsWith('Canonical.')||owner.startsWith('LoopUtil.'),baseView=owner.startsWith('LoopUtil.')?loopView:owner.startsWith('Canonical.')?canonicalView:view,ownerFile=generic?path.join(positive,'Nickel.'+owner.split('.')[0]+'.fst'):file;
+ await fs.writeFile(path.join(output,name+'.fst'),changed);
  try{await put(ownerFile,changed);const r=await check(positive,['Nickel.Register.fst'],path.join(output,name+'.log'));const ordinary=hasOrdinaryTheoremRejection({status:r.status,log:r.log,theorem:generic?'Nickel.'+owner:'Nickel.Register.'+owner,view:changed});assert(ordinary,name+': checked callee dependence required');results.push({name,owner,status:r.status,ordinary,view:digest(changed),log:digest(r.log)});console.log('PASS '+name);}
- finally{await put(ownerFile,generic?canonicalView:view);}
+ finally{await put(ownerFile,baseView);}
 }
 await fs.writeFile(path.join(output,'results.json'),JSON.stringify(results,null,2)+'\n');
 console.log('checkpoint claims only; full register refinement/validity and SEC remain open');

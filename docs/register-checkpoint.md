@@ -198,7 +198,7 @@ the retained length by one. These are conditional success laws on every typed
 replica, not only reachable replicas. Earlier publication, frame and installation
 laws still cover their separate all-return obligations.
 
-This closes content retention through successful canonicalization. Independent
+The candidate states content retention through successful canonicalization. Independent
 ancestry/valid-history preservation, canonical ordering and history agreement,
 full client refinement and fitting admission/progress remain open. An operation
 that always refuses is not excluded by these success-only laws. No SEC or
@@ -208,9 +208,25 @@ layer so the full generic EventGraph module can be checked rather than sliced.
 
 The focused controls cover wrong shared push/selection/output bodies, wrong
 register append/canonical-input arguments, and checked loop, policy, planning,
-publication and installation dependencies. A further diagnostic omitting the
-step's append-contract call fails a nonterminal typing query while its final
-explicit assertion succeeds. It is retained but is **not** counted as an ordinary
-semantic dependency rejection; the append-to-step contract-dependence edge is
-not certified by that probe. No theorem, checking limit or rejection criterion
-was changed to accept it.
+publication and installation dependencies. The original diagnostic omitting the
+step's append-contract call failed a nonterminal query and was not credited.
+Review traced it to a Latte statement-sequencing defect: an assertion emitted
+after an ungrouped match belonged only to its final arm. The postconditions
+still checked, but that did not establish the intended all-arm caller isolation.
+
+The bounded repair puts the final query explicitly inside every branch of
+`LoopUtil.preserve`, `Canonical.step_preserves_content` and
+`Canonical.canonical_preserves_exact_contents`. The step also withholds the
+lower push contract so it must consume the append contract. These are tail
+matches; their query scope no longer depends on the repaired emitter. The
+statements, domains, native code, runtime, models and checking options are
+unchanged. New controls cover loop unroll/induction/end, the formerly uncredited
+append edge, and the final selection/coverage composition. Existing owners and
+controls are retained with exact branch-local boundary counts.
+
+This repairs the three affected match sites in the register dependency closure,
+not the ten other inventoried text-side match sites. The private compiler source
+fix is merged but is not activated in Nickel. Both the unchanged pinned producer
+and the corrected experimental producer check the complete register closure.
+The remaining text audit and checkpoint obligations stay open; exact-head CI
+and scoped repair review are required before accepting this cut.
