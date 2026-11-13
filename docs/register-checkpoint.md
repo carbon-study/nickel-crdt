@@ -8,7 +8,7 @@ text semantic/refinement slice, before collections. No Undo/Redo is implemented.
 
 ## manipulate a register
 
-`register::Replica::new(writer, initial, limits)` creates an empty history.
+`register::Replica::new(writer, initial)` creates an empty history.
 `write(key, bytes)` returns a new structured fact, or `None` for an equal-to-observed
 no-edit. Relay a fact with `receive`, then use `read(key)`. The separately compiled
 caller exercises two actual native instances:
@@ -30,10 +30,9 @@ application tag. The same explicit initial byte string applies to every key.
 Compared replicas of a document must agree on this configuration. No plugin
 ownership is encoded into keys or writer identities.
 
-Limits are explicit constructor arguments: retained event count, dependencies
-per event and bytes per value. Initial values must fit. Both the new and observed
-values of received writes must fit. No automatic GC, winner-only compaction,
-capacity increase or buffering policy is selected.
+There is no engine event-count, parent-count or value-byte policy ceiling.
+Workload budgets belong to callers/harnesses; see [the migration](policy-budgets.md).
+No automatic GC, winner-only compaction or buffering policy is selected.
 
 ## retained meaning and admission
 
@@ -50,34 +49,20 @@ admission is an outstanding proof obligation. Equal priority values cannot be
 assumed unique on arbitrary malformed arrays. All counted losing writes remain
 stored. Storage canonicalization is writer-first and is not read priority.
 
-Whole-fact duplicate classification comes first, before capacity and validation.
+Whole-fact duplicate classification comes first, before payload validation.
 Same ID with different parents or payload is a conflict. For a new identity:
-counter 0 is invalid; shared graph admission checks limits, repeated/missing
-dependencies and producer ancestry; the client then checks value bounds, frozen
+counter 0 is invalid; shared graph admission checks repeated/missing
+dependencies and producer ancestry; the client then checks frozen
 observation, a counted change and the exact next clock. Errors and duplicates
 publish nothing. A new local write advances its counter only in the detached
 successful candidate. Clock/counter exhaustion returns an explicit error.
 
 Missing dependencies require the external caller to retry after delivering them.
-Finite capacities can make receivers admit different subsets under different
-offers. A local counted write cites the entire current frontier, so its dependency
-bound must cover that frontier. For example, three concurrent single-event heads
-can all be received with a dependency limit of two, yet subsequent counted writes
-on those fully synchronized instances return Capacity. Their no-edit calls remain
-neutral successes. This is a bound on concurrent frontier width, not the total
-number of historical writers.
-
-Without another joining event, a closed cohort already at that over-width
-frontier cannot author its own first joining write through the current API.
-It is not globally unrecoverable: a fresh producer knowing only two heads can
-supply a valid joining write, which the synchronized replicas can receive and
-which can reduce the frontier enough to permit further writes. That witness is
-not an adopted automatic recovery policy. Changing cited causal context, adding
-merge events or counting equal-value writes needs an explicit contract decision;
-this candidate silently does none of them. A fitting/progress theorem must make
-the frontier and numeric-exhaustion conditions explicit or derive them. This
-local write-availability limitation is not itself a convergence counterexample.
-There is no unconditional eventual delivery/admission or SEC result.
+The former dependency-cap/frontier refusal has been removed, rather than
+replaced by a larger configured cap or a different causal context. Counted writes
+still cite the whole current frontier. Counter/clock exhaustion, writer fencing,
+validity and termination remain separate obligations. There is no unconditional
+eventual delivery/admission or SEC result.
 Rust allocation failure, the hax translation and its pinned models remain trust
 boundaries; finite tests are not universal validity or progress proofs.
 
@@ -111,7 +96,7 @@ Its caller withholds receive/planned and the frontier/clock/read/byte bodies;
 publication and private-frame contracts supply the connection. This still does
 not prove which facts the planner/canonicalizer retains or history/clock validity. Receiving now has a separate all-return private-state frame law: added
 facts, duplicates and every error preserve the writer, private producer counter,
-initial bytes and limits. Its composition checks actual prepare/execute policies
+initial bytes. Its composition checks actual prepare/execute policies
 and the shared planning/publication contracts with those bodies withheld. It
 does not establish which facts canonicalization retains.
 The current theorem name, `write_publication_on_every_return`, does not mean

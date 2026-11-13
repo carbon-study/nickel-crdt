@@ -127,7 +127,7 @@ let receive_publication_is_exact (before: Native.t_Replica) (offered: fact) : Le
 let public_read_is_history (before: Native.t_Replica) (key: u64) : Lemma (ensures Native.impl_Replica__read before key == Native.read_history (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice before.f_initial) key) [SMTPat (Native.impl_Replica__read before key)] =
   ()
 
-let equal_value_write_is_neutral (before: Native.t_Replica) (key: u64) (value: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (requires (Seq.length (Alloc.Vec.impl_1__as_slice value) <= v before.f_limits.f_value_bytes /\ bytes_same (Alloc.Vec.impl_1__as_slice value) (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read before key)))) (ensures Native.impl_Replica__write before key value == (before, Result.Result_Ok Option.Option_None)) =
+let equal_value_write_is_neutral (before: Native.t_Replica) (key: u64) (value: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (requires bytes_same (Alloc.Vec.impl_1__as_slice value) (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read before key))) (ensures Native.impl_Replica__write before key value == (before, Result.Result_Ok Option.Option_None)) =
   bytes_equal_exact (Alloc.Vec.impl_1__as_slice value) (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read before key));
   assert (Native.impl_Replica__write before key value == (before, Result.Result_Ok Option.Option_None)) by (
     Tactics.prune "Nickel_crdt.Register.bytes_equal";
@@ -213,7 +213,7 @@ let write_publication_on_every_return (before: Native.t_Replica) (key: u64) (val
   ) end end end
 
 let private_frame (before: Native.t_Replica) (next: Native.t_Replica) : Type0 =
-  Prims.l_and (Prims.l_and (Prims.l_and (next.f_writer == before.f_writer) (next.f_next_counter == before.f_next_counter)) (next.f_initial == before.f_initial)) (next.f_limits == before.f_limits)
+  Prims.l_and (Prims.l_and (next.f_writer == before.f_writer) (next.f_next_counter == before.f_next_counter)) (next.f_initial == before.f_initial)
 
 let prepare_preserves_private (before: Native.t_Replica) (offered: fact) : Lemma (ensures forall(next: Native.t_Replica). Native.prepare () before offered == Result.Result_Ok next ==> private_frame before next) [SMTPat (Native.prepare () before offered)] =
   assert (forall(next: Native.t_Replica). Native.prepare () before offered == Result.Result_Ok next ==> private_frame before next) by (
@@ -271,7 +271,7 @@ let receive_preserves_private (before: Native.t_Replica) (offered: fact) : Lemma
   ) end end
 
 let installed_candidate (candidate: Native.t_Replica) (next: Native.t_Replica) : Type0 =
-  Prims.l_and (Prims.l_and (Prims.l_and (next.f_writer == candidate.f_writer) (next.f_initial == candidate.f_initial)) (next.f_limits == candidate.f_limits)) (next.f_facts == candidate.f_facts)
+  Prims.l_and (Prims.l_and (next.f_writer == candidate.f_writer) (next.f_initial == candidate.f_initial)) (next.f_facts == candidate.f_facts)
 
 let write_installation (before: Native.t_Replica) (key: u64) (value: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) (outcome: Native.t_Replica & Result.t_Result (Option.t_Option fact) Native.t_Error) : Type0 =
   match outcome with | (next, result) -> begin match result with | Result.Result_Err _ -> begin next == before end | Result.Result_Ok option -> begin match option with | Option.Option_None -> begin next == before end | Option.Option_Some authored -> begin Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (authored.f_id.f_peer == before.f_writer) (authored.f_id.f_counter == before.f_next_counter)) (authored.f_payload.f_key == key)) (authored.f_payload.f_value == value)) (authored.f_payload.f_observed == Native.impl_Replica__read before key)) (Nickel_crdt.Event_layer.frontier (Alloc.Vec.impl_1__as_slice before.f_facts) Native.v_OPS._1 == Result.Result_Ok authored.f_after)) (Native.next_lamport (Alloc.Vec.impl_1__as_slice before.f_facts) == Result.Result_Ok authored.f_payload.f_lamport)) (exists(candidate: Native.t_Replica). Prims.l_and (Prims.l_and (Native.planned () before authored == Result.Result_Ok (Option.Option_Some candidate)) (installed_candidate candidate next)) (private_frame before candidate)) end end end
@@ -337,13 +337,13 @@ let write_installs_successful_candidate (before: Native.t_Replica) (key: u64) (v
   ) end end end end end
 
 let basis_payload_checks (before: Native.t_Replica) (offered: fact) (basis: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global) : Type0 =
-  Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (v offered.f_id.f_counter > 0) (Seq.length (Alloc.Vec.impl_1__as_slice offered.f_payload.f_value) <= v before.f_limits.f_value_bytes)) (Seq.length (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed) <= v before.f_limits.f_value_bytes)) (bytes_same (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed) (Alloc.Vec.impl_1__as_slice (Native.read_history (Alloc.Vec.impl_1__as_slice basis) (Alloc.Vec.impl_1__as_slice before.f_initial) offered.f_payload.f_key)))) (Prims.l_not (bytes_same (Alloc.Vec.impl_1__as_slice offered.f_payload.f_value) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed)))) (Native.next_lamport (Alloc.Vec.impl_1__as_slice basis) == Result.Result_Ok offered.f_payload.f_lamport)
+  Prims.l_and (Prims.l_and (Prims.l_and (v offered.f_id.f_counter > 0) (bytes_same (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed) (Alloc.Vec.impl_1__as_slice (Native.read_history (Alloc.Vec.impl_1__as_slice basis) (Alloc.Vec.impl_1__as_slice before.f_initial) offered.f_payload.f_key)))) (Prims.l_not (bytes_same (Alloc.Vec.impl_1__as_slice offered.f_payload.f_value) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed)))) (Native.next_lamport (Alloc.Vec.impl_1__as_slice basis) == Result.Result_Ok offered.f_payload.f_lamport)
 
 let selected_basis_checks (before: Native.t_Replica) (offered: fact) : Type0 =
-  exists(selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global). Prims.l_and (Prims.l_and (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS == Result.Result_Ok selected) (Nickel_crdt.Event_layer.select_basis (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) Native.v_OPS._1 == Result.Result_Ok basis)) (basis_payload_checks before offered basis)
+  exists(selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global). Prims.l_and (Prims.l_and (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered Native.v_OPS == Result.Result_Ok selected) (Nickel_crdt.Event_layer.select_basis (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) Native.v_OPS._1 == Result.Result_Ok basis)) (basis_payload_checks before offered basis)
 
 let validation_is_exact_basis_checks (before: Native.t_Replica) (offered: fact) : Lemma (ensures Native.validate () before offered == Result.Result_Ok () <==> selected_basis_checks before offered) [SMTPat (Native.validate () before offered)] =
-  match Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS with | Result.Result_Err _ -> begin assert (Native.validate () before offered == Result.Result_Ok () <==> selected_basis_checks before offered) by (
+  match Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered Native.v_OPS with | Result.Result_Err _ -> begin assert (Native.validate () before offered == Result.Result_Ok () <==> selected_basis_checks before offered) by (
     Tactics.prune "Nickel_crdt.Event_layer.validate_event";
     Tactics.prune "Nickel_crdt.Event_layer.select_basis";
     Tactics.prune "Nickel_crdt.Register.next_lamport";
@@ -429,7 +429,7 @@ let next_lamport_is_maximum_successor (facts: t_Slice fact) : Lemma (ensures clo
   )
 
 let selected_basis_clock_successor (before: Native.t_Replica) (offered: fact) : Type0 =
-  exists(selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global). Prims.l_and (Prims.l_and (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS == Result.Result_Ok selected) (Nickel_crdt.Event_layer.select_basis (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) Native.v_OPS._1 == Result.Result_Ok basis)) (clock_successor (Alloc.Vec.impl_1__as_slice basis) offered.f_payload.f_lamport)
+  exists(selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global). Prims.l_and (Prims.l_and (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered Native.v_OPS == Result.Result_Ok selected) (Nickel_crdt.Event_layer.select_basis (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) Native.v_OPS._1 == Result.Result_Ok basis)) (clock_successor (Alloc.Vec.impl_1__as_slice basis) offered.f_payload.f_lamport)
 
 let receive_added_clock_is_maximum_successor (before: Native.t_Replica) (offered: fact) : Lemma (ensures forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> selected_basis_clock_successor before offered) =
   let each_basis (basis: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global) : Lemma (requires Native.next_lamport (Alloc.Vec.impl_1__as_slice basis) == Result.Result_Ok offered.f_payload.f_lamport) (ensures clock_successor (Alloc.Vec.impl_1__as_slice basis) offered.f_payload.f_lamport) =
@@ -479,7 +479,7 @@ let fact_policy_is_native_call (same: fact -> fact -> bool) (a: fact) (b: fact) 
 let register_canonical_values_are_exact () : Lemma (ensures Nickel.Canonical.exact_values Native.v_OPS._1) =
   let graph = Nickel_crdt.Event_layer.graph_ops Native.identity Native.parents Native.same_id Native.less_id Native.copy_fact Native.fact_equal Native.invalid Native.missing in
   Nickel.EventGraph.graph_ops_preserve_callbacks Native.identity Native.parents Native.same_id Native.less_id Native.copy_fact Native.fact_equal Native.invalid Native.missing;
-  Nickel.EventGraph.event_ops_preserve_callbacks graph Native.previous Native.forbidden Native.capacity Native.capacity Native.invalid Native.invalid;
+  Nickel.EventGraph.event_ops_preserve_callbacks graph Native.previous Native.forbidden Native.invalid Native.invalid;
   assert (Prims.l_and (Prims.l_and (Prims.l_and (Native.v_OPS._1 == graph) (graph._1._3 == Native.same_id)) (graph._1._5 == Native.copy_fact)) (graph._1._6 == Native.fact_equal)) by (
     Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
     Tactics.prune "Nickel_crdt.Event_layer.event_ops";

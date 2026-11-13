@@ -1,6 +1,6 @@
 use nickel_crdt::edit::*;
 fn new(writer: Option<Writer>) -> Replica {
-    let r = Replica::new(writer, Limits::default()).unwrap();
+    let r = Replica::new(writer).unwrap();
     assert_unique(&r);
     r
 }
@@ -163,25 +163,19 @@ fn scalar_preservation_and_invalidity_are_atomic() {
     assert_eq!(a, before);
 }
 #[test]
-fn replacement_final_budget_failure_keeps_everything() {
-    let limits = Limits {
-        ordering_links: 21,
-        ..Limits::default()
-    };
-    let r = Replica::new(Some(Writer::Alice), limits).unwrap();
+fn replacement_is_not_blocked_by_former_ordering_budget() {
+    let r = Replica::new(Some(Writer::Alice)).unwrap();
     let (r, _) = edit(r, 0, "Friday!", vec![]);
     let delete = r.observe().unwrap()[..6]
         .iter()
         .map(|(id, _)| *id)
         .collect();
-    let before = r.clone();
     let (r, result) = r.edit(0, scalars("Monday"), delete);
-    assert_eq!(result, Err(Error::Capacity(Capacity::OrderingLinks)));
-    assert_eq!(r, before);
-    assert_eq!(text(&r), "Friday!");
+    assert!(matches!(result, Ok(Local::Authored(_))));
+    assert_eq!(text(&r), "Monday!");
 }
 #[test]
-fn missing_prerequisite_and_capacity_return_unchanged_owned_state() {
+fn missing_prerequisite_returns_unchanged_owned_state() {
     let (a, root) = edit(new(Some(Writer::Alice)), 0, "ab", vec![]);
     let (_, later) = edit(a, 2, "X", vec![]);
     let r = new(None);
@@ -193,17 +187,11 @@ fn missing_prerequisite_and_capacity_return_unchanged_owned_state() {
     let r = receive(r, &later);
     assert_eq!(text(&r), "abX");
     let low = Replica::new(
-        None,
-        Limits {
-            events: 0,
-            ..Limits::default()
-        },
-    )
+        None)
     .unwrap();
-    let before = low.clone();
     let (low, result) = low.receive(&root);
-    assert_eq!(result, Err(Error::Capacity(Capacity::Events)));
-    assert_eq!(low, before);
+    assert_eq!(result, Ok(Admission::Added));
+    assert_eq!(text(&low), "ab");
 }
 
 #[test]
@@ -246,12 +234,7 @@ fn authored_fact_replays_the_same_complete_commit() {
 #[test]
 fn identity_gate_checks_every_field_and_later_members() {
     let limited = Replica::new(
-        Some(Writer::Alice),
-        Limits {
-            events: 2,
-            ..Limits::default()
-        },
-    )
+        Some(Writer::Alice))
     .unwrap();
     let (a, root) = edit(limited, 0, "ab", vec![]);
     let victim = a.observe().unwrap()[0].0;

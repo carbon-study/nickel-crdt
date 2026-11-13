@@ -233,11 +233,11 @@ proof edit_preserves_causal_rank(before: Native.t_Replica, gap: usize, insert: A
 function new_ranked(outcome: Result.t_Result(Native.t_Replica, Native.t_Error)): Type0 {
   match outcome { Result.Result_Ok(state) => causal_rank(state.f_facts, ((_: Native.t_EventId) => 0), 0), _ => Prims.l_True }
 }
-proof new_establishes_causal_rank(writer: Option.t_Option(Native.t_Writer), limits: Native.t_Limits): unit
-  gives new_ranked(Native.impl_Replica__new(writer, limits))
+proof new_establishes_causal_rank(writer: Option.t_Option(Native.t_Writer)): unit
+  gives new_ranked(Native.impl_Replica__new(writer))
 {
-  Nickel.EditAtomic.new_has_empty_facts(writer, limits);
-  assert(new_ranked(Native.impl_Replica__new(writer, limits))) by {
+  Nickel.EditAtomic.new_has_empty_facts(writer);
+  assert(new_ranked(Native.impl_Replica__new(writer))) by {
     Tactics.prune("Nickel_crdt.Edit.impl_Replica__new");
     Tactics.prune("Alloc.Vec.from_seq");
     Tactics.prune("Alloc.Vec.impl_1__as_slice");
@@ -293,7 +293,7 @@ proof rank_excludes_nonempty_cycles(facts: facts_vec, rank: Native.t_EventId => 
 // existing certificate; it supplies no fresh writer identity or allocator.
 proof clone_preserves_causal_rank(before: Native.t_Replica, rank: Native.t_EventId => nat, bound: nat): unit
   takes causal_rank(before.f_facts, rank, bound)
-  gives causal_rank(Native.impl_82.f_clone(before).f_facts, rank, bound)
+  gives causal_rank(Native.impl_75.f_clone(before).f_facts, rank, bound)
 { () }
 
 proof actual_reference_is_edge(facts: facts_vec, fact: Native.t_Fact,

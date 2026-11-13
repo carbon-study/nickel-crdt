@@ -14,7 +14,7 @@ function text_graph_ops(): Nickel.EventGraph.graph_ops(Native.t_Fact, Native.t_E
 }
 function text_event_ops(): Nickel.EventGraph.event_ops(Native.t_Fact, Native.t_EventId, Native.t_Error) {
   Shared.event_ops(text_graph_ops(), Native.required_predecessor, Native.forbidden_ancestor,
-    Native.event_capacity_error, Native.dependency_capacity_error,
+
     Native.duplicate_dependency_error, Native.predecessor_error)
 }
 proof text_graph_callbacks_are_exact(): unit
@@ -42,7 +42,7 @@ proof text_graph_policy_is_exact(): unit
 {
   text_policy_is_exact();
   Nickel.EventGraph.event_ops_preserve_callbacks(text_graph_ops(), Native.required_predecessor,
-    Native.forbidden_ancestor, Native.event_capacity_error, Native.dependency_capacity_error,
+    Native.forbidden_ancestor,
     Native.duplicate_dependency_error, Native.predecessor_error);
   assert(Native.v_TEXT_OPS._1 == text_graph_ops()) by {
     Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");

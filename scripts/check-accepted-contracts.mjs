@@ -40,7 +40,7 @@ export async function checkAcceptedContracts({proof,output,fstar,models,modelCac
     ['accepted-membership-without-interpreter','membership_exact','Nickel.LoopUtil.option_interpret_any (mk_usize 0) (Nickel.EditIdentity.length facts) (member_next facts id) member_stop member_done;','();'],
     ['accepted-membership-without-lookup','membership_exact','member_lookup facts id (mk_usize 0);','();'],
     ['accepted-empty-without-vector-contract','empty_has_unique_ids','Nickel.Vector.empty_vector_contents #Native.t_Fact ();','();'],
-    ['accepted-new-order-without-empty-contract','new_establishes_fact_order','Nickel.EditAtomic.new_has_empty_facts writer limits;','();'],
+    ['accepted-new-order-without-empty-contract','new_establishes_fact_order','Nickel.EditAtomic.new_has_empty_facts writer;','();'],
     ['accepted-least-without-step','selected_id_is_least','least_extends_all input out;','();'],
     ['accepted-order-without-step-contract','canonical_orders_facts',step,''],
     ['accepted-progress-without-step-contract','canonical_succeeds_for_unique_ids',step,''],

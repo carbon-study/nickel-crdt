@@ -1,10 +1,9 @@
 // A separately compiled caller of the public crate, not a private test model.
-use nickel_crdt::register::{Admission, Limits, Replica};
+use nickel_crdt::register::{Admission, Replica};
 
 fn main() {
-    let limits = Limits { events: 64, dependencies: 64, value_bytes: 4096 };
-    let mut phone = Replica::new(100, vec![], limits).unwrap();
-    let mut laptop = Replica::new(200, vec![], limits).unwrap();
+    let mut phone = Replica::new(100, vec![]).unwrap();
+    let mut laptop = Replica::new(200, vec![]).unwrap();
     // Bytes stand for the application's opaque family/version/payload envelope.
     let red = phone.write(42, b"color/v1:red".to_vec()).unwrap().unwrap();
     let blue = laptop.write(42, b"color/v1:blue".to_vec()).unwrap().unwrap();

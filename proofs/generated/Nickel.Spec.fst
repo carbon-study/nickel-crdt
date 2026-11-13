@@ -39,12 +39,12 @@ let received_facts_valid (result: Native.t_Replica & Result.t_Result Native.t_Ad
 let edited_facts_valid (result: Native.t_Replica & Result.t_Result Native.t_Local Native.t_Error) : Type0 =
   match result with | (state, _) -> begin stored_facts_valid state end
 
-let new_establishes_valid_facts (writer: Option.t_Option Native.t_Writer) (limits: Native.t_Limits) : Lemma (ensures constructed_facts_valid (Native.impl_Replica__new writer limits)) =
-  Accepted.new_establishes_unique_ids writer limits;
-  Accepted.new_establishes_fact_order writer limits;
-  WellFormed.new_establishes_scalar_validity writer limits;
-  WellFormed.new_establishes_causal_closure writer limits;
-  assert (constructed_facts_valid (Native.impl_Replica__new writer limits)) by (
+let new_establishes_valid_facts (writer: Option.t_Option Native.t_Writer) : Lemma (ensures constructed_facts_valid (Native.impl_Replica__new writer)) =
+  Accepted.new_establishes_unique_ids writer;
+  Accepted.new_establishes_fact_order writer;
+  WellFormed.new_establishes_scalar_validity writer;
+  WellFormed.new_establishes_causal_closure writer;
+  assert (constructed_facts_valid (Native.impl_Replica__new writer)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__new";
     Tactics.smt_sync' 1 1
   )

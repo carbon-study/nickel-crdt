@@ -30,8 +30,8 @@ module Option = Core_models.Option
 let writer_index_is_exact (writer: Native.t_Writer) : Lemma (ensures Native.writer_index writer == (match writer with | Native.Writer_Alice -> begin mk_u8 0 end | Native.Writer_Bo -> begin mk_u8 1 end)) [SMTPat (Native.writer_index writer)] =
   ()
 
-let writer_equality_exact (a: Native.t_Writer) (b: Native.t_Writer) : Lemma (ensures Native.impl_1.f_eq a b == (a ==? b)) =
-  assert (Native.impl_1.f_eq a b == (a ==? b)) by (
+let writer_equality_exact (a: Native.t_Writer) (b: Native.t_Writer) : Lemma (ensures Native.impl.f_eq a b == (a ==? b)) =
+  assert (Native.impl.f_eq a b == (a ==? b)) by (
     Tactics.prune "Nickel_crdt.Edit.writer_index";
     Tactics.prune "Alloc.Vec.from_seq";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
@@ -41,10 +41,10 @@ let writer_equality_exact (a: Native.t_Writer) (b: Native.t_Writer) : Lemma (ens
     Tactics.smt_sync' 1 1
   )
 
-let event_equality_exact (a: Native.t_EventId) (b: Native.t_EventId) : Lemma (ensures Native.impl_2.f_eq a b == (a ==? b)) =
+let event_equality_exact (a: Native.t_EventId) (b: Native.t_EventId) : Lemma (ensures Native.impl_1.f_eq a b == (a ==? b)) =
   ()
 
-let birth_equality_exact (a: Native.t_BirthId) (b: Native.t_BirthId) : Lemma (ensures Native.impl_3.f_eq a b == (a ==? b)) =
+let birth_equality_exact (a: Native.t_BirthId) (b: Native.t_BirthId) : Lemma (ensures Native.impl_2.f_eq a b == (a ==? b)) =
   ()
 
 let fact_equality_exact (a: Native.t_Fact) (b: Native.t_Fact) : Lemma (ensures Native.fact_equal a b == (a ==? b)) [SMTPat (Native.fact_equal a b)] =

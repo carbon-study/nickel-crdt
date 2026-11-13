@@ -29,25 +29,8 @@ pub struct Fact {
     pub delete: Vec<BirthId>,
     pub gap: Option<usize>,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Limits {
-    pub events: usize,
-    pub births: usize,
-    pub scalars: usize,
-    pub dependencies: usize,
-    pub ordering_links: usize,
-}
-impl Default for Limits {
-    fn default() -> Self {
-        Self {
-            events: 128,
-            births: 512,
-            scalars: 64,
-            dependencies: 64,
-            ordering_links: 1536,
-        }
-    }
-}
+
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Invalid {
     Counter,
@@ -60,16 +43,9 @@ pub enum Invalid {
     Gap,
     PlacementWithoutBirth,
     NoWriter,
-    Profile,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Capacity {
-    Events,
-    Births,
-    Scalars,
-    Dependencies,
-    DeleteTargets,
-    OrderingLinks,
     Counter,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -219,9 +195,8 @@ impl Tree {
         Ok(self.nodes[p].clone())
     }
     fn whole(&self) -> Result<Vec<BirthId>, Error> {
-        if self.nodes.len() > 512 {
-            return Err(Error::Internal);
-        }
+        // Real representation overflow for the two visits per retained node.
+        if self.nodes.len() > usize::MAX / 2 { return Err(Error::Internal); }
         let mut stack = Vec::new();
         let mut out = Vec::new();
         for offset in 0..self.root_right.len() {
@@ -554,24 +529,15 @@ fn interpret(facts: &[Fact]) -> Result<Tree, Error> {
 pub struct Replica {
     writer: Option<Writer>,
     next_counter: u64,
-    limits: Limits,
     facts: Vec<Fact>,
     tree: Tree,
 }
 impl Replica {
-    pub fn new(writer: Option<Writer>, limits: Limits) -> Result<Self, Error> {
-        if limits.events > 128
-            || limits.births > 512
-            || limits.scalars > 64
-            || limits.dependencies > 64
-            || limits.ordering_links > 1536
-        {
-            return Err(invalid(Invalid::Profile));
-        }
+    pub fn new(writer: Option<Writer>) -> Result<Self, Error> {
+
         Ok(Self {
             writer,
             next_counter: 1,
-            limits,
             facts: Vec::new(),
             tree: Tree::default(),
         })
@@ -606,21 +572,8 @@ impl Replica {
             Some(false) => Err(invalid(Invalid::Conflict)),
         }
     }
-    fn validate_new(facts: &[Fact], limits: Limits, fact: &Fact) -> Result<(), Error> {
-        let selected = crate::event_layer::validate_event(facts, fact, limits.events, limits.dependencies, &TEXT_OPS)?;
-        if fact.insert.len() > limits.scalars {
-            return Err(Error::Capacity(Capacity::Scalars));
-        }
-        let mut births = 0;
-        for i in 0..facts.len() {
-            births = add(births, facts[i].insert.len())?;
-        }
-        if add(births, fact.insert.len())? > limits.births {
-            return Err(Error::Capacity(Capacity::Births));
-        }
-        if fact.delete.len() > 512 {
-            return Err(Error::Capacity(Capacity::DeleteTargets));
-        }
+    fn validate_new(facts: &[Fact], fact: &Fact) -> Result<(), Error> {
+        let selected = crate::event_layer::validate_event(facts, fact, &TEXT_OPS)?;
         validate_scalars(&fact.insert)?;
         let mut basis = Vec::new();
         for f in facts.iter() {
@@ -660,7 +613,7 @@ impl Replica {
         crate::event_shell::plan(
             self,
             fact,
-            &self.limits,
+            &(),
             plan_duplicate,
             plan_validate,
             plan_prepare,
@@ -770,25 +723,20 @@ fn scheduled_apply(
 ) -> Result<(Tree, Vec<Node>), Error> {
     interpret_event(facts, event, operations, result)
 }
-fn plan_duplicate(_: &Limits, before: &Replica, fact: &Fact) -> Result<bool, Error> {
+fn plan_duplicate(_: &(), before: &Replica, fact: &Fact) -> Result<bool, Error> {
     Replica::duplicate(&before.facts, fact)
 }
-fn plan_validate(_: &Limits, before: &Replica, fact: &Fact) -> Result<(), Error> {
-    Replica::validate_new(&before.facts, before.limits, fact)
+fn plan_validate(_: &(), before: &Replica, fact: &Fact) -> Result<(), Error> {
+    Replica::validate_new(&before.facts, fact)
 }
-fn plan_prepare(_: &Limits, mut next: Replica, fact: &Fact) -> Result<Replica, Error> {
+fn plan_prepare(_: &(), mut next: Replica, fact: &Fact) -> Result<Replica, Error> {
     push(&mut next.facts, fact.clone())?;
     next.facts = canonical(&next.facts)?;
     Ok(next)
 }
-fn plan_execute(limits: &Limits, next: Replica) -> Result<Replica, Error> {
+fn plan_execute(_: &(), next: Replica) -> Result<Replica, Error> {
     let tree = interpret(&next.facts)?;
-    if tree.nodes.len() > usize::MAX / 3 {
-        return Err(Error::Internal);
-    }
-    if tree.nodes.len() * 3 > limits.ordering_links {
-        return Err(Error::Capacity(Capacity::OrderingLinks));
-    }
+
     Ok(next.with_tree(tree))
 }
 fn receive_plan(_: &(), before: &Replica, fact: &Fact) -> Result<Option<Replica>, Error> {
@@ -808,12 +756,8 @@ fn required_predecessor(id: &EventId) -> Option<EventId> {
 fn forbidden_ancestor(ancestor: &EventId, current: &EventId) -> bool {
     ancestor.writer == current.writer && ancestor.counter >= current.counter
 }
-fn event_capacity_error() -> Error {
-    Error::Capacity(Capacity::Events)
-}
-fn dependency_capacity_error() -> Error {
-    Error::Capacity(Capacity::Dependencies)
-}
+
+
 fn duplicate_dependency_error() -> Error {
     invalid(Invalid::DependencyDuplicate)
 }
@@ -828,7 +772,6 @@ const TEXT_OPS: crate::event_layer::EventOps<Fact, EventId, Error> = {
             fact_id, fact_after, same_event_id, earlier_event_id,
             clone_selected_fact, fact_equal, internal_error, missing_error,
         ),
-        required_predecessor, forbidden_ancestor, event_capacity_error,
-        dependency_capacity_error, duplicate_dependency_error, predecessor_error,
+        required_predecessor, forbidden_ancestor, duplicate_dependency_error, predecessor_error,
     )
 };

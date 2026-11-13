@@ -21,6 +21,9 @@
         cargoLock.lockFile = ./Cargo.lock;
         cargoBuildFlags = [ "--workspace" ];
         cargoTestFlags = [ "--workspace" ];
+        postCheck = ''
+          cargo run --offline --locked --example policy-boundary
+        '';
       };
       tools = [ pkgs.nodejs_22 pkgs.gnumake pkgs.coreutils pkgs.util-linux rust ];
       modelEnv = ''

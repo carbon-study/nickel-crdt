@@ -9,16 +9,9 @@ let _ =
   let open Nickel_crdt.Causal in
   ()
 
-type t_Limits = {
-  f_events:usize;
-  f_dependencies:usize;
-  f_value_bytes:usize
-}
-
 type t_Error =
   | Error_Conflict : t_Error
   | Error_Missing : t_Error
-  | Error_Capacity : t_Error
   | Error_Invalid : t_Error
   | Error_ClockExhausted : t_Error
   | Error_CounterExhausted : t_Error
@@ -34,18 +27,17 @@ type t_Write = {
   f_lamport:u64
 }
 
-let impl_19: Core_models.Clone.t_Clone t_Write =
+let impl_13: Core_models.Clone.t_Clone t_Write =
   { f_clone = (fun x -> x); f_clone_pre = (fun _ -> True); f_clone_post = (fun _ _ -> True) }
 
 type t_Replica = {
   f_writer:u64;
   f_next_counter:u64;
   f_initial:Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global;
-  f_limits:t_Limits;
   f_facts:Alloc.Vec.t_Vec (Nickel_crdt.Causal.t_Event t_Write) Alloc.Alloc.t_Global
 }
 
-let impl_21: Core_models.Clone.t_Clone t_Replica =
+let impl_15: Core_models.Clone.t_Clone t_Replica =
   { f_clone = (fun x -> x); f_clone_pre = (fun _ -> True); f_clone_post = (fun _ _ -> True) }
 
 let bytes_equal (a b: t_Slice u8) : bool =
@@ -117,8 +109,6 @@ let invalid (_: Prims.unit) : t_Error = Error_Invalid <: t_Error
 
 let missing (_: Prims.unit) : t_Error = Error_Missing <: t_Error
 
-let capacity (_: Prims.unit) : t_Error = Error_Capacity <: t_Error
-
 let previous (id: Nickel_crdt.Causal.t_Id) : Core_models.Option.t_Option Nickel_crdt.Causal.t_Id =
   if id.Nickel_crdt.Causal.f_counter >. mk_u64 1
   then
@@ -146,9 +136,9 @@ let v_OPS: ((((Nickel_crdt.Causal.t_Event t_Write -> Nickel_crdt.Causal.t_Id) &
     ((Prims.unit -> t_Error) & (Prims.unit -> t_Error))) &
   ((Nickel_crdt.Causal.t_Id -> Core_models.Option.t_Option Nickel_crdt.Causal.t_Id) &
     (Nickel_crdt.Causal.t_Id -> Nickel_crdt.Causal.t_Id -> bool) &
-    ((Prims.unit -> t_Error) & (Prims.unit -> t_Error) & (Prims.unit -> t_Error) &
-      (Prims.unit -> t_Error)))) =
-  Nickel_crdt.Event_layer.event_ops #(Nickel_crdt.Causal.t_Event t_Write) #Nickel_crdt.Causal.t_Id
+    ((Prims.unit -> t_Error) & (Prims.unit -> t_Error)))) =
+  Nickel_crdt.Event_layer.event_ops #(Nickel_crdt.Causal.t_Event t_Write)
+    #Nickel_crdt.Causal.t_Id
     #t_Error
     (Nickel_crdt.Event_layer.graph_ops #(Nickel_crdt.Causal.t_Event t_Write)
         #Nickel_crdt.Causal.t_Id #t_Error identity parents same_id less_id copy_fact fact_equal
@@ -160,8 +150,11 @@ let v_OPS: ((((Nickel_crdt.Causal.t_Event t_Write -> Nickel_crdt.Causal.t_Id) &
           (Nickel_crdt.Causal.t_Id -> Nickel_crdt.Causal.t_Id -> bool) &
           (Nickel_crdt.Causal.t_Event t_Write -> Nickel_crdt.Causal.t_Event t_Write) &
           (Nickel_crdt.Causal.t_Event t_Write -> Nickel_crdt.Causal.t_Event t_Write -> bool)) &
-        ((Prims.unit -> t_Error) & (Prims.unit -> t_Error)))) previous forbidden capacity capacity
-    invalid invalid
+        ((Prims.unit -> t_Error) & (Prims.unit -> t_Error))))
+    previous
+    forbidden
+    invalid
+    invalid
 
 /// Strict visible-write priority, not the shared writer-first storage order.
 let later (a b: Nickel_crdt.Causal.t_Event t_Write) : bool =
@@ -259,29 +252,19 @@ let next_lamport (facts: t_Slice (Nickel_crdt.Causal.t_Event t_Write))
     (Core_models.Num.impl_u64__checked_add highest (mk_u64 1) <: Core_models.Option.t_Option u64)
     (Error_ClockExhausted <: t_Error)
 
-let impl_Replica__new
-      (writer: u64)
-      (initial: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global)
-      (limits: t_Limits)
+let impl_Replica__new (writer: u64) (initial: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global)
     : Core_models.Result.t_Result t_Replica t_Error =
-  if (Alloc.Vec.impl_1__len #u8 #Alloc.Alloc.t_Global initial <: usize) >. limits.f_value_bytes
-  then
-    Core_models.Result.Result_Err (Error_Capacity <: t_Error)
+  Core_models.Result.Result_Ok
+  ({
+      f_writer = writer;
+      f_next_counter = mk_u64 1;
+      f_initial = initial;
+      f_facts = Alloc.Vec.impl__new #(Nickel_crdt.Causal.t_Event t_Write) ()
+    }
     <:
-    Core_models.Result.t_Result t_Replica t_Error
-  else
-    Core_models.Result.Result_Ok
-    ({
-        f_writer = writer;
-        f_next_counter = mk_u64 1;
-        f_initial = initial;
-        f_limits = limits;
-        f_facts = Alloc.Vec.impl__new #(Nickel_crdt.Causal.t_Event t_Write) ()
-      }
-      <:
-      t_Replica)
-    <:
-    Core_models.Result.t_Result t_Replica t_Error
+    t_Replica)
+  <:
+  Core_models.Result.t_Result t_Replica t_Error
 
 let impl_Replica__read (self: t_Replica) (key: u64) : Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global =
   read_history (Alloc.Vec.impl_1__as_slice self.f_facts
@@ -325,94 +308,72 @@ let validate (_: Prims.unit) (before: t_Replica) (fact: Nickel_crdt.Causal.t_Eve
         #t_Error
         (Alloc.Vec.impl_1__as_slice before.f_facts <: t_Slice (Nickel_crdt.Causal.t_Event t_Write))
         fact
-        before.f_limits.f_events
-        before.f_limits.f_dependencies
         v_OPS
       <:
       Core_models.Result.t_Result (Alloc.Vec.t_Vec Nickel_crdt.Causal.t_Id Alloc.Alloc.t_Global)
         t_Error
     with
     | Core_models.Result.Result_Ok selected ->
-      if
-        (Alloc.Vec.impl_1__len #u8 #Alloc.Alloc.t_Global fact.Nickel_crdt.Causal.f_payload.f_value
-          <:
-          usize) >.
-        before.f_limits.f_value_bytes ||
-        (Alloc.Vec.impl_1__len #u8
-            #Alloc.Alloc.t_Global
-            fact.Nickel_crdt.Causal.f_payload.f_observed
-          <:
-          usize) >.
-        before.f_limits.f_value_bytes
-      then
-        Core_models.Result.Result_Err (Error_Capacity <: t_Error)
-        <:
-        Core_models.Result.t_Result Prims.unit t_Error
-      else
-        (match
-            Nickel_crdt.Event_layer.select_basis #(Nickel_crdt.Causal.t_Event t_Write)
-              #Nickel_crdt.Causal.t_Id
-              #t_Error
-              (Alloc.Vec.impl_1__as_slice before.f_facts
-                <:
-                t_Slice (Nickel_crdt.Causal.t_Event t_Write))
-              (Alloc.Vec.impl_1__as_slice selected <: t_Slice Nickel_crdt.Causal.t_Id)
-              v_OPS._1
-            <:
-            Core_models.Result.t_Result
-              (Alloc.Vec.t_Vec (Nickel_crdt.Causal.t_Event t_Write) Alloc.Alloc.t_Global) t_Error
-          with
-          | Core_models.Result.Result_Ok basis ->
-            if
-              ~.(bytes_equal (Alloc.Vec.impl_1__as_slice fact.Nickel_crdt.Causal.f_payload
-                        .f_observed
-                    <:
-                    t_Slice u8)
-                  (Alloc.Vec.impl_1__as_slice (read_history (Alloc.Vec.impl_1__as_slice basis
-                            <:
-                            t_Slice (Nickel_crdt.Causal.t_Event t_Write))
-                          (Alloc.Vec.impl_1__as_slice before.f_initial <: t_Slice u8)
-                          fact.Nickel_crdt.Causal.f_payload.f_key
-                        <:
-                        Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global)
-                    <:
-                    t_Slice u8)
-                <:
-                bool) ||
-              bytes_equal (Alloc.Vec.impl_1__as_slice fact.Nickel_crdt.Causal.f_payload.f_value
-                  <:
-                  t_Slice u8)
-                (Alloc.Vec.impl_1__as_slice fact.Nickel_crdt.Causal.f_payload.f_observed
-                  <:
-                  t_Slice u8)
-            then
-              Core_models.Result.Result_Err (Error_Invalid <: t_Error)
+      (match
+          Nickel_crdt.Event_layer.select_basis #(Nickel_crdt.Causal.t_Event t_Write)
+            #Nickel_crdt.Causal.t_Id
+            #t_Error
+            (Alloc.Vec.impl_1__as_slice before.f_facts
               <:
-              Core_models.Result.t_Result Prims.unit t_Error
-            else
-              (match
-                  next_lamport (Alloc.Vec.impl_1__as_slice basis
+              t_Slice (Nickel_crdt.Causal.t_Event t_Write))
+            (Alloc.Vec.impl_1__as_slice selected <: t_Slice Nickel_crdt.Causal.t_Id)
+            v_OPS._1
+          <:
+          Core_models.Result.t_Result
+            (Alloc.Vec.t_Vec (Nickel_crdt.Causal.t_Event t_Write) Alloc.Alloc.t_Global) t_Error
+        with
+        | Core_models.Result.Result_Ok basis ->
+          if
+            ~.(bytes_equal (Alloc.Vec.impl_1__as_slice fact.Nickel_crdt.Causal.f_payload.f_observed
+                  <:
+                  t_Slice u8)
+                (Alloc.Vec.impl_1__as_slice (read_history (Alloc.Vec.impl_1__as_slice basis
+                          <:
+                          t_Slice (Nickel_crdt.Causal.t_Event t_Write))
+                        (Alloc.Vec.impl_1__as_slice before.f_initial <: t_Slice u8)
+                        fact.Nickel_crdt.Causal.f_payload.f_key
                       <:
-                      t_Slice (Nickel_crdt.Causal.t_Event t_Write))
+                      Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global)
                   <:
-                  Core_models.Result.t_Result u64 t_Error
-                with
-                | Core_models.Result.Result_Ok hoist41 ->
-                  if fact.Nickel_crdt.Causal.f_payload.f_lamport <>. hoist41
-                  then
-                    Core_models.Result.Result_Err (Error_Invalid <: t_Error)
+                  t_Slice u8)
+              <:
+              bool) ||
+            bytes_equal (Alloc.Vec.impl_1__as_slice fact.Nickel_crdt.Causal.f_payload.f_value
+                <:
+                t_Slice u8)
+              (Alloc.Vec.impl_1__as_slice fact.Nickel_crdt.Causal.f_payload.f_observed <: t_Slice u8
+              )
+          then
+            Core_models.Result.Result_Err (Error_Invalid <: t_Error)
+            <:
+            Core_models.Result.t_Result Prims.unit t_Error
+          else
+            (match
+                next_lamport (Alloc.Vec.impl_1__as_slice basis
                     <:
-                    Core_models.Result.t_Result Prims.unit t_Error
-                  else
-                    Core_models.Result.Result_Ok (() <: Prims.unit)
-                    <:
-                    Core_models.Result.t_Result Prims.unit t_Error
-                | Core_models.Result.Result_Err err ->
-                  Core_models.Result.Result_Err err
+                    t_Slice (Nickel_crdt.Causal.t_Event t_Write))
+                <:
+                Core_models.Result.t_Result u64 t_Error
+              with
+              | Core_models.Result.Result_Ok hoist36 ->
+                if fact.Nickel_crdt.Causal.f_payload.f_lamport <>. hoist36
+                then
+                  Core_models.Result.Result_Err (Error_Invalid <: t_Error)
                   <:
-                  Core_models.Result.t_Result Prims.unit t_Error)
-          | Core_models.Result.Result_Err err ->
-            Core_models.Result.Result_Err err <: Core_models.Result.t_Result Prims.unit t_Error)
+                  Core_models.Result.t_Result Prims.unit t_Error
+                else
+                  Core_models.Result.Result_Ok (() <: Prims.unit)
+                  <:
+                  Core_models.Result.t_Result Prims.unit t_Error
+              | Core_models.Result.Result_Err err ->
+                Core_models.Result.Result_Err err <: Core_models.Result.t_Result Prims.unit t_Error)
+        | Core_models.Result.Result_Err err ->
+          Core_models.Result.Result_Err err <: Core_models.Result.t_Result Prims.unit t_Error)
     | Core_models.Result.Result_Err err ->
       Core_models.Result.Result_Err err <: Core_models.Result.t_Result Prims.unit t_Error
 
@@ -449,8 +410,8 @@ let execute (_: Prims.unit) (next: t_Replica) : Core_models.Result.t_Result t_Re
     Core_models.Result.t_Result
       (Alloc.Vec.t_Vec (Nickel_crdt.Causal.t_Event t_Write) Alloc.Alloc.t_Global) t_Error
   with
-  | Core_models.Result.Result_Ok hoist45 ->
-    let next:t_Replica = { next with f_facts = hoist45 } <: t_Replica in
+  | Core_models.Result.Result_Ok hoist40 ->
+    let next:t_Replica = { next with f_facts = hoist40 } <: t_Replica in
     Core_models.Result.Result_Ok next <: Core_models.Result.t_Result t_Replica t_Error
   | Core_models.Result.Result_Err err ->
     Core_models.Result.Result_Err err <: Core_models.Result.t_Result t_Replica t_Error
@@ -460,7 +421,7 @@ let planned (_: Prims.unit) (before: t_Replica) (fact: Nickel_crdt.Causal.t_Even
   Nickel_crdt.Event_shell.plan #t_Replica #(Nickel_crdt.Causal.t_Event t_Write) #Prims.unit #t_Error
     before fact (() <: Prims.unit) duplicate validate prepare execute
 
-/// Duplicate before capacity/validation. Only a successful detached plan
+/// Duplicate before payload validation. Only a successful detached plan
 /// publishes, through the same shell used by the actual text engine.
 let impl_Replica__receive (self: t_Replica) (fact: Nickel_crdt.Causal.t_Event t_Write)
     : (t_Replica & Core_models.Result.t_Result t_Admission t_Error) =
@@ -481,10 +442,16 @@ let impl_Replica__write
     : (t_Replica &
       Core_models.Result.t_Result (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write))
         t_Error) =
-  if (Alloc.Vec.impl_1__len #u8 #Alloc.Alloc.t_Global value <: usize) >. self.f_limits.f_value_bytes
+  let observed:Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global = impl_Replica__read self key in
+  if
+    bytes_equal (Alloc.Vec.impl_1__as_slice value <: t_Slice u8)
+      (Alloc.Vec.impl_1__as_slice observed <: t_Slice u8)
   then
     self,
-    (Core_models.Result.Result_Err (Error_Capacity <: t_Error)
+    (Core_models.Result.Result_Ok
+      (Core_models.Option.Option_None
+        <:
+        Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write))
       <:
       Core_models.Result.t_Result (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write))
         t_Error)
@@ -493,16 +460,147 @@ let impl_Replica__write
       Core_models.Result.t_Result (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write))
         t_Error)
   else
-    let observed:Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global = impl_Replica__read self key in
-    if
-      bytes_equal (Alloc.Vec.impl_1__as_slice value <: t_Slice u8)
-        (Alloc.Vec.impl_1__as_slice observed <: t_Slice u8)
-    then
-      self,
-      (Core_models.Result.Result_Ok
-        (Core_models.Option.Option_None
+    match
+      Core_models.Option.impl__ok_or #u64
+        #t_Error
+        (Core_models.Num.impl_u64__checked_add self.f_next_counter (mk_u64 1)
           <:
-          Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write))
+          Core_models.Option.t_Option u64)
+        (Error_CounterExhausted <: t_Error)
+      <:
+      Core_models.Result.t_Result u64 t_Error
+    with
+    | Core_models.Result.Result_Ok next ->
+      (match
+          Nickel_crdt.Event_layer.frontier #(Nickel_crdt.Causal.t_Event t_Write)
+            #Nickel_crdt.Causal.t_Id
+            #t_Error
+            (Alloc.Vec.impl_1__as_slice self.f_facts <: t_Slice (Nickel_crdt.Causal.t_Event t_Write)
+            )
+            v_OPS._1
+          <:
+          Core_models.Result.t_Result (Alloc.Vec.t_Vec Nickel_crdt.Causal.t_Id Alloc.Alloc.t_Global)
+            t_Error
+        with
+        | Core_models.Result.Result_Ok hoist31 ->
+          (match
+              next_lamport (Alloc.Vec.impl_1__as_slice self.f_facts
+                  <:
+                  t_Slice (Nickel_crdt.Causal.t_Event t_Write))
+              <:
+              Core_models.Result.t_Result u64 t_Error
+            with
+            | Core_models.Result.Result_Ok hoist29 ->
+              let fact:Nickel_crdt.Causal.t_Event t_Write =
+                {
+                  Nickel_crdt.Causal.f_id
+                  =
+                  {
+                    Nickel_crdt.Causal.f_peer = self.f_writer;
+                    Nickel_crdt.Causal.f_counter = self.f_next_counter
+                  }
+                  <:
+                  Nickel_crdt.Causal.t_Id;
+                  Nickel_crdt.Causal.f_after = hoist31;
+                  Nickel_crdt.Causal.f_payload
+                  =
+                  { f_key = key; f_value = value; f_observed = observed; f_lamport = hoist29 }
+                  <:
+                  t_Write
+                }
+                <:
+                Nickel_crdt.Causal.t_Event t_Write
+              in
+              let candidate:t_Replica =
+                Core_models.Clone.f_clone #t_Replica #FStar.Tactics.Typeclasses.solve self
+              in
+              let (tmp0: t_Replica), (out: Core_models.Result.t_Result t_Admission t_Error) =
+                impl_Replica__receive candidate
+                  (Core_models.Clone.f_clone #(Nickel_crdt.Causal.t_Event t_Write)
+                      #FStar.Tactics.Typeclasses.solve
+                      fact
+                    <:
+                    Nickel_crdt.Causal.t_Event t_Write)
+              in
+              let candidate:t_Replica = tmp0 in
+              (match out <: Core_models.Result.t_Result t_Admission t_Error with
+                | Core_models.Result.Result_Ok hoist33 ->
+                  let
+                  ((candidate: t_Replica), (self: t_Replica)),
+                  (hax_temp_output:
+                    Core_models.Result.t_Result
+                      (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error) =
+                    match hoist33 <: t_Admission with
+                    | Admission_Duplicate  ->
+                      (candidate, self <: (t_Replica & t_Replica)),
+                      (Core_models.Result.Result_Err (Error_Conflict <: t_Error)
+                        <:
+                        Core_models.Result.t_Result
+                          (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error
+                      )
+                      <:
+                      ((t_Replica & t_Replica) &
+                        Core_models.Result.t_Result
+                          (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error
+                      )
+                    | Admission_Added  ->
+                      let candidate:t_Replica =
+                        { candidate with f_next_counter = next } <: t_Replica
+                      in
+                      let self:t_Replica = candidate in
+                      (candidate, self <: (t_Replica & t_Replica)),
+                      (Core_models.Result.Result_Ok
+                        (Core_models.Option.Option_Some fact
+                          <:
+                          Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write))
+                        <:
+                        Core_models.Result.t_Result
+                          (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error
+                      )
+                      <:
+                      ((t_Replica & t_Replica) &
+                        Core_models.Result.t_Result
+                          (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error
+                      )
+                  in
+                  self, hax_temp_output
+                  <:
+                  (t_Replica &
+                    Core_models.Result.t_Result
+                      (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error)
+                | Core_models.Result.Result_Err err ->
+                  self,
+                  (Core_models.Result.Result_Err err
+                    <:
+                    Core_models.Result.t_Result
+                      (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error)
+                  <:
+                  (t_Replica &
+                    Core_models.Result.t_Result
+                      (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error))
+            | Core_models.Result.Result_Err err ->
+              self,
+              (Core_models.Result.Result_Err err
+                <:
+                Core_models.Result.t_Result
+                  (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error)
+              <:
+              (t_Replica &
+                Core_models.Result.t_Result
+                  (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error))
+        | Core_models.Result.Result_Err err ->
+          self,
+          (Core_models.Result.Result_Err err
+            <:
+            Core_models.Result.t_Result
+              (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error)
+          <:
+          (t_Replica &
+            Core_models.Result.t_Result
+              (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error))
+    | Core_models.Result.Result_Err err ->
+      self,
+      (Core_models.Result.Result_Err err
         <:
         Core_models.Result.t_Result
           (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error)
@@ -510,154 +608,3 @@ let impl_Replica__write
       (t_Replica &
         Core_models.Result.t_Result
           (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error)
-    else
-      match
-        Core_models.Option.impl__ok_or #u64
-          #t_Error
-          (Core_models.Num.impl_u64__checked_add self.f_next_counter (mk_u64 1)
-            <:
-            Core_models.Option.t_Option u64)
-          (Error_CounterExhausted <: t_Error)
-        <:
-        Core_models.Result.t_Result u64 t_Error
-      with
-      | Core_models.Result.Result_Ok next ->
-        (match
-            Nickel_crdt.Event_layer.frontier #(Nickel_crdt.Causal.t_Event t_Write)
-              #Nickel_crdt.Causal.t_Id
-              #t_Error
-              (Alloc.Vec.impl_1__as_slice self.f_facts
-                <:
-                t_Slice (Nickel_crdt.Causal.t_Event t_Write))
-              v_OPS._1
-            <:
-            Core_models.Result.t_Result
-              (Alloc.Vec.t_Vec Nickel_crdt.Causal.t_Id Alloc.Alloc.t_Global) t_Error
-          with
-          | Core_models.Result.Result_Ok hoist35 ->
-            (match
-                next_lamport (Alloc.Vec.impl_1__as_slice self.f_facts
-                    <:
-                    t_Slice (Nickel_crdt.Causal.t_Event t_Write))
-                <:
-                Core_models.Result.t_Result u64 t_Error
-              with
-              | Core_models.Result.Result_Ok hoist33 ->
-                let fact:Nickel_crdt.Causal.t_Event t_Write =
-                  {
-                    Nickel_crdt.Causal.f_id
-                    =
-                    {
-                      Nickel_crdt.Causal.f_peer = self.f_writer;
-                      Nickel_crdt.Causal.f_counter = self.f_next_counter
-                    }
-                    <:
-                    Nickel_crdt.Causal.t_Id;
-                    Nickel_crdt.Causal.f_after = hoist35;
-                    Nickel_crdt.Causal.f_payload
-                    =
-                    { f_key = key; f_value = value; f_observed = observed; f_lamport = hoist33 }
-                    <:
-                    t_Write
-                  }
-                  <:
-                  Nickel_crdt.Causal.t_Event t_Write
-                in
-                let candidate:t_Replica =
-                  Core_models.Clone.f_clone #t_Replica #FStar.Tactics.Typeclasses.solve self
-                in
-                let (tmp0: t_Replica), (out: Core_models.Result.t_Result t_Admission t_Error) =
-                  impl_Replica__receive candidate
-                    (Core_models.Clone.f_clone #(Nickel_crdt.Causal.t_Event t_Write)
-                        #FStar.Tactics.Typeclasses.solve
-                        fact
-                      <:
-                      Nickel_crdt.Causal.t_Event t_Write)
-                in
-                let candidate:t_Replica = tmp0 in
-                (match out <: Core_models.Result.t_Result t_Admission t_Error with
-                  | Core_models.Result.Result_Ok hoist37 ->
-                    let
-                    ((candidate: t_Replica), (self: t_Replica)),
-                    (hax_temp_output:
-                      Core_models.Result.t_Result
-                        (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error)
-                    =
-                      match hoist37 <: t_Admission with
-                      | Admission_Duplicate  ->
-                        (candidate, self <: (t_Replica & t_Replica)),
-                        (Core_models.Result.Result_Err (Error_Conflict <: t_Error)
-                          <:
-                          Core_models.Result.t_Result
-                            (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write))
-                            t_Error)
-                        <:
-                        ((t_Replica & t_Replica) &
-                          Core_models.Result.t_Result
-                            (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write))
-                            t_Error)
-                      | Admission_Added  ->
-                        let candidate:t_Replica =
-                          { candidate with f_next_counter = next } <: t_Replica
-                        in
-                        let self:t_Replica = candidate in
-                        (candidate, self <: (t_Replica & t_Replica)),
-                        (Core_models.Result.Result_Ok
-                          (Core_models.Option.Option_Some fact
-                            <:
-                            Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write))
-                          <:
-                          Core_models.Result.t_Result
-                            (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write))
-                            t_Error)
-                        <:
-                        ((t_Replica & t_Replica) &
-                          Core_models.Result.t_Result
-                            (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write))
-                            t_Error)
-                    in
-                    self, hax_temp_output
-                    <:
-                    (t_Replica &
-                      Core_models.Result.t_Result
-                        (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error)
-                  | Core_models.Result.Result_Err err ->
-                    self,
-                    (Core_models.Result.Result_Err err
-                      <:
-                      Core_models.Result.t_Result
-                        (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error)
-                    <:
-                    (t_Replica &
-                      Core_models.Result.t_Result
-                        (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error))
-              | Core_models.Result.Result_Err err ->
-                self,
-                (Core_models.Result.Result_Err err
-                  <:
-                  Core_models.Result.t_Result
-                    (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error)
-                <:
-                (t_Replica &
-                  Core_models.Result.t_Result
-                    (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error))
-          | Core_models.Result.Result_Err err ->
-            self,
-            (Core_models.Result.Result_Err err
-              <:
-              Core_models.Result.t_Result
-                (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error)
-            <:
-            (t_Replica &
-              Core_models.Result.t_Result
-                (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error))
-      | Core_models.Result.Result_Err err ->
-        self,
-        (Core_models.Result.Result_Err err
-          <:
-          Core_models.Result.t_Result
-            (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error)
-        <:
-        (t_Replica &
-          Core_models.Result.t_Result
-            (Core_models.Option.t_Option (Nickel_crdt.Causal.t_Event t_Write)) t_Error)

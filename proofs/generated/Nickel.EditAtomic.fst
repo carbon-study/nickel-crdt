@@ -48,8 +48,8 @@ let validation_succeeded (result: Result.t_Result unit Native.t_Error) : Type0 =
 let plan_was_validated (validation: Result.t_Result unit Native.t_Error) (result: plan_result) : Type0 =
   match result with | Result.Result_Ok (Option.Option_Some _) -> begin validation_succeeded validation end | _ -> begin Prims.l_True end
 
-let successful_plan_requires_validation (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures plan_was_validated (Native.impl_Replica__validate_new (Alloc.Vec.impl_1__as_slice before.f_facts) before.f_limits fact) (Native.impl_Replica__plan before fact)) =
-  assert (plan_was_validated (Native.impl_Replica__validate_new (Alloc.Vec.impl_1__as_slice before.f_facts) before.f_limits fact) (Native.impl_Replica__plan before fact)) by (
+let successful_plan_requires_validation (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures plan_was_validated (Native.impl_Replica__validate_new (Alloc.Vec.impl_1__as_slice before.f_facts) fact) (Native.impl_Replica__plan before fact)) =
+  assert (plan_was_validated (Native.impl_Replica__validate_new (Alloc.Vec.impl_1__as_slice before.f_facts) fact) (Native.impl_Replica__plan before fact)) by (
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__validate_new";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__duplicate";
     Tactics.prune "Nickel_crdt.Edit.push";
@@ -97,7 +97,7 @@ let counter_result_step (counter: u64) (result: Result.t_Result u64 Native.t_Err
 let counter_result_advances_once (counter: u64) : Lemma (ensures counter_result_step counter (Native.next_counter_after counter)) [SMTPat (Native.next_counter_after counter)] =
   ()
 
-let counter_installation_is_exact (state: Native.t_Replica) (counter: u64) : Lemma (ensures Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and ((Native.impl_Replica__with_counter state counter).f_next_counter == counter) ((Native.impl_Replica__with_counter state counter).f_writer == state.f_writer)) ((Native.impl_Replica__with_counter state counter).f_limits == state.f_limits)) ((Native.impl_Replica__with_counter state counter).f_facts == state.f_facts)) ((Native.impl_Replica__with_counter state counter).f_tree == state.f_tree)) [SMTPat (Native.impl_Replica__with_counter state counter)] =
+let counter_installation_is_exact (state: Native.t_Replica) (counter: u64) : Lemma (ensures Prims.l_and (Prims.l_and (Prims.l_and ((Native.impl_Replica__with_counter state counter).f_next_counter == counter) ((Native.impl_Replica__with_counter state counter).f_writer == state.f_writer)) ((Native.impl_Replica__with_counter state counter).f_facts == state.f_facts)) ((Native.impl_Replica__with_counter state counter).f_tree == state.f_tree)) [SMTPat (Native.impl_Replica__with_counter state counter)] =
   ()
 
 let counter_outcome (counter: u64) : Result.t_Result u64 Native.t_Error =
@@ -128,9 +128,9 @@ let authored_edit_advances_once (before: Native.t_Replica) (gap: usize) (insert:
 let constructed_empty (result: Result.t_Result Native.t_Replica Native.t_Error) : Type0 =
   match result with | Result.Result_Ok state -> begin Alloc.Vec.impl_1__as_slice state.f_facts == FStar.Seq.empty end | _ -> begin Prims.l_True end
 
-let new_has_empty_facts (writer: Option.t_Option Native.t_Writer) (limits: Native.t_Limits) : Lemma (ensures constructed_empty (Native.impl_Replica__new writer limits)) =
+let new_has_empty_facts (writer: Option.t_Option Native.t_Writer) : Lemma (ensures constructed_empty (Native.impl_Replica__new writer)) =
   Nickel.Vector.empty_vector_contents #Native.t_Fact ();
-  assert (constructed_empty (Native.impl_Replica__new writer limits)) by (
+  assert (constructed_empty (Native.impl_Replica__new writer)) by (
     Tactics.prune "Alloc.Vec.impl__new";
     Tactics.prune "Alloc.Vec.impl_1__as_slice";
     Tactics.smt_sync' 1 1
