@@ -164,6 +164,7 @@ let past_stays_in_closed_set (facts: t_Slice Native.t_Fact) (roots: t_Slice Nati
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.prune "Nickel_crdt.Edit.past_pass";
     Tactics.prune "Nickel_crdt.Event_layer.past_pass";
+    Tactics.prune "Nickel_crdt.Event_layer.validate_after";
     Tactics.smt_sync' 1 1
   )
 
