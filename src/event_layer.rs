@@ -124,8 +124,15 @@ pub fn past_pass<F, I: Clone, E>(facts: &[F], mut selected: Vec<I>, ops: &GraphO
 pub fn past<F, I: Clone, E>(facts: &[F], after_ids: &[I], ops: &GraphOps<F, I, E>) -> Result<Vec<I>, E> {
     let mut selected = after_ids.to_vec();
     validate_after(facts, after_ids, ops)?;
+    // A pass that adds no ID is a fixpoint: every later pass returns it unchanged,
+    // so the remaining iterations skip the scan.
+    let mut closed = false;
     for _ in 0..facts.len() {
-        selected = past_pass(facts, selected, ops)?;
+        if !closed {
+            let before = selected.len();
+            selected = past_pass(facts, selected, ops)?;
+            closed = selected.len() == before;
+        }
     }
     Ok(selected)
 }

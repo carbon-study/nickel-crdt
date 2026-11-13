@@ -156,7 +156,7 @@ let past_stays_in_closed_set (facts: t_Slice Native.t_Fact) (roots: t_Slice Nati
   initial_selection_is_valid roots p;
   let each_pass (selected: ids_vec) : Lemma (requires selection_ok roots p selected) (ensures selection_result roots p (Native.past_pass facts selected)) = past_pass_preserves roots p facts selected in
   FStar.Classical.forall_intro (FStar.Classical.move_requires each_pass);
-  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len facts) (fun (_: nat) (selected: ids_vec) -> selection_ok roots p selected) (fun (selected: ids_vec) -> selected) (selection_ok roots p) (fun (_: Native.t_Error) -> Prims.l_True);
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len facts) (fun (_: nat) (state: bool & ids_vec) -> selection_ok roots p state._2) (fun (state: bool & ids_vec) -> state._2) (selection_ok roots p) (fun (_: Native.t_Error) -> Prims.l_True);
   assert (selection_result roots p (Native.past facts roots)) by (
     Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
     Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
@@ -335,36 +335,137 @@ let pass_covers_next_depth (facts: facts_vec) (roots: t_Slice Native.t_EventId) 
 let depth_result (facts: facts_vec) (roots: t_Slice Native.t_EventId) (depth: nat) (result: Result.t_Result ids_vec Native.t_Error) : Type0 =
   match result with | Result.Result_Ok selected -> begin covers_depth facts roots depth selected end | _ -> begin Prims.l_True end
 
-let past_covers_bounded_predecessor_paths (facts: facts_vec) (roots: t_Slice Native.t_EventId) : Lemma (ensures depth_result facts roots (Seq.length (Alloc.Vec.impl_1__as_slice facts)) (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) =
+let prefix_of (before: ids_vec) (next: ids_vec) : Type0 =
+  Prims.l_and (Seq.length (Alloc.Vec.impl_1__as_slice before) <= Seq.length (Alloc.Vec.impl_1__as_slice next)) (forall(i: nat{Prims.l_and (i < Seq.length (Alloc.Vec.impl_1__as_slice before)) (i < Seq.length (Alloc.Vec.impl_1__as_slice next))}). Seq.index (Alloc.Vec.impl_1__as_slice next) i == Seq.index (Alloc.Vec.impl_1__as_slice before) i)
+
+let prefix_result (before: ids_vec) (result: Result.t_Result ids_vec Native.t_Error) : Type0 =
+  match result with | Result.Result_Ok next -> begin prefix_of before next end | _ -> begin Prims.l_True end
+
+let prefix_trans (a: ids_vec) (b: ids_vec) (c: ids_vec) : Lemma (requires (prefix_of a b /\ prefix_of b c)) (ensures prefix_of a c) =
+  ()
+
+let extend_past_appends (fact: Native.t_Fact) (before: ids_vec) : Lemma (ensures prefix_result before (Native.extend_past fact before)) =
   Nickel.EventGraphText.text_graph_policy_is_exact ();
-  let each_pass (selected: ids_vec) (at: usize{v at < Seq.length (Alloc.Vec.impl_1__as_slice facts)}) : Lemma (requires covers_depth facts roots (v at) selected) (ensures depth_result facts roots (v at + 1) (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected)) =
-    past_pass_covers_edges (Alloc.Vec.impl_1__as_slice facts) selected;
-    assert (pass_result (Alloc.Vec.impl_1__as_slice facts) selected (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected)) by (
+  Nickel.EventGraphText.text_graph_callbacks_are_exact ();
+  let each_push (at: usize{v at < Seq.length (Alloc.Vec.impl_1__as_slice fact.f_after)}) (selected: ids_vec) : Lemma (requires prefix_of before selected) (ensures ((match Native.push selected (Seq.index (Alloc.Vec.impl_1__as_slice fact.f_after) (v at)) with | (next, Result.Result_Ok _) -> begin prefix_of before next end | _ -> begin Prims.l_True end) <: Type0)) =
+    push_result_is_exact selected (Seq.index (Alloc.Vec.impl_1__as_slice fact.f_after) (v at));
+    assert (((match Native.push selected (Seq.index (Alloc.Vec.impl_1__as_slice fact.f_after) (v at)) with | (next, Result.Result_Ok _) -> begin prefix_of before next end | _ -> begin Prims.l_True end) <: Type0)) by (
       Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
       Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
       Tactics.prune "Nickel_crdt.Event_layer.event_ops";
-      Tactics.prune "Nickel_crdt.Edit.past_pass";
-      Tactics.prune "Nickel_crdt.Event_layer.past_pass";
+      Tactics.prune "Nickel_crdt.Edit.push";
+      Tactics.prune "Nickel_crdt.Event_layer.push";
+      Tactics.smt_sync' 1 1
+    ) in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_push);
+  if Native.has_event (Alloc.Vec.impl_1__as_slice before) fact.f_id then
+    begin Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Alloc.Vec.impl_1__len fact.f_after) (fun (_: nat) (selected: ids_vec) -> prefix_of before selected) (fun (selected: ids_vec) -> selected) (prefix_of before) (fun (_: Native.t_Error) -> Prims.l_True);
+    assert (prefix_result before (Native.extend_past fact before)) by (
+      Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+      Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+      Tactics.prune "Nickel_crdt.Event_layer.event_ops";
+      Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+      Tactics.prune "Nickel_crdt.Edit.has_event";
+      Tactics.prune "Nickel_crdt.Event_layer.has_id";
+      Tactics.prune "Nickel_crdt.Edit.push";
+      Tactics.prune "Nickel_crdt.Event_layer.push";
+      Tactics.smt_sync' 1 1
+    ) end
+  else
+    begin assert (prefix_result before (Native.extend_past fact before)) by (
+      Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+      Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+      Tactics.prune "Nickel_crdt.Event_layer.event_ops";
+      Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+      Tactics.prune "Nickel_crdt.Edit.has_event";
+      Tactics.prune "Nickel_crdt.Event_layer.has_id";
+      Tactics.prune "Nickel_crdt.Edit.push";
+      Tactics.prune "Nickel_crdt.Event_layer.push";
+      Tactics.smt_sync' 1 1
+    ) end
+
+let past_pass_appends (facts: t_Slice Native.t_Fact) (before: ids_vec) : Lemma (ensures prefix_result before (Native.past_pass facts before)) =
+  Nickel.EventGraphText.text_graph_policy_is_exact ();
+  let each_extend (selected: ids_vec) (at: usize{v at < Seq.length facts}) : Lemma (requires prefix_of before selected) (ensures prefix_result before (Native.extend_past (Seq.index facts (v at)) selected)) =
+    extend_past_appends (Seq.index facts (v at)) selected;
+    assert (prefix_result selected (Native.extend_past (Seq.index facts (v at)) selected)) by (
+      Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+      Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+      Tactics.prune "Nickel_crdt.Event_layer.event_ops";
+      Tactics.prune "Nickel_crdt.Edit.extend_past";
+      Tactics.prune "Nickel_crdt.Event_layer.extend_past";
       Tactics.smt_sync' 1 1
     );
-    match Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected with | Result.Result_Ok next -> begin pass_covers_next_depth facts roots (v at) selected next;
-    assert (depth_result facts roots (v at + 1) (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected)) by (
+    match Native.extend_past (Seq.index facts (v at)) selected with | Result.Result_Ok next -> begin prefix_trans before selected next end | Result.Result_Err _ -> begin () end in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_extend);
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len facts) (fun (_: nat) (selected: ids_vec) -> prefix_of before selected) (fun (selected: ids_vec) -> selected) (prefix_of before) (fun (_: Native.t_Error) -> Prims.l_True);
+  assert (prefix_result before (Native.past_pass facts before)) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.prune "Nickel_crdt.Edit.extend_past";
+    Tactics.prune "Nickel_crdt.Event_layer.extend_past";
+    Tactics.smt_sync' 1 1
+  )
+
+let same_length_extension_is_closed (facts: t_Slice Native.t_Fact) (before: ids_vec) (next: ids_vec) : Lemma (requires (pass_prefix facts before (Seq.length facts) next /\ prefix_of before next /\ Seq.length (Alloc.Vec.impl_1__as_slice next) == Seq.length (Alloc.Vec.impl_1__as_slice before))) (ensures pass_prefix facts next (Seq.length facts) next) =
+  let back (id: Native.t_EventId) : Lemma (requires member (Alloc.Vec.impl_1__as_slice next) id) (ensures member (Alloc.Vec.impl_1__as_slice before) id) = () in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires back);
+  let own (i: usize{v i < Seq.length (Alloc.Vec.impl_1__as_slice next)}) : Lemma (ensures member (Alloc.Vec.impl_1__as_slice next) (Seq.index (Alloc.Vec.impl_1__as_slice next) (v i))) = () in
+  FStar.Classical.forall_intro own;
+  ()
+
+let closed_depth (facts: facts_vec) (roots: t_Slice Native.t_EventId) (depth: nat) (state: bool & ids_vec) : Type0 =
+  Prims.l_and (covers_depth facts roots depth state._2) (state._1 == true ==> pass_prefix (Alloc.Vec.impl_1__as_slice facts) state._2 (Seq.length (Alloc.Vec.impl_1__as_slice facts)) state._2)
+
+let open_pass_result (facts: facts_vec) (roots: t_Slice Native.t_EventId) (depth: nat) (selected: ids_vec) (result: Result.t_Result ids_vec Native.t_Error) : Lemma (requires (covers_depth facts roots depth selected /\ pass_result (Alloc.Vec.impl_1__as_slice facts) selected result /\ prefix_result selected result)) (ensures ((match result with | Result.Result_Ok next -> begin Prims.l_and (covers_depth facts roots (depth + 1) next) (v (Alloc.Vec.impl_1__len next) == v (Alloc.Vec.impl_1__len selected) ==> pass_prefix (Alloc.Vec.impl_1__as_slice facts) next (Seq.length (Alloc.Vec.impl_1__as_slice facts)) next) end | _ -> begin Prims.l_True end) <: Type0)) =
+  match result with | Result.Result_Ok next -> begin pass_covers_next_depth facts roots depth selected next;
+  if v (Alloc.Vec.impl_1__len next) ==? v (Alloc.Vec.impl_1__len selected) then
+    begin same_length_extension_is_closed (Alloc.Vec.impl_1__as_slice facts) selected next end
+  else
+    begin () end end | Result.Result_Err _ -> begin () end
+
+let open_pass_covers (facts: facts_vec) (roots: t_Slice Native.t_EventId) (depth: nat) (selected: ids_vec) : Lemma (requires covers_depth facts roots depth selected) (ensures ((match Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected with | Result.Result_Ok next -> begin Prims.l_and (covers_depth facts roots (depth + 1) next) (v (Alloc.Vec.impl_1__len next) == v (Alloc.Vec.impl_1__len selected) ==> pass_prefix (Alloc.Vec.impl_1__as_slice facts) next (Seq.length (Alloc.Vec.impl_1__as_slice facts)) next) end | _ -> begin Prims.l_True end) <: Type0)) =
+  past_pass_covers_edges (Alloc.Vec.impl_1__as_slice facts) selected;
+  assert (pass_result (Alloc.Vec.impl_1__as_slice facts) selected (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected)) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
+    Tactics.prune "Nickel_crdt.Edit.past_pass";
+    Tactics.prune "Nickel_crdt.Event_layer.past_pass";
+    Tactics.smt_sync' 1 1
+  );
+  past_pass_appends (Alloc.Vec.impl_1__as_slice facts) selected;
+  assert (prefix_result selected (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected)) by (
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
+    Tactics.prune "Nickel_crdt.Edit.past_pass";
+    Tactics.prune "Nickel_crdt.Event_layer.past_pass";
+    Tactics.smt_sync' 1 1
+  );
+  open_pass_result facts roots depth selected (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected)
+
+let closed_pass_covers (facts: facts_vec) (roots: t_Slice Native.t_EventId) (depth: nat) (selected: ids_vec) : Lemma (requires (covers_depth facts roots depth selected /\ pass_prefix (Alloc.Vec.impl_1__as_slice facts) selected (Seq.length (Alloc.Vec.impl_1__as_slice facts)) selected)) (ensures covers_depth facts roots (depth + 1) selected) =
+  pass_covers_next_depth facts roots depth selected selected
+
+let past_covers_bounded_predecessor_paths (facts: facts_vec) (roots: t_Slice Native.t_EventId) : Lemma (ensures depth_result facts roots (Seq.length (Alloc.Vec.impl_1__as_slice facts)) (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) =
+  Nickel.EventGraphText.text_graph_policy_is_exact ();
+  let each_open (selected: ids_vec) (at: nat) : Lemma (requires covers_depth facts roots at selected) (ensures ((match Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected with | Result.Result_Ok next -> begin Prims.l_and (covers_depth facts roots (at + 1) next) (v (Alloc.Vec.impl_1__len next) == v (Alloc.Vec.impl_1__len selected) ==> pass_prefix (Alloc.Vec.impl_1__as_slice facts) next (Seq.length (Alloc.Vec.impl_1__as_slice facts)) next) end | _ -> begin Prims.l_True end) <: Type0)) =
+    open_pass_covers facts roots at selected;
+    assert (((match Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected with | Result.Result_Ok next -> begin Prims.l_and (covers_depth facts roots (at + 1) next) (v (Alloc.Vec.impl_1__len next) == v (Alloc.Vec.impl_1__len selected) ==> pass_prefix (Alloc.Vec.impl_1__as_slice facts) next (Seq.length (Alloc.Vec.impl_1__as_slice facts)) next) end | _ -> begin Prims.l_True end) <: Type0)) by (
       Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
       Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
       Tactics.prune "Nickel_crdt.Event_layer.event_ops";
       Tactics.prune "Nickel_crdt.Edit.past_pass";
       Tactics.prune "Nickel_crdt.Event_layer.past_pass";
       Tactics.smt_sync' 1 1
-    ) end | Result.Result_Err _ -> begin assert (depth_result facts roots (v at + 1) (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected)) by (
-      Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
-      Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
-      Tactics.prune "Nickel_crdt.Event_layer.event_ops";
-      Tactics.prune "Nickel_crdt.Edit.past_pass";
-      Tactics.prune "Nickel_crdt.Event_layer.past_pass";
-      Tactics.smt_sync' 1 1
-    ) end in
-  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_pass);
-  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Alloc.Vec.impl_1__len facts) (covers_depth facts roots) (fun (selected: ids_vec) -> selected) (covers_depth facts roots (Seq.length (Alloc.Vec.impl_1__as_slice facts))) (fun (_: Native.t_Error) -> Prims.l_True);
+    ) in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_open);
+  let each_closed (selected: ids_vec) (at: nat) : Lemma (requires (covers_depth facts roots at selected /\ pass_prefix (Alloc.Vec.impl_1__as_slice facts) selected (Seq.length (Alloc.Vec.impl_1__as_slice facts)) selected)) (ensures covers_depth facts roots (at + 1) selected) = closed_pass_covers facts roots at selected in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_closed);
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Alloc.Vec.impl_1__len facts) (closed_depth facts roots) (fun (state: bool & ids_vec) -> state._2) (covers_depth facts roots (Seq.length (Alloc.Vec.impl_1__as_slice facts))) (fun (_: Native.t_Error) -> Prims.l_True);
   assert (depth_result facts roots (Seq.length (Alloc.Vec.impl_1__as_slice facts)) (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) by (
     Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
     Tactics.prune "Nickel_crdt.Event_layer.graph_ops";

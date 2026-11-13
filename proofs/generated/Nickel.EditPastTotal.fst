@@ -217,7 +217,7 @@ let fitting_closed_history_computes_past (facts: facts_vec) (roots: t_Slice Nati
       Tactics.smt_sync' 1 1
     ) in
   FStar.Classical.forall_intro (FStar.Classical.move_requires each_pass);
-  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Alloc.Vec.impl_1__len facts) (fun (_: nat) (selected: ids_vec) -> stored_selection facts selected) (fun (selected: ids_vec) -> selected) (stored_selection facts) (fun (_: Native.t_Error) -> Prims.l_False);
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Alloc.Vec.impl_1__len facts) (fun (_: nat) (state: bool & ids_vec) -> stored_selection facts state._2) (fun (state: bool & ids_vec) -> state._2) (stored_selection facts) (fun (_: Native.t_Error) -> Prims.l_False);
   assert (stored_result facts (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) by (
     Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
     Tactics.prune "Nickel_crdt.Event_layer.graph_ops";

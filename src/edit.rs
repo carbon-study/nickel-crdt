@@ -245,7 +245,6 @@ impl Tree {
                 return Err(Error::Internal);
             }
         }
-        let whole = self.whole()?;
         let parent = match node.parent {
             Some(id) => Some(self.position(id)?),
             None => None,
@@ -268,7 +267,8 @@ impl Tree {
             }
         };
         let mut at = siblings.len();
-        let rank = Self::rank(&whole, node.right_origin)?;
+        let whole = if matches!(node.side, Side::Right) && !siblings.is_empty() { self.whole()? } else { Vec::new() };
+        let rank = if whole.is_empty() { 0 } else { Self::rank(&whole, node.right_origin)? };
         for i in 0..siblings.len() {
             let old = self.node(siblings[i])?;
             let before = if matches!(node.side, Side::Right) {

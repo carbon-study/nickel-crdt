@@ -568,53 +568,71 @@ let past
     validate_after #v_F #v_I #v_E facts after_ids ops <: Core_models.Result.t_Result Prims.unit v_E
   with
   | Core_models.Result.Result_Ok _ ->
+    let closed:bool = false in
     (match
         Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
           (Core_models.Slice.impl__len #v_F facts <: usize)
-          (fun selected temp_1_ ->
-              let selected:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = selected in
+          (fun temp_0_ temp_1_ ->
+              let (closed: bool), (selected: Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) = temp_0_ in
               let _:usize = temp_1_ in
               true)
-          selected
-          (fun selected temp_1_ ->
-              let selected:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = selected in
+          (closed, selected <: (bool & Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global))
+          (fun temp_0_ temp_1_ ->
+              let (closed: bool), (selected: Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) = temp_0_ in
               let _:usize = temp_1_ in
-              match
-                past_pass #v_F #v_I #v_E facts selected ops
-                <:
-                Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E
-              with
-              | Core_models.Result.Result_Ok hoist12 ->
-                Core_models.Ops.Control_flow.ControlFlow_Continue hoist12
-                <:
-                Core_models.Ops.Control_flow.t_ControlFlow
-                  (Core_models.Ops.Control_flow.t_ControlFlow
-                      (Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
-                      (Prims.unit & Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global))
-                  (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global)
-              | Core_models.Result.Result_Err err ->
-                Core_models.Ops.Control_flow.ControlFlow_Break
-                (Core_models.Ops.Control_flow.ControlFlow_Break
-                  (Core_models.Result.Result_Err err
-                    <:
-                    Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
+              if ~.closed <: bool
+              then
+                let before:usize = Alloc.Vec.impl_1__len #v_I #Alloc.Alloc.t_Global selected in
+                match
+                  past_pass #v_F #v_I #v_E facts selected ops
+                  <:
+                  Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E
+                with
+                | Core_models.Result.Result_Ok hoist12 ->
+                  let selected:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = hoist12 in
+                  let closed:bool =
+                    (Alloc.Vec.impl_1__len #v_I #Alloc.Alloc.t_Global selected <: usize) =. before
+                  in
+                  Core_models.Ops.Control_flow.ControlFlow_Continue
+                  (closed, selected <: (bool & Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global))
                   <:
                   Core_models.Ops.Control_flow.t_ControlFlow
-                    (Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
-                    (Prims.unit & Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global))
+                    (Core_models.Ops.Control_flow.t_ControlFlow
+                        (Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
+                        (Prims.unit & (bool & Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global)))
+                    (bool & Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global)
+                | Core_models.Result.Result_Err err ->
+                  Core_models.Ops.Control_flow.ControlFlow_Break
+                  (Core_models.Ops.Control_flow.ControlFlow_Break
+                    (Core_models.Result.Result_Err err
+                      <:
+                      Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
+                    <:
+                    Core_models.Ops.Control_flow.t_ControlFlow
+                      (Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
+                      (Prims.unit & (bool & Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global)))
+                  <:
+                  Core_models.Ops.Control_flow.t_ControlFlow
+                    (Core_models.Ops.Control_flow.t_ControlFlow
+                        (Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
+                        (Prims.unit & (bool & Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global)))
+                    (bool & Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global)
+              else
+                Core_models.Ops.Control_flow.ControlFlow_Continue
+                (closed, selected <: (bool & Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global))
                 <:
                 Core_models.Ops.Control_flow.t_ControlFlow
                   (Core_models.Ops.Control_flow.t_ControlFlow
                       (Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
-                      (Prims.unit & Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global))
-                  (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global))
+                      (Prims.unit & (bool & Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global)))
+                  (bool & Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global))
         <:
         Core_models.Ops.Control_flow.t_ControlFlow
           (Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
-          (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global)
+          (bool & Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global)
       with
       | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
-      | Core_models.Ops.Control_flow.ControlFlow_Continue selected ->
+      | Core_models.Ops.Control_flow.ControlFlow_Continue (closed, selected) ->
         Core_models.Result.Result_Ok selected
         <:
         Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
