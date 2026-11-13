@@ -23,13 +23,18 @@
         cargoTestFlags = [ "--workspace" ];
       };
       tools = [ pkgs.nodejs_22 pkgs.gnumake pkgs.coreutils pkgs.util-linux rust ];
+      # One checked inventory per gate, not all of scripts/. Adding an import
+      # requires updating its gate inventory; gate-inputs checks real packages.
+      gateScripts = builtins.fromJSON (builtins.readFile ./nix/gate-scripts.json);
+      scriptsFor = gate: pkgs.lib.fileset.unions
+        (map (name: ./. + "/scripts/${name}") gateScripts.${gate});
       modelEnv = ''
         export NICKEL_PROOF_FSTAR="${fstar}/bin/fstar.exe"
         export NICKEL_HAX_SOURCE="${hax}"
       '';
       proofTools = pkgs.lib.fileset.toSource {
         root = ./scripts;
-        fileset = pkgs.lib.fileset.unions [ ./scripts/build-proof-models.mjs ./scripts/proof-cache.mjs ./scripts/check-proof-timeouts.mjs ];
+        fileset = scriptsFor "models";
       };
       models = pkgs.runCommand "nickel-checked-hax-models" {
         nativeBuildInputs = tools;
@@ -41,7 +46,8 @@
         root = ./.;
         fileset = pkgs.lib.fileset.unions [
           ./Cargo.toml ./Cargo.lock ./src ./tests ./proof-smoke
-          ./proofs/generated ./proofs/EventGraph.lt ./proofs/EventGraphText.lt ./proofs/EventShell.lt ./proofs/EventClassifier.lt ./proofs/LoopEquality.lt ./proofs/Prelude.lt ./proofs/LoopUtil.lt ./proofs/Vector.lt ./proofs/Smoke.lt ./proofs/EditAtomic.lt ./proofs/EditCommit.lt ./proofs/EditIdentity.lt ./proofs/EditAccepted.lt ./proofs/EditWellFormed.lt ./proofs/Spec.lt ./proofs/EditCausal.lt ./proofs/EditPast.lt ./proofs/EditPastTotal.lt ./proofs/EditSchedule.lt ./proofs/EditBasis.lt ./proofs/EditReplay.lt ./scripts
+          ./proofs/generated ./proofs/EventGraph.lt ./proofs/EventGraphText.lt ./proofs/EventShell.lt ./proofs/EventClassifier.lt ./proofs/LoopEquality.lt ./proofs/Prelude.lt ./proofs/LoopUtil.lt ./proofs/Vector.lt ./proofs/Smoke.lt ./proofs/EditAtomic.lt ./proofs/EditCommit.lt ./proofs/EditIdentity.lt ./proofs/EditAccepted.lt ./proofs/EditWellFormed.lt ./proofs/Spec.lt ./proofs/EditCausal.lt ./proofs/EditPast.lt ./proofs/EditPastTotal.lt ./proofs/EditSchedule.lt ./proofs/EditBasis.lt ./proofs/EditReplay.lt
+          (scriptsFor "text")
         ];
       };
       # One proof derivation per argument list. The full gate (no arguments) stays
@@ -75,7 +81,7 @@
       sharedNativeSource = pkgs.lib.fileset.toSource {
         root = ./.;
         fileset = pkgs.lib.fileset.unions [ ./src ./tests/shared_layer.rs
-          ./scripts/check-shared-native.mjs ./scripts/proof-cache.mjs ./scripts/mutation-scope.mjs ];
+          (scriptsFor "sharedNative") ];
       };
       sharedNative = pkgs.runCommand "nickel-shared-native" {
         nativeBuildInputs = tools;
@@ -93,7 +99,7 @@
           ./proofs/CausalEnvelope.lt ./proofs/causal-envelope-view
           ./proofs/Prelude.lt ./proofs/LoopUtil.lt
           ./proofs/generated/Nickel.Prelude.fst ./proofs/generated/Nickel.LoopUtil.fst
-          ./scripts ];
+          (scriptsFor "shared") ];
       };
       sharedProof = pkgs.runCommand "nickel-shared-proofs" {
         nativeBuildInputs = tools;
@@ -130,6 +136,17 @@
         python3 scripts/check-rust-edit-reference.py "$out/fixtures.json" > "$out/receipt.json"
         cat "$out/receipt.json"
       '';
+      gateInputSource = pkgs.lib.fileset.toSource {
+        root = ./.;
+        fileset = pkgs.lib.fileset.unions [ ./scripts ./nix/gate-scripts.json ];
+      };
+      gateInputs = pkgs.runCommand "nickel-gate-inputs" {
+        nativeBuildInputs = [ pkgs.nodejs_22 ];
+      } ''
+        node --experimental-vm-modules ${gateInputSource}/scripts/check-gate-inputs.mjs \
+          text=${proofSource}/scripts shared=${sharedProofSource}/scripts \
+          sharedNative=${sharedNativeSource}/scripts models=${proofTools} > "$out"
+      '';
     in {
       packages.${system} = {
         default = native;
@@ -138,13 +155,14 @@
         shared-proofs = sharedProof;
         edit-reference = editReference;
         proof-models = models;
+        gate-inputs = gateInputs;
         proofs = proofCheck;
         proofs-core-a = proofCoreA;
         proofs-core-b = proofCoreB;
         hax = haxBin;
         hax-fstar = fstar;
       } // proofShardChecks;
-      checks.${system} = { inherit native; shared-native = sharedNative; shared-proofs = sharedProof; proofs = proofCheck; edit-reference = editReference; };
+      checks.${system} = { inherit native; gate-inputs = gateInputs; shared-native = sharedNative; shared-proofs = sharedProof; proofs = proofCheck; edit-reference = editReference; };
       devShells.${system} = {
         default = pkgs.mkShell {
           packages = tools ++ [ haxBin fstar ];
