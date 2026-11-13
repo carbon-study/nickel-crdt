@@ -17,7 +17,7 @@ export function dependencies(source, name) {
   const specs = [...new vm.SourceTextModule(source, {identifier:name}).dependencySpecifiers];
   // Conservative: also finds apparent imports in comments/strings. Unsupported
   // forms refuse rather than silently missing a runtime dependency.
-  const dynamic = /\bimport(?:(?:\s+)|(?:\/\/[^\n]*\n)|(?:\/\*[\s\S]*?\*\/))*\(/g;
+  const dynamic = /\bimport(?:(?:\s+)|(?:\/\/[^\r\n\u2028\u2029]*[\r\n\u2028\u2029])|(?:\/\*[\s\S]*?\*\/))*\(/g;
   for (const m of source.matchAll(dynamic)) {
     const literal = /^\s*(['"])([^'"\\\r\n]+)\1\s*\)/.exec(source.slice(m.index+m[0].length));
     assert(literal, name+': unsupported dynamic import; use a plain literal');
@@ -37,6 +37,7 @@ export async function closure(seeds, read) {
   return [...found].sort();
 }
 function sameFiles(actual,expected,label){assert.deepEqual(actual,expected,label);}
+function sameBytes(actual,expected,label){assert.deepEqual(actual,expected,label);}
 async function controls() {
   const fixture=new Map([['entry.mjs',"import './child.mjs';"],['child.mjs',"export const x=1;"]]);
   const read=async name=>{assert(fixture.has(name),'missing '+name);return fixture.get(name);};
@@ -49,6 +50,12 @@ async function controls() {
   fixture.set('later.mjs','export const y=2;');
   assert.deepEqual(await closure(['entry.mjs'],read),['child.mjs','entry.mjs','later.mjs']);
   assert.deepEqual(dependencies("await import /* note */ ('./child.mjs');",'fixture'),['child.mjs']);
+  for(const end of ['\n','\r','\r\n','\u2028','\u2029']) {
+    assert.deepEqual(dependencies('await import // note'+end+"('./child.mjs');",'fixture'),['child.mjs']);
+    assert.throws(()=>dependencies('await import // note'+end+'(name);','fixture'),/unsupported dynamic import/);
+  }
+  assert.throws(()=>sameBytes(Buffer.from('// \ufffd\n'),Buffer.from([47,47,32,255,10]),'changed bytes'),/changed bytes/);
+  sameBytes(Buffer.from('// equal\n'),Buffer.from('// equal\n'),'equal bytes');
   assert.throws(()=>dependencies('await import(name);','fixture'),/unsupported dynamic import/);
   assert.throws(()=>dependencies("await import('./' + name);",'fixture'),/unsupported dynamic import/);
   assert.throws(()=>dependencies("import '../escape.mjs';",'fixture'),/unsupported non-builtin/);
@@ -66,7 +73,7 @@ export async function check(rootDir, manifest, packaged={}) {
     if(packaged[gate]) {
       const names=(await fs.readdir(packaged[gate])).sort();
       sameFiles(names,files,gate+' actual Nix-packaged inventory');
-      for(const name of files)assert.equal(await fs.readFile(path.join(packaged[gate],name),'utf8'),await fs.readFile(path.join(rootDir,'scripts',name),'utf8'),gate+' packaged bytes: '+name);
+      for(const name of files)sameBytes(await fs.readFile(path.join(packaged[gate],name)),await fs.readFile(path.join(rootDir,'scripts',name)),gate+' packaged bytes: '+name);
     }
     result[gate]=files;
   }
