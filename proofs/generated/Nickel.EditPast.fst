@@ -151,12 +151,24 @@ let past_pass_preserves (roots: t_Slice Native.t_EventId) (p: Native.t_EventId -
 let initial_selection_is_valid (roots: t_Slice Native.t_EventId) (p: Native.t_EventId -> Type0) : Lemma (requires all_ids roots p) (ensures selection_ok roots p (Alloc.Slice.impl__to_vec roots)) =
   ()
 
+let closed_state (roots: t_Slice Native.t_EventId) (p: Native.t_EventId -> Type0) (at: nat) (state: bool & ids_vec) : Type0 =
+  selection_ok roots p state._2
+
+let state_selection (state: bool & ids_vec) : ids_vec =
+  state._2
+
+let no_error (error: Native.t_Error) : Type0 =
+  Prims.l_True
+
+let closed_set_any_bound (roots: t_Slice Native.t_EventId) (p: Native.t_EventId -> Type0) (finish: usize) : Lemma (ensures forall(inv: Nickel.LoopUtil.invariant (bool & ids_vec) (mk_usize 0) finish) (initial: bool & ids_vec) (f: Nickel.LoopUtil.callback (bool & ids_vec) (Result.t_Result ids_vec Native.t_Error) (mk_usize 0) finish). Prims.l_and (Prims.l_and (closed_state roots p 0 initial) (forall(s: bool & ids_vec) (i: Nickel.LoopUtil.position (mk_usize 0) finish). closed_state roots p (v i) s ==> Nickel.LoopUtil.result_step (closed_state roots p) state_selection (selection_ok roots p) no_error (v i) (f s i))) (forall(s: bool & ids_vec). closed_state roots p (v finish) s ==> selection_ok roots p (state_selection s)) ==> Nickel.LoopUtil.result_safe (selection_ok roots p) no_error (Nickel.LoopUtil.result_finish state_selection (Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0) finish inv initial f))) =
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) finish (closed_state roots p) state_selection (selection_ok roots p) no_error
+
 let past_stays_in_closed_set (facts: t_Slice Native.t_Fact) (roots: t_Slice Native.t_EventId) (p: Native.t_EventId -> Type0) : Lemma (requires (all_ids roots p /\ facts_closed facts p)) (ensures selection_result roots p (Native.past facts roots)) =
   Nickel.EventGraphText.text_graph_policy_is_exact ();
   initial_selection_is_valid roots p;
   let each_pass (selected: ids_vec) : Lemma (requires selection_ok roots p selected) (ensures selection_result roots p (Native.past_pass facts selected)) = past_pass_preserves roots p facts selected in
   FStar.Classical.forall_intro (FStar.Classical.move_requires each_pass);
-  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len facts) (fun (_: nat) (state: bool & ids_vec) -> selection_ok roots p state._2) (fun (state: bool & ids_vec) -> state._2) (selection_ok roots p) (fun (_: Native.t_Error) -> Prims.l_True);
+  FStar.Classical.forall_intro (fun (finish: usize) -> closed_set_any_bound roots p finish);
   assert (selection_result roots p (Native.past facts roots)) by (
     Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
     Tactics.prune "Nickel_crdt.Event_layer.graph_ops";

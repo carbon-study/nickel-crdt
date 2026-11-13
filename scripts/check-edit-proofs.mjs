@@ -156,7 +156,7 @@ const mutationDefinitions=[
   ["past-invents-id","src/event_layer.rs","fn extend_past<","if has_id(&selected, &id(fact), ops) {","if true {"],
   ["past-membership-always-false","src/event_layer.rs","fn has_id<","if id_eq(&ids[i], wanted) {","if false {"],
   ["past-skips-predecessors","src/event_layer.rs","fn extend_past<","if has_id(&selected, &id(fact), ops) {","if false {"],
-  ["past-skips-passes","src/event_layer.rs","fn past<","for _ in 0..facts.len() {","for _ in 0..0 {"],
+  ["past-skips-passes","src/event_layer.rs","fn past<","for _ in 0..facts.len() {","for _ in 0..0usize {"],
   ["past-refuses-closure","src/event_layer.rs","fn past<","Ok(selected)","Err((ops.1.0)())"],
   ["past-closes-after-one-pass","src/event_layer.rs","fn past<","closed = selected.len() == before;","closed = true;"],
   ["past-pass-rescans-last","src/event_layer.rs","fn past_pass<","let i = facts.len() - 1 - offset;","let i = facts.len() - 1;"],
@@ -311,6 +311,10 @@ const ownerMigrations={
   "past-membership-always-false": [
     "EventGraph.membership_is_exact",
     "membership loop moved unchanged to comparison-relative has_id"
+  ],
+  "past-skips-passes": [
+    "EditPast.past_covers_bounded_predecessor_paths",
+    "returning only the roots still satisfies past_stays_in_closed_set (soundness); skipped passes break bounded-depth completeness"
   ],
   "scheduler-ready-skips-dependency": [
     "EventGraph.readiness_is_exact",

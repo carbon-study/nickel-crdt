@@ -115,9 +115,12 @@ pub fn extend_past<F, I: Clone, E>(fact: &F, mut selected: Vec<I>, ops: &GraphOp
 }
 
 pub fn past_pass<F, I: Clone, E>(facts: &[F], mut selected: Vec<I>, ops: &GraphOps<F, I, E>) -> Result<Vec<I>, E> {
-    // Stored facts are canonical (predecessors first), so scanning from the end
-    // expands a whole predecessor chain in one pass. Scan order changes only the
-    // order of the returned IDs; every caller uses them as a set.
+    // Scanning from the end closes a chain of one writer's facts in one pass when
+    // they are stored in counter order. Canonical order is by ID, not causal (an
+    // earlier-stored alice:1 may depend on bo:2), so mixed chains can take more
+    // passes; nothing depends on the order, since past repeats passes until one
+    // adds nothing. Scan order changes only the order of the returned IDs; every
+    // caller uses them as a set.
     for offset in 0..facts.len() {
         let i = facts.len() - 1 - offset;
         selected = extend_past(&facts[i], selected, ops)?;

@@ -170,6 +170,26 @@ proof initial_selection_is_valid(roots: t_Slice(Native.t_EventId), p: Native.t_E
   gives selection_ok(roots, p, Alloc.Slice.impl__to_vec(roots))
 { () }
 
+// Soundness holds for any number of passes. The loop rule is instantiated at every
+// bound, so this law does not depend on how many passes past runs (a pass-count
+// fault belongs to the completeness law, past_covers_bounded_predecessor_paths).
+function closed_state(roots: t_Slice(Native.t_EventId), p: Native.t_EventId => Type0, at: nat, state: (bool, ids_vec)): Type0 {
+  selection_ok(roots, p, state._2)
+}
+function state_selection(state: (bool, ids_vec)): ids_vec { state._2 }
+function no_error(error: Native.t_Error): Type0 { Prims.l_True }
+proof closed_set_any_bound(roots: t_Slice(Native.t_EventId), p: Native.t_EventId => Type0, finish: usize): unit
+  gives forall(inv: Nickel.LoopUtil.invariant((bool, ids_vec), mk_usize(0), finish), initial: (bool, ids_vec),
+      f: Nickel.LoopUtil.callback((bool, ids_vec), Result.t_Result(ids_vec, Native.t_Error), mk_usize(0), finish)) .
+    (closed_state(roots, p, 0, initial) and
+     (forall(s: (bool, ids_vec), i: Nickel.LoopUtil.position(mk_usize(0), finish)) . closed_state(roots, p, v(i), s) ==>
+       Nickel.LoopUtil.result_step(closed_state(roots, p), state_selection, selection_ok(roots, p), no_error, v(i), f(s, i))) and
+     (forall(s: (bool, ids_vec)) . closed_state(roots, p, v(finish), s) ==> selection_ok(roots, p, state_selection(s)))) ==>
+      Nickel.LoopUtil.result_safe(selection_ok(roots, p), no_error,
+        Nickel.LoopUtil.result_finish(state_selection, Rust_primitives.Hax.Folds.fold_range_return(mk_usize(0), finish, inv, initial, f)))
+{
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), finish, closed_state(roots, p), state_selection, selection_ok(roots, p), no_error)
+}
 // Universal source-linked soundness and seed retention. p may be ANY set of
 // IDs containing the roots and closed under this history's direct edges.
 // Completeness (the result itself is closed after N passes) is a separate law.
@@ -186,9 +206,7 @@ proof past_stays_in_closed_set(facts: t_Slice(Native.t_Fact), roots: t_Slice(Nat
   { past_pass_preserves(roots, p, facts, selected) };
   FStar.Classical.forall_intro(FStar.Classical.move_requires(each_pass));
   // Loop state is (closed, selected); a closed pass leaves selected unchanged.
-  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
-    ((_: nat, state: (bool, ids_vec)) => selection_ok(roots, p, state._2)),
-    ((state: (bool, ids_vec)) => state._2), selection_ok(roots, p), ((_: Native.t_Error) => Prims.l_True));
+  FStar.Classical.forall_intro(((finish: usize) => closed_set_any_bound(roots, p, finish)));
   assert(selection_result(roots, p, Native.past(facts, roots))) by {
     Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
     Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
