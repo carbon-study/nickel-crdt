@@ -46,6 +46,12 @@ Equality includes dependency/target list order and the original gap; it is not
 semantic equivalence of two differently packaged facts. `Missing`, `Capacity`
 and `Internal` return the unchanged instance. The caller must retain the fact
 for retry or diagnosis: **Internal is not evidence that a fact is invalid**.
+Fact-local checks run before causal lookup: invalid scalars, duplicate delete
+targets and a placement that contradicts the insertion (a gap without births,
+or births without a gap) return `Invalid` even while dependencies are absent.
+The counter range and duplicate dependencies were already checked before lookup.
+Context-dependent checks (producer predecessor, visible delete targets, the gap
+bound) still need the causal past and follow it.
 There is no inbox, acknowledgement, transport or automatic retry in this crate.
 Allocation failure/process death is outside these ordinary return-path claims.
 

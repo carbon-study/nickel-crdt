@@ -573,8 +573,20 @@ impl Replica {
         }
     }
     fn validate_new(facts: &[Fact], fact: &Fact) -> Result<(), Error> {
-        let selected = crate::event_layer::validate_event(facts, fact, &TEXT_OPS)?;
+        // Fact-local checks first: a fact that can never be valid must not be
+        // reported as Missing (a deferral the caller retries) while its
+        // dependencies are absent.
         validate_scalars(&fact.insert)?;
+        if duplicate_births(&fact.delete) {
+            return Err(invalid(Invalid::DeleteDuplicate));
+        }
+        if fact.insert.is_empty() && fact.gap.is_some() {
+            return Err(invalid(Invalid::PlacementWithoutBirth));
+        }
+        if !fact.insert.is_empty() && fact.gap.is_none() {
+            return Err(invalid(Invalid::Gap));
+        }
+        let selected = crate::event_layer::validate_event(facts, fact, &TEXT_OPS)?;
         let mut basis = Vec::new();
         for f in facts.iter() {
             if has_event(&selected, f.id) {
@@ -587,14 +599,7 @@ impl Replica {
                 return Err(invalid(Invalid::DeleteNotVisible));
             }
         }
-        if duplicate_births(&fact.delete) {
-            return Err(invalid(Invalid::DeleteDuplicate));
-        }
-        if fact.insert.is_empty() {
-            if fact.gap.is_some() {
-                return Err(invalid(Invalid::PlacementWithoutBirth));
-            }
-        } else if !matches!(fact.gap,Some(gap) if gap<=seen.len()) {
+        if !fact.insert.is_empty() && !matches!(fact.gap,Some(gap) if gap<=seen.len()) {
             return Err(invalid(Invalid::Gap));
         }
         Ok(())
