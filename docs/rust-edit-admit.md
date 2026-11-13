@@ -50,6 +50,9 @@ Fact-local checks run before causal lookup: invalid scalars, duplicate delete
 targets and a placement that contradicts the insertion (a gap without births,
 or births without a gap) return `Invalid` even while dependencies are absent.
 The counter range and duplicate dependencies were already checked before lookup.
+This covers those listed classes only; `Missing` still does not promise that a
+fact is eventually admissible (a fact citing its own writer's later event, for
+example, still returns `Missing`).
 Context-dependent checks (producer predecessor, visible delete targets, the gap
 bound) still need the causal past and follow it.
 There is no inbox, acknowledgement, transport or automatic retry in this crate.

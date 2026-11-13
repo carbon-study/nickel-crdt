@@ -1,6 +1,8 @@
-//! A fact that is invalid on its own is rejected as Invalid even while its
-//! dependencies are absent. Missing is a deferral the caller retries, so it
-//! must not be returned for facts no future delivery can make admissible.
+//! Text only: three classes of fact-local invalidity (invalid scalars, duplicate
+//! delete targets, placement shape) are rejected as Invalid even while the
+//! fact's dependencies are absent. Missing still does not promise eventual
+//! admissibility: other permanently inadmissible facts (for example Alice:1
+//! citing Alice:2) can still return Missing.
 use nickel_crdt::edit::*;
 
 fn absent_dependency() -> EventId {
