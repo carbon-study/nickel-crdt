@@ -714,7 +714,9 @@ proof past_covers_bounded_predecessor_paths(facts: facts_vec, roots: t_Slice(Nat
     Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
     Tactics.prune("Nickel_crdt.Event_layer.event_ops");
     Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return"); Tactics.prune("Nickel_crdt.Edit.past_pass");
- Tactics.prune("Nickel_crdt.Event_layer.past_pass"); Tactics.smt_sync'(1, 1)
+ Tactics.prune("Nickel_crdt.Event_layer.past_pass"); 
+    // Consume the step lemmas' closed-selection facts; do not re-derive pass_prefix here.
+    Tactics.prune("Nickel.EditPast.pass_prefix"); Tactics.smt_sync'(1, 1)
   }
 }
 

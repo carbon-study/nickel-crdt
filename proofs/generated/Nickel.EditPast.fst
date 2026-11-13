@@ -489,6 +489,7 @@ let past_covers_bounded_predecessor_paths (facts: facts_vec) (roots: t_Slice Nat
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.prune "Nickel_crdt.Edit.past_pass";
     Tactics.prune "Nickel_crdt.Event_layer.past_pass";
+    Tactics.prune "Nickel.EditPast.pass_prefix";
     Tactics.smt_sync' 1 1
   )
 
