@@ -672,7 +672,15 @@ proof least_extends_all(input: t_Slice(Native.t_Fact), out: t_Slice(Native.t_Fac
 {
   proof each(j: usize where v(j) < v(Nickel.EditIdentity.length(input)), choice: Option.t_Option(usize)): unit
     gives least_choice(input, out, v(j), choice) ==> least_choice(input, out, v(j) + 1, least_next(input, out, j, choice))
-  { () };
+  {
+    // One case per least_next branch, so each query sees one shape of the step.
+    if Native.has_fact(out, Rust_primitives.Slice.slice_index(input, j).f_id) { () } else {
+      match choice {
+        Option.Option_None => (),
+        Option.Option_Some(k) => ()
+      }
+    }
+  };
   FStar.Classical.forall_intro_2(each)
 }
 proof selected_id_is_least(input: t_Slice(Native.t_Fact), out: t_Slice(Native.t_Fact)): unit

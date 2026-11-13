@@ -495,7 +495,10 @@ let least_next (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) (j: u
       begin choice end end end
 
 let least_extends_all (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) : Lemma (ensures forall(j: usize{v j < v (Nickel.EditIdentity.length input)}) (choice: Option.t_Option usize). least_choice input out (v j) choice ==> least_choice input out (v j + 1) (least_next input out j choice)) =
-  let each (j: usize{v j < v (Nickel.EditIdentity.length input)}) (choice: Option.t_Option usize) : Lemma (ensures least_choice input out (v j) choice ==> least_choice input out (v j + 1) (least_next input out j choice)) = () in
+  let each (j: usize{v j < v (Nickel.EditIdentity.length input)}) (choice: Option.t_Option usize) : Lemma (ensures least_choice input out (v j) choice ==> least_choice input out (v j + 1) (least_next input out j choice)) = if Native.has_fact out (Rust_primitives.Slice.slice_index input j).f_id then
+    begin () end
+  else
+    begin match choice with | Option.Option_None -> begin () end | Option.Option_Some k -> begin () end end in
   FStar.Classical.forall_intro_2 each
 
 let selected_id_is_least (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) : Lemma (ensures least_result input out (Native.choose_unseen input out)) =
