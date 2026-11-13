@@ -27,9 +27,9 @@ fn admit(replica: Replica, fact: &Fact) -> Replica {
     next
 }
 fn facts() -> [Fact; 3] {
-    let a = Replica::new(Some(Writer::Alice)).unwrap();
+    let a = Replica::new(Some(Writer(1))).unwrap();
     let (a, root) = author(a, 0, 'x');
-    let b = admit(Replica::new(Some(Writer::Bo)).unwrap(), &root);
+    let b = admit(Replica::new(Some(Writer(2))).unwrap(), &root);
     let (_, y) = author(a, 1, 'y');
     let (_, z) = author(b, 1, 'z');
     assert_eq!(y.after, vec![root.id]);
@@ -122,8 +122,8 @@ fn harness_budget_precedes_missing_but_engine_admission_is_unchanged() {
     let r = Replica::new(None).unwrap();
     let before = r.clone();
     let fact = Fact {
-        id: EventId { writer: Writer::Alice, counter: 1 },
-        after: vec![EventId { writer: Writer::Bo, counter: 1 }],
+        id: EventId { writer: Writer(1), counter: 1 },
+        after: vec![EventId { writer: Writer(2), counter: 1 }],
         insert: vec![u32::from('x'); 65], delete: vec![], gap: Some(0),
     };
     let (r, result) = support::receive(r, &fact, Limits::default());

@@ -18,9 +18,9 @@ fn closure(facts: &[Fact], roots: &[EventId]) -> BTreeSet<EventId> {
 fn id(i: usize) -> EventId {
     EventId {
         writer: if i % 2 == 0 {
-            Writer::Alice
+            Writer(1)
         } else {
-            Writer::Bo
+            Writer(2)
         },
         counter: (i / 2 + 1) as u64,
     }
@@ -185,8 +185,8 @@ fn placements(
 #[test]
 fn receiver_extras_preserve_exact_author_placements_through_public_admission() {
     let new = |w| Replica::new(w).unwrap();
-    let (a, root) = author(new(Some(Writer::Alice)), 0, "ab", vec![]);
-    let b = receive_added(new(Some(Writer::Bo)), &root);
+    let (a, root) = author(new(Some(Writer(1))), 0, "ab", vec![]);
+    let b = receive_added(new(Some(Writer(2))), &root);
     let a_victim = a.observe().unwrap()[0].0;
     let (a, replacement) = author(a, 0, "X", vec![a_victim]);
     let (b, sibling) = author(b, 0, "Y", vec![]);
@@ -423,8 +423,8 @@ fn authored_delete_and_multi_scalar_histories_preserve_full_interpretation() {
     for seed in 0u64..24 {
         let mut state = seed + 1;
         let mut replicas = [
-            Replica::new(Some(Writer::Alice)).unwrap(),
-            Replica::new(Some(Writer::Bo)).unwrap(),
+            Replica::new(Some(Writer(1))).unwrap(),
+            Replica::new(Some(Writer(2))).unwrap(),
         ];
         let mut facts = Vec::new();
         for step in 0..12 {
@@ -544,8 +544,8 @@ fn actual_past_cut_retains_the_actual_execution_order() {
 #[test]
 fn two_receivers_with_different_extras_select_the_same_past() {
     let new = |w| Replica::new(w).unwrap();
-    let (a, root) = author(new(Some(Writer::Alice)), 0, "ab", vec![]);
-    let b = receive_added(new(Some(Writer::Bo)), &root);
+    let (a, root) = author(new(Some(Writer(1))), 0, "ab", vec![]);
+    let b = receive_added(new(Some(Writer(2))), &root);
     let (b, x) = author(b, 0, "x", vec![]);
     let (a, y) = author(a, 2, "y", vec![]);
     let a = receive_added(a, &x);

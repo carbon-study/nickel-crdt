@@ -61,8 +61,8 @@ fn receive(r: Replica, f: &Fact) -> Replica {
 }
 #[test]
 fn two_instances_replace_duplicate_conflict_and_empty() {
-    let (a, root) = edit(new(Some(Writer::Alice)), 0, "ab", vec![]);
-    let b = receive(new(Some(Writer::Bo)), &root);
+    let (a, root) = edit(new(Some(Writer(1))), 0, "ab", vec![]);
+    let b = receive(new(Some(Writer(2))), &root);
     assert_eq!(b.next_counter(), 1, "admission changed private allocator");
     let victim = b.observe().unwrap()[0].0;
     let (b, replacement) = edit(b, 0, "X", vec![victim]);
@@ -84,8 +84,8 @@ fn two_instances_replace_duplicate_conflict_and_empty() {
 }
 #[test]
 fn author_last_gap_not_receiver_visibility() {
-    let (a, root) = edit(new(Some(Writer::Alice)), 0, "ab", vec![]);
-    let b = receive(new(Some(Writer::Bo)), &root);
+    let (a, root) = edit(new(Some(Writer(1))), 0, "ab", vec![]);
+    let b = receive(new(Some(Writer(2))), &root);
     let (_, x) = edit(a, 2, "X", vec![]);
     let victim = b.observe().unwrap()[1].0;
     let (_, deletion) = edit(b, 0, "", vec![victim]);
@@ -123,8 +123,8 @@ fn schedules(prefix: Vec<Fact>, remaining: Vec<Fact>, out: &mut Vec<Vec<Fact>>) 
 }
 #[test]
 fn multi_event_prepend_runs_all_causal_orders() {
-    let (a, root) = edit(new(Some(Writer::Alice)), 0, "ab", vec![]);
-    let b = receive(new(Some(Writer::Bo)), &root);
+    let (a, root) = edit(new(Some(Writer(1))), 0, "ab", vec![]);
+    let b = receive(new(Some(Writer(2))), &root);
     let (a, one) = edit(a, 1, "1", vec![]);
     let (_, two) = edit(a, 1, "2", vec![]);
     let (b, three) = edit(b, 1, "3", vec![]);
@@ -150,8 +150,8 @@ fn multi_event_prepend_runs_all_causal_orders() {
 }
 #[test]
 fn scalar_preservation_and_invalidity_are_atomic() {
-    let (a, f) = edit(new(Some(Writer::Alice)), 0, "\0\r\n\u{feff}😀𝄞é", vec![]);
-    let b = receive(new(Some(Writer::Bo)), &f);
+    let (a, f) = edit(new(Some(Writer(1))), 0, "\0\r\n\u{feff}😀𝄞é", vec![]);
+    let b = receive(new(Some(Writer(2))), &f);
     assert_eq!(text(&a), "\0\r\n\u{feff}😀𝄞é");
     assert_eq!(a.observe(), b.observe());
     let before = a.clone();
@@ -164,7 +164,7 @@ fn scalar_preservation_and_invalidity_are_atomic() {
 }
 #[test]
 fn replacement_is_not_blocked_by_former_ordering_budget() {
-    let r = Replica::new(Some(Writer::Alice)).unwrap();
+    let r = Replica::new(Some(Writer(1))).unwrap();
     let (r, _) = edit(r, 0, "Friday!", vec![]);
     let delete = r.observe().unwrap()[..6]
         .iter()
@@ -176,7 +176,7 @@ fn replacement_is_not_blocked_by_former_ordering_budget() {
 }
 #[test]
 fn missing_prerequisite_returns_unchanged_owned_state() {
-    let (a, root) = edit(new(Some(Writer::Alice)), 0, "ab", vec![]);
+    let (a, root) = edit(new(Some(Writer(1))), 0, "ab", vec![]);
     let (_, later) = edit(a, 2, "X", vec![]);
     let r = new(None);
     let before = r.clone();
@@ -196,8 +196,8 @@ fn missing_prerequisite_returns_unchanged_owned_state() {
 
 #[test]
 fn authored_fact_replays_the_same_complete_commit() {
-    let mut local = new(Some(Writer::Alice));
-    let mut remote = new(Some(Writer::Bo));
+    let mut local = new(Some(Writer(1)));
+    let mut remote = new(Some(Writer(2)));
     for (gap, inserted, remove_index, expected) in [
         (0, "abc", None, "abc"),
         (2, "X😀", Some(1), "aX😀c"),
@@ -212,7 +212,7 @@ fn authored_fact_replays_the_same_complete_commit() {
         assert_eq!(fact.insert, scalars(inserted));
         assert_eq!(fact.delete, deleted);
         assert_eq!(fact.gap, if inserted.is_empty() { None } else { Some(gap) });
-        assert_eq!(fact.id.writer, Writer::Alice);
+        assert_eq!(fact.id.writer, Writer(1));
         assert_eq!(fact.id.counter, before.next_counter());
         remote = receive(remote, &fact);
         assert_eq!(next.facts(), remote.facts());
@@ -234,7 +234,7 @@ fn authored_fact_replays_the_same_complete_commit() {
 #[test]
 fn identity_gate_checks_every_field_and_later_members() {
     let limited = Replica::new(
-        Some(Writer::Alice))
+        Some(Writer(1)))
     .unwrap();
     let (a, root) = edit(limited, 0, "ab", vec![]);
     let victim = a.observe().unwrap()[0].0;
@@ -274,9 +274,9 @@ fn identity_gate_checks_every_field_and_later_members() {
 
 #[test]
 fn successful_permuted_admissions_publish_identical_facts_and_tree() {
-    let (alice, a1) = edit(new(Some(Writer::Alice)), 0, "a", vec![]);
+    let (alice, a1) = edit(new(Some(Writer(1))), 0, "a", vec![]);
     let (_, a2) = edit(alice, 1, "b", vec![]);
-    let (_, b1) = edit(new(Some(Writer::Bo)), 0, "x", vec![]);
+    let (_, b1) = edit(new(Some(Writer(2))), 0, "x", vec![]);
     let schedules = [[&a1, &a2, &b1], [&a1, &b1, &a2], [&b1, &a1, &a2]];
     let mut results = vec![];
     for schedule in schedules {
@@ -300,7 +300,7 @@ fn successful_permuted_admissions_publish_identical_facts_and_tree() {
 fn scalar_boundaries_and_late_invalid_payload_are_transactional() {
     let values = [0, 0xd7ff, 0xe000, 0x10ffff];
     let (a, fact) = edit(
-        new(Some(Writer::Alice)),
+        new(Some(Writer(1))),
         0,
         &values
             .iter()
@@ -312,13 +312,13 @@ fn scalar_boundaries_and_late_invalid_payload_are_transactional() {
     let b = receive(new(None), &fact);
     assert_eq!(a.observe(), b.observe());
     for scalar in [0xd800, 0xdfff, 0x110000, u32::MAX] {
-        let before = new(Some(Writer::Alice));
+        let before = new(Some(Writer(1)));
         let (after, result) = before.clone().edit(0, vec![0x61, scalar], vec![]);
         assert_eq!(result, Err(Error::Invalid(Invalid::Scalar)));
         assert_eq!(after, before);
         let malformed = Fact {
             id: EventId {
-                writer: Writer::Bo,
+                writer: Writer(2),
                 counter: 1,
             },
             after: vec![],
@@ -347,13 +347,13 @@ fn assert_causally_closed(r: &Replica) {
 }
 #[test]
 fn direct_dependency_guard_checks_later_ids_and_keeps_missing_retry_exact() {
-    let (a, root) = edit(new(Some(Writer::Alice)), 0, "a", vec![]);
-    let (b, other) = edit(new(Some(Writer::Bo)), 0, "b", vec![]);
+    let (a, root) = edit(new(Some(Writer(1))), 0, "a", vec![]);
+    let (b, other) = edit(new(Some(Writer(2))), 0, "b", vec![]);
     let r = receive(new(None), &root);
     let before = r.clone();
     let offered = Fact {
         id: EventId {
-            writer: Writer::Alice,
+            writer: Writer(1),
             counter: 2,
         },
         after: vec![root.id, other.id],
@@ -376,8 +376,8 @@ fn direct_dependency_guard_checks_later_ids_and_keeps_missing_retry_exact() {
 fn repeated_dependency_is_rejected_before_closure() {
     // Bo's fact names Alice's root twice: public validation must reject it as a
     // duplicate dependency, leaving the receiver unchanged.
-    let (a, root) = edit(new(Some(Writer::Alice)), 0, "a", vec![]);
-    let b = receive(new(Some(Writer::Bo)), &root);
+    let (a, root) = edit(new(Some(Writer(1))), 0, "a", vec![]);
+    let b = receive(new(Some(Writer(2))), &root);
     let (_, reply) = edit(b, 1, "b", vec![]);
     assert_eq!(reply.after, vec![root.id], "fixture expects one direct dependency");
     let mut repeated = reply.clone();

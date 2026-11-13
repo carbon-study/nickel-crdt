@@ -632,7 +632,7 @@ proof edit_authored_has_exact_contents(before: Native.t_Replica, gap: usize, ins
 
 // Canonical fact order is event-ID order, not causal replay order or text order.
 function event_key(id: Native.t_EventId): nat {
-  const rank = match id.f_writer { Native.Writer_Alice => 0, Native.Writer_Bo => 18446744073709551616 };
+  const rank = Prims.op_Multiply(v(Native.writer_index(id.f_writer)), 18446744073709551616);
   rank + v(id.f_counter)
 }
 proof event_order_is_key_order(a: Native.t_EventId, b: Native.t_EventId): unit

@@ -5,14 +5,14 @@ fn id(writer: Writer, counter: u64) -> EventId {
 }
 fn example() -> (Vec<Fact>, Fact) {
     let a = Fact {
-        id: id(Writer::Alice, 1),
+        id: id(Writer(1), 1),
         after: vec![],
         insert: vec!['a' as u32, 'c' as u32],
         delete: vec![],
         gap: Some(0),
     };
     let deletion = Fact {
-        id: id(Writer::Bo, 1),
+        id: id(Writer(2), 1),
         after: vec![a.id],
         insert: vec![],
         delete: vec![BirthId {
@@ -22,7 +22,7 @@ fn example() -> (Vec<Fact>, Fact) {
         gap: None,
     };
     let event = Fact {
-        id: id(Writer::Alice, 2),
+        id: id(Writer(1), 2),
         after: vec![a.id],
         insert: vec!['b' as u32],
         delete: vec![],
@@ -32,12 +32,12 @@ fn example() -> (Vec<Fact>, Fact) {
 }
 // The placement witness is authored through the public API on two receivers.
 fn public_example() -> (Vec<Fact>, Fact) {
-    let alice = Replica::new(Some(Writer::Alice)).unwrap();
+    let alice = Replica::new(Some(Writer(1))).unwrap();
     let (alice, first) = alice.edit(0, vec!['a' as u32, 'c' as u32], vec![]);
     let Local::Authored(a) = first.expect("public initial insertion") else {
         panic!("nonempty edit")
     };
-    let bo = Replica::new(Some(Writer::Bo)).unwrap();
+    let bo = Replica::new(Some(Writer(2))).unwrap();
     let (bo, admitted) = bo.receive(&a);
     assert_eq!(admitted, Ok(Admission::Added));
     let (_, deleting) = bo.edit(

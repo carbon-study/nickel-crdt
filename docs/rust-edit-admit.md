@@ -24,8 +24,8 @@ Real identity/integer overflow boundaries remain.
 
 ```rust
 use nickel_crdt::edit::*;
-let alice = Replica::new(Some(Writer::Alice)).unwrap();
-let bo = Replica::new(Some(Writer::Bo)).unwrap();
+let alice = Replica::new(Some(Writer(1))).unwrap();
+let bo = Replica::new(Some(Writer(2))).unwrap();
 let (alice, result) = alice.edit(0, vec!['a' as u32, 'b' as u32], vec![]);
 let Local::Authored(fact) = result.unwrap() else { unreachable!() };
 let (bo, result) = bo.receive(&fact);
@@ -56,7 +56,11 @@ UTF-16 indexing or a normalization interface.
 
 ## domain and representation
 
-The closed writer set is Alice and Bo. `None` creates an observer that cannot
+A writer is an opaque `Writer(u64)` peer ID (docs/writer-identity.md A1); any
+number of peers may participate, and the proofs quantify over all u64 values
+(target T1, not a representation-independent interface). The earlier closed
+set maps as Alice = `Writer(1)`, Bo = `Writer(2)`, which keeps the old tie
+order. Allocating unique peer IDs is the caller's job. `None` creates an observer that cannot
 author. Each writer must have **one externally fenced producer for the entire
 document lifetime**, whose allocator is never reset. Starting another producer
 and importing its old facts is not supported recovery. Admission does not
@@ -74,7 +78,7 @@ public-API witness intentionally violates producer fencing:
 ```rust
 use nickel_crdt::edit::*;
 fn main() {
-    let producer = Replica::new(Some(Writer::Alice)).unwrap();
+    let producer = Replica::new(Some(Writer(1))).unwrap();
     let (_, Ok(Local::Authored(x))) = producer.clone().edit(0, vec!['x' as u32], vec![])
         else { panic!("expected authored x") };
     let (_, Ok(Local::Authored(y))) = producer.edit(0, vec!['y' as u32], vec![])
@@ -437,7 +441,7 @@ fitting edit/admission progress.
 
 The source-linked order component follows the existing implementation, without
 changing its representation: successful canonicalization returns facts in
-nondecreasing event-ID key order (Alice before Bo, then each writer's counter).
+nondecreasing event-ID key order (numeric peer ID first, then each writer's counter).
 The proof follows the actual least-unseen selection scan, append and outer loop,
 then the actual public receive/edit publication. Construction establishes this
 component, and all return paths preserve it from an ordered before-state.

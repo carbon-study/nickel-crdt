@@ -1,5 +1,11 @@
 # Writer identity beyond two writers (draft proposal)
 
+**Status (2026-11-12):** A1 with target T1 is implemented as a draft slice
+(branch `writer/u64-peers`): `Writer(u64)`, the §5 compatibility embedding
+(Alice = 1, Bo = 2), the L5 key `writer_index(w) * 2^64 + counter`, and
+`writer_index_is_exact` restated as `writer_index(w) == w._0`. T2, §3 allocation
+and the §6 fence are not part of that slice.
+
 Status: **draft, docs only.** Lynn owns Nickel and reviews this; Ren decides
 product choices. It separates three questions and exposes the remaining
 choices without adopting them:

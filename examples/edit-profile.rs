@@ -9,7 +9,7 @@ fn main() {
         .nth(1)
         .expect("append | prepend | frontloaded-delete");
     assert!(["append", "prepend", "frontloaded-delete"].contains(&shape.as_str()));
-    let mut author = Replica::new(Some(Writer::Alice)).unwrap();
+    let mut author = Replica::new(Some(Writer(1))).unwrap();
     let mut receiver = Replica::new(None).unwrap();
     let mut expected: Vec<(BirthId, u32)> = Vec::new();
     let mut retained = Vec::new();
@@ -47,7 +47,7 @@ fn main() {
         assert_eq!(
             fact.id,
             EventId {
-                writer: Writer::Alice,
+                writer: Writer(1),
                 counter: step
             }
         );
@@ -68,7 +68,7 @@ fn main() {
                     (
                         BirthId {
                             event: EventId {
-                                writer: Writer::Alice,
+                                writer: Writer(1),
                                 counter: step,
                             },
                             index,

@@ -86,7 +86,7 @@ The Boolean fixture is toolchain evidence. The same proof gate also checks the a
 
 ## Layout
 
-- `src/`: experimental two-writer Rust edit/admit candidate.
+- `src/`: experimental Rust edit/admit candidate (opaque u64 writers).
 - `tests/`, `examples/`: public-API native cases and external fixture consumer.
 - `proof-smoke/`: independent Rust extraction fixture.
 - `proofs/`: authored Latte sources and committed F* views.
