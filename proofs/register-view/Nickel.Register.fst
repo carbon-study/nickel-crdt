@@ -432,14 +432,13 @@ let selected_basis_clock_successor (before: Native.t_Replica) (offered: fact) : 
   exists(selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global). Prims.l_and (Prims.l_and (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered Native.v_OPS == Result.Result_Ok selected) (Nickel_crdt.Event_layer.select_basis (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) Native.v_OPS._1 == Result.Result_Ok basis)) (clock_successor (Alloc.Vec.impl_1__as_slice basis) offered.f_payload.f_lamport)
 
 let receive_added_clock_is_maximum_successor (before: Native.t_Replica) (offered: fact) : Lemma (ensures forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> selected_basis_clock_successor before offered) =
-  receive_added_checks_payload before offered;
-  let each_basis (basis: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global) : Lemma (requires basis_payload_checks before offered basis) (ensures clock_successor (Alloc.Vec.impl_1__as_slice basis) offered.f_payload.f_lamport) =
+  let each_basis (basis: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global) : Lemma (requires Native.next_lamport (Alloc.Vec.impl_1__as_slice basis) == Result.Result_Ok offered.f_payload.f_lamport) (ensures clock_successor (Alloc.Vec.impl_1__as_slice basis) offered.f_payload.f_lamport) =
     next_lamport_is_maximum_successor (Alloc.Vec.impl_1__as_slice basis);
     assert (clock_successor (Alloc.Vec.impl_1__as_slice basis) offered.f_payload.f_lamport) by (
       Tactics.prune "Nickel_crdt.Register.next_lamport";
-      Tactics.prune "Nickel_crdt.Register.read_history";
       Tactics.smt_sync' 1 1
     ) in
+  receive_added_checks_payload before offered;
   FStar.Classical.forall_intro (FStar.Classical.move_requires each_basis);
   assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> selected_basis_clock_successor before offered) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
