@@ -15,11 +15,9 @@ fn recv(r: Replica, f: &Fact) -> Replica {
     result.unwrap();
     r
 }
-fn w(w: Writer) -> u8 {
-    match w {
-        Writer::Alice => 0,
-        Writer::Bo => 1,
-    }
+// The reference oracle numbers writers from 0; nickel peers here are 1, 2, ...
+fn w(w: Writer) -> u64 {
+    w.0 - 1
 }
 fn event(id: EventId) -> String {
     format!("[{},{}]", w(id.writer), id.counter)
@@ -90,8 +88,8 @@ fn case(name: &str, facts: Vec<Fact>) -> String {
 fn main() {
     let mut cases = Vec::new();
     for prepend in [true, false] {
-        let (a, root) = edit(new(Some(Writer::Alice)), 0, "ab", vec![]);
-        let b = recv(new(Some(Writer::Bo)), &root);
+        let (a, root) = edit(new(Some(Writer(1))), 0, "ab", vec![]);
+        let b = recv(new(Some(Writer(2))), &root);
         let (a, one) = edit(a, 1, "1", vec![]);
         let (_, two) = edit(a, if prepend { 1 } else { 2 }, "2", vec![]);
         let (b, three) = edit(b, 1, "3", vec![]);
@@ -101,19 +99,19 @@ fn main() {
             vec![root, one, two, three, four],
         ));
     }
-    let (a, root) = edit(new(Some(Writer::Alice)), 0, "ab", vec![]);
-    let b = recv(new(Some(Writer::Bo)), &root);
+    let (a, root) = edit(new(Some(Writer(1))), 0, "ab", vec![]);
+    let b = recv(new(Some(Writer(2))), &root);
     let (_, x) = edit(a, 2, "X", vec![]);
     let id = b.observe().unwrap()[1].0;
     let (_, del) = edit(b, 0, "", vec![id]);
     cases.push(case("author-last-gap", vec![root, x, del]));
-    let (a, root) = edit(new(Some(Writer::Alice)), 0, "ab", vec![]);
+    let (a, root) = edit(new(Some(Writer(1))), 0, "ab", vec![]);
     let id = a.observe().unwrap()[0].0;
     let (a, del) = edit(a, 0, "", vec![id]);
     let (_, x) = edit(a, 0, "X", vec![]);
     cases.push(case("before-hidden", vec![root, del, x]));
-    let (a, root) = edit(new(Some(Writer::Alice)), 0, "Friday!", vec![]);
-    let b = recv(new(Some(Writer::Bo)), &root);
+    let (a, root) = edit(new(Some(Writer(1))), 0, "Friday!", vec![]);
+    let b = recv(new(Some(Writer(2))), &root);
     let ids = b.observe().unwrap()[..6]
         .iter()
         .map(|(id, _)| *id)
@@ -121,15 +119,15 @@ fn main() {
     let (_, replace) = edit(b, 0, "Monday", ids);
     let (_, suffix) = edit(a, 7, "?", vec![]);
     cases.push(case("concurrent-replacement", vec![root, replace, suffix]));
-    let (_, unicode) = edit(new(Some(Writer::Alice)), 0, "\0\r\n\u{feff}😀𝄞é", vec![]);
+    let (_, unicode) = edit(new(Some(Writer(1))), 0, "\0\r\n\u{feff}😀𝄞é", vec![]);
     cases.push(case("scalars", vec![unicode]));
     // Bounded construction: all two-step insertion gaps for two offline writers.
     for a1 in 0..=2 {
         for a2 in 0..=3 {
             for b1 in 0..=2 {
                 for b2 in 0..=3 {
-                    let (a, root) = edit(new(Some(Writer::Alice)), 0, "ab", vec![]);
-                    let b = recv(new(Some(Writer::Bo)), &root);
+                    let (a, root) = edit(new(Some(Writer(1))), 0, "ab", vec![]);
+                    let b = recv(new(Some(Writer(2))), &root);
                     let (a, one) = edit(a, a1, "1", vec![]);
                     let (_, two) = edit(a, a2, "2", vec![]);
                     let (b, three) = edit(b, b1, "3", vec![]);

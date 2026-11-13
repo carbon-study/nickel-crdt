@@ -19,10 +19,10 @@ fn permutations(facts: &mut [Fact], at: usize, visit: &mut impl FnMut(&[Fact])) 
 
 #[test]
 fn completed_tree_and_trace_have_all_helper_produced_groups() {
-    let a = event(Writer::Alice, 1);
-    let b = event(Writer::Bo, 1);
-    let c = event(Writer::Alice, 2);
-    let d = event(Writer::Bo, 2);
+    let a = event(Writer(1), 1);
+    let b = event(Writer(2), 1);
+    let c = event(Writer(1), 2);
+    let d = event(Writer(2), 2);
     // Literal facts keep the comparison reachable under an outer-interpreter
     // mutant: fixture authoring must not fail before the intended assertion.
     let mut facts = vec![

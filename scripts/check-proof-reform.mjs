@@ -82,6 +82,10 @@ export function checkProofReformFence() {
   assertReformedSource('EditPast','Tactics.prune("Nickel.EventGraph.membership_is_exact")');
   for(const name of ['fixture','EditCausal','EditAtomic','EditIdentity','EditWellFormed','EditPastTotal','EditSchedule'])
     assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EventGraph.membership_is_exact")'),new RegExp(name+' reform:'));
+  // Retention uses only the validator's result; its body is irrelevant here.
+  assertReformedSource('EditPast','Tactics.prune("Nickel_crdt.Event_layer.validate_after")');
+  for(const name of ['fixture','EditIdentity','EditCausal','EditAtomic','EventGraphText'])
+    assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel_crdt.Event_layer.validate_after")'),new RegExp(name+' reform:'));
   assertReformedSource('EditPastTotal','Tactics.prune("Nickel_crdt.Edit.validate_after")');
   assertReformedSource('EditPastTotal','Tactics.prune("Nickel_crdt.Edit.duplicate_events")');
   assert.throws(()=>assertReformedSource('EditPast','Tactics.prune("Nickel_crdt.Edit.duplicate_events")'),/EditPast reform:/);

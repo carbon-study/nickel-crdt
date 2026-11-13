@@ -2,7 +2,7 @@
 use super::*;
 fn id(counter: u64) -> EventId {
     EventId {
-        writer: Writer::Alice,
+        writer: Writer(1),
         counter,
     }
 }

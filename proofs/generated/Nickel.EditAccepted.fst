@@ -470,7 +470,7 @@ let edit_authored_has_exact_contents (before: Native.t_Replica) (gap: usize) (in
   ()
 
 let event_key (id: Native.t_EventId) : nat =
-  let rank = match id.f_writer with | Native.Writer_Alice -> begin 0 end | Native.Writer_Bo -> begin 18446744073709551616 end in
+  let rank = Prims.op_Multiply (v (Native.writer_index id.f_writer)) 18446744073709551616 in
   rank + v id.f_counter
 
 let event_order_is_key_order (a: Native.t_EventId) (b: Native.t_EventId) : Lemma (ensures Native.event_lt a b == true <==> event_key a < event_key b) =

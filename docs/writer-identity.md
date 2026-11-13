@@ -1,8 +1,16 @@
 # Writer identity beyond two writers (draft proposal)
 
-Status: **draft, docs only.** Lynn owns Nickel and reviews this; Ren decides
-product choices. It separates three questions and exposes the remaining
-choices without adopting them:
+**Status (2026-11-12).** This proposal was written as a docs-only draft at
+`79ea964`; §1–§3 inventory that historical baseline (two-writer enum, engine
+`Limits`). A draft implementation slice, #99, now covers A1 with target T1:
+`Writer(u64)`, the §5 compatibility embedding (Alice = 1, Bo = 2), the L5 key
+`writer_index(w) * 2^64 + counter` and `writer_index_is_exact` restated as
+`writer_index(w) == w._0`. Allocation and non-reuse (§3), restoration, T2 and the
+§6 fence are **not** delivered; they remain proposals. Lynn owns Nickel and
+reviews this; Ren decides product choices.
+
+The proposal separates three questions and exposes the remaining choices
+without adopting them:
 
 1. how a peer identifier is represented;
 2. how a producer obtains a fresh identity and avoids reusing counters;
@@ -10,7 +18,7 @@ choices without adopting them:
    an arbitrary ordered peer domain reach the concrete Rust type.
 
 Repository facts were checked on `main` at `79ea964`. Loro facts are cited in
-§8. Nothing here reopens Loro/Dark decisions or proposes an implementation slice.
+§8. Nothing here reopens Loro/Dark decisions; the implementation slice is #99 (status above).
 
 **A peer is not a person.** A peer identifier names one operation producer, such
 as one editor session or one server process. It is not a device, since one
@@ -83,7 +91,9 @@ Options, none adopted:
 **Finite width is not a two-producer restriction.**
 - Any finite width bounds the *space* of identifiers: 2^64 or 2^128 values. It
   doesn't bound how many producers a history may contain. That number is
-  bounded only by the existing history limits (`events`, …).
+  bounded only by the existing history limits (`events`, …) at the historical
+  baseline. Since #98 the engine has no event ceiling; caller budgets are
+  outside it, and #99 adds no writer ceiling.
 - Today's enum is a two-producer restriction: the type has two values.
 - The proofs must not assume any bound on the number of distinct writers (§4).
 
@@ -95,7 +105,8 @@ keeps counters JavaScript-safe.
 
 ### 3.1 What the current API supplies
 
-- `Replica::new(writer, limits)` always starts with `next_counter: 1` and no
+- (Historical baseline; since #98 the constructor is `Replica::new(writer)`.)
+  `Replica::new(writer, limits)` always starts with `next_counter: 1` and no
   facts. `next_counter()` is a getter; there is no public producer-state
   restoration constructor; receive can rebuild shared facts but does not restore
   the authoring counter.

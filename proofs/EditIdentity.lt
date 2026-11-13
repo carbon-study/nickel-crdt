@@ -15,7 +15,7 @@ import Option = Core_models.Option
 // handwritten implementations separately, and keep the critical fact call named.
 // A shared contract for the two callers that compare native writer codes.
 proof writer_index_is_exact(writer: Native.t_Writer): unit
-  gives Native.writer_index(writer) == (match writer { Native.Writer_Alice => mk_u8(0), Native.Writer_Bo => mk_u8(1) })
+  gives Native.writer_index(writer) == writer._0
   hint Native.writer_index(writer)
 { () }
 
