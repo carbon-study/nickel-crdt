@@ -273,7 +273,10 @@ comparator-slot fault and generic strictness premises.
 
 Separate removal controls check minimum-to-step, canonical-to-execute and both
 plan-to-publication callers with the relevant bodies and automatic contracts
-withheld. The new Register visibility entries are exactly its `identity` and
+withheld. The successful execute branch checks strict ordering under opacity
+before calling the policy refinement lemma, so its premise cannot be recovered
+by unfolding the canonicalizer outside the consuming query.
+The new Register visibility entries are exactly its `identity` and
 `less_id` definitions. New match-consuming queries are branch-local; no compiler
 sequencing repair is activated.
 
