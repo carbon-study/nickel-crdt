@@ -754,3 +754,111 @@ let execute_succeeds_for_unique_ids (before: Native.t_Replica) : Lemma (requires
     Tactics.prune "Nickel_crdt.Register.less_id";
     Tactics.smt_sync' 1 1
   )
+
+let facts_order_implies_unique (facts: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global) : Lemma (requires facts_in_id_order facts) (ensures fact_ids_unique facts) =
+  let items = Alloc.Vec.impl_1__as_slice facts in
+  let each (a: nat) (b: nat) : Lemma (requires (Prims.l_and (a < Seq.length items) (b < Seq.length items) /\ (Seq.index items a).f_id == (Seq.index items b).f_id)) (ensures a == b) = if a < b then
+    begin assert (id_before (Rust_primitives.Slice.slice_index items (mk_usize a)).f_id (Rust_primitives.Slice.slice_index items (mk_usize b)).f_id);
+    assert Prims.l_False end
+  else
+    begin if b < a then
+      begin assert (id_before (Rust_primitives.Slice.slice_index items (mk_usize b)).f_id (Rust_primitives.Slice.slice_index items (mk_usize a)).f_id);
+      assert Prims.l_False end
+    else
+      begin () end end in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each)
+
+let receive_added_has_unique_ids (before: Native.t_Replica) (offered: fact) : Lemma (ensures forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> fact_ids_unique next.f_facts) =
+  receive_added_orders_fact_history before offered;
+  let each (next: Native.t_Replica) : Lemma (requires facts_in_id_order next.f_facts) (ensures fact_ids_unique next.f_facts) = facts_order_implies_unique next.f_facts in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires each);
+  assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> fact_ids_unique next.f_facts) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  )
+
+let write_counted_has_unique_ids (before: Native.t_Replica) (key: u64) (value: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (ensures forall(next: Native.t_Replica) (authored: fact). Native.impl_Replica__write before key value == (next, Result.Result_Ok (Option.Option_Some authored)) ==> fact_ids_unique next.f_facts) =
+  write_counted_orders_fact_history before key value;
+  let each (next: Native.t_Replica) : Lemma (requires facts_in_id_order next.f_facts) (ensures fact_ids_unique next.f_facts) = facts_order_implies_unique next.f_facts in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires each);
+  assert (forall(next: Native.t_Replica) (authored: fact). Native.impl_Replica__write before key value == (next, Result.Result_Ok (Option.Option_Some authored)) ==> fact_ids_unique next.f_facts) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__write";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  )
+
+let receive_preserves_unique_ids (before: Native.t_Replica) (offered: fact) : Lemma (requires fact_ids_unique before.f_facts) (ensures fact_ids_unique (Native.impl_Replica__receive before offered)._1.f_facts) =
+  receive_publication_is_exact before offered;
+  receive_added_has_unique_ids before offered;
+  match Native.planned () before offered with | Result.Result_Err _ -> begin assert (fact_ids_unique (Native.impl_Replica__receive before offered)._1.f_facts) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.Register.fact_ids_unique";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok option -> begin match option with | Option.Option_None -> begin assert (fact_ids_unique (Native.impl_Replica__receive before offered)._1.f_facts) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.Register.fact_ids_unique";
+    Tactics.smt_sync' 1 1
+  ) end | Option.Option_Some _ -> begin assert (fact_ids_unique (Native.impl_Replica__receive before offered)._1.f_facts) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.Register.fact_ids_unique";
+    Tactics.smt_sync' 1 1
+  ) end end
+
+let write_preserves_unique_ids (before: Native.t_Replica) (key: u64) (value: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (requires fact_ids_unique before.f_facts) (ensures fact_ids_unique (Native.impl_Replica__write before key value)._1.f_facts) =
+  write_publication_on_every_return before key value;
+  write_counted_has_unique_ids before key value;
+  match Native.impl_Replica__write before key value with | (next, result) -> begin match result with | Result.Result_Err _ -> begin assert (fact_ids_unique next.f_facts) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__write";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.Register.fact_ids_unique";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok option -> begin match option with | Option.Option_None -> begin assert (fact_ids_unique next.f_facts) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__write";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.Register.fact_ids_unique";
+    Tactics.smt_sync' 1 1
+  ) end | Option.Option_Some _ -> begin assert (fact_ids_unique next.f_facts) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__write";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.Register.fact_ids_unique";
+    Tactics.smt_sync' 1 1
+  ) end end end
+
+let new_has_unique_ids (writer: u64) (initial: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) (limits: Native.t_Limits) : Lemma (ensures forall(replica: Native.t_Replica). Native.impl_Replica__new writer initial limits == Result.Result_Ok replica ==> fact_ids_unique replica.f_facts) =
+  ()
+
+let receive_result_can_execute (before: Native.t_Replica) (offered: fact) : Lemma (requires fact_ids_unique before.f_facts) (ensures exists(next: Native.t_Replica). Native.execute () (Native.impl_Replica__receive before offered)._1 == Result.Result_Ok next) =
+  let after = (Native.impl_Replica__receive before offered)._1 in
+  receive_preserves_unique_ids before offered;
+  assert (fact_ids_unique after.f_facts) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  );
+  execute_succeeds_for_unique_ids after;
+  assert (exists(next: Native.t_Replica). Native.execute () after == Result.Result_Ok next) by (
+    Tactics.prune "Nickel_crdt.Register.execute";
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  )
+
+let write_result_can_execute (before: Native.t_Replica) (key: u64) (value: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (requires fact_ids_unique before.f_facts) (ensures exists(next: Native.t_Replica). Native.execute () (Native.impl_Replica__write before key value)._1 == Result.Result_Ok next) =
+  let after = (Native.impl_Replica__write before key value)._1 in
+  write_preserves_unique_ids before key value;
+  assert (fact_ids_unique after.f_facts) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__write";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  );
+  execute_succeeds_for_unique_ids after;
+  assert (exists(next: Native.t_Replica). Native.execute () after == Result.Result_Ok next) by (
+    Tactics.prune "Nickel_crdt.Register.execute";
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__write";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  )

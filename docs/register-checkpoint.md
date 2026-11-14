@@ -365,3 +365,35 @@ panic freedom or termination of arbitrary external Rust callbacks. The bounded
 public runtime caller exercises real successful calls under several comparison
 policies; those finite observations do not remove these trust boundaries or
 establish admission, valid-history preservation, convergence or SEC.
+
+### positional uniqueness across public returns
+
+the retained vector now has a separate positional-ID property:
+`Register.fact_ids_unique` says equal IDs at two in-range positions force the
+positions to be equal. this excludes even two identical copies of one fact.
+it is stronger than a set-level “same ID means same whole fact” condition.
+
+`facts_order_implies_unique` derives it from the already checked strict
+writer-first storage order. `receive_added_has_unique_ids` and
+`write_counted_has_unique_ids` apply that implication to the actual public
+success results; neither assumes a valid input history for that success-only
+claim. `new_has_unique_ids` checks the actual constructor's empty vector.
+
+`receive_preserves_unique_ids` and `write_preserves_unique_ids` preserve the
+property on **every return** when it holds before. Added/counted outcomes use
+the checked ordering chain; duplicate, error and no-edit paths use the existing
+publication/neutrality contracts. the consuming queries hide the relevant
+native public/planning bodies and match `fact_ids_unique` as an opaque
+predicate at those all-return queries. its definition is established by the
+order-to-uniqueness law, not reconstructed from native code at the caller.
+this adds exactly that one local predicate to the Register fence. no reachable-state restriction is substituted
+for the typed-state statements.
+
+`receive_result_can_execute` and `write_result_can_execute` then discharge
+#116's positional uniqueness premise on the actual returned replica and invoke
+its checked canonical-execution success law. this says a subsequent pure
+`execute` has an Ok result, including after a refused or no-edit operation.
+it does not say a refused fact will become admissible, restore a producer
+counter, prove a deterministic causal read, or close full client refinement,
+valid history, convergence or SEC. all existing hax/vector-model and total
+logical callback trust boundaries remain.
