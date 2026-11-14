@@ -854,3 +854,70 @@ proof observations_preserved(h: Seq.seq(Nickel.Register.fact), h2: Seq.seq(Nicke
   { observation_kept(h, h2, fnew, initial, g) };
   FStar.Classical.forall_intro(FStar.Classical.move_requires(each))
 }
+
+// ---------------------------------------------------------------- receive Added preserves observations
+proof selected_read_is_observation(before: Native.t_Replica, offered: Nickel.Register.fact,
+  selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global)): unit
+  takes forall(id: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(selected), id) <==>
+    Nickel.RegisterPast.ancestor(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(offered.f_after), id)
+  takes frozen_id_read(before, offered, selected)
+  gives (stored_unique(Alloc.Vec.impl_1__as_slice(before.f_facts)) and id_clocks_increase(Alloc.Vec.impl_1__as_slice(before.f_facts))) ==>
+    observation_ok(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(before.f_initial), offered)
+{
+  const facts = Alloc.Vec.impl_1__as_slice(before.f_facts);
+  FStar.Classical.forall_intro(register_ancestor_is_id_ancestor(facts, Alloc.Vec.impl_1__as_slice(offered.f_after)));
+  read_respects_sel(facts, sel_of(selected), anc_of(facts, offered), offered.f_payload.f_key,
+    Alloc.Vec.impl_1__as_slice(before.f_initial), Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed))
+}
+function offered_observation_ok(before: Native.t_Replica, offered: Nickel.Register.fact): Type0 {
+  (stored_unique(Alloc.Vec.impl_1__as_slice(before.f_facts)) and id_clocks_increase(Alloc.Vec.impl_1__as_slice(before.f_facts))) ==>
+    observation_ok(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(before.f_initial), offered)
+}
+proof id_frozen_gives_observation(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  takes id_frozen_admission(before, offered)
+  gives offered_observation_ok(before, offered)
+{
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(selected_read_is_observation(before, offered)));
+  assert(offered_observation_ok(before, offered)) by {
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// When receive returns Added and nothing in the published history names the offered id
+// as a parent, every stored observation stays valid (given unique ids and increasing
+// id-level clocks before). Discharging `unreferenced` from validity is the next step.
+function observations_carried(before: Native.t_Replica, offered: Nickel.Register.fact, next: Native.t_Replica): Type0 {
+  (observations_ok(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(before.f_initial)) and
+   stored_unique(Alloc.Vec.impl_1__as_slice(before.f_facts)) and id_clocks_increase(Alloc.Vec.impl_1__as_slice(before.f_facts)) and
+   unreferenced(Alloc.Vec.impl_1__as_slice(next.f_facts), offered.f_id)) ==>
+    observations_ok(Alloc.Vec.impl_1__as_slice(next.f_facts), Alloc.Vec.impl_1__as_slice(before.f_initial))
+}
+proof carried_from_parts(before: Native.t_Replica, offered: Nickel.Register.fact, next: Native.t_Replica): unit
+  takes Nickel.Register.appended_facts(before, offered, next)
+  takes offered_observation_ok(before, offered)
+  gives observations_carried(before, offered, next)
+{
+  const h = Alloc.Vec.impl_1__as_slice(before.f_facts);
+  const h2 = Alloc.Vec.impl_1__as_slice(next.f_facts);
+  assert(extends_by(h, h2, offered));
+  FStar.Classical.move_requires(observations_preserved(h, h2, offered), Alloc.Vec.impl_1__as_slice(before.f_initial))
+}
+proof receive_added_carries_observations(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  gives forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) ==
+    (next, Result.Result_Ok(Native.Admission_Added)) ==> observations_carried(before, offered, next)
+{
+  receive_added_freezes_id_read(before, offered);
+  Nickel.Register.receive_added_retains_exact_facts(before, offered);
+  FStar.Classical.move_requires(id_frozen_gives_observation(before), offered);
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(carried_from_parts(before, offered)));
+  assert(forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) ==
+    (next, Result.Result_Ok(Native.Admission_Added)) ==> observations_carried(before, offered, next)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel_crdt.Register.next_lamport");
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+    Tactics.smt_sync'(1, 1)
+  }
+}

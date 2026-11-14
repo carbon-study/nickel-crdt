@@ -33,7 +33,7 @@ module Seq = FStar.Seq
 
 module Tactics = FStar.Tactics.V2
 
-type fact = Envelope.t_Event Native.t_Write
+unfold type fact = Envelope.t_Event Native.t_Write
 
 unfold type rid = Envelope.t_Id
 
