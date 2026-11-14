@@ -62,7 +62,12 @@ let priority_maximum_is_causal_maximum (facts: t_Slice Nickel.Register.fact) (ke
 
 let read_history_is_causal_read (facts: t_Slice Nickel.Register.fact) (initial: t_Slice u8) (key: u64) : Lemma (requires clocks_increase facts) (ensures causal_read facts key initial (Alloc.Vec.impl_1__as_slice (Native.read_history facts initial key))) =
   Nickel.Register.read_history_selects_maximum facts initial key;
-  FStar.Classical.forall_intro (FStar.Classical.move_requires (priority_maximum_is_causal_maximum facts key))
+  FStar.Classical.forall_intro (FStar.Classical.move_requires (priority_maximum_is_causal_maximum facts key));
+  assert (causal_read facts key initial (Alloc.Vec.impl_1__as_slice (Native.read_history facts initial key))) by (
+    Tactics.prune "Nickel_crdt.Register.read_history";
+    Tactics.prune "Nickel_crdt.Register.winner";
+    Tactics.smt_sync' 1 1
+  )
 
 let ids_unique (facts: t_Slice Nickel.Register.fact) : Type0 =
   forall(i: nat) (j: nat). Prims.l_and (Prims.l_and (i < Seq.length facts) (j < Seq.length facts)) ((Seq.index facts i).f_id == (Seq.index facts j).f_id) ==> i == j
