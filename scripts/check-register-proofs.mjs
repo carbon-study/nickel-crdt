@@ -17,17 +17,20 @@ const env=process.env;
 for(const k of ['NICKEL_HAX_BIN','NICKEL_PROOF_FSTAR','NICKEL_HAX_SOURCE','NICKEL_FSTAR_MODEL_CACHE'])assert(env[k],k);
 const views=path.join(root,'proofs/register-view');
 const receipt=JSON.parse(await fs.readFile(path.join(views,'receipt.json'),'utf8'));
-const required=['Cargo.toml','Cargo.lock','src/lib.rs','src/register.rs','src/causal.rs','src/event_layer.rs','src/event_shell.rs','proofs/Register.lt','proofs/Canonical.lt','proofs/Vector.lt','proofs/EventGraph.lt',
+const required=['Cargo.toml','Cargo.lock','src/lib.rs','src/register.rs','src/causal.rs','src/event_layer.rs','src/event_shell.rs','proofs/Register.lt','proofs/RegisterPast.lt','proofs/Canonical.lt','proofs/Vector.lt','proofs/EventGraph.lt',
  'proofs/Prelude.lt','proofs/LoopUtil.lt','proofs/EventShell.lt','proofs/CausalEnvelope.lt',
  'proofs/generated/Nickel.Vector.fst','proofs/generated/Nickel.EventGraph.fst','proofs/generated/Nickel.Prelude.fst','proofs/generated/Nickel.LoopUtil.fst','proofs/generated/Nickel.EventShell.fst',
  'proofs/causal-envelope-view/Nickel.CausalEnvelope.fst',
- 'proofs/register-view/Nickel.Canonical.fst',
+ 'proofs/register-view/Nickel.Canonical.fst','proofs/register-view/Nickel.RegisterPast.fst',
  ...['Register','Nickel_crdt.Register','Nickel_crdt.Causal','Nickel_crdt.Event_layer','Nickel_crdt.Event_shell'].map(n=>'proofs/register-view/'+(n==='Register'?'Nickel.Register':n)+'.fst')];
 assert.equal(receipt.schemaVersion,1);assert.deepEqual(Object.keys(receipt.files).sort(),required.sort(),'complete checkpoint receipt required');
 for(const [f,h]of Object.entries(receipt.files))assert.equal(digest(await fs.readFile(path.join(root,f))),h,'stale checkpoint receipt: '+f);
 assertReformedSource('LoopUtil',await fs.readFile(path.join(root,'proofs/LoopUtil.lt'),'utf8'));
 assertReformedSource('Canonical',await fs.readFile(path.join(root,'proofs/Canonical.lt'),'utf8'));
 assertReformedSource('Register',await fs.readFile(path.join(root,'proofs/Register.lt'),'utf8'));
+assertReformedSource('RegisterPast',await fs.readFile(path.join(root,'proofs/RegisterPast.lt'),'utf8'));
+assert.throws(()=>assertReformedSource('RegisterPast','Tactics.prune("Nickel_crdt.Event_layer");'),'no broad shared namespace exception for exact past');
+assert.throws(()=>assertReformedSource('RegisterPast','Tactics.prune("Nickel_crdt.Register.v_OPS");'),'exact past stays generic over ops');
 assert.throws(()=>assertReformedSource('EditAccepted','Tactics.prune("Nickel_crdt.Register.bytes_equal");'),'new native visibility stays Register-scoped');
 assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Nickel.Register.planned_preserves_private");'),'write caller contract isolation stays Register-scoped');
 assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Nickel_crdt.Register.read_history");'),'payload callee visibility stays Register-scoped');
@@ -41,17 +44,22 @@ assert.throws(()=>assertReformedSource('Register','Tactics.prune("Nickel_crdt.Ev
 const loopView=await fs.readFile(path.join(root,'proofs/generated/Nickel.LoopUtil.fst'),'utf8');
 const canonicalView=await fs.readFile(path.join(views,'Nickel.Canonical.fst'),'utf8');
 const view=await fs.readFile(path.join(views,'Nickel.Register.fst'),'utf8');
-for(const checkedView of [view,canonicalView])assert(!/\b(?:admit|assume|lax|admit_smt_queries)\b/.test(checkedView));
+const pastView=await fs.readFile(path.join(views,'Nickel.RegisterPast.fst'),'utf8');
+for(const checkedView of [view,canonicalView,pastView])assert(!/\b(?:admit|assume|lax|admit_smt_queries)\b/.test(checkedView));
 if(env.NICKEL_LATTE_BIN){
  const l=await runAsync('loop producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/LoopUtil.lt')],root,{env});assert.equal(l.status,0);assert.equal(l.stdout,loopView,'complete loop producer/view parity');
  const c=await runAsync('canonical producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/Canonical.lt')],root,{env});assert.equal(c.status,0);assert.equal(c.stdout,canonicalView,'complete generic producer/view parity');
+ const rp=await runAsync('exact past producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/RegisterPast.lt')],root,{env});assert.equal(rp.status,0);assert.equal(rp.stdout,pastView,'complete exact past producer/view parity');
  const p=await runAsync('checkpoint producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/Register.lt')],root,{env});
  await fs.writeFile(path.join(output,'producer.log'),p.log);assert.equal(p.status,0);assert.equal(p.stdout,view,'full producer/view parity');
 }
 const source=await fs.readFile(path.join(root,'src/register.rs'),'utf8');
 const graphSource=await fs.readFile(path.join(root,'src/event_layer.rs'),'utf8');
-const graphModes=new Set(['canonical-push-drops-value','canonical-copies-wrong-fact','canonical-discards-output','canonical-chooses-largest']);
+const graphModes=new Set(['past-extend-never-pushes','past-extend-unselected','canonical-push-drops-value','canonical-copies-wrong-fact','canonical-discards-output','canonical-chooses-largest']);
 const bodyModes=[
+ // Exact past directions (#97 obligation 1): each native fault breaks only its own direction.
+ ['past-extend-never-pushes','fn extend_past<','if !has_id(&selected, &predecessor, ops) {','if false && !has_id(&selected, &predecessor, ops) {','RegisterPast.extend_past_covers_predecessors'],
+ ['past-extend-unselected','fn extend_past<','if has_id(&selected, &id(fact), ops) {','if true {','RegisterPast.extend_past_preserves'],
  ['canonical-chooses-largest','fn choose_unseen<','id_lt(&id(&facts[j]), &id(&facts[k]))','id_lt(&id(&facts[k]), &id(&facts[j]))','Canonical.choose_is_least'],
  ['register-wrong-order-policy','const OPS:','graph::graph_ops(identity, parents, same_id, less_id,','graph::graph_ops(identity, parents, same_id, same_id,','register_order_policy_is_exact'],
  ['canonical-push-drops-value','fn push<','xs.push(value);','let _ = value;','Canonical.push_is_exact'],
@@ -89,7 +97,7 @@ const bodyModes=[
  ['read-wrong-key','pub fn read(','read_history(&self.facts, &self.initial, key)','read_history(&self.facts, &self.initial, 0)','public_read_is_history'],
  ['payload-ignores-observed','fn write_equal(','&& bytes_equal(&a.observed, &b.observed)','&& true','write_equal_is_exact'],
 ];
-assert(selected.every(n=>n==='positive'||bodyModes.some(m=>m[0]===n)||["without-minimum-order-contract","without-canonical-order-contract","without-write-order-plan","without-receive-order-plan","without-generic-append-contract","without-canonical-selection-contract","without-canonical-coverage-contract","without-loop-unroll","without-loop-recursion","without-loop-empty","without-generic-step-equation","without-generic-push-contract","without-generic-membership-contract","without-generic-choice-loop","without-generic-canonical-loop","without-generic-choice-contract","without-generic-step-contract","without-register-canonical-policy","without-register-canonical-content","without-prepare-content","without-plan-prepared-content","without-receive-retention-plan","without-write-retention-installation","without-clock-loop-contract","without-added-clock-contract","without-added-clock-payload","without-validation-byte-contract","without-payload-validation-contract","without-payload-planning-contract","without-receive-payload-contract","without-added-publication-contract","without-write-receive-publication","without-write-receive-frame","without-winner-loop","without-read-winner","without-publication-contract","without-noedit-byte-contract","without-shared-planning-contract","without-prepare-frame","without-execute-frame","without-receive-publication-frame","without-plan-private-frame"].includes(n)),'unknown selected mode');
+assert(selected.every(n=>n==='positive'||bodyModes.some(m=>m[0]===n)||["without-past-soundness-closure","without-past-completeness-paths","without-admission-exact-selection","without-admission-whole-basis","without-frozen-payload-checks","without-ancestor-clock-order","without-stream-ancestor-clock","without-minimum-order-contract","without-canonical-order-contract","without-write-order-plan","without-receive-order-plan","without-generic-append-contract","without-canonical-selection-contract","without-canonical-coverage-contract","without-loop-unroll","without-loop-recursion","without-loop-empty","without-generic-step-equation","without-generic-push-contract","without-generic-membership-contract","without-generic-choice-loop","without-generic-canonical-loop","without-generic-choice-contract","without-generic-step-contract","without-register-canonical-policy","without-register-canonical-content","without-prepare-content","without-plan-prepared-content","without-receive-retention-plan","without-write-retention-installation","without-clock-loop-contract","without-added-clock-contract","without-added-clock-payload","without-validation-byte-contract","without-payload-validation-contract","without-payload-planning-contract","without-receive-payload-contract","without-added-publication-contract","without-write-receive-publication","without-write-receive-frame","without-winner-loop","without-read-winner","without-publication-contract","without-noedit-byte-contract","without-shared-planning-contract","without-prepare-frame","without-execute-frame","without-receive-publication-frame","without-plan-private-frame"].includes(n)),'unknown selected mode');
 // The actual const policy has no brace body; bind this one construction-site
 // control to its complete exact code item, never a later function's body.
 function registerPolicyAnchor(source,anchor){
@@ -108,6 +116,7 @@ async function support(dir){
  await fs.mkdir(dir,{recursive:true});
  for(const f of proofFiles)await put(path.join(dir,f),await fs.readFile(path.join(root,'proofs/generated',f)));
  await put(path.join(dir,'Nickel.Canonical.fst'),canonicalView);
+ await put(path.join(dir,'Nickel.RegisterPast.fst'),pastView);
  await put(path.join(dir,'Nickel.CausalEnvelope.fst'),await fs.readFile(path.join(root,'proofs/causal-envelope-view/Nickel.CausalEnvelope.fst')));
 }
 async function check(dir,roots,log){
@@ -132,7 +141,7 @@ for(const [name,header,anchor,replacement,owner] of [['positive',null,null,null,
  const native=await check(dir,['Nickel_crdt.Register.fst'],path.join(mode,'native-typecheck.log'));assert.equal(native.status,0,name+': native type error is not owner rejection');
  const file=path.join(dir,'Nickel.Register.fst');await put(file,view);
  const checked=await check(dir,['Nickel.Register.fst'],path.join(mode,'proof.log'));
- const ordinary=owner?hasOrdinaryTheoremRejection({status:checked.status,log:checked.log,theorem:owner.startsWith('Canonical.')?'Nickel.'+owner:'Nickel.Register.'+owner,view:owner.startsWith('Canonical.')?canonicalView:view}):null;
+ const ordinary=owner?hasOrdinaryTheoremRejection({status:checked.status,log:checked.log,theorem:/^(Canonical|RegisterPast)\./.test(owner)?'Nickel.'+owner:'Nickel.Register.'+owner,view:owner.startsWith('Canonical.')?canonicalView:owner.startsWith('RegisterPast.')?pastView:view}):null;
  if(owner)assert(ordinary,name+': ordinary named owner rejection required');else assert.equal(checked.status,0,'checkpoint positive failed');
  results.push({name,owner,status:checked.status,ordinary,sourceFile,source:digest(changed),log:digest(checked.log)});
  console.log('PASS '+name);
@@ -184,6 +193,15 @@ assert(canonicalChoiceLoop&&canonicalWholeLoop,'actual generic loop interfaces')
 // Branch-local queries make the formerly uncredited append probe a registered
 // control. The earlier nonterminal attempt remains retained.
 const depModes=[
+ // Exact past and history meaning (#97 obligation 1): soundness and completeness are separate owners.
+ ['without-past-soundness-closure',replaceInDeclaration('past_has_only_ancestors_and_keeps_roots','  past_stays_in_closed_set ops facts roots (ancestor ops facts roots)','  ()',pastView),'RegisterPast.past_has_only_ancestors_and_keeps_roots'],
+ ['without-past-completeness-paths',replaceInDeclaration('successful_past_is_exact_closure','      past_contains_every_causal_path ops facts roots root steps id;','      ();',pastView),'RegisterPast.successful_past_is_exact_closure'],
+ ['without-admission-exact-selection',replaceInDeclaration('selected_basis_is_exact','  Nickel.RegisterPast.validated_selection_is_exact facts offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS;','  ();'),'selected_basis_is_exact'],
+ ['without-admission-whole-basis',replaceInDeclaration('selected_basis_is_exact','  Nickel.RegisterPast.actual_basis_is_exact_filter Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected);','  ();'),'selected_basis_is_exact'],
+ ['without-frozen-payload-checks',replaceInDeclaration('receive_added_freezes_causal_observation','  receive_added_checks_payload before offered;','  ();'),'receive_added_freezes_causal_observation'],
+ ['without-ancestor-clock-order',replaceInDeclaration('priority_maximum_is_causal_maximum','ancestor_clock_is_smaller facts j steps i','()'),'priority_maximum_is_causal_maximum'],
+ // Withholding a step higher in the stream chain exhausts the module cap (not ordinary), so this chain is owned here.
+ ['without-stream-ancestor-clock',replaceInDeclaration('chained_streams_step_clocks',' = ancestor_clock_is_smaller facts i steps j in',' = () in'),'chained_streams_step_clocks'],
  ['without-minimum-order-contract',withholdPayloadContract('step_preserves_order','Nickel_crdt.Event_layer.choose_unseen',3,['Nickel.Canonical.choose_is_least'],['  choose_is_least input (Alloc.Vec.impl_1__as_slice out) ops;'],canonicalView),'Canonical.step_preserves_order'],
  ['without-canonical-order-contract',withholdPayloadContract('execute_orders_fact_history','Nickel_crdt.Event_layer.canonical',2,['Nickel.Canonical.canonical_outputs_strict_id_order'],['  Nickel.Canonical.canonical_outputs_strict_id_order (Alloc.Vec.impl_1__as_slice before.f_facts) Native.v_OPS._1;']),'execute_orders_fact_history'],
  ['without-write-order-plan',withholdPayloadContract('write_counted_orders_fact_history','Nickel_crdt.Register.planned',1,['Nickel.Register.planned_orders_fact_history'],['  FStar.Classical.forall_intro (planned_orders_fact_history before);']),'write_counted_orders_fact_history'],
@@ -232,7 +250,7 @@ const depModes=[
 ];
 for(const [name,changed,owner]of depModes){
  if(selected.length&&!selected.includes(name))continue;
- const generic=owner.startsWith('Canonical.')||owner.startsWith('LoopUtil.'),baseView=owner.startsWith('LoopUtil.')?loopView:owner.startsWith('Canonical.')?canonicalView:view,ownerFile=generic?path.join(positive,'Nickel.'+owner.split('.')[0]+'.fst'):file;
+ const generic=owner.startsWith('Canonical.')||owner.startsWith('LoopUtil.')||owner.startsWith('RegisterPast.'),baseView=owner.startsWith('LoopUtil.')?loopView:owner.startsWith('Canonical.')?canonicalView:owner.startsWith('RegisterPast.')?pastView:view,ownerFile=generic?path.join(positive,'Nickel.'+owner.split('.')[0]+'.fst'):file;
  await fs.writeFile(path.join(output,name+'.fst'),changed);
  try{await put(ownerFile,changed);const r=await check(positive,['Nickel.Register.fst'],path.join(output,name+'.log'));const ordinary=hasOrdinaryTheoremRejection({status:r.status,log:r.log,theorem:generic?'Nickel.'+owner:'Nickel.Register.'+owner,view:changed});assert(ordinary,name+': checked callee dependence required');results.push({name,owner,status:r.status,ordinary,view:digest(changed),log:digest(r.log)});console.log('PASS '+name);}
  finally{await put(ownerFile,baseView);}

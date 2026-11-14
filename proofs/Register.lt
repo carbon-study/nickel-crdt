@@ -1120,3 +1120,370 @@ proof write_counted_orders_fact_history(before: Native.t_Replica, key: u64, valu
     Tactics.smt_sync'(1, 1)
   }
 }
+
+// Independent read meaning (#97 obligation 1, first slice). A history slice is
+// read through its causal maxima: a write to `key` is visible unless another
+// write to `key` has it as a strict ancestor. Ancestry is the parent relation
+// on positions of this slice, stated without any native graph function.
+function parent_edge(facts: t_Slice(fact), newer: nat, older: nat): Type0 {
+  newer < Seq.length(facts) and older < Seq.length(facts) and
+  (exists(k: nat) . k < Seq.length(Alloc.Vec.impl_1__as_slice(Seq.index(facts, newer).f_after)) and
+    Seq.index(Alloc.Vec.impl_1__as_slice(Seq.index(facts, newer).f_after), k) == Seq.index(facts, older).f_id)
+}
+function! strict_ancestor_path(facts: t_Slice(fact), newer: nat, steps: Prims.list(nat), older: nat): Type0
+  decreases steps
+{
+  match steps {
+    Prims.Nil => parent_edge(facts, newer, older),
+    Prims.Cons(next, rest) => parent_edge(facts, newer, next) and strict_ancestor_path(facts, next, rest, older)
+  }
+}
+// The clock half of history validity: every parent has a smaller Lamport clock.
+function clock_below(facts: t_Slice(fact), older: nat, newer: nat): Type0 {
+  older < Seq.length(facts) and newer < Seq.length(facts) and
+  v(Seq.index(facts, older).f_payload.f_lamport) < v(Seq.index(facts, newer).f_payload.f_lamport)
+}
+function clocks_increase(facts: t_Slice(fact)): Type0 {
+  forall(newer: nat, older: nat) . parent_edge(facts, newer, older) ==> clock_below(facts, older, newer)
+}
+proof! ancestor_clock_is_smaller(facts: t_Slice(fact), newer: nat, steps: Prims.list(nat), older: nat): unit
+  decreases steps
+  takes clocks_increase(facts)
+  takes strict_ancestor_path(facts, newer, steps, older)
+  gives clock_below(facts, older, newer)
+{
+  match steps {
+    Prims.Nil => (),
+    Prims.Cons(next, rest) => ancestor_clock_is_smaller(facts, next, rest, older)
+  }
+}
+function causal_maximal(facts: t_Slice(fact), key: u64, i: nat): Type0 {
+  i < Seq.length(facts) and Seq.index(facts, i).f_payload.f_key == key and
+  not (exists(j: nat, steps: Prims.list(nat)) . j < Seq.length(facts) and
+    Seq.index(facts, j).f_payload.f_key == key and strict_ancestor_path(facts, j, steps, i))
+}
+// Initial value when `key` was never written; otherwise the value of a causal
+// maximum that no other causal maximum outranks by (Lamport, writer).
+function causal_read(facts: t_Slice(fact), key: u64, initial: t_Slice(u8), value: t_Slice(u8)): Type0 {
+  ((forall(j: nat) . j < Seq.length(facts) ==> Seq.index(facts, j).f_payload.f_key =!= key) and bytes_same(value, initial)) or
+  (exists(i: nat) . causal_maximal(facts, key, i) and
+    bytes_same(value, Alloc.Vec.impl_1__as_slice(Seq.index(facts, i).f_payload.f_value)) and
+    (forall(j: nat) . causal_maximal(facts, key, j) ==> not higher(Seq.index(facts, j), Seq.index(facts, i))))
+}
+proof priority_maximum_is_causal_maximum(facts: t_Slice(fact), key: u64, i: nat): unit
+  takes clocks_increase(facts)
+  takes i < Seq.length(facts) and Seq.index(facts, i).f_payload.f_key == key and
+    (forall(j: nat) . (j < Seq.length(facts) and Seq.index(facts, j).f_payload.f_key == key) ==>
+      not higher(Seq.index(facts, j), Seq.index(facts, i)))
+  gives causal_maximal(facts, key, i)
+{
+  proof dominated_is_impossible(j: nat, steps: Prims.list(nat)): unit
+    takes j < Seq.length(facts) and Seq.index(facts, j).f_payload.f_key == key
+    takes strict_ancestor_path(facts, j, steps, i)
+    gives Prims.l_False
+  { ancestor_clock_is_smaller(facts, j, steps, i) };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(dominated_is_impossible))
+}
+proof read_history_is_causal_read(facts: t_Slice(fact), initial: t_Slice(u8), key: u64): unit
+  takes clocks_increase(facts)
+  gives causal_read(facts, key, initial, Alloc.Vec.impl_1__as_slice(Native.read_history(facts, initial, key)))
+{
+  read_history_selects_maximum(facts, initial, key);
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(priority_maximum_is_causal_maximum(facts, key)))
+}
+
+// Single-valued read. A writer's stream is causally chained and stored ids are
+// unique, so two distinct stored facts never tie on (Lamport, writer).
+function ids_unique(facts: t_Slice(fact)): Type0 {
+  forall(i: nat, j: nat) . (i < Seq.length(facts) and j < Seq.length(facts) and
+    Seq.index(facts, i).f_id == Seq.index(facts, j).f_id) ==> i == j
+}
+function counters_positive(facts: t_Slice(fact)): Type0 {
+  forall(i: nat) . i < Seq.length(facts) ==> v(Seq.index(facts, i).f_id.f_counter) >= 1
+}
+function predecessor_of(facts: t_Slice(fact), later: nat, earlier: nat): Type0 {
+  later < Seq.length(facts) and earlier < Seq.length(facts) and
+  Seq.index(facts, earlier).f_id.f_peer == Seq.index(facts, later).f_id.f_peer and
+  v(Seq.index(facts, earlier).f_id.f_counter) + 1 == v(Seq.index(facts, later).f_id.f_counter)
+}
+// Validity premise: a stored non-first write has its predecessor as an ancestor.
+function streams_chained(facts: t_Slice(fact)): Type0 {
+  forall(i: nat) . (i < Seq.length(facts) and v(Seq.index(facts, i).f_id.f_counter) > 1) ==>
+    (exists(j: nat, steps: Prims.list(nat)) . predecessor_of(facts, i, j) and strict_ancestor_path(facts, i, steps, j))
+}
+// Path-free consequence used by the stream induction.
+function stream_steps(facts: t_Slice(fact)): Type0 {
+  forall(i: nat) . (i < Seq.length(facts) and v(Seq.index(facts, i).f_id.f_counter) > 1) ==>
+    (exists(j: nat) . predecessor_of(facts, i, j) and clock_below(facts, j, i))
+}
+proof chained_streams_step_clocks(facts: t_Slice(fact)): unit
+  takes clocks_increase(facts) and streams_chained(facts)
+  gives stream_steps(facts)
+{
+  proof each(i: nat, j: nat, steps: Prims.list(nat)): unit
+    takes strict_ancestor_path(facts, i, steps, j)
+    gives clock_below(facts, j, i)
+  { ancestor_clock_is_smaller(facts, i, steps, j) };
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(each))
+}
+function same_stream_order(facts: t_Slice(fact), low: nat, high: nat): Type0 {
+  low < Seq.length(facts) and high < Seq.length(facts) and
+  Seq.index(facts, low).f_id.f_peer == Seq.index(facts, high).f_id.f_peer and
+  v(Seq.index(facts, low).f_id.f_counter) < v(Seq.index(facts, high).f_id.f_counter)
+}
+proof same_fields_same_id(facts: t_Slice(fact), a: nat, b: nat): unit
+  takes a < Seq.length(facts) and b < Seq.length(facts)
+  takes Seq.index(facts, a).f_id.f_peer == Seq.index(facts, b).f_id.f_peer
+  takes Seq.index(facts, a).f_id.f_counter == Seq.index(facts, b).f_id.f_counter
+  gives Seq.index(facts, a).f_id == Seq.index(facts, b).f_id
+{ () }
+proof later_stream_fact_has_step(facts: t_Slice(fact), low: nat, high: nat): unit
+  takes stream_steps(facts) and counters_positive(facts)
+  takes same_stream_order(facts, low, high)
+  gives exists(j: nat) . predecessor_of(facts, high, j) and clock_below(facts, j, high)
+{ () }
+proof stream_step_composes(facts: t_Slice(fact), low: nat, j: nat, high: nat): unit
+  takes same_stream_order(facts, low, high)
+  takes predecessor_of(facts, high, j) and clock_below(facts, j, high)
+  takes clock_below(facts, low, j) or j == low
+  gives clock_below(facts, low, high)
+{ () }
+proof! stream_clock_increases(facts: t_Slice(fact), gap: nat, low: nat, high: nat): unit
+  decreases gap
+  takes stream_steps(facts) and ids_unique(facts) and counters_positive(facts)
+  takes same_stream_order(facts, low, high)
+  takes gap == v(Seq.index(facts, high).f_id.f_counter) - v(Seq.index(facts, low).f_id.f_counter)
+  gives clock_below(facts, low, high)
+{
+  proof via(j: nat): unit
+    takes predecessor_of(facts, high, j) and clock_below(facts, j, high)
+    gives clock_below(facts, low, high)
+  {
+    if v(Seq.index(facts, j).f_id.f_counter) > v(Seq.index(facts, low).f_id.f_counter) {
+      stream_clock_increases(facts, gap - 1, low, j)
+    } else { same_fields_same_id(facts, j, low) };
+    stream_step_composes(facts, low, j, high)
+  };
+  later_stream_fact_has_step(facts, low, high);
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(via))
+}
+function same_priority(a: fact, b: fact): Type0 {
+  a.f_payload.f_lamport == b.f_payload.f_lamport and a.f_id.f_peer == b.f_id.f_peer
+}
+proof priority_identifies_fact(facts: t_Slice(fact), a: nat, b: nat): unit
+  takes stream_steps(facts) and ids_unique(facts) and counters_positive(facts)
+  takes a < Seq.length(facts) and b < Seq.length(facts)
+  takes same_priority(Seq.index(facts, a), Seq.index(facts, b))
+  gives a == b
+{
+  const ca = v(Seq.index(facts, a).f_id.f_counter);
+  const cb = v(Seq.index(facts, b).f_id.f_counter);
+  if ca < cb { stream_clock_increases(facts, cb - ca, a, b) }
+  else { if cb < ca { stream_clock_increases(facts, ca - cb, b, a) } else { same_fields_same_id(facts, a, b) } }
+}
+proof bytes_same_through(x: t_Slice(u8), y: t_Slice(u8), z: t_Slice(u8)): unit
+  takes bytes_same(x, z) and bytes_same(y, z)
+  gives bytes_same(x, y)
+{ () }
+proof maximal_pair_is_one_fact(facts: t_Slice(fact), key: u64, i: nat, k: nat): unit
+  takes stream_steps(facts) and ids_unique(facts) and counters_positive(facts)
+  takes causal_maximal(facts, key, i) and causal_maximal(facts, key, k)
+  takes not higher(Seq.index(facts, i), Seq.index(facts, k)) and not higher(Seq.index(facts, k), Seq.index(facts, i))
+  gives i == k
+{ priority_identifies_fact(facts, i, k) }
+proof causal_read_is_single_valued(facts: t_Slice(fact), key: u64, initial: t_Slice(u8), x: t_Slice(u8), y: t_Slice(u8)): unit
+  takes clocks_increase(facts) and streams_chained(facts) and ids_unique(facts) and counters_positive(facts)
+  takes causal_read(facts, key, initial, x)
+  takes causal_read(facts, key, initial, y)
+  gives bytes_same(x, y)
+{
+  chained_streams_step_clocks(facts);
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(maximal_pair_is_one_fact(facts, key)));
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(bytes_same_through))
+}
+
+// Register half of admission (#97 obligation 1): an Added fact froze the
+// independent causal read of its actual selected basis, differs from it, and
+// carries that basis's clock successor. The premise that this basis has
+// increasing clocks is discharged later from validity plus the exact past.
+function frozen_causal_observation(before: Native.t_Replica, offered: fact,
+  basis: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)): Type0 {
+  (clocks_increase(Alloc.Vec.impl_1__as_slice(basis)) ==>
+    causal_read(Alloc.Vec.impl_1__as_slice(basis), offered.f_payload.f_key,
+      Alloc.Vec.impl_1__as_slice(before.f_initial), Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed))) and
+  not bytes_same(Alloc.Vec.impl_1__as_slice(offered.f_payload.f_value), Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed)) and
+  clock_successor(Alloc.Vec.impl_1__as_slice(basis), offered.f_payload.f_lamport)
+}
+function selected_basis_frozen(before: Native.t_Replica, offered: fact): Type0 {
+  exists(selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)) .
+    Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
+      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(selected) and
+    Nickel_crdt.Event_layer.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Result.Result_Ok(basis) and
+    frozen_causal_observation(before, offered, basis)
+}
+proof observed_basis_read_is_causal(before: Native.t_Replica, offered: fact, basis: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)): unit
+  takes bytes_same(Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed),
+    Alloc.Vec.impl_1__as_slice(Native.read_history(Alloc.Vec.impl_1__as_slice(basis), Alloc.Vec.impl_1__as_slice(before.f_initial), offered.f_payload.f_key)))
+  gives clocks_increase(Alloc.Vec.impl_1__as_slice(basis)) ==>
+    causal_read(Alloc.Vec.impl_1__as_slice(basis), offered.f_payload.f_key,
+      Alloc.Vec.impl_1__as_slice(before.f_initial), Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed))
+{
+  FStar.Classical.move_requires(read_history_is_causal_read(Alloc.Vec.impl_1__as_slice(basis), Alloc.Vec.impl_1__as_slice(before.f_initial)), offered.f_payload.f_key)
+}
+proof basis_checks_freeze(before: Native.t_Replica, offered: fact, basis: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)): unit
+  takes basis_payload_checks(before, offered, basis)
+  takes clock_successor(Alloc.Vec.impl_1__as_slice(basis), offered.f_payload.f_lamport)
+  gives frozen_causal_observation(before, offered, basis)
+{ observed_basis_read_is_causal(before, offered, basis) }
+proof selected_checks_freeze(before: Native.t_Replica, offered: fact): unit
+  takes selected_basis_checks(before, offered)
+  takes selected_basis_clock_successor(before, offered)
+  gives selected_basis_frozen(before, offered)
+{
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(basis_checks_freeze(before, offered)))
+}
+proof receive_added_freezes_causal_observation(before: Native.t_Replica, offered: fact): unit
+  gives forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) ==
+    (next, Result.Result_Ok(Native.Admission_Added)) ==> selected_basis_frozen(before, offered)
+{
+  receive_added_checks_payload(before, offered);
+  receive_added_clock_is_maximum_successor(before, offered);
+  FStar.Classical.move_requires(selected_checks_freeze(before), offered);
+  assert(forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) ==
+    (next, Result.Result_Ok(Native.Admission_Added)) ==> selected_basis_frozen(before, offered)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel_crdt.Register.next_lamport");
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+import Nickel.RegisterPast
+
+// The register instance: discharge the actual callback applications of v_OPS.
+proof register_ops_are_exact(): unit
+  gives Nickel.RegisterPast.ids_exact(Native.v_OPS._1) and Nickel.RegisterPast.copies_exact(Native.v_OPS._1) and
+    (forall(f: fact) . Native.v_OPS._1._1._1(f) == f.f_id) and
+    (forall(f: fact) . Native.v_OPS._1._1._2(f) == Alloc.Vec.impl_1__as_slice(f.f_after))
+{
+  const graph = Nickel_crdt.Event_layer.graph_ops(Native.identity, Native.parents, Native.same_id, Native.less_id, Native.copy_fact, Native.fact_equal, Native.invalid, Native.missing);
+  Nickel.EventGraph.graph_ops_preserve_callbacks(Native.identity, Native.parents, Native.same_id, Native.less_id, Native.copy_fact, Native.fact_equal, Native.invalid, Native.missing);
+  Nickel.EventGraph.event_ops_preserve_callbacks(graph, Native.previous, Native.forbidden, Native.capacity, Native.capacity, Native.invalid, Native.invalid);
+  assert(Native.v_OPS._1 == graph) by {
+    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
+    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
+    Tactics.smt_sync'(1, 1)
+  };
+  register_canonical_values_are_exact();
+  proof each_identity(f: fact): unit
+    gives graph._1._1(f) == f.f_id
+  { assert(graph._1._1 == Native.identity) };
+  proof each_parents(f: fact): unit
+    gives graph._1._2(f) == Alloc.Vec.impl_1__as_slice(f.f_after)
+  { assert(graph._1._2 == Native.parents) };
+  FStar.Classical.forall_intro(each_identity);
+  FStar.Classical.forall_intro(each_parents)
+}
+
+// Exact ancestry of an Added receive's actual basis (#97 obligation 1): the
+// selected ids are exactly the offered parents' ancestors (soundness and
+// completeness, RegisterPast), the basis is the whole-fact storage-order filter
+// of those ids, and that basis froze the offered observation.
+function exact_selected_basis(before: Native.t_Replica, offered: fact): Type0 {
+  exists(selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)) .
+    Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
+      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(selected) and
+    Nickel_crdt.Event_layer.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Result.Result_Ok(basis) and
+    (forall(id: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(selected), id) <==>
+      Nickel.RegisterPast.ancestor(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(offered.f_after), id)) and
+    Nickel.RegisterPast.selected_prefix(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected),
+      Seq.length(Alloc.Vec.impl_1__as_slice(before.f_facts)), Alloc.Vec.impl_1__as_slice(basis)) and
+    frozen_causal_observation(before, offered, basis)
+}
+proof selected_basis_is_exact(before: Native.t_Replica, offered: fact,
+  selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)): unit
+  takes Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
+      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(selected)
+  takes Nickel_crdt.Event_layer.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Result.Result_Ok(basis)
+  gives (forall(id: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(selected), id) <==>
+      Nickel.RegisterPast.ancestor(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(offered.f_after), id)) and
+    Nickel.RegisterPast.selected_prefix(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected),
+      Seq.length(Alloc.Vec.impl_1__as_slice(before.f_facts)), Alloc.Vec.impl_1__as_slice(basis))
+{
+  const facts = Alloc.Vec.impl_1__as_slice(before.f_facts);
+  const roots = Alloc.Vec.impl_1__as_slice(offered.f_after);
+  register_ops_are_exact();
+  Nickel.RegisterPast.validated_selection_is_exact(facts, offered, before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS);
+  assert(forall(id: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(selected), id) <==>
+      Nickel.RegisterPast.ancestor(Native.v_OPS._1, facts, roots, id)) by {
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.smt_sync'(1, 1)
+  };
+  Nickel.RegisterPast.actual_basis_is_exact_filter(Native.v_OPS._1, facts, Alloc.Vec.impl_1__as_slice(selected));
+  assert(Nickel.LoopUtil.result_safe(
+    ((out: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)) => Nickel.RegisterPast.selected_prefix(Native.v_OPS._1, facts, Alloc.Vec.impl_1__as_slice(selected), Seq.length(facts), Alloc.Vec.impl_1__as_slice(out))),
+    ((_: Native.t_Error) => Prims.l_False), Result.Result_Ok(basis))) by {
+    Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+    Tactics.smt_sync'(1, 1)
+  };
+  Nickel.RegisterPast.exact_filter_output(Native.v_OPS._1, facts, Alloc.Vec.impl_1__as_slice(selected), basis);
+  assert(Nickel.RegisterPast.selected_prefix(Native.v_OPS._1, facts, Alloc.Vec.impl_1__as_slice(selected),
+      Seq.length(facts), Alloc.Vec.impl_1__as_slice(basis))) by {
+    Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+    Tactics.smt_sync'(1, 1)
+  };
+  assert((forall(id: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(selected), id) <==>
+      Nickel.RegisterPast.ancestor(Native.v_OPS._1, facts, roots, id)) and
+    Nickel.RegisterPast.selected_prefix(Native.v_OPS._1, facts, Alloc.Vec.impl_1__as_slice(selected),
+      Seq.length(facts), Alloc.Vec.impl_1__as_slice(basis))) by {
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof witness_is_exact(before: Native.t_Replica, offered: fact,
+  selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)): unit
+  takes Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
+      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(selected) and
+    Nickel_crdt.Event_layer.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Result.Result_Ok(basis) and
+    frozen_causal_observation(before, offered, basis)
+  gives exact_selected_basis(before, offered)
+{
+  selected_basis_is_exact(before, offered, selected, basis);
+  assert(exact_selected_basis(before, offered)) by {
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof selected_frozen_is_exact(before: Native.t_Replica, offered: fact): unit
+  takes selected_basis_frozen(before, offered)
+  gives exact_selected_basis(before, offered)
+{
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(witness_is_exact(before, offered)));
+  assert(exact_selected_basis(before, offered)) by {
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof receive_added_basis_is_exact_ancestry(before: Native.t_Replica, offered: fact): unit
+  gives forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) ==
+    (next, Result.Result_Ok(Native.Admission_Added)) ==> exact_selected_basis(before, offered)
+{
+  receive_added_freezes_causal_observation(before, offered);
+  FStar.Classical.move_requires(selected_frozen_is_exact(before), offered);
+  assert(forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) ==
+    (next, Result.Result_Ok(Native.Admission_Added)) ==> exact_selected_basis(before, offered)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel_crdt.Register.next_lamport");
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+    Tactics.smt_sync'(1, 1)
+  }
+}
