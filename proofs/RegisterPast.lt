@@ -431,3 +431,292 @@ proof pass_covers_next_depth(ops: rops, facts: t_Slice(fact), roots: t_Slice(Env
   { () };
   FStar.Classical.forall_intro(FStar.Classical.move_requires(each_id))
 }
+function depth_result(ops: rops, facts: t_Slice(fact), roots: t_Slice(Envelope.t_Id), depth: nat, result: Result.t_Result(ids_vec, Native.t_Error)): Type0 {
+  match result { Result.Result_Ok(selected) => covers_depth(ops, facts, roots, depth, selected), _ => Prims.l_True }
+}
+proof past_covers_bounded_predecessor_paths(ops: rops, facts: t_Slice(fact), roots: t_Slice(Envelope.t_Id)): unit
+  takes ids_exact(ops)
+  gives depth_result(ops, facts, roots, Seq.length(facts), Shared.past(facts, roots, ops))
+{
+  ops_shape(ops);
+  proof each_pass(selected: ids_vec, at: usize where v(at) < Seq.length(facts)): unit
+    takes covers_depth(ops, facts, roots, v(at), selected)
+    gives depth_result(ops, facts, roots, v(at) + 1, Shared.past_pass(facts, selected, ops))
+  {
+    past_pass_covers_edges(ops, facts, selected);
+    match Shared.past_pass(facts, selected, ops) {
+      Result.Result_Ok(next) => {
+        pass_covers_next_depth(ops, facts, roots, v(at), selected, next);
+        assert(depth_result(ops, facts, roots, v(at) + 1, Shared.past_pass(facts, selected, ops))) by {
+          Tactics.prune("Nickel_crdt.Event_layer.past_pass"); Tactics.smt_sync'(1, 1)
+        }
+      },
+      Result.Result_Err(_) => {
+        assert(depth_result(ops, facts, roots, v(at) + 1, Shared.past_pass(facts, selected, ops))) by {
+          Tactics.prune("Nickel_crdt.Event_layer.past_pass"); Tactics.smt_sync'(1, 1)
+        }
+      }
+    }
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_pass));
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
+    covers_depth(ops, facts, roots), ((selected: ids_vec) => selected),
+    covers_depth(ops, facts, roots, Seq.length(facts)), ((_: Native.t_Error) => Prims.l_True));
+  assert(depth_result(ops, facts, roots, Seq.length(facts), Shared.past(facts, roots, ops))) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.prune("Nickel_crdt.Event_layer.past_pass");
+    Tactics.prune("Nickel_crdt.Event_layer.validate_after");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+proof! path_extends_reach(ops: rops, facts: t_Slice(fact), roots: t_Slice(Envelope.t_Id), depth: nat,
+  start: Envelope.t_Id, steps: Prims.list(Envelope.t_Id), finish: Envelope.t_Id): unit
+  decreases steps
+  takes reachable_within(ops, facts, roots, depth, start)
+  takes causal_path(ops, facts, start, steps, finish)
+  gives reachable_within(ops, facts, roots, depth + List.length(steps), finish)
+{
+  match steps {
+    Prims.Nil => (),
+    Prims.Cons(next, rest) => {
+      assert(reachable_within(ops, facts, roots, depth + 1, next));
+      path_extends_reach(ops, facts, roots, depth + 1, next, rest, finish)
+    }
+  }
+}
+proof! reach_allows_more_edges(ops: rops, facts: t_Slice(fact), roots: t_Slice(Envelope.t_Id), depth: nat, extra: nat, id: Envelope.t_Id): unit
+  decreases depth
+  takes reachable_within(ops, facts, roots, depth, id)
+  gives reachable_within(ops, facts, roots, depth + extra, id)
+{
+  if depth ==? 0 { () } else {
+    proof each_parent(parent: Envelope.t_Id): unit
+      takes reachable_within(ops, facts, roots, depth - 1, parent)
+      takes causal_edge(ops, facts, parent, id)
+      gives reachable_within(ops, facts, roots, depth + extra, id)
+    { reach_allows_more_edges(ops, facts, roots, depth - 1, extra, parent) };
+    FStar.Classical.forall_intro(FStar.Classical.move_requires(each_parent))
+  }
+}
+proof past_contains_short_paths(ops: rops, facts: t_Slice(fact), roots: t_Slice(Envelope.t_Id), root: Envelope.t_Id,
+  steps: Prims.list(Envelope.t_Id), id: Envelope.t_Id): unit
+  takes ids_exact(ops)
+  takes member(roots, root)
+  takes causal_path(ops, facts, root, steps, id)
+  takes List.length(steps) <= Seq.length(facts)
+  gives (match Shared.past(facts, roots, ops) {
+    Result.Result_Ok(selected) => member(Alloc.Vec.impl_1__as_slice(selected), id), _ => Prims.l_True
+  } : Type0)
+{
+  path_extends_reach(ops, facts, roots, 0, root, steps, id);
+  reach_allows_more_edges(ops, facts, roots, List.length(steps), Seq.length(facts) - List.length(steps), id);
+  past_covers_bounded_predecessor_paths(ops, facts, roots);
+  assert((match Shared.past(facts, roots, ops) {
+    Result.Result_Ok(selected) => member(Alloc.Vec.impl_1__as_slice(selected), id), _ => Prims.l_True
+  } : Type0)) by { Tactics.prune("Nickel_crdt.Event_layer.past"); Tactics.smt_sync'(1, 1) }
+}
+
+// Cut a repeated-parent loop from an independent causal walk.
+import FStar.Fin
+function! path_node(start: Envelope.t_Id, steps: Prims.list(Envelope.t_Id), at: nat where at <= List.length(steps)): Envelope.t_Id
+  decreases steps
+{
+  match steps {
+    Prims.Nil => start,
+    Prims.Cons(next, rest) => if at ==? 0 { start } else { path_node(next, rest, at - 1) }
+  }
+}
+function! drop_edges(steps: Prims.list(Envelope.t_Id), count: nat where count <= List.length(steps)): Prims.list(Envelope.t_Id)
+  decreases steps
+{
+  if count ==? 0 { steps } else {
+    match steps { Prims.Nil => Prims.Nil, Prims.Cons(_, rest) => drop_edges(rest, count - 1) }
+  }
+}
+function! cut_path_loop(steps: Prims.list(Envelope.t_Id), first: nat, last: nat where first < last and last <= List.length(steps)): Prims.list(Envelope.t_Id)
+  decreases steps
+{
+  if first ==? 0 { drop_edges(steps, last) } else {
+    match steps {
+      Prims.Nil => Prims.Nil,
+      Prims.Cons(next, rest) => Prims.Cons(next, cut_path_loop(rest, first - 1, last - 1))
+    }
+  }
+}
+proof! dropped_edge_count(steps: Prims.list(Envelope.t_Id), count: nat where count <= List.length(steps)): unit
+  decreases steps
+  gives List.length(drop_edges(steps, count)) == List.length(steps) - count
+{
+  if count ==? 0 { () } else {
+    match steps { Prims.Nil => (), Prims.Cons(_, rest) => dropped_edge_count(rest, count - 1) }
+  }
+}
+proof! cut_path_is_shorter(steps: Prims.list(Envelope.t_Id), first: nat, last: nat where first < last and last <= List.length(steps)): unit
+  decreases steps
+  gives List.length(cut_path_loop(steps, first, last)) == List.length(steps) - last + first and
+    List.length(cut_path_loop(steps, first, last)) < List.length(steps)
+{
+  if first ==? 0 { dropped_edge_count(steps, last) } else {
+    match steps { Prims.Nil => (), Prims.Cons(_, rest) => cut_path_is_shorter(rest, first - 1, last - 1) }
+  }
+}
+proof! dropped_path_starts_at_node(ops: rops, facts: t_Slice(fact), start: Envelope.t_Id, steps: Prims.list(Envelope.t_Id), finish: Envelope.t_Id,
+  count: nat where count <= List.length(steps)): unit
+  decreases steps
+  takes causal_path(ops, facts, start, steps, finish)
+  gives causal_path(ops, facts, path_node(start, steps, count), drop_edges(steps, count), finish)
+{
+  if count ==? 0 { () } else {
+    match steps {
+      Prims.Nil => (),
+      Prims.Cons(next, rest) => dropped_path_starts_at_node(ops, facts, next, rest, finish, count - 1)
+    }
+  }
+}
+proof! cutting_repeated_node_preserves_path(ops: rops, facts: t_Slice(fact), start: Envelope.t_Id, steps: Prims.list(Envelope.t_Id), finish: Envelope.t_Id,
+  first: nat, last: nat where first < last and last <= List.length(steps)): unit
+  decreases steps
+  takes causal_path(ops, facts, start, steps, finish)
+  takes path_node(start, steps, first) == path_node(start, steps, last)
+  gives causal_path(ops, facts, start, cut_path_loop(steps, first, last), finish)
+{
+  if first ==? 0 { dropped_path_starts_at_node(ops, facts, start, steps, finish, last) } else {
+    match steps {
+      Prims.Nil => (),
+      Prims.Cons(next, rest) => cutting_repeated_node_preserves_path(ops, facts, next, rest, finish, first - 1, last - 1)
+    }
+  }
+}
+function fact_id_present(ops: rops, facts: t_Slice(fact), id: Envelope.t_Id): Type0 {
+  exists(k: nat) . k < Seq.length(facts) and ops._1._1(Seq.index(facts, k)) == id
+}
+proof! path_parent_is_present(ops: rops, facts: t_Slice(fact), start: Envelope.t_Id, steps: Prims.list(Envelope.t_Id), finish: Envelope.t_Id,
+  at: nat where at < List.length(steps)): unit
+  decreases steps
+  takes causal_path(ops, facts, start, steps, finish)
+  gives fact_id_present(ops, facts, path_node(start, steps, at))
+{
+  match steps {
+    Prims.Nil => (),
+    Prims.Cons(next, rest) => if at ==? 0 { () } else { path_parent_is_present(ops, facts, next, rest, finish, at - 1) }
+  }
+}
+function parent_fact_position(ops: rops, facts: t_Slice(fact), id: Envelope.t_Id where fact_id_present(ops, facts, id)): i: nat where
+  i < Seq.length(facts) and ops._1._1(Seq.index(facts, i)) == id
+{
+  match FStar.Fin.find(facts, ((f: fact) => ops._1._1(f) ==? id), 0) {
+    Some(i) => i,
+    None => 0
+  }
+}
+function path_parent_position(ops: rops, facts: t_Slice(fact), start: Envelope.t_Id, finish: Envelope.t_Id,
+  steps: Prims.list(Envelope.t_Id) where causal_path(ops, facts, start, steps, finish),
+  at: nat where at < List.length(steps)): position: FStar.Fin.under(Seq.length(facts)) where
+    ops._1._1(Seq.index(facts, position)) == path_node(start, steps, at)
+{
+  path_parent_is_present(ops, facts, start, steps, finish, at);
+  parent_fact_position(ops, facts, path_node(start, steps, at))
+}
+proof! every_path_has_short_path(ops: rops, facts: t_Slice(fact), start: Envelope.t_Id, steps: Prims.list(Envelope.t_Id), finish: Envelope.t_Id): unit
+  decreases List.length(steps)
+  takes causal_path(ops, facts, start, steps, finish)
+  gives exists(short: Prims.list(Envelope.t_Id)) .
+    List.length(short) <= Seq.length(facts) and causal_path(ops, facts, start, short, finish)
+{
+  const count = Seq.length(facts);
+  if List.length(steps) <= count {
+    assert(List.length(steps) <= count and causal_path(ops, facts, start, steps, finish))
+  } else {
+    if count ==? 0 {
+      path_parent_is_present(ops, facts, start, steps, finish, 0);
+      const position = parent_fact_position(ops, facts, start);
+      assert(position < count)
+    } else {
+      const position = path_parent_position(ops, facts, start, finish, steps);
+      const positions = Seq.init(count + 1, position);
+      Seq.lemma_init_len(count + 1, position);
+      Seq.init_index(count + 1, position);
+      match FStar.Fin.pigeonhole(positions) {
+        (i, j) => {
+          assert(i < j and j < count + 1);
+          assert(position(i) == position(j));
+          assert(path_node(start, steps, i) == path_node(start, steps, j));
+          cutting_repeated_node_preserves_path(ops, facts, start, steps, finish, i, j);
+          cut_path_is_shorter(steps, i, j);
+          const shorter = cut_path_loop(steps, i, j);
+          every_path_has_short_path(ops, facts, start, shorter, finish)
+        }
+      }
+    }
+  }
+}
+proof past_contains_every_causal_path(ops: rops, facts: t_Slice(fact), roots: t_Slice(Envelope.t_Id), root: Envelope.t_Id,
+  steps: Prims.list(Envelope.t_Id), id: Envelope.t_Id): unit
+  takes ids_exact(ops)
+  takes member(roots, root)
+  takes causal_path(ops, facts, root, steps, id)
+  gives (match Shared.past(facts, roots, ops) {
+    Result.Result_Ok(selected) => member(Alloc.Vec.impl_1__as_slice(selected), id), _ => Prims.l_True
+  } : Type0)
+{
+  every_path_has_short_path(ops, facts, root, steps, id);
+  proof each_short(short: Prims.list(Envelope.t_Id)): unit
+    takes List.length(short) <= Seq.length(facts)
+    takes causal_path(ops, facts, root, short, id)
+    gives (match Shared.past(facts, roots, ops) {
+      Result.Result_Ok(selected) => member(Alloc.Vec.impl_1__as_slice(selected), id), _ => Prims.l_True
+    } : Type0)
+  { past_contains_short_paths(ops, facts, roots, root, short, id) };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(each_short));
+  assert((match Shared.past(facts, roots, ops) {
+    Result.Result_Ok(selected) => member(Alloc.Vec.impl_1__as_slice(selected), id), _ => Prims.l_True
+  } : Type0)) by { Tactics.prune("Nickel_crdt.Event_layer.past"); Tactics.smt_sync'(1, 1) }
+}
+// Exactness = soundness (past_has_only_ancestors_and_keeps_roots) plus
+// completeness (past_contains_every_causal_path), each stated separately.
+function exact_past_result(ops: rops, facts: t_Slice(fact), roots: t_Slice(Envelope.t_Id), result: Result.t_Result(ids_vec, Native.t_Error)): Type0 {
+  match result {
+    Result.Result_Ok(selected) => forall(id: Envelope.t_Id) . member(Alloc.Vec.impl_1__as_slice(selected), id) <==> ancestor(ops, facts, roots, id),
+    _ => Prims.l_True
+  }
+}
+proof successful_past_is_exact_closure(ops: rops, facts: t_Slice(fact), roots: t_Slice(Envelope.t_Id)): unit
+  takes ids_exact(ops)
+  gives exact_past_result(ops, facts, roots, Shared.past(facts, roots, ops))
+{
+  past_has_only_ancestors_and_keeps_roots(ops, facts, roots);
+  match Shared.past(facts, roots, ops) {
+    Result.Result_Ok(selected) => {
+      proof each_id(id: Envelope.t_Id): unit
+        gives member(Alloc.Vec.impl_1__as_slice(selected), id) <==> ancestor(ops, facts, roots, id)
+      {
+        proof each_selected(): unit
+          takes member(Alloc.Vec.impl_1__as_slice(selected), id)
+          gives ancestor(ops, facts, roots, id)
+        { member_satisfies(Alloc.Vec.impl_1__as_slice(selected), ancestor(ops, facts, roots), id) };
+        FStar.Classical.move_requires(each_selected, ());
+        proof each_path(root: Envelope.t_Id, steps: Prims.list(Envelope.t_Id)): unit
+          takes member(roots, root)
+          takes causal_path(ops, facts, root, steps, id)
+          gives member(Alloc.Vec.impl_1__as_slice(selected), id)
+        {
+          past_contains_every_causal_path(ops, facts, roots, root, steps, id);
+          assert(member(Alloc.Vec.impl_1__as_slice(selected), id)) by {
+            Tactics.prune("Nickel_crdt.Event_layer.past"); Tactics.smt_sync'(1, 1)
+          }
+        };
+        FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_path))
+      };
+      FStar.Classical.forall_intro(each_id);
+      assert(exact_past_result(ops, facts, roots, Shared.past(facts, roots, ops))) by {
+        Tactics.prune("Nickel_crdt.Event_layer.past"); Tactics.smt_sync'(1, 1)
+      }
+    },
+    Result.Result_Err(_) => {
+      assert(exact_past_result(ops, facts, roots, Shared.past(facts, roots, ops))) by {
+        Tactics.prune("Nickel_crdt.Event_layer.past"); Tactics.smt_sync'(1, 1)
+      }
+    }
+  }
+}
