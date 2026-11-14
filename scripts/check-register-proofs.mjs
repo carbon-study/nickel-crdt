@@ -38,6 +38,7 @@ assert.throws(()=>assertReformedSource('EditAccepted','Tactics.prune("Nickel_crd
 assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Nickel.Register.planned_preserves_private");'),'write caller contract isolation stays Register-scoped');
 assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Nickel_crdt.Register.read_history");'),'payload callee visibility stays Register-scoped');
 assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Nickel.Register.planned_checks_payload");'),'clock payload alternate stays Register-scoped');
+assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Nickel.Register.planned_adds_exact_fact");'),'counted-write ordering isolation stays Register-scoped');
 assert.throws(()=>assertReformedSource('Register','Tactics.norm([]);'),'no normalization exception');
 assert.throws(()=>assertReformedSource('Register','Tactics.prune("Nickel_crdt.Register");'),'no broad native namespace exception');
 assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Alloc.Vec.impl__new");'),'new vector visibility stays Canonical-scoped');
