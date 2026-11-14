@@ -675,3 +675,32 @@ let causal_read_is_single_valued (facts: t_Slice fact) (key: u64) (initial: t_Sl
   chained_streams_step_clocks facts;
   FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 (maximal_pair_is_one_fact facts key));
   FStar.Classical.forall_intro_3 (FStar.Classical.move_requires_3 bytes_same_through)
+
+let frozen_causal_observation (before: Native.t_Replica) (offered: fact) (basis: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global) : Type0 =
+  Prims.l_and (Prims.l_and (clocks_increase (Alloc.Vec.impl_1__as_slice basis) ==> causal_read (Alloc.Vec.impl_1__as_slice basis) offered.f_payload.f_key (Alloc.Vec.impl_1__as_slice before.f_initial) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed)) (Prims.l_not (bytes_same (Alloc.Vec.impl_1__as_slice offered.f_payload.f_value) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed)))) (clock_successor (Alloc.Vec.impl_1__as_slice basis) offered.f_payload.f_lamport)
+
+let selected_basis_frozen (before: Native.t_Replica) (offered: fact) : Type0 =
+  exists(selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global). Prims.l_and (Prims.l_and (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS == Result.Result_Ok selected) (Nickel_crdt.Event_layer.select_basis (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) Native.v_OPS._1 == Result.Result_Ok basis)) (frozen_causal_observation before offered basis)
+
+let observed_basis_read_is_causal (before: Native.t_Replica) (offered: fact) (basis: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global) : Lemma (requires bytes_same (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed) (Alloc.Vec.impl_1__as_slice (Native.read_history (Alloc.Vec.impl_1__as_slice basis) (Alloc.Vec.impl_1__as_slice before.f_initial) offered.f_payload.f_key))) (ensures clocks_increase (Alloc.Vec.impl_1__as_slice basis) ==> causal_read (Alloc.Vec.impl_1__as_slice basis) offered.f_payload.f_key (Alloc.Vec.impl_1__as_slice before.f_initial) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed)) =
+  FStar.Classical.move_requires (read_history_is_causal_read (Alloc.Vec.impl_1__as_slice basis) (Alloc.Vec.impl_1__as_slice before.f_initial)) offered.f_payload.f_key
+
+let basis_checks_freeze (before: Native.t_Replica) (offered: fact) (basis: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global) : Lemma (requires (basis_payload_checks before offered basis /\ clock_successor (Alloc.Vec.impl_1__as_slice basis) offered.f_payload.f_lamport)) (ensures frozen_causal_observation before offered basis) =
+  observed_basis_read_is_causal before offered basis
+
+let selected_checks_freeze (before: Native.t_Replica) (offered: fact) : Lemma (requires (selected_basis_checks before offered /\ selected_basis_clock_successor before offered)) (ensures selected_basis_frozen before offered) =
+  FStar.Classical.forall_intro (FStar.Classical.move_requires (basis_checks_freeze before offered))
+
+let receive_added_freezes_causal_observation (before: Native.t_Replica) (offered: fact) : Lemma (ensures forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> selected_basis_frozen before offered) =
+  receive_added_checks_payload before offered;
+  receive_added_clock_is_maximum_successor before offered;
+  FStar.Classical.move_requires (selected_checks_freeze before) offered;
+  assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> selected_basis_frozen before offered) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.Register.planned_checks_payload";
+    Tactics.prune "Nickel_crdt.Register.next_lamport";
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel_crdt.Event_layer.select_basis";
+    Tactics.smt_sync' 1 1
+  )

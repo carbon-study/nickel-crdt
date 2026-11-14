@@ -1124,3 +1124,62 @@ proof causal_read_is_single_valued(facts: t_Slice(fact), key: u64, initial: t_Sl
   FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(maximal_pair_is_one_fact(facts, key)));
   FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(bytes_same_through))
 }
+
+// Register half of admission (#97 obligation 1): an Added fact froze the
+// independent causal read of its actual selected basis, differs from it, and
+// carries that basis's clock successor. The premise that this basis has
+// increasing clocks is discharged later from validity plus the exact past.
+function frozen_causal_observation(before: Native.t_Replica, offered: fact,
+  basis: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)): Type0 {
+  (clocks_increase(Alloc.Vec.impl_1__as_slice(basis)) ==>
+    causal_read(Alloc.Vec.impl_1__as_slice(basis), offered.f_payload.f_key,
+      Alloc.Vec.impl_1__as_slice(before.f_initial), Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed))) and
+  not bytes_same(Alloc.Vec.impl_1__as_slice(offered.f_payload.f_value), Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed)) and
+  clock_successor(Alloc.Vec.impl_1__as_slice(basis), offered.f_payload.f_lamport)
+}
+function selected_basis_frozen(before: Native.t_Replica, offered: fact): Type0 {
+  exists(selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)) .
+    Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
+      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(selected) and
+    Nickel_crdt.Event_layer.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Result.Result_Ok(basis) and
+    frozen_causal_observation(before, offered, basis)
+}
+proof observed_basis_read_is_causal(before: Native.t_Replica, offered: fact, basis: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)): unit
+  takes bytes_same(Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed),
+    Alloc.Vec.impl_1__as_slice(Native.read_history(Alloc.Vec.impl_1__as_slice(basis), Alloc.Vec.impl_1__as_slice(before.f_initial), offered.f_payload.f_key)))
+  gives clocks_increase(Alloc.Vec.impl_1__as_slice(basis)) ==>
+    causal_read(Alloc.Vec.impl_1__as_slice(basis), offered.f_payload.f_key,
+      Alloc.Vec.impl_1__as_slice(before.f_initial), Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed))
+{
+  FStar.Classical.move_requires(read_history_is_causal_read(Alloc.Vec.impl_1__as_slice(basis), Alloc.Vec.impl_1__as_slice(before.f_initial)), offered.f_payload.f_key)
+}
+proof basis_checks_freeze(before: Native.t_Replica, offered: fact, basis: Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)): unit
+  takes basis_payload_checks(before, offered, basis)
+  takes clock_successor(Alloc.Vec.impl_1__as_slice(basis), offered.f_payload.f_lamport)
+  gives frozen_causal_observation(before, offered, basis)
+{ observed_basis_read_is_causal(before, offered, basis) }
+proof selected_checks_freeze(before: Native.t_Replica, offered: fact): unit
+  takes selected_basis_checks(before, offered)
+  takes selected_basis_clock_successor(before, offered)
+  gives selected_basis_frozen(before, offered)
+{
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(basis_checks_freeze(before, offered)))
+}
+proof receive_added_freezes_causal_observation(before: Native.t_Replica, offered: fact): unit
+  gives forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) ==
+    (next, Result.Result_Ok(Native.Admission_Added)) ==> selected_basis_frozen(before, offered)
+{
+  receive_added_checks_payload(before, offered);
+  receive_added_clock_is_maximum_successor(before, offered);
+  FStar.Classical.move_requires(selected_checks_freeze(before), offered);
+  assert(forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) ==
+    (next, Result.Result_Ok(Native.Admission_Added)) ==> selected_basis_frozen(before, offered)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel_crdt.Register.next_lamport");
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+    Tactics.smt_sync'(1, 1)
+  }
+}
