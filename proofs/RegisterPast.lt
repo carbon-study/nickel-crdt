@@ -782,3 +782,53 @@ proof actual_basis_is_exact_filter(ops: rops, facts: t_Slice(fact), selected: t_
     Tactics.smt_sync'(1, 1)
   }
 }
+
+// Native boundary: a successful shared admission returns past's selection unchanged.
+unfold type reops = Nickel.EventGraph.event_ops(fact, Envelope.t_Id, Native.t_Error)
+proof validated_selection_is_past(facts: t_Slice(fact), offered: fact, events: usize, dependencies: usize, eops: reops): unit
+  gives forall(selected: ids_vec) . Shared.validate_event(facts, offered, events, dependencies, eops) == Result.Result_Ok(selected) ==>
+    Shared.past(facts, eops._1._1._2(offered), eops._1) == Result.Result_Ok(selected)
+{
+  assert(eops == (eops._1, (eops._2._1, eops._2._2, (eops._2._3._1, eops._2._3._2, eops._2._3._3, eops._2._3._4))));
+  ops_shape(eops._1);
+  proof membership_boolean(ids: t_Slice(Envelope.t_Id), id: Envelope.t_Id): unit
+    gives Shared.has_id(ids, id, eops._1) == true or Shared.has_id(ids, id, eops._1) == false
+    hint Shared.has_id(ids, id, eops._1)
+  { () };
+  match Shared.past(facts, eops._1._1._2(offered), eops._1) {
+    Result.Result_Ok(past_ids) => {
+      // The forbidden-ancestor scan only ever breaks with an error.
+      Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
+        ((_: nat, _: unit) => Prims.l_True), ((_: unit) => past_ids),
+        ((x: ids_vec) => x == past_ids), ((_: Native.t_Error) => Prims.l_True));
+      assert(forall(selected: ids_vec) . Shared.validate_event(facts, offered, events, dependencies, eops) == Result.Result_Ok(selected) ==>
+        Shared.past(facts, eops._1._1._2(offered), eops._1) == Result.Result_Ok(selected)) by {
+        Tactics.prune("Nickel_crdt.Event_layer.past");
+        Tactics.prune("Nickel_crdt.Event_layer.has_id");
+        Tactics.prune("Nickel_crdt.Event_layer.duplicate_ids");
+        Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+        Tactics.smt_sync'(1, 1)
+      }
+    },
+    Result.Result_Err(_) => {
+      assert(forall(selected: ids_vec) . Shared.validate_event(facts, offered, events, dependencies, eops) == Result.Result_Ok(selected) ==>
+        Shared.past(facts, eops._1._1._2(offered), eops._1) == Result.Result_Ok(selected)) by {
+        Tactics.prune("Nickel_crdt.Event_layer.past");
+        Tactics.prune("Nickel_crdt.Event_layer.has_id");
+        Tactics.prune("Nickel_crdt.Event_layer.duplicate_ids");
+        Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+        Tactics.smt_sync'(1, 1)
+      }
+    }
+  }
+}
+proof exact_selection_members(ops: rops, facts: t_Slice(fact), roots: t_Slice(Envelope.t_Id), selected: ids_vec): unit
+  takes exact_past_result(ops, facts, roots, Result.Result_Ok(selected))
+  gives forall(id: Envelope.t_Id) . member(Alloc.Vec.impl_1__as_slice(selected), id) <==> ancestor(ops, facts, roots, id)
+{ () }
+proof exact_filter_output(ops: rops, facts: t_Slice(fact), selected: t_Slice(Envelope.t_Id), basis: facts_vec): unit
+  takes Nickel.LoopUtil.result_safe(
+    ((out: facts_vec) => selected_prefix(ops, facts, selected, Seq.length(facts), Alloc.Vec.impl_1__as_slice(out))),
+    ((_: Native.t_Error) => Prims.l_False), Result.Result_Ok(basis))
+  gives selected_prefix(ops, facts, selected, Seq.length(facts), Alloc.Vec.impl_1__as_slice(basis))
+{ () }
