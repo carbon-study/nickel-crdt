@@ -22,6 +22,10 @@ but does not run this control command or certify their continued sensitivity.
 The command requires each
 mutation to compile and fail at its intended native assertion; a timeout or
 compilation failure is not detection. It does not modify the checkout.
+Each control names its owning file and item (`past` and `ready` in
+`src/event_layer.rs`, `replay_author` in `src/edit.rs`); its anchor must be
+unique code inside that item, so moved or duplicated code makes the command
+refuse rather than silently mutate something else.
 
 ## what is checked
 

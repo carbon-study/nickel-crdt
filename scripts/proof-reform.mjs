@@ -41,6 +41,9 @@ const acceptedVisibility=new Set([
   '"Alloc.Vec.impl__new"','"Nickel_crdt.Edit.impl_Replica__new"',
   '"Nickel_crdt.Edit.canonical_step"','"Nickel_crdt.Edit.choose_unseen"','"Nickel_crdt.Edit.canonical"',
   '"Nickel_crdt.Edit.has_fact"','"Nickel_crdt.Edit.event_lt"','"Nickel_crdt.Edit.clone_selected_fact"','"Nickel_crdt.Edit.interpret"',
+  // Caller opacity for one proof-level definition: append_least_preserves_frontier
+  // consumes the frontier contract (frontier_bounds_unseen) instead of re-instantiating it.
+  '"Nickel.EditAccepted.order_frontier"',
 ]);
 // Generic owners get only the specific callee visibility used in their proofs.
 const genericVisibility={
