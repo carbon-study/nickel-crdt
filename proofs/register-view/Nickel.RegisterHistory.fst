@@ -700,3 +700,149 @@ let receive_added_preserves_invariant (before: Native.t_Replica) (offered: Nicke
     Tactics.prune "Nickel_crdt.Register.planned";
     Tactics.smt_sync' 1 1
   )
+
+let clock_exact_in (h: Seq.seq Nickel.Register.fact) (sel: Envelope.t_Id -> Type0) (c: u64) : Type0 =
+  Prims.l_and (Prims.l_and (v c > 0) (forall(g: Nickel.Register.fact). Prims.l_and (stored h g) (sel g.f_id) ==> v g.f_payload.f_lamport < v c)) (Prims.l_or (v c == 1) (exists(g: Nickel.Register.fact). Prims.l_and (Prims.l_and (stored h g) (sel g.f_id)) (v g.f_payload.f_lamport + 1 == v c)))
+
+let clocks_exact (h: Seq.seq Nickel.Register.fact) : Type0 =
+  forall(f: Nickel.Register.fact). stored h f ==> clock_exact_in h (anc_of h f) f.f_payload.f_lamport
+
+let values_changed (h: Seq.seq Nickel.Register.fact) : Type0 =
+  forall(f: Nickel.Register.fact). stored h f ==> Prims.l_not (Nickel.Register.bytes_same (Alloc.Vec.impl_1__as_slice f.f_payload.f_value) (Alloc.Vec.impl_1__as_slice f.f_payload.f_observed))
+
+let clock_exact_from_basis (basis: t_Slice Nickel.Register.fact) (h: Seq.seq Nickel.Register.fact) (sel: Envelope.t_Id -> Type0) (c: u64) : Lemma (requires (holds_selected basis h sel /\ Nickel.Register.clock_successor basis c)) (ensures clock_exact_in h sel c) =
+  ()
+
+let clock_respects_sel (h: Seq.seq Nickel.Register.fact) (s1: Envelope.t_Id -> Type0) (s2: Envelope.t_Id -> Type0) (c: u64) : Lemma (requires forall(id: Envelope.t_Id). s1 id <==> s2 id) (ensures clock_exact_in h s1 c <==> clock_exact_in h s2 c) =
+  ()
+
+let clock_unchanged_by_extension (h: Seq.seq Nickel.Register.fact) (h2: Seq.seq Nickel.Register.fact) (fnew: Nickel.Register.fact) (sel: Envelope.t_Id -> Type0) (c: u64) : Lemma (requires (extends_by h h2 fnew /\ Prims.l_not (sel fnew.f_id))) (ensures clock_exact_in h2 sel c <==> clock_exact_in h sel c) =
+  ()
+
+let clock_kept (h: Seq.seq Nickel.Register.fact) (h2: Seq.seq Nickel.Register.fact) (fnew: Nickel.Register.fact) (g: Nickel.Register.fact) : Lemma (requires (Prims.l_and (extends_by h h2 fnew) (unreferenced h2 fnew.f_id) /\ stored h2 g /\ clock_exact_in h (anc_of h g) g.f_payload.f_lamport)) (ensures clock_exact_in h2 (anc_of h2 g) g.f_payload.f_lamport) =
+  ancestry_unchanged_by_extension h h2 fnew (Alloc.Vec.impl_1__as_slice g.f_after);
+  assert (Prims.l_and (Prims.l_not ((anc_of h2 g) fnew.f_id)) (forall(id: Envelope.t_Id). (anc_of h2 g) id <==> (anc_of h g) id)) by (
+    Tactics.prune "Nickel.RegisterHistory.id_ancestor";
+    Tactics.prune "Nickel.RegisterHistory.id_path";
+    Tactics.smt_sync' 1 1
+  );
+  clock_unchanged_by_extension h h2 fnew (anc_of h2 g) g.f_payload.f_lamport;
+  clock_respects_sel h (anc_of h2 g) (anc_of h g) g.f_payload.f_lamport
+
+let clocks_and_values_preserved (h: Seq.seq Nickel.Register.fact) (h2: Seq.seq Nickel.Register.fact) (fnew: Nickel.Register.fact) : Lemma (requires (Prims.l_and (extends_by h h2 fnew) (unreferenced h2 fnew.f_id) /\ Prims.l_and (clocks_exact h) (clock_exact_in h (anc_of h fnew) fnew.f_payload.f_lamport) /\ Prims.l_and (values_changed h) (Prims.l_not (Nickel.Register.bytes_same (Alloc.Vec.impl_1__as_slice fnew.f_payload.f_value) (Alloc.Vec.impl_1__as_slice fnew.f_payload.f_observed))))) (ensures Prims.l_and (clocks_exact h2) (values_changed h2)) =
+  let each (g: Nickel.Register.fact) : Lemma (requires stored h2 g) (ensures clock_exact_in h2 (anc_of h2 g) g.f_payload.f_lamport) = clock_kept h h2 fnew g in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires each)
+
+let offered_clock_and_value (before: Native.t_Replica) (offered: Nickel.Register.fact) : Type0 =
+  Prims.l_and (clock_exact_in (Alloc.Vec.impl_1__as_slice before.f_facts) (anc_of (Alloc.Vec.impl_1__as_slice before.f_facts) offered) offered.f_payload.f_lamport) (Prims.l_not (Nickel.Register.bytes_same (Alloc.Vec.impl_1__as_slice offered.f_payload.f_value) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed)))
+
+let witness_clock_and_value (before: Native.t_Replica) (offered: Nickel.Register.fact) (selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec Nickel.Register.fact Alloc.Alloc.t_Global) : Lemma (requires ((forall(id: Envelope.t_Id). Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.RegisterPast.ancestor Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice offered.f_after) id) /\ Nickel.RegisterPast.selected_prefix Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) (Seq.length (Alloc.Vec.impl_1__as_slice before.f_facts)) (Alloc.Vec.impl_1__as_slice basis) /\ frozen_causal_observation before offered basis)) (ensures offered_clock_and_value before offered) =
+  let facts = Alloc.Vec.impl_1__as_slice before.f_facts in
+  let b = Alloc.Vec.impl_1__as_slice basis in
+  register_ops_are_exact ();
+  filter_has_selected_facts Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected) (Seq.length facts) b;
+  assert (holds_selected b facts (sel_of selected));
+  clock_exact_from_basis b facts (sel_of selected) offered.f_payload.f_lamport;
+  FStar.Classical.forall_intro (register_ancestor_is_id_ancestor facts (Alloc.Vec.impl_1__as_slice offered.f_after));
+  clock_respects_sel facts (sel_of selected) (anc_of facts offered) offered.f_payload.f_lamport
+
+let exact_basis_gives_clock_and_value (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (requires exact_selected_basis before offered) (ensures offered_clock_and_value before offered) =
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 (witness_clock_and_value before offered));
+  assert (offered_clock_and_value before offered) by (
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel_crdt.Event_layer.select_basis";
+    Tactics.smt_sync' 1 1
+  )
+
+let history_invariant (r: Native.t_Replica) : Type0 =
+  Prims.l_and (Prims.l_and (observation_invariant r) (clocks_exact (Alloc.Vec.impl_1__as_slice r.f_facts))) (values_changed (Alloc.Vec.impl_1__as_slice r.f_facts))
+
+let history_kept (before: Native.t_Replica) (next: Native.t_Replica) : Type0 =
+  history_invariant before ==> history_invariant next
+
+let history_from_parts (before: Native.t_Replica) (offered: Nickel.Register.fact) (next: Native.t_Replica) : Lemma (requires (Prims.l_and (invariant_kept before next) (history_extended_soundly before offered next) /\ Prims.l_and (Nickel.Register.appended_facts before offered next) (offered_clock_and_value before offered))) (ensures history_kept before next) =
+  let h = Alloc.Vec.impl_1__as_slice before.f_facts in
+  let h2 = Alloc.Vec.impl_1__as_slice next.f_facts in
+  assert (extends_by h h2 offered);
+  FStar.Classical.move_requires (clocks_and_values_preserved h h2) offered
+
+let receive_added_preserves_history (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (ensures forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> history_kept before next) =
+  receive_added_preserves_invariant before offered;
+  receive_added_extends_soundly before offered;
+  Nickel.Register.receive_added_retains_exact_facts before offered;
+  receive_added_basis_is_exact_ancestry before offered;
+  FStar.Classical.move_requires (exact_basis_gives_clock_and_value before) offered;
+  FStar.Classical.forall_intro (FStar.Classical.move_requires (history_from_parts before offered));
+  assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> history_kept before next) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  )
+
+let planned_preserves_history (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (ensures forall(candidate: Native.t_Replica). Native.planned () before offered == Result.Result_Ok (Option.Option_Some candidate) ==> history_kept before candidate) =
+  Nickel.Register.receive_publication_is_exact before offered;
+  receive_added_preserves_history before offered;
+  assert (forall(candidate: Native.t_Replica). Native.planned () before offered == Result.Result_Ok (Option.Option_Some candidate) ==> history_kept before candidate) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.RegisterHistory.history_kept";
+    Tactics.smt_sync' 1 1
+  )
+
+let kept_transfers (before: Native.t_Replica) (candidate: Native.t_Replica) (next: Native.t_Replica) : Lemma (requires (history_kept before candidate /\ Prims.l_and (next.f_facts == candidate.f_facts) (next.f_initial == candidate.f_initial))) (ensures history_kept before next) =
+  ()
+
+let write_counted_preserves_history (before: Native.t_Replica) (key: u64) (value: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (ensures forall(next: Native.t_Replica) (authored: Nickel.Register.fact). Native.impl_Replica__write before key value == (next, Result.Result_Ok (Option.Option_Some authored)) ==> history_kept before next) =
+  Nickel.Register.write_installs_successful_candidate before key value;
+  FStar.Classical.forall_intro (planned_preserves_history before);
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 (kept_transfers before));
+  assert (forall(next: Native.t_Replica) (authored: Nickel.Register.fact). Native.impl_Replica__write before key value == (next, Result.Result_Ok (Option.Option_Some authored)) ==> history_kept before next) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__write";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.RegisterHistory.history_kept";
+    Tactics.prune "Nickel.Register.planned_checks_payload";
+    Tactics.prune "Nickel.Register.planned_preserves_private";
+    Tactics.prune "Nickel.Register.planned_adds_exact_fact";
+    Tactics.smt_sync' 1 1
+  )
+
+let receive_preserves_history (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (ensures history_kept before (Native.impl_Replica__receive before offered)._1) =
+  Nickel.Register.receive_publication_is_exact before offered;
+  receive_added_preserves_history before offered;
+  match Native.planned () before offered with | Result.Result_Err _ -> begin assert (history_kept before (Native.impl_Replica__receive before offered)._1) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok option -> begin match option with | Option.Option_None -> begin assert (history_kept before (Native.impl_Replica__receive before offered)._1) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  ) end | Option.Option_Some candidate -> begin assert (history_kept before (Native.impl_Replica__receive before offered)._1) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  ) end end
+
+let write_preserves_history (before: Native.t_Replica) (key: u64) (value: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (ensures history_kept before (Native.impl_Replica__write before key value)._1) =
+  Nickel.Register.write_installs_successful_candidate before key value;
+  write_counted_preserves_history before key value;
+  match Native.impl_Replica__write before key value with | (next, result) -> begin match result with | Result.Result_Err _ -> begin assert (history_kept before (Native.impl_Replica__write before key value)._1) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__write";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok option -> begin match option with | Option.Option_None -> begin assert (history_kept before (Native.impl_Replica__write before key value)._1) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__write";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  ) end | Option.Option_Some authored -> begin assert (history_kept before (Native.impl_Replica__write before key value)._1) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__write";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  ) end end end
+
+let new_establishes_history (writer: u64) (initial: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) (limits: Native.t_Limits) : Lemma (ensures forall(r: Native.t_Replica). Native.impl_Replica__new writer initial limits == Result.Result_Ok r ==> history_invariant r) =
+  Nickel.Vector.empty_vector_contents #Nickel.Register.fact ();
+  let each (r: Native.t_Replica) : Lemma (requires Native.impl_Replica__new writer initial limits == Result.Result_Ok r) (ensures history_invariant r) =
+    assert (Seq.length (Alloc.Vec.impl_1__as_slice r.f_facts) == 0);
+    assert (forall(f: Nickel.Register.fact). Prims.l_not (stored (Alloc.Vec.impl_1__as_slice r.f_facts) f)) in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires each)

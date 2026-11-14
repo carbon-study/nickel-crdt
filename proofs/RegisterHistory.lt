@@ -1316,6 +1316,12 @@ proof clock_kept(h: Seq.seq(Nickel.Register.fact), h2: Seq.seq(Nickel.Register.f
   gives clock_exact_in(h2, anc_of(h2, g), g.f_payload.f_lamport)
 {
   ancestry_unchanged_by_extension(h, h2, fnew, Alloc.Vec.impl_1__as_slice(g.f_after));
+  // consume the ancestry law with id-level ancestry hidden (matched as terms)
+  assert(not anc_of(h2, g)(fnew.f_id) and (forall(id: Envelope.t_Id) . anc_of(h2, g)(id) <==> anc_of(h, g)(id))) by {
+    Tactics.prune("Nickel.RegisterHistory.id_ancestor");
+    Tactics.prune("Nickel.RegisterHistory.id_path");
+    Tactics.smt_sync'(1, 1)
+  };
   clock_unchanged_by_extension(h, h2, fnew, anc_of(h2, g), g.f_payload.f_lamport);
   clock_respects_sel(h, anc_of(h2, g), anc_of(h, g), g.f_payload.f_lamport)
 }
@@ -1402,4 +1408,119 @@ proof receive_added_preserves_history(before: Native.t_Replica, offered: Nickel.
     Tactics.prune("Nickel_crdt.Register.planned");
     Tactics.smt_sync'(1, 1)
   }
+}
+
+// ---------------------------------------------------------------- the write path
+// A successful plan is exactly an Added receive of that candidate.
+proof planned_preserves_history(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  gives forall(candidate: Native.t_Replica) . Native.planned((), before, offered) == Result.Result_Ok(Option.Option_Some(candidate)) ==>
+    history_kept(before, candidate)
+{
+  Nickel.Register.receive_publication_is_exact(before, offered);
+  receive_added_preserves_history(before, offered);
+  assert(forall(candidate: Native.t_Replica) . Native.planned((), before, offered) == Result.Result_Ok(Option.Option_Some(candidate)) ==>
+    history_kept(before, candidate)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel.RegisterHistory.history_kept");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// the invariant reads only a replica's facts and initial value
+proof kept_transfers(before: Native.t_Replica, candidate: Native.t_Replica, next: Native.t_Replica): unit
+  takes history_kept(before, candidate)
+  takes next.f_facts == candidate.f_facts and next.f_initial == candidate.f_initial
+  gives history_kept(before, next)
+{ () }
+// #97 obligation 1, write half: a counted write publishes its candidate's facts and initial
+// value, so it preserves the same history invariant.
+proof write_counted_preserves_history(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  gives forall(next: Native.t_Replica, authored: Nickel.Register.fact) . Native.impl_Replica__write(before, key, value) ==
+    (next, Result.Result_Ok(Option.Option_Some(authored))) ==> history_kept(before, next)
+{
+  Nickel.Register.write_installs_successful_candidate(before, key, value);
+  FStar.Classical.forall_intro(planned_preserves_history(before));
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(kept_transfers(before)));
+  assert(forall(next: Native.t_Replica, authored: Nickel.Register.fact) . Native.impl_Replica__write(before, key, value) ==
+    (next, Result.Result_Ok(Option.Option_Some(authored))) ==> history_kept(before, next)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel.RegisterHistory.history_kept");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_preserves_private");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// ---------------------------------------------------------------- every return
+// Every receive return preserves the history invariant: Added by the receive half;
+// Duplicate and every error leave the replica unchanged.
+proof receive_preserves_history(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  gives history_kept(before, (Native.impl_Replica__receive(before, offered))._1)
+{
+  Nickel.Register.receive_publication_is_exact(before, offered);
+  receive_added_preserves_history(before, offered);
+  match Native.planned((), before, offered) {
+    Result.Result_Err(_) => { assert(history_kept(before, (Native.impl_Replica__receive(before, offered))._1)) by {
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+      Tactics.prune("Nickel_crdt.Register.planned");
+      Tactics.smt_sync'(1, 1)
+    } },
+    Result.Result_Ok(option) => match option {
+      Option.Option_None => { assert(history_kept(before, (Native.impl_Replica__receive(before, offered))._1)) by {
+        Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+        Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.smt_sync'(1, 1)
+      } },
+      Option.Option_Some(candidate) => { assert(history_kept(before, (Native.impl_Replica__receive(before, offered))._1)) by {
+        Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+        Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.smt_sync'(1, 1)
+      } },
+    },
+  }
+}
+// Every write return preserves it too: a counted write by the write half; the equal-value
+// no-edit and every error leave the replica unchanged.
+proof write_preserves_history(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  gives history_kept(before, (Native.impl_Replica__write(before, key, value))._1)
+{
+  Nickel.Register.write_installs_successful_candidate(before, key, value);
+  write_counted_preserves_history(before, key, value);
+  match Native.impl_Replica__write(before, key, value) {
+    (next, result) => match result {
+      Result.Result_Err(_) => { assert(history_kept(before, (Native.impl_Replica__write(before, key, value))._1)) by {
+        Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+        Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.smt_sync'(1, 1)
+      } },
+      Result.Result_Ok(option) => match option {
+        Option.Option_None => { assert(history_kept(before, (Native.impl_Replica__write(before, key, value))._1)) by {
+          Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+          Tactics.prune("Nickel_crdt.Register.planned");
+          Tactics.smt_sync'(1, 1)
+        } },
+        Option.Option_Some(authored) => { assert(history_kept(before, (Native.impl_Replica__write(before, key, value))._1)) by {
+          Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+          Tactics.prune("Nickel_crdt.Register.planned");
+          Tactics.smt_sync'(1, 1)
+        } },
+      },
+    },
+  }
+}
+// The base case: a fresh replica has no stored facts, so it satisfies the invariant.
+proof new_establishes_history(writer: u64, initial: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global), limits: Native.t_Limits): unit
+  gives forall(r: Native.t_Replica) . Native.impl_Replica__new(writer, initial, limits) == Result.Result_Ok(r) ==> history_invariant(r)
+{
+  Nickel.Vector.empty_vector_contents<#Nickel.Register.fact>();
+  proof each(r: Native.t_Replica): unit
+    takes Native.impl_Replica__new(writer, initial, limits) == Result.Result_Ok(r)
+    gives history_invariant(r)
+  {
+    assert(Seq.length(Alloc.Vec.impl_1__as_slice(r.f_facts)) == 0);
+    assert(forall(f: Nickel.Register.fact) . not stored(Alloc.Vec.impl_1__as_slice(r.f_facts), f))
+  };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(each))
 }
