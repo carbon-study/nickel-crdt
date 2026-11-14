@@ -1062,3 +1062,46 @@ let new_establishes_history (writer: u64) (initial: Alloc.Vec.t_Vec u8 Alloc.All
     assert (Seq.length (Alloc.Vec.impl_1__as_slice r.f_facts) == 0);
     assert (forall(f: Nickel.Register.fact). Prims.l_not (stored (Alloc.Vec.impl_1__as_slice r.f_facts) f)) in
   FStar.Classical.forall_intro (FStar.Classical.move_requires each)
+
+let positional_ids_are_stored_unique (facts: Alloc.Vec.t_Vec Nickel.Register.fact Alloc.Alloc.t_Global) : Lemma (requires Nickel.Register.fact_ids_unique facts) (ensures stored_unique (Alloc.Vec.impl_1__as_slice facts)) =
+  let items = Alloc.Vec.impl_1__as_slice facts in
+  let each (f: Nickel.Register.fact) (g: Nickel.Register.fact) (i: nat) (j: nat) : Lemma (requires (Prims.l_and (i < Seq.length items) (Seq.index items i == f) /\ Prims.l_and (j < Seq.length items) (Seq.index items j == g) /\ f.f_id == g.f_id)) (ensures f == g) = () in
+  FStar.Classical.forall_intro_4 (FStar.Classical.move_requires_4 each)
+
+let public_history (r: Native.t_Replica) : Type0 =
+  Prims.l_and (history_invariant r) (Nickel.Register.fact_ids_unique r.f_facts)
+
+let receive_preserves_public_history (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (requires public_history before) (ensures public_history (Native.impl_Replica__receive before offered)._1) =
+  receive_preserves_history before offered;
+  Nickel.Register.receive_preserves_unique_ids before offered;
+  assert (public_history (Native.impl_Replica__receive before offered)._1) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.Register.receive_preserves_private";
+    Tactics.prune "Nickel.Register.planned_preserves_private";
+    Tactics.prune "Nickel.Register.planned_checks_payload";
+    Tactics.prune "Nickel.Register.planned_adds_exact_fact";
+    Tactics.prune "Nickel.RegisterHistory.history_invariant";
+    Tactics.prune "Nickel.Register.fact_ids_unique";
+    Tactics.smt_sync' 1 1
+  )
+
+let write_preserves_public_history (before: Native.t_Replica) (key: u64) (value: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (requires public_history before) (ensures public_history (Native.impl_Replica__write before key value)._1) =
+  write_preserves_history before key value;
+  Nickel.Register.write_preserves_unique_ids before key value;
+  assert (public_history (Native.impl_Replica__write before key value)._1) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__write";
+    Tactics.prune "Nickel.RegisterHistory.history_invariant";
+    Tactics.prune "Nickel.Register.fact_ids_unique";
+    Tactics.smt_sync' 1 1
+  )
+
+let new_establishes_public_history (writer: u64) (initial: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) (limits: Native.t_Limits) : Lemma (ensures forall(r: Native.t_Replica). Native.impl_Replica__new writer initial limits == Result.Result_Ok r ==> public_history r) =
+  new_establishes_history writer initial limits;
+  Nickel.Register.new_has_unique_ids writer initial limits;
+  assert (forall(r: Native.t_Replica). Native.impl_Replica__new writer initial limits == Result.Result_Ok r ==> public_history r) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__new";
+    Tactics.prune "Nickel.RegisterHistory.history_invariant";
+    Tactics.prune "Nickel.Register.fact_ids_unique";
+    Tactics.smt_sync' 1 1
+  )

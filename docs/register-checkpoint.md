@@ -289,7 +289,111 @@ theorems and their callers are unchanged. Only the last name is new to the
 Register fence. The plan-order removal keeps its original semantic owner,
 actual call and query boundary.
 
-Strict sorted output plus the earlier content law is still not a proved generic
-canonical agreement/success theorem. Independent exact ancestry, valid-history
-preservation, full client refinement and fitting admission/progress remain
-checkpoint obligations. No SEC or accepted checkpoint follows from this cut.
+Independent exact ancestry, valid-history preservation, full client refinement
+and fitting admission/progress remain checkpoint obligations. Canonical success
+on unique-ID inputs is addressed separately below.
+No SEC or accepted checkpoint follows from this cut.
+
+### successful canonical agreement on equal whole-fact contents
+
+`Canonical.canonical_is_permutation_independent` composes the checked content
+and strict-order contracts: with the same explicit strict comparator and exact
+value policy, two inputs of equal length containing exactly the same whole facts
+produce identical whole-fact vectors **if both actual canonicalizations succeed**.
+Neither input is restricted to reachable histories. The law says nothing about
+which calls succeed or about equality of errors.
+
+The finite argument is positional, with no numeric rank or finite identity
+universe assumption. Two ordered vectors with the same facts agree one position
+at a time: a first mismatch would place the two facts before each other, contrary
+to the strict comparator. Equal prefixes and irreflexivity also rule out finding
+either fact at an earlier position. Sequence extensionality gives vector equality.
+The actual canonicalizer is withheld at the consuming agreement queries; its
+checked exact-content and strict-order contracts supply the two results.
+
+`Register.execute_agrees_on_same_fact_contents` discharges the real register
+policy and carries this to the actual `execute` calls: equal whole-fact input
+contents and lengths, plus two successful executions, imply identical retained
+fact vectors. Private writer/counter/configuration fields need not agree and are
+not asserted equal. This is not equality of reads across different initial values,
+a receive/admission result, history validity or replica convergence.
+
+Four owning removal controls separately withhold the generic ordered-output,
+exact-content and vector-equality steps, then the generic agreement contract at
+the register caller. The existing fresh-extraction minimum-scan fault remains
+the native implementation-sensitivity control for the underlying ordering chain;
+it is not relabelled as a direct fault of the new agreement theorem. No Rust,
+model, compiler, runtime, budget or source-fence changes are involved.
+
+### canonical success for unique-ID input
+
+`Canonical.canonical_succeeds_for_unique_ids` proves that the actual shared
+canonicalizer returns `Ok` for every typed input slice with distinct projected
+IDs, under the explicit exact ID-equality/copy/whole-fact equality policy.
+This is a success law, not merely a property conditional on success. It includes
+empty inputs and does not restrict inputs to reachable histories.
+
+Success does not require a strict comparator: even an arbitrary total boolean
+comparison callback keeps the selected index in range. The choice scan cannot
+take its error branch, and `None` means all input IDs are already represented.
+If the output is shorter than a unique-ID input, a positional pigeonhole argument
+rules that out. A step therefore has a selected in-range fact and room to append
+before the real `usize` maximum. The checked Result-loop interface carries this
+through the actual complete range, preserving the whole-fact prefix invariant
+and disallowing an error exit. Strict order is still required by the separate
+ordering/agreement laws; success alone does not imply sorted output.
+
+`Register.execute_succeeds_for_unique_ids` discharges the actual register policy
+and proves that `execute` returns a candidate for any typed replica with distinct
+stored IDs. Its policy precondition is established with the native policy,
+constructors and ID projection withheld before invoking generic success. It
+does not prove that an arbitrary offered event passes admission, that public
+writes progress, or that a replica satisfies independent history validity.
+
+Two fresh Rust fault controls make the actual choice scan and register executor
+return errors. Earlier success-only properties can remain true; the new
+`choose_finishes_scan` and `execute_succeeds_for_unique_ids` owners must reject
+ordinarily after native typechecking. Separate contract removals cover scan
+coverage/totality, the finite unseen-ID argument, membership, step success, the
+Result-loop rule, the real ID policy and the register's canonical-success call.
+The old theorem domains, fences, native implementation, models and budgets are
+unchanged.
+
+These laws concern the actual extracted functions under the pinned Hax/vector
+models and total logical callbacks. They do not certify allocation availability,
+panic freedom or termination of arbitrary external Rust callbacks. The bounded
+public runtime caller exercises real successful calls under several comparison
+policies; those finite observations do not remove these trust boundaries or
+establish admission, valid-history preservation, convergence or SEC.
+
+### positional uniqueness across public returns
+
+the retained vector now has a separate positional-ID property:
+`Register.fact_ids_unique` says equal IDs at two in-range positions force the
+positions to be equal. this excludes even two identical copies of one fact.
+it is stronger than a set-level “same ID means same whole fact” condition.
+
+`facts_order_implies_unique` derives it from the already checked strict
+writer-first storage order. `receive_added_has_unique_ids` and
+`write_counted_has_unique_ids` apply that implication to the actual public
+success results; neither assumes a valid input history for that success-only
+claim. `new_has_unique_ids` checks the actual constructor's empty vector.
+
+`receive_preserves_unique_ids` and `write_preserves_unique_ids` preserve the
+property on **every return** when it holds before. Added/counted outcomes use
+the checked ordering chain; duplicate, error and no-edit paths use the existing
+publication/neutrality contracts. the consuming queries hide the relevant
+native public/planning bodies and match `fact_ids_unique` as an opaque
+predicate at those all-return queries. its definition is established by the
+order-to-uniqueness law, not reconstructed from native code at the caller.
+this adds exactly that one local predicate to the Register fence. no reachable-state restriction is substituted
+for the typed-state statements.
+
+`receive_result_can_execute` and `write_result_can_execute` then discharge
+#116's positional uniqueness premise on the actual returned replica and invoke
+its checked canonical-execution success law. this says a subsequent pure
+`execute` has an Ok result, including after a refused or no-edit operation.
+it does not say a refused fact will become admissible, restore a producer
+counter, prove a deterministic causal read, or close full client refinement,
+valid history, convergence or SEC. all existing hax/vector-model and total
+logical callback trust boundaries remain.

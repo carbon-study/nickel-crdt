@@ -1869,3 +1869,69 @@ proof new_establishes_history(writer: u64, initial: Alloc.Vec.t_Vec(u8, Alloc.Al
   FStar.Classical.forall_intro(FStar.Classical.move_requires(each))
 }
 
+
+// ---------------------------------------------------------------- public callers: positional uniqueness
+// #117's positional ID uniqueness is stronger than stored_unique: it also forbids repeated identical
+// entries. The arbitrary-slice laws above keep stored_unique and their domains; only public callers
+// combine the two.
+proof positional_ids_are_stored_unique(facts: Alloc.Vec.t_Vec(Nickel.Register.fact, Alloc.Alloc.t_Global)): unit
+  takes Nickel.Register.fact_ids_unique(facts)
+  gives stored_unique(Alloc.Vec.impl_1__as_slice(facts))
+{
+  const items = Alloc.Vec.impl_1__as_slice(facts);
+  proof each(f: Nickel.Register.fact, g: Nickel.Register.fact, i: nat, j: nat): unit
+    takes i < Seq.length(items) and Seq.index(items, i) == f
+    takes j < Seq.length(items) and Seq.index(items, j) == g
+    takes f.f_id == g.f_id
+    gives f == g
+  { () };
+  FStar.Classical.forall_intro_4(FStar.Classical.move_requires_4(each))
+}
+// The public invariant: the history invariant with positional uniqueness (whose stored_unique
+// part positional_ids_are_stored_unique also gives).
+function public_history(r: Native.t_Replica): Type0 {
+  history_invariant(r) and Nickel.Register.fact_ids_unique(r.f_facts)
+}
+proof receive_preserves_public_history(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  takes public_history(before)
+  gives public_history((Native.impl_Replica__receive(before, offered))._1)
+{
+  receive_preserves_history(before, offered);
+  Nickel.Register.receive_preserves_unique_ids(before, offered);
+  assert(public_history((Native.impl_Replica__receive(before, offered))._1)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel.Register.receive_preserves_private");
+    Tactics.prune("Nickel.Register.planned_preserves_private");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+    Tactics.prune("Nickel.RegisterHistory.history_invariant");
+    Tactics.prune("Nickel.Register.fact_ids_unique");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof write_preserves_public_history(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  takes public_history(before)
+  gives public_history((Native.impl_Replica__write(before, key, value))._1)
+{
+  write_preserves_history(before, key, value);
+  Nickel.Register.write_preserves_unique_ids(before, key, value);
+  assert(public_history((Native.impl_Replica__write(before, key, value))._1)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+    Tactics.prune("Nickel.RegisterHistory.history_invariant");
+    Tactics.prune("Nickel.Register.fact_ids_unique");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof new_establishes_public_history(writer: u64, initial: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global), limits: Native.t_Limits): unit
+  gives forall(r: Native.t_Replica) . Native.impl_Replica__new(writer, initial, limits) == Result.Result_Ok(r) ==> public_history(r)
+{
+  new_establishes_history(writer, initial, limits);
+  Nickel.Register.new_has_unique_ids(writer, initial, limits);
+  assert(forall(r: Native.t_Replica) . Native.impl_Replica__new(writer, initial, limits) == Result.Result_Ok(r) ==> public_history(r)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__new");
+    Tactics.prune("Nickel.RegisterHistory.history_invariant");
+    Tactics.prune("Nickel.Register.fact_ids_unique");
+    Tactics.smt_sync'(1, 1)
+  }
+}
