@@ -460,3 +460,104 @@ proof! filter_has_selected_facts(ops: Nickel.RegisterPast.rops, facts: t_Slice(N
     FStar.Classical.move_requires(skipped, ())
   }
 }
+
+// Id-level ancestry over STORED facts (no positions): a stored fact's parent ids.
+function stored_unique(facts: Seq.seq(Nickel.Register.fact)): Type0 {
+  forall(f: Nickel.Register.fact, g: Nickel.Register.fact) .
+    (stored(facts, f) and stored(facts, g) and f.f_id == g.f_id) ==> f == g
+}
+function id_edge(facts: Seq.seq(Nickel.Register.fact), newer: Envelope.t_Id, older: Envelope.t_Id): Type0 {
+  exists(f: Nickel.Register.fact) . stored(facts, f) and f.f_id == newer and
+    Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(f.f_after), older)
+}
+function! id_path(facts: Seq.seq(Nickel.Register.fact), start: Envelope.t_Id, steps: Prims.list(Envelope.t_Id), finish: Envelope.t_Id): Type0
+  decreases steps
+{
+  match steps {
+    Prims.Nil => start == finish,
+    Prims.Cons(next, rest) => id_edge(facts, start, next) and id_path(facts, next, rest, finish)
+  }
+}
+function id_strictly_below(facts: Seq.seq(Nickel.Register.fact), newer: Envelope.t_Id, older: Envelope.t_Id): Type0 {
+  exists(next: Envelope.t_Id, rest: Prims.list(Envelope.t_Id)) . id_path(facts, newer, Prims.Cons(next, rest), older)
+}
+// Validity's clock part, id-level: a stored fact's stored parents have smaller clocks.
+function id_clocks_increase(facts: Seq.seq(Nickel.Register.fact)): Type0 {
+  forall(fa: Nickel.Register.fact, fb: Nickel.Register.fact) .
+    (stored(facts, fa) and stored(facts, fb) and Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(fa.f_after), fb.f_id)) ==>
+      v(fb.f_payload.f_lamport) < v(fa.f_payload.f_lamport)
+}
+// Along any nonempty id path between stored facts, clocks strictly decrease.
+proof! id_path_clock_decreases(facts: Seq.seq(Nickel.Register.fact), fa: Nickel.Register.fact, next: Envelope.t_Id,
+  rest: Prims.list(Envelope.t_Id), fb: Nickel.Register.fact): unit
+  decreases rest
+  takes stored_unique(facts) and id_clocks_increase(facts)
+  takes stored(facts, fa) and stored(facts, fb)
+  takes id_path(facts, fa.f_id, Prims.Cons(next, rest), fb.f_id)
+  gives v(fb.f_payload.f_lamport) < v(fa.f_payload.f_lamport)
+{
+  match rest {
+    Prims.Nil => (),
+    Prims.Cons(next2, rest2) => {
+      proof via(fn: Nickel.Register.fact): unit
+        takes stored(facts, fn) and fn.f_id == next
+        takes Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(fn.f_after), next2)
+        gives v(fb.f_payload.f_lamport) < v(fa.f_payload.f_lamport)
+      { id_path_clock_decreases(facts, fn, next2, rest2, fb) };
+      FStar.Classical.forall_intro(FStar.Classical.move_requires(via))
+    }
+  }
+}
+
+// Id-level causal read of `key` over the stored facts whose ids satisfy `sel`.
+function maximal_in(facts: Seq.seq(Nickel.Register.fact), sel: Envelope.t_Id => Type0, key: u64, f: Nickel.Register.fact): Type0 {
+  stored(facts, f) and sel(f.f_id) and f.f_payload.f_key == key and
+  not (exists(g: Nickel.Register.fact) . stored(facts, g) and sel(g.f_id) and g.f_payload.f_key == key and
+    id_strictly_below(facts, g.f_id, f.f_id))
+}
+function causal_read_in(facts: Seq.seq(Nickel.Register.fact), sel: Envelope.t_Id => Type0, key: u64,
+  initial: t_Slice(u8), value: t_Slice(u8)): Type0 {
+  ((forall(g: Nickel.Register.fact) . (stored(facts, g) and sel(g.f_id)) ==> g.f_payload.f_key =!= key) and
+    Nickel.Register.bytes_same(value, initial)) or
+  (exists(f: Nickel.Register.fact) . maximal_in(facts, sel, key, f) and
+    Nickel.Register.bytes_same(value, Alloc.Vec.impl_1__as_slice(f.f_payload.f_value)) and
+    (forall(g: Nickel.Register.fact) . maximal_in(facts, sel, key, g) ==> not Nickel.Register.higher(g, f)))
+}
+// a slice that holds exactly the selected stored facts
+function holds_selected(basis: Seq.seq(Nickel.Register.fact), facts: Seq.seq(Nickel.Register.fact), sel: Envelope.t_Id => Type0): Type0 {
+  forall(f: Nickel.Register.fact) . stored(basis, f) <==> (stored(facts, f) and sel(f.f_id))
+}
+// A priority maximum over such a slice cannot be dominated: any dominator has a larger clock.
+proof maximum_is_maximal_in(basis: Seq.seq(Nickel.Register.fact), facts: Seq.seq(Nickel.Register.fact), sel: Envelope.t_Id => Type0,
+  key: u64, f: Nickel.Register.fact): unit
+  takes holds_selected(basis, facts, sel) and stored_unique(facts) and id_clocks_increase(facts)
+  takes stored(basis, f) and f.f_payload.f_key == key
+  takes forall(j: nat) . (j < Seq.length(basis) and Seq.index(basis, j).f_payload.f_key == key) ==>
+    not Nickel.Register.higher(Seq.index(basis, j), f)
+  gives maximal_in(facts, sel, key, f)
+{
+  proof no_dominator(g: Nickel.Register.fact, next: Envelope.t_Id, rest: Prims.list(Envelope.t_Id)): unit
+    takes stored(facts, g) and sel(g.f_id) and g.f_payload.f_key == key
+    takes id_path(facts, g.f_id, Prims.Cons(next, rest), f.f_id)
+    gives Prims.l_False
+  { id_path_clock_decreases(facts, g, next, rest, f) };
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(no_dominator))
+}
+// The bridge: the positional maximum read of such a slice is the id-level causal read.
+proof selected_maximum_is_causal_read_in(basis: t_Slice(Nickel.Register.fact), facts: Seq.seq(Nickel.Register.fact),
+  sel: Envelope.t_Id => Type0, key: u64, initial: t_Slice(u8), value: t_Slice(u8)): unit
+  takes holds_selected(basis, facts, sel) and stored_unique(facts) and id_clocks_increase(facts)
+  takes Nickel.Register.selected_value(basis, key, initial, value)
+  gives causal_read_in(facts, sel, key, initial, value)
+{
+  proof from_index(i: nat, f: Nickel.Register.fact): unit
+    takes i < Seq.length(basis) and Seq.index(basis, i) == f and f.f_payload.f_key == key
+    takes forall(j: nat) . (j < Seq.length(basis) and Seq.index(basis, j).f_payload.f_key == key) ==>
+      not Nickel.Register.higher(Seq.index(basis, j), f)
+    gives maximal_in(facts, sel, key, f) and
+      (forall(g: Nickel.Register.fact) . maximal_in(facts, sel, key, g) ==> not Nickel.Register.higher(g, f))
+  {
+    maximum_is_maximal_in(basis, facts, sel, key, f)
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(from_index))
+}
