@@ -21,7 +21,7 @@ node scripts/check-register-native.mjs
 
 Keys and writer IDs are independent u64 values. The caller supplies globally
 unique, fenced writer streams: no concurrent producer, rollback or ID reuse.
-Counters start at1; receiving the producer's old history is **not** restoration
+Counters start at 1; receiving the producer's old history is **not** restoration
 of its private counter. There is no checkpoint/recovery protocol.
 
 Values are opaque byte strings. Their application encoding must carry any format
@@ -71,10 +71,14 @@ Without another joining event, a closed cohort already at that over-width
 frontier cannot author its own first joining write through the current API.
 It is not globally unrecoverable: a fresh producer knowing only two heads can
 supply a valid joining write, which the synchronized replicas can receive and
-which can reduce the frontier enough to permit further writes. That witness is
-not an adopted automatic recovery policy. Changing cited causal context, adding
-merge events or counting equal-value writes needs an explicit contract decision;
-this candidate silently does none of them. A fitting/progress theorem must make
+which can reduce the frontier enough to permit further writes. This requires
+retained-event capacity for the joining fact and any subsequent counted writes,
+as well as fitting value and numeric bounds. With an event limit of three, the
+three received heads already fill storage and the synchronized receiver rejects
+the joining fact. Fitting its dependency list alone does not supply that headroom.
+This witness is not an adopted automatic recovery policy. Changing cited causal
+context, adding merge events or counting equal-value writes needs an explicit
+contract decision; this candidate silently does none of them. A fitting/progress theorem must make
 the frontier and numeric-exhaustion conditions explicit or derive them. This
 local write-availability limitation is not itself a convergence counterexample.
 There is no unconditional eventual delivery/admission or SEC result.
@@ -225,8 +229,13 @@ controls are retained with exact branch-local boundary counts.
 
 This repairs the three affected match sites in the register dependency closure,
 not the ten other inventoried text-side match sites. The private compiler source
-fix is merged but is not activated in Nickel. Both the unchanged pinned producer
-and the corrected experimental producer check the complete register closure.
+fix is merged but is not activated in Nickel. For the bounded three-site repair
+at `2de2294`, the complete register closure verified with both the unchanged pinned
+producer and the corrected experimental producer. That retained comparison
+supersedes the earlier failed `LoopUtil.preserve` run; it does not claim a new
+corrected-producer check of every subsequent candidate. The
+[retained comparison evidence](https://gist.github.com/lynn-in-residence/690c8d6e8dc2744f87e989afb48e34e2)
+includes the two complete-closure logs and source/view identities.
 The remaining text audit and checkpoint obligations stay open; exact-head CI
 and scoped repair review are required before accepting this cut.
 
