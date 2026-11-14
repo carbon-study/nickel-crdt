@@ -283,3 +283,276 @@ proof canonical_preserves_exact_contents<f: Type0, i: Type0, e: Type0>(input: t_
     } },
   }
 }
+
+// Caller-supplied strict total order; no natural-number embedding or text IDs.
+function strict_order<i: Type0>(less: i => i => bool): Type0 {
+  (forall(a: i) . not (less(a, a) == true)) and
+  (forall(a: i, b: i, c: i) . (less(a, b) == true and less(b, c) == true) ==> less(a, c) == true) and
+  (forall(a: i, b: i) . a =!= b ==> (less(a, b) == true or less(b, a) == true))
+}
+function precedes<i: Type0>(less: i => i => bool, a: i, b: i): Type0 {
+  not (less(b, a) == true)
+}
+proof precedes_is_transitive<i: Type0>(less: i => i => bool, a: i, b: i, c: i): unit
+  takes strict_order(less)
+  takes precedes(less, a, b)
+  takes precedes(less, b, c)
+  gives precedes(less, a, c)
+{ () }
+function least_prefix<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), out: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e), at: nat, choice: Option.t_Option(usize)): Type0 {
+  match choice {
+    Option.Option_None => forall(j: usize where v(j) < Seq.length(input)) .
+      v(j) < at ==> Native.has_fact(out, ops._1._1(Rust_primitives.Slice.slice_index(input, j)), ops) == true,
+    Option.Option_Some(k) => v(k) < Seq.length(input) and
+      not (Native.has_fact(out, ops._1._1(Rust_primitives.Slice.slice_index(input, k)), ops) == true) and
+      (forall(j: usize where v(j) < Seq.length(input)) .
+        (v(j) < at and not (Native.has_fact(out, ops._1._1(Rust_primitives.Slice.slice_index(input, j)), ops) == true)) ==>
+          precedes(ops._1._4, ops._1._1(Rust_primitives.Slice.slice_index(input, k)), ops._1._1(Rust_primitives.Slice.slice_index(input, j)))),
+  }
+}
+function least_next<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), out: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e), j: usize where v(j) < Seq.length(input), choice: Option.t_Option(usize)): Option.t_Option(usize) {
+  if Native.has_fact(out, ops._1._1(Rust_primitives.Slice.slice_index(input, j)), ops) { choice } else {
+    match choice {
+      Option.Option_None => Option.Option_Some(j),
+      Option.Option_Some(k) => if v(k) < Seq.length(input) && ops._1._4(ops._1._1(Rust_primitives.Slice.slice_index(input, j)), ops._1._1(Rust_primitives.Slice.slice_index(input, k))) { Option.Option_Some(j) } else { choice },
+    }
+  }
+}
+proof least_prefix_extends<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), out: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e)): unit
+  takes strict_order(ops._1._4)
+  gives forall(j: usize where v(j) < Seq.length(input), choice: Option.t_Option(usize)) .
+    least_prefix(input, out, ops, v(j), choice) ==> least_prefix(input, out, ops, v(j) + 1, least_next(input, out, ops, j, choice))
+{
+  proof each(j: usize where v(j) < Seq.length(input), choice: Option.t_Option(usize)): unit
+    gives least_prefix(input, out, ops, v(j), choice) ==> least_prefix(input, out, ops, v(j) + 1, least_next(input, out, ops, j, choice))
+  {
+    if Native.has_fact(out, ops._1._1(Rust_primitives.Slice.slice_index(input, j)), ops) { () } else {
+      match choice {
+        Option.Option_None => (),
+        Option.Option_Some(k) => if v(k) < Seq.length(input) && ops._1._4(ops._1._1(Rust_primitives.Slice.slice_index(input, j)), ops._1._1(Rust_primitives.Slice.slice_index(input, k))) { () } else { () },
+      }
+    }
+  };
+  FStar.Classical.forall_intro_2(each)
+}
+proof choose_is_least<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), out: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e)): unit
+  takes strict_order(ops._1._4)
+  gives Nickel.LoopUtil.result_safe(least_prefix(input, out, ops, Seq.length(input)), ((_: e) => Prims.l_True), Native.choose_unseen(input, out, ops))
+{
+  // Withholding membership also removes its typing fact; retain only Bool shape.
+  proof membership_shape(wanted: i): unit
+    gives Native.has_fact(out, wanted, ops) == true or Native.has_fact(out, wanted, ops) == false
+  { () };
+  FStar.Classical.forall_intro(membership_shape);
+  least_prefix_extends(input, out, ops);
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(input),
+    ((at: nat, choice: Option.t_Option(usize)) => least_prefix(input, out, ops, at, choice)),
+    ((choice: Option.t_Option(usize)) => choice), least_prefix(input, out, ops, Seq.length(input)), ((_: e) => Prims.l_True));
+  assert(Nickel.LoopUtil.result_safe(least_prefix(input, out, ops, Seq.length(input)), ((_: e) => Prims.l_True), Native.choose_unseen(input, out, ops))) by {
+    Tactics.prune("Nickel_crdt.Event_layer.has_fact");
+    Tactics.prune("Nickel.LoopUtil.step_safe");
+    Tactics.prune("Nickel.LoopUtil.output_safe");
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+function ordered<f: Type0, i: Type0, e: Type0>(out: vector(f), ops: Nickel.EventGraph.graph_ops(f, i, e)): Type0 {
+  forall(p: usize where v(p) < Seq.length(Alloc.Vec.impl_1__as_slice(out)), q: usize where v(q) < Seq.length(Alloc.Vec.impl_1__as_slice(out))) .
+    v(p) < v(q) ==> precedes(ops._1._4, ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), p)), ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), q)))
+}
+function frontier_order<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), out: vector(f), ops: Nickel.EventGraph.graph_ops(f, i, e)): Type0 {
+  ordered(out, ops) and
+  (forall(p: usize where v(p) < Seq.length(Alloc.Vec.impl_1__as_slice(out)), q: usize where v(q) < Seq.length(input)) .
+    not (Native.has_fact(Alloc.Vec.impl_1__as_slice(out), ops._1._1(Rust_primitives.Slice.slice_index(input, q)), ops) == true) ==>
+      precedes(ops._1._4, ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), p)), ops._1._1(Rust_primitives.Slice.slice_index(input, q))))
+}
+function pushed_absence<f: Type0, i: Type0, e: Type0>(out: vector(f), item: f, wanted: i, ops: Nickel.EventGraph.graph_ops(f, i, e), result: (vector(f), Result.t_Result(unit, e))): Type0 {
+  match result {
+    (next, Result.Result_Ok(_)) => (not (Native.has_fact(Alloc.Vec.impl_1__as_slice(next), wanted, ops) == true) <==>
+      (not (Native.has_fact(Alloc.Vec.impl_1__as_slice(out), wanted, ops) == true) and ops._1._3(ops._1._1(item), wanted) == false)),
+    _ => Prims.l_True,
+  }
+}
+proof push_preserves_membership<f: Type0, i: Type0, e: Type0>(out: vector(f), item: f, wanted: i, ops: Nickel.EventGraph.graph_ops(f, i, e)): unit
+  gives pushed_absence(out, item, wanted, ops, Native.push(out, item, ops._2._1))
+{
+  push_is_exact(out, item, ops._2._1);
+  Nickel.EventGraph.fact_membership_is_exact(Alloc.Vec.impl_1__as_slice(out), wanted, ops);
+  match Native.push(out, item, ops._2._1) {
+    (next, Result.Result_Ok(_)) => {
+      Nickel.EventGraph.fact_membership_is_exact(Alloc.Vec.impl_1__as_slice(next), wanted, ops);
+      assert(pushed_absence(out, item, wanted, ops, Native.push(out, item, ops._2._1))) by {
+        Tactics.prune("Nickel_crdt.Event_layer.has_fact");
+        Tactics.prune("Nickel_crdt.Event_layer.push");
+        Tactics.smt_sync'(1, 1)
+      }
+    },
+    _ => (),
+  }
+}
+function pushed_frontier<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e), result: (vector(f), Result.t_Result(unit, e))): Type0 {
+  match result { (next, Result.Result_Ok(_)) => frontier_order(input, next, ops), _ => Prims.l_True, }
+}
+proof append_least_preserves_order<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), out: vector(f), k: usize where v(k) < Seq.length(input), ops: Nickel.EventGraph.graph_ops(f, i, e)): unit
+  takes frontier_order(input, out, ops)
+  takes least_prefix(input, Alloc.Vec.impl_1__as_slice(out), ops, Seq.length(input), Option.Option_Some(k))
+  gives pushed_frontier(input, ops, Native.push(out, Rust_primitives.Slice.slice_index(input, k), ops._2._1))
+{
+  const item = Rust_primitives.Slice.slice_index(input, k);
+  push_is_exact(out, item, ops._2._1);
+  Nickel.Vector.vector_length(out);
+  match Native.push(out, item, ops._2._1) {
+    (next, Result.Result_Ok(_)) => {
+      assert(Alloc.Vec.impl_1__as_slice(next) == Seq.append(Alloc.Vec.impl_1__as_slice(out), Seq.create(1, item)));
+      proof each_frontier(p: usize where v(p) < Seq.length(Alloc.Vec.impl_1__as_slice(next)), q: usize where v(q) < Seq.length(input)): unit
+        takes not (Native.has_fact(Alloc.Vec.impl_1__as_slice(next), ops._1._1(Rust_primitives.Slice.slice_index(input, q)), ops) == true)
+        gives precedes(ops._1._4, ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), p)), ops._1._1(Rust_primitives.Slice.slice_index(input, q)))
+      {
+        push_preserves_membership(out, item, ops._1._1(Rust_primitives.Slice.slice_index(input, q)), ops);
+        assert(not (Native.has_fact(Alloc.Vec.impl_1__as_slice(out), ops._1._1(Rust_primitives.Slice.slice_index(input, q)), ops) == true)) by {
+          Tactics.prune("Nickel_crdt.Event_layer.has_fact");
+          Tactics.prune("Nickel_crdt.Event_layer.push");
+          Tactics.smt_sync'(1, 1)
+        };
+        if v(p) < Seq.length(Alloc.Vec.impl_1__as_slice(out)) {
+          assert(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), p) == Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), p));
+          assert(precedes(ops._1._4, ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), p)), ops._1._1(Rust_primitives.Slice.slice_index(input, q))))
+        } else {
+          assert(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), p) == item);
+          assert(precedes(ops._1._4, ops._1._1(item), ops._1._1(Rust_primitives.Slice.slice_index(input, q))))
+        }
+      };
+      FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_frontier));
+      proof each_pair(p: usize where v(p) < Seq.length(Alloc.Vec.impl_1__as_slice(next)), q: usize where v(q) < Seq.length(Alloc.Vec.impl_1__as_slice(next))): unit
+        gives v(p) < v(q) ==> precedes(ops._1._4, ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), p)), ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), q)))
+      {
+        if v(p) < v(q) {
+          assert(v(p) < Seq.length(Alloc.Vec.impl_1__as_slice(out)));
+          assert(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), p) == Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), p));
+          if v(q) < Seq.length(Alloc.Vec.impl_1__as_slice(out)) {
+            assert(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), q) == Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), q));
+            assert(precedes(ops._1._4, ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), p)), ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), q))))
+          } else {
+            assert(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(next), q) == item);
+            assert(precedes(ops._1._4, ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), p)), ops._1._1(item)))
+          }
+        } else { () }
+      };
+      FStar.Classical.forall_intro_2(each_pair)
+    },
+    _ => (),
+  }
+}
+function ordered_result<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e), result: Result.t_Result(vector(f), e)): Type0 {
+  match result { Result.Result_Ok(out) => frontier_order(input, out, ops), _ => Prims.l_True, }
+}
+proof step_preserves_order<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), out: vector(f), ops: Nickel.EventGraph.graph_ops(f, i, e)): unit
+  takes strict_order(ops._1._4)
+  takes exact_values(ops)
+  takes frontier_order(input, out, ops)
+  gives ordered_result(input, ops, Native.canonical_step(input, out, ops))
+{
+  step_uses_selected_fact(input, out, ops);
+  choose_is_least(input, Alloc.Vec.impl_1__as_slice(out), ops);
+  match Native.choose_unseen(input, Alloc.Vec.impl_1__as_slice(out), ops) {
+    Result.Result_Ok(Option.Option_Some(k)) => if v(k) < Seq.length(input) {
+      copy_selected_is_exact(Rust_primitives.Slice.slice_index(input, k), ops._1._5);
+      append_least_preserves_order(input, out, k, ops);
+      assert(ordered_result(input, ops, Native.canonical_step(input, out, ops))) by {
+        Tactics.prune("Nickel_crdt.Event_layer.choose_unseen");
+        Tactics.prune("Nickel_crdt.Event_layer.canonical_step");
+        Tactics.prune("Nickel_crdt.Event_layer.clone_selected_fact");
+        Tactics.prune("Nickel_crdt.Event_layer.push");
+        Tactics.smt_sync'(1, 1)
+      }
+    } else { assert(ordered_result(input, ops, Native.canonical_step(input, out, ops))) by {
+        Tactics.prune("Nickel_crdt.Event_layer.choose_unseen");
+        Tactics.prune("Nickel_crdt.Event_layer.canonical_step");
+        Tactics.prune("Nickel_crdt.Event_layer.clone_selected_fact");
+        Tactics.prune("Nickel_crdt.Event_layer.push");
+        Tactics.smt_sync'(1, 1)
+      } },
+    _ => { assert(ordered_result(input, ops, Native.canonical_step(input, out, ops))) by {
+        Tactics.prune("Nickel_crdt.Event_layer.choose_unseen");
+        Tactics.prune("Nickel_crdt.Event_layer.canonical_step");
+        Tactics.prune("Nickel_crdt.Event_layer.clone_selected_fact");
+        Tactics.prune("Nickel_crdt.Event_layer.push");
+        Tactics.smt_sync'(1, 1)
+      } },
+  }
+}
+proof canonical_orders_by_policy<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e)): unit
+  takes strict_order(ops._1._4)
+  takes exact_values(ops)
+  gives ordered_result(input, ops, Native.canonical(input, ops))
+{
+  Nickel.Vector.empty_vector_value<#f>();
+  proof each_step(out: vector(f)): unit
+    takes frontier_order(input, out, ops)
+    gives ordered_result(input, ops, Native.canonical_step(input, out, ops))
+    hint Native.canonical_step(input, out, ops)
+  { step_preserves_order(input, out, ops) };
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(input),
+    ((_: nat, out: vector(f)) => frontier_order(input, out, ops)), ((out: vector(f)) => out),
+    ((out: vector(f)) => frontier_order(input, out, ops)), ((_: e) => Prims.l_True));
+  assert(ordered_result(input, ops, Native.canonical(input, ops))) by {
+    Tactics.prune("Nickel_crdt.Event_layer.canonical_step");
+    Tactics.prune("Alloc.Vec.impl__new");
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+function strictly_ordered<f: Type0, i: Type0, e: Type0>(out: vector(f), ops: Nickel.EventGraph.graph_ops(f, i, e)): Type0 {
+  forall(p: usize where v(p) < Seq.length(Alloc.Vec.impl_1__as_slice(out)), q: usize where v(q) < Seq.length(Alloc.Vec.impl_1__as_slice(out))) .
+    v(p) < v(q) ==> ops._1._4(ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), p)), ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), q))) == true
+}
+proof canonical_outputs_strict_id_order<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e)): unit
+  takes strict_order(ops._1._4)
+  takes exact_values(ops)
+  gives Nickel.LoopUtil.result_safe(((out: vector(f)) => strictly_ordered(out, ops)), ((_: e) => Prims.l_True), Native.canonical(input, ops))
+{
+  canonical_orders_by_policy(input, ops);
+  canonical_selects_whole_facts(input, ops);
+  match Native.canonical(input, ops) {
+    Result.Result_Ok(out) => {
+      assert(frontier_order(input, out, ops) and unique(Alloc.Vec.impl_1__as_slice(out), ops._1._1)) by {
+        Tactics.prune("Nickel_crdt.Event_layer.canonical");
+        Tactics.smt_sync'(1, 1)
+      };
+      proof each(p: usize where v(p) < Seq.length(Alloc.Vec.impl_1__as_slice(out)), q: usize where v(q) < Seq.length(Alloc.Vec.impl_1__as_slice(out))): unit
+        takes v(p) < v(q)
+        gives ops._1._4(ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), p)), ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), q))) == true
+      {
+        Nickel.Vector.slice_index(Alloc.Vec.impl_1__as_slice(out), p);
+        Nickel.Vector.slice_index(Alloc.Vec.impl_1__as_slice(out), q);
+        assert(ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), p)) =!= ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), q)));
+        assert(precedes(ops._1._4, ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), p)), ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), q))));
+        assert(ops._1._4(ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), p)), ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), q))) == true) by {
+          Tactics.prune("Nickel_crdt.Event_layer.canonical");
+          Tactics.smt_sync'(1, 1)
+        }
+      };
+      FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each));
+      assert(Nickel.LoopUtil.result_safe(((out: vector(f)) => strictly_ordered(out, ops)), ((_: e) => Prims.l_True), Native.canonical(input, ops))) by {
+        Tactics.prune("Nickel_crdt.Event_layer.canonical");
+        Tactics.smt_sync'(1, 1)
+      }
+    },
+    Result.Result_Err(_) => {
+      assert(Nickel.LoopUtil.result_safe(((out: vector(f)) => strictly_ordered(out, ops)), ((_: e) => Prims.l_True), Native.canonical(input, ops))) by {
+        Tactics.prune("Nickel_crdt.Event_layer.canonical");
+        Tactics.smt_sync'(1, 1)
+      }
+    },
+  }
+}
+
+proof strict_order_at<f: Type0, i: Type0, e: Type0>(out: vector(f), ops: Nickel.EventGraph.graph_ops(f, i, e), p: usize, q: usize): unit
+  takes strictly_ordered(out, ops)
+  takes v(p) < Seq.length(Alloc.Vec.impl_1__as_slice(out))
+  takes v(q) < Seq.length(Alloc.Vec.impl_1__as_slice(out))
+  takes v(p) < v(q)
+  gives ops._1._4(ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), p)), ops._1._1(Rust_primitives.Slice.slice_index(Alloc.Vec.impl_1__as_slice(out), q))) == true
+{ () }

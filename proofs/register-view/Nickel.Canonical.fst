@@ -208,3 +208,174 @@ let canonical_preserves_exact_contents (#f: Type0) (#i: Type0) (#e: Type0) (inpu
     Tactics.prune "Nickel_crdt.Event_layer.canonical";
     Tactics.smt_sync' 1 1
   ) end
+
+let strict_order (#i: Type0) (less: i -> i -> bool) : Type0 =
+  Prims.l_and (Prims.l_and (forall(a: i). Prims.l_not (less a a == true)) (forall(a: i) (b: i) (c: i). Prims.l_and (less a b == true) (less b c == true) ==> less a c == true)) (forall(a: i) (b: i). a =!= b ==> Prims.l_or (less a b == true) (less b a == true))
+
+let precedes (#i: Type0) (less: i -> i -> bool) (a: i) (b: i) : Type0 =
+  Prims.l_not (less b a == true)
+
+let precedes_is_transitive (#i: Type0) (less: i -> i -> bool) (a: i) (b: i) (c: i) : Lemma (requires (strict_order less /\ precedes less a b /\ precedes less b c)) (ensures precedes less a c) =
+  ()
+
+let least_prefix (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) (at: nat) (choice: Option.t_Option usize) : Type0 =
+  match choice with | Option.Option_None -> begin forall(j: usize{v j < Seq.length input}). v j < at ==> Native.has_fact out (ops._1._1 (Rust_primitives.Slice.slice_index input j)) ops == true end | Option.Option_Some k -> begin Prims.l_and (Prims.l_and (v k < Seq.length input) (Prims.l_not (Native.has_fact out (ops._1._1 (Rust_primitives.Slice.slice_index input k)) ops == true))) (forall(j: usize{v j < Seq.length input}). Prims.l_and (v j < at) (Prims.l_not (Native.has_fact out (ops._1._1 (Rust_primitives.Slice.slice_index input j)) ops == true)) ==> precedes ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index input k)) (ops._1._1 (Rust_primitives.Slice.slice_index input j))) end
+
+let least_next (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) (j: usize{v j < Seq.length input}) (choice: Option.t_Option usize) : Option.t_Option usize =
+  if Native.has_fact out (ops._1._1 (Rust_primitives.Slice.slice_index input j)) ops then
+    begin choice end
+  else
+    begin match choice with | Option.Option_None -> begin Option.Option_Some j end | Option.Option_Some k -> begin if v k < Seq.length input && ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index input j)) (ops._1._1 (Rust_primitives.Slice.slice_index input k)) then
+      begin Option.Option_Some j end
+    else
+      begin choice end end end
+
+let least_prefix_extends (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (requires strict_order ops._1._4) (ensures forall(j: usize{v j < Seq.length input}) (choice: Option.t_Option usize). least_prefix input out ops (v j) choice ==> least_prefix input out ops (v j + 1) (least_next input out ops j choice)) =
+  let each (j: usize{v j < Seq.length input}) (choice: Option.t_Option usize) : Lemma (ensures least_prefix input out ops (v j) choice ==> least_prefix input out ops (v j + 1) (least_next input out ops j choice)) = if Native.has_fact out (ops._1._1 (Rust_primitives.Slice.slice_index input j)) ops then
+    begin () end
+  else
+    begin match choice with | Option.Option_None -> begin () end | Option.Option_Some k -> begin if v k < Seq.length input && ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index input j)) (ops._1._1 (Rust_primitives.Slice.slice_index input k)) then
+      begin () end
+    else
+      begin () end end end in
+  FStar.Classical.forall_intro_2 each
+
+let choose_is_least (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (requires strict_order ops._1._4) (ensures Nickel.LoopUtil.result_safe (least_prefix input out ops (Seq.length input)) (fun (_: e) -> Prims.l_True) (Native.choose_unseen input out ops)) =
+  let membership_shape (wanted: i) : Lemma (ensures Prims.l_or (Native.has_fact out wanted ops == true) (Native.has_fact out wanted ops == false)) = () in
+  FStar.Classical.forall_intro membership_shape;
+  least_prefix_extends input out ops;
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len input) (fun (at: nat) (choice: Option.t_Option usize) -> least_prefix input out ops at choice) (fun (choice: Option.t_Option usize) -> choice) (least_prefix input out ops (Seq.length input)) (fun (_: e) -> Prims.l_True);
+  assert (Nickel.LoopUtil.result_safe (least_prefix input out ops (Seq.length input)) (fun (_: e) -> Prims.l_True) (Native.choose_unseen input out ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.has_fact";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.smt_sync' 1 1
+  )
+
+let ordered (#f: Type0) (#i: Type0) (#e: Type0) (out: vector f) (ops: Nickel.EventGraph.graph_ops f i e) : Type0 =
+  forall(p: usize{v p < Seq.length (Alloc.Vec.impl_1__as_slice out)}) (q: usize{v q < Seq.length (Alloc.Vec.impl_1__as_slice out)}). v p < v q ==> precedes ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) p)) (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) q))
+
+let frontier_order (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: vector f) (ops: Nickel.EventGraph.graph_ops f i e) : Type0 =
+  Prims.l_and (ordered out ops) (forall(p: usize{v p < Seq.length (Alloc.Vec.impl_1__as_slice out)}) (q: usize{v q < Seq.length input}). Prims.l_not (Native.has_fact (Alloc.Vec.impl_1__as_slice out) (ops._1._1 (Rust_primitives.Slice.slice_index input q)) ops == true) ==> precedes ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) p)) (ops._1._1 (Rust_primitives.Slice.slice_index input q)))
+
+let pushed_absence (#f: Type0) (#i: Type0) (#e: Type0) (out: vector f) (item: f) (wanted: i) (ops: Nickel.EventGraph.graph_ops f i e) (result: vector f & Result.t_Result unit e) : Type0 =
+  match result with | (next, Result.Result_Ok _) -> begin Prims.l_not (Native.has_fact (Alloc.Vec.impl_1__as_slice next) wanted ops == true) <==> Prims.l_and (Prims.l_not (Native.has_fact (Alloc.Vec.impl_1__as_slice out) wanted ops == true)) (ops._1._3 (ops._1._1 item) wanted == false) end | _ -> begin Prims.l_True end
+
+let push_preserves_membership (#f: Type0) (#i: Type0) (#e: Type0) (out: vector f) (item: f) (wanted: i) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (ensures pushed_absence out item wanted ops (Native.push out item ops._2._1)) =
+  push_is_exact out item ops._2._1;
+  Nickel.EventGraph.fact_membership_is_exact (Alloc.Vec.impl_1__as_slice out) wanted ops;
+  match Native.push out item ops._2._1 with | (next, Result.Result_Ok _) -> begin Nickel.EventGraph.fact_membership_is_exact (Alloc.Vec.impl_1__as_slice next) wanted ops;
+  assert (pushed_absence out item wanted ops (Native.push out item ops._2._1)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.has_fact";
+    Tactics.prune "Nickel_crdt.Event_layer.push";
+    Tactics.smt_sync' 1 1
+  ) end | _ -> begin () end
+
+let pushed_frontier (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) (result: vector f & Result.t_Result unit e) : Type0 =
+  match result with | (next, Result.Result_Ok _) -> begin frontier_order input next ops end | _ -> begin Prims.l_True end
+
+let append_least_preserves_order (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: vector f) (k: usize{v k < Seq.length input}) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (requires (frontier_order input out ops /\ least_prefix input (Alloc.Vec.impl_1__as_slice out) ops (Seq.length input) (Option.Option_Some k))) (ensures pushed_frontier input ops (Native.push out (Rust_primitives.Slice.slice_index input k) ops._2._1)) =
+  let item = Rust_primitives.Slice.slice_index input k in
+  push_is_exact out item ops._2._1;
+  Nickel.Vector.vector_length out;
+  match Native.push out item ops._2._1 with | (next, Result.Result_Ok _) -> begin assert (Alloc.Vec.impl_1__as_slice next == Seq.append (Alloc.Vec.impl_1__as_slice out) (Seq.create 1 item));
+  let each_frontier (p: usize{v p < Seq.length (Alloc.Vec.impl_1__as_slice next)}) (q: usize{v q < Seq.length input}) : Lemma (requires Prims.l_not (Native.has_fact (Alloc.Vec.impl_1__as_slice next) (ops._1._1 (Rust_primitives.Slice.slice_index input q)) ops == true)) (ensures precedes ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice next) p)) (ops._1._1 (Rust_primitives.Slice.slice_index input q))) =
+    push_preserves_membership out item (ops._1._1 (Rust_primitives.Slice.slice_index input q)) ops;
+    assert (Prims.l_not (Native.has_fact (Alloc.Vec.impl_1__as_slice out) (ops._1._1 (Rust_primitives.Slice.slice_index input q)) ops == true)) by (
+      Tactics.prune "Nickel_crdt.Event_layer.has_fact";
+      Tactics.prune "Nickel_crdt.Event_layer.push";
+      Tactics.smt_sync' 1 1
+    );
+    if v p < Seq.length (Alloc.Vec.impl_1__as_slice out) then
+      begin assert (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice next) p == Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) p);
+      assert (precedes ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) p)) (ops._1._1 (Rust_primitives.Slice.slice_index input q))) end
+    else
+      begin assert (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice next) p == item);
+      assert (precedes ops._1._4 (ops._1._1 item) (ops._1._1 (Rust_primitives.Slice.slice_index input q))) end in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_frontier);
+  let each_pair (p: usize{v p < Seq.length (Alloc.Vec.impl_1__as_slice next)}) (q: usize{v q < Seq.length (Alloc.Vec.impl_1__as_slice next)}) : Lemma (ensures v p < v q ==> precedes ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice next) p)) (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice next) q))) = if v p < v q then
+    begin assert (v p < Seq.length (Alloc.Vec.impl_1__as_slice out));
+    assert (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice next) p == Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) p);
+    if v q < Seq.length (Alloc.Vec.impl_1__as_slice out) then
+      begin assert (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice next) q == Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) q);
+      assert (precedes ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) p)) (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) q))) end
+    else
+      begin assert (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice next) q == item);
+      assert (precedes ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) p)) (ops._1._1 item)) end end
+  else
+    begin () end in
+  FStar.Classical.forall_intro_2 each_pair end | _ -> begin () end
+
+let ordered_result (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) (result: Result.t_Result (vector f) e) : Type0 =
+  match result with | Result.Result_Ok out -> begin frontier_order input out ops end | _ -> begin Prims.l_True end
+
+let step_preserves_order (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: vector f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (requires (strict_order ops._1._4 /\ exact_values ops /\ frontier_order input out ops)) (ensures ordered_result input ops (Native.canonical_step input out ops)) =
+  step_uses_selected_fact input out ops;
+  choose_is_least input (Alloc.Vec.impl_1__as_slice out) ops;
+  match Native.choose_unseen input (Alloc.Vec.impl_1__as_slice out) ops with | Result.Result_Ok (Option.Option_Some k) -> begin if v k < Seq.length input then
+    begin copy_selected_is_exact (Rust_primitives.Slice.slice_index input k) ops._1._5;
+    append_least_preserves_order input out k ops;
+    assert (ordered_result input ops (Native.canonical_step input out ops)) by (
+      Tactics.prune "Nickel_crdt.Event_layer.choose_unseen";
+      Tactics.prune "Nickel_crdt.Event_layer.canonical_step";
+      Tactics.prune "Nickel_crdt.Event_layer.clone_selected_fact";
+      Tactics.prune "Nickel_crdt.Event_layer.push";
+      Tactics.smt_sync' 1 1
+    ) end
+  else
+    begin assert (ordered_result input ops (Native.canonical_step input out ops)) by (
+      Tactics.prune "Nickel_crdt.Event_layer.choose_unseen";
+      Tactics.prune "Nickel_crdt.Event_layer.canonical_step";
+      Tactics.prune "Nickel_crdt.Event_layer.clone_selected_fact";
+      Tactics.prune "Nickel_crdt.Event_layer.push";
+      Tactics.smt_sync' 1 1
+    ) end end | _ -> begin assert (ordered_result input ops (Native.canonical_step input out ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.choose_unseen";
+    Tactics.prune "Nickel_crdt.Event_layer.canonical_step";
+    Tactics.prune "Nickel_crdt.Event_layer.clone_selected_fact";
+    Tactics.prune "Nickel_crdt.Event_layer.push";
+    Tactics.smt_sync' 1 1
+  ) end
+
+let canonical_orders_by_policy (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (requires (strict_order ops._1._4 /\ exact_values ops)) (ensures ordered_result input ops (Native.canonical input ops)) =
+  Nickel.Vector.empty_vector_value #f ();
+  let each_step (out: vector f) : Lemma (requires frontier_order input out ops) (ensures ordered_result input ops (Native.canonical_step input out ops)) [SMTPat (Native.canonical_step input out ops)] = step_preserves_order input out ops in
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len input) (fun (_: nat) (out: vector f) -> frontier_order input out ops) (fun (out: vector f) -> out) (fun (out: vector f) -> frontier_order input out ops) (fun (_: e) -> Prims.l_True);
+  assert (ordered_result input ops (Native.canonical input ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.canonical_step";
+    Tactics.prune "Alloc.Vec.impl__new";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.smt_sync' 1 1
+  )
+
+let strictly_ordered (#f: Type0) (#i: Type0) (#e: Type0) (out: vector f) (ops: Nickel.EventGraph.graph_ops f i e) : Type0 =
+  forall(p: usize{v p < Seq.length (Alloc.Vec.impl_1__as_slice out)}) (q: usize{v q < Seq.length (Alloc.Vec.impl_1__as_slice out)}). v p < v q ==> ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) p)) (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) q)) == true
+
+let canonical_outputs_strict_id_order (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (requires (strict_order ops._1._4 /\ exact_values ops)) (ensures Nickel.LoopUtil.result_safe (fun (out: vector f) -> strictly_ordered out ops) (fun (_: e) -> Prims.l_True) (Native.canonical input ops)) =
+  canonical_orders_by_policy input ops;
+  canonical_selects_whole_facts input ops;
+  match Native.canonical input ops with | Result.Result_Ok out -> begin assert (Prims.l_and (frontier_order input out ops) (unique (Alloc.Vec.impl_1__as_slice out) ops._1._1)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.canonical";
+    Tactics.smt_sync' 1 1
+  );
+  let each (p: usize{v p < Seq.length (Alloc.Vec.impl_1__as_slice out)}) (q: usize{v q < Seq.length (Alloc.Vec.impl_1__as_slice out)}) : Lemma (requires v p < v q) (ensures ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) p)) (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) q)) == true) =
+    Nickel.Vector.slice_index (Alloc.Vec.impl_1__as_slice out) p;
+    Nickel.Vector.slice_index (Alloc.Vec.impl_1__as_slice out) q;
+    assert (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) p) =!= ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) q));
+    assert (precedes ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) p)) (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) q)));
+    assert (ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) p)) (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) q)) == true) by (
+      Tactics.prune "Nickel_crdt.Event_layer.canonical";
+      Tactics.smt_sync' 1 1
+    ) in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each);
+  assert (Nickel.LoopUtil.result_safe (fun (out: vector f) -> strictly_ordered out ops) (fun (_: e) -> Prims.l_True) (Native.canonical input ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.canonical";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Err _ -> begin assert (Nickel.LoopUtil.result_safe (fun (out: vector f) -> strictly_ordered out ops) (fun (_: e) -> Prims.l_True) (Native.canonical input ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.canonical";
+    Tactics.smt_sync' 1 1
+  ) end
+
+let strict_order_at (#f: Type0) (#i: Type0) (#e: Type0) (out: vector f) (ops: Nickel.EventGraph.graph_ops f i e) (p: usize) (q: usize) : Lemma (requires (strictly_ordered out ops /\ v p < Seq.length (Alloc.Vec.impl_1__as_slice out) /\ v q < Seq.length (Alloc.Vec.impl_1__as_slice out) /\ v p < v q)) (ensures ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) p)) (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) q)) == true) =
+  ()

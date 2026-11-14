@@ -5,7 +5,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
 import {verify,holdLock,runAsync,digest,put} from './proof-cache.mjs';
-import {scopedAnchor} from './mutation-scope.mjs';
+import {scopedAnchor,codeMask} from './mutation-scope.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
 import {assertReformedSource} from './proof-reform.mjs';
 const root=fileURLToPath(new URL('..',import.meta.url));
@@ -50,8 +50,10 @@ if(env.NICKEL_LATTE_BIN){
 }
 const source=await fs.readFile(path.join(root,'src/register.rs'),'utf8');
 const graphSource=await fs.readFile(path.join(root,'src/event_layer.rs'),'utf8');
-const graphModes=new Set(['canonical-push-drops-value','canonical-copies-wrong-fact','canonical-discards-output']);
+const graphModes=new Set(['canonical-push-drops-value','canonical-copies-wrong-fact','canonical-discards-output','canonical-chooses-largest']);
 const bodyModes=[
+ ['canonical-chooses-largest','fn choose_unseen<','id_lt(&id(&facts[j]), &id(&facts[k]))','id_lt(&id(&facts[k]), &id(&facts[j]))','Canonical.choose_is_least'],
+ ['register-wrong-order-policy','const OPS:','graph::graph_ops(identity, parents, same_id, less_id,','graph::graph_ops(identity, parents, same_id, same_id,','register_order_policy_is_exact'],
  ['canonical-push-drops-value','fn push<','xs.push(value);','let _ = value;','Canonical.push_is_exact'],
  ['canonical-copies-wrong-fact','fn canonical_step<','clone_selected_fact(&facts[i], clone_fact)','clone_selected_fact(&facts[0], clone_fact)','Canonical.step_uses_selected_fact'],
  ['canonical-discards-output','fn canonical<','Ok(out)','Ok(Vec::new())','Canonical.canonical_selects_whole_facts'],
@@ -87,8 +89,19 @@ const bodyModes=[
  ['read-wrong-key','pub fn read(','read_history(&self.facts, &self.initial, key)','read_history(&self.facts, &self.initial, 0)','public_read_is_history'],
  ['payload-ignores-observed','fn write_equal(','&& bytes_equal(&a.observed, &b.observed)','&& true','write_equal_is_exact'],
 ];
-assert(selected.every(n=>n==='positive'||bodyModes.some(m=>m[0]===n)||["without-generic-append-contract","without-canonical-selection-contract","without-canonical-coverage-contract","without-loop-unroll","without-loop-recursion","without-loop-empty","without-generic-step-equation","without-generic-push-contract","without-generic-membership-contract","without-generic-choice-loop","without-generic-canonical-loop","without-generic-choice-contract","without-generic-step-contract","without-register-canonical-policy","without-register-canonical-content","without-prepare-content","without-plan-prepared-content","without-receive-retention-plan","without-write-retention-installation","without-clock-loop-contract","without-added-clock-contract","without-added-clock-payload","without-validation-byte-contract","without-payload-validation-contract","without-payload-planning-contract","without-receive-payload-contract","without-added-publication-contract","without-write-receive-publication","without-write-receive-frame","without-winner-loop","without-read-winner","without-publication-contract","without-noedit-byte-contract","without-shared-planning-contract","without-prepare-frame","without-execute-frame","without-receive-publication-frame","without-plan-private-frame"].includes(n)),'unknown selected mode');
-const haxArgs=out=>['-C','--offline','--locked','-p','nickel-crdt',';','into','--output-dir',out,'-i','-** +nickel_crdt::register::**::new +nickel_crdt::register::**::write +nickel_crdt::register::**::receive +nickel_crdt::register::**::read +nickel_crdt::register::winner +nickel_crdt::register::later +nickel_crdt::register::bytes_equal +nickel_crdt::register::next_lamport +nickel_crdt::event_shell::receive +nickel_crdt::causal::classify +nickel_crdt::event_layer::**','fstar'];
+assert(selected.every(n=>n==='positive'||bodyModes.some(m=>m[0]===n)||["without-minimum-order-contract","without-canonical-order-contract","without-write-order-plan","without-receive-order-plan","without-generic-append-contract","without-canonical-selection-contract","without-canonical-coverage-contract","without-loop-unroll","without-loop-recursion","without-loop-empty","without-generic-step-equation","without-generic-push-contract","without-generic-membership-contract","without-generic-choice-loop","without-generic-canonical-loop","without-generic-choice-contract","without-generic-step-contract","without-register-canonical-policy","without-register-canonical-content","without-prepare-content","without-plan-prepared-content","without-receive-retention-plan","without-write-retention-installation","without-clock-loop-contract","without-added-clock-contract","without-added-clock-payload","without-validation-byte-contract","without-payload-validation-contract","without-payload-planning-contract","without-receive-payload-contract","without-added-publication-contract","without-write-receive-publication","without-write-receive-frame","without-winner-loop","without-read-winner","without-publication-contract","without-noedit-byte-contract","without-shared-planning-contract","without-prepare-frame","without-execute-frame","without-receive-publication-frame","without-plan-private-frame"].includes(n)),'unknown selected mode');
+// The actual const policy has no brace body; bind this one construction-site
+// control to its complete exact code item, never a later function's body.
+function registerPolicyAnchor(source,anchor){
+ const item='const OPS: graph::EventOps<Fact, Id, Error> = graph::event_ops(\n    graph::graph_ops(identity, parents, same_id, less_id, copy_fact, fact_equal, invalid, missing),\n    previous, forbidden, capacity, capacity, invalid, invalid,\n);';
+ assert.equal(source.split(item).length,2,'one exact register policy item');
+ const at=source.indexOf(item);assert.equal(codeMask(source).slice(at,at+item.length),item,'policy item is code');
+ assert.equal(item.split(anchor).length,2,'one policy slot');return at+item.indexOf(anchor);
+}
+assert.throws(()=>registerPolicyAnchor(source+source,'graph::graph_ops(identity, parents, same_id, less_id,'),'duplicate const policy refuses');
+assert.throws(()=>registerPolicyAnchor(source.replace('const OPS:','// const OPS:'),'graph::graph_ops(identity, parents, same_id, less_id,'),'commented const policy refuses');
+assert.throws(()=>registerPolicyAnchor(source.replace('const OPS:','const OTHER_OPS:'),'graph::graph_ops(identity, parents, same_id, less_id,'),'missing const policy never borrows a later item');
+const haxArgs=out=>['-C','--offline','--locked','-p','nickel-crdt',';','into','--output-dir',out,'-i','-** +nickel_crdt::register::**::new +nickel_crdt::register::**::write +nickel_crdt::register::**::receive +nickel_crdt::register::**::read +nickel_crdt::register::winner +nickel_crdt::register::later +nickel_crdt::register::bytes_equal +nickel_crdt::register::next_lamport +nickel_crdt::register::less_id +nickel_crdt::event_shell::receive +nickel_crdt::causal::classify +nickel_crdt::event_layer::**','fstar'];
 const inventory=['Nickel_crdt.Causal.fst','Nickel_crdt.Event_layer.fst','Nickel_crdt.Event_shell.fst','Nickel_crdt.Register.fst'];
 const proofFiles=['Nickel.Prelude.fst','Nickel.LoopUtil.fst','Nickel.EventShell.fst','Nickel.Vector.fst','Nickel.EventGraph.fst'];
 async function support(dir){
@@ -109,7 +122,7 @@ for(const [name,header,anchor,replacement,owner] of [['positive',null,null,null,
  for(const f of ['Cargo.toml','Cargo.lock'])await fs.copyFile(path.join(root,f),path.join(crate,f));
  await fs.cp(path.join(root,'proof-smoke'),path.join(crate,'proof-smoke'),{recursive:true,force:true});
  const sourceFile=graphModes.has(name)?'src/event_layer.rs':'src/register.rs',original=graphModes.has(name)?graphSource:source;
- let changed=original;if(header){const at=scopedAnchor(original,header,anchor,name);changed=original.slice(0,at)+replacement+original.slice(at+anchor.length);await fs.writeFile(path.join(crate,sourceFile),changed);}
+ let changed=original;if(header){const at=header==='const OPS:'?registerPolicyAnchor(original,anchor):scopedAnchor(original,header,anchor,name);changed=original.slice(0,at)+replacement+original.slice(at+anchor.length);await fs.writeFile(path.join(crate,sourceFile),changed);}
  await fs.rm(extract,{recursive:true,force:true});await fs.mkdir(extract,{recursive:true});
  const r=await runAsync(name+' extraction',env.NICKEL_HAX_BIN,haxArgs(extract),crate,{env:{...env,CARGO_TARGET_DIR:path.join(mode,'target')}});
  await fs.writeFile(path.join(mode,'extraction.log'),r.log);assert.equal(r.status,0,name+': extraction failed');
@@ -171,6 +184,10 @@ assert(canonicalChoiceLoop&&canonicalWholeLoop,'actual generic loop interfaces')
 // Branch-local queries make the formerly uncredited append probe a registered
 // control. The earlier nonterminal attempt remains retained.
 const depModes=[
+ ['without-minimum-order-contract',withholdPayloadContract('step_preserves_order','Nickel_crdt.Event_layer.choose_unseen',3,['Nickel.Canonical.choose_is_least'],['  choose_is_least input (Alloc.Vec.impl_1__as_slice out) ops;'],canonicalView),'Canonical.step_preserves_order'],
+ ['without-canonical-order-contract',withholdPayloadContract('execute_orders_fact_history','Nickel_crdt.Event_layer.canonical',2,['Nickel.Canonical.canonical_outputs_strict_id_order'],['  Nickel.Canonical.canonical_outputs_strict_id_order (Alloc.Vec.impl_1__as_slice before.f_facts) Native.v_OPS._1;']),'execute_orders_fact_history'],
+ ['without-write-order-plan',withholdPayloadContract('write_counted_orders_fact_history','Nickel_crdt.Register.planned',1,['Nickel.Register.planned_orders_fact_history'],['  FStar.Classical.forall_intro (planned_orders_fact_history before);']),'write_counted_orders_fact_history'],
+ ['without-receive-order-plan',withholdPayloadContract('receive_added_orders_fact_history','Nickel_crdt.Register.planned',3,['Nickel.Register.planned_orders_fact_history'],['  planned_orders_fact_history before offered;']),'receive_added_orders_fact_history'],
  ['without-generic-append-contract',withholdPayloadContract('step_preserves_content','Nickel_crdt.Event_layer.push',4,['Nickel.Canonical.append_preserves_content'],['append_preserves_content input out (Rust_primitives.Slice.slice_index input k) ops;'],canonicalView),'Canonical.step_preserves_content'],
  ['without-canonical-selection-contract',withholdPayloadContract('canonical_preserves_exact_contents','Nickel_crdt.Event_layer.canonical',2,['Nickel.Canonical.canonical_selects_whole_facts'],['  canonical_selects_whole_facts input ops;'],canonicalView),'Canonical.canonical_preserves_exact_contents'],
  ['without-canonical-coverage-contract',withholdPayloadContract('canonical_preserves_exact_contents','Nickel_crdt.Event_layer.canonical',2,['Nickel.Canonical.whole_selection_covers'],['whole_selection_covers input out ops;'],canonicalView),'Canonical.canonical_preserves_exact_contents'],
