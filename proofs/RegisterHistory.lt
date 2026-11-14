@@ -389,3 +389,74 @@ proof receive_added_basis_is_exact_ancestry(before: Native.t_Replica, offered: N
     Tactics.smt_sync'(1, 1)
   }
 }
+
+// ---------------------------------------------------------------- position-free history meaning
+// Receive publishes the history in canonical (id) order, so validity must not depend on
+// storage positions. These notions use only which whole facts are stored.
+
+function stored(xs: Seq.seq(Nickel.Register.fact), f: Nickel.Register.fact): Type0 {
+  exists(i: nat) . i < Seq.length(xs) and Seq.index(xs, i) == f
+}
+proof present_append_one(xs: Seq.seq(Nickel.Register.fact), x: Nickel.Register.fact, f: Nickel.Register.fact): unit
+  gives stored(Seq.append(xs, Seq.create(1, x)), f) <==> (stored(xs, f) or x == f)
+{
+  const ys = Seq.append(xs, Seq.create(1, x));
+  proof fwd(i: nat): unit
+    takes i < Seq.length(ys) and Seq.index(ys, i) == f
+    gives stored(xs, f) or x == f
+  { if i < Seq.length(xs) { assert(Seq.index(xs, i) == f) } else { () } };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(fwd));
+  proof back(i: nat): unit
+    takes i < Seq.length(xs) and Seq.index(xs, i) == f
+    gives stored(ys, f)
+  { assert(Seq.index(ys, i) == f) };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(back));
+  assert(Seq.index(ys, Seq.length(xs)) == x)
+}
+
+// the stored facts selected by id, at positions below n
+function selected_below(ops: Nickel.RegisterPast.rops, facts: t_Slice(Nickel.Register.fact), sel: t_Slice(Envelope.t_Id), n: nat, f: Nickel.Register.fact): Type0 {
+  exists(i: nat) . i < n and i < Seq.length(facts) and Seq.index(facts, i) == f and Nickel.RegisterPast.member(sel, ops._1._1(Seq.index(facts, i)))
+}
+
+proof below_step(ops: Nickel.RegisterPast.rops, facts: t_Slice(Nickel.Register.fact), sel: t_Slice(Envelope.t_Id),
+  n: nat where 0 < n and n <= Seq.length(facts), f: Nickel.Register.fact): unit
+  gives selected_below(ops, facts, sel, n, f) <==>
+    (selected_below(ops, facts, sel, n - 1, f) or
+     (Seq.index(facts, n - 1) == f and Nickel.RegisterPast.member(sel, ops._1._1(Seq.index(facts, n - 1)))))
+{ () }
+
+// An exact storage-order filter contains exactly the selected stored facts (as a set).
+proof! filter_has_selected_facts(ops: Nickel.RegisterPast.rops, facts: t_Slice(Nickel.Register.fact), sel: t_Slice(Envelope.t_Id),
+  n: nat where n <= Seq.length(facts), out: Seq.seq(Nickel.Register.fact)): unit
+  decreases n
+  takes Nickel.RegisterPast.selected_prefix(ops, facts, sel, n, out)
+  gives forall(f: Nickel.Register.fact) . stored(out, f) <==> selected_below(ops, facts, sel, n, f)
+{
+  if n ==? 0 { () } else {
+    const x = Seq.index(facts, n - 1);
+    proof grow(before: Seq.seq(Nickel.Register.fact)): unit
+      takes Nickel.RegisterPast.selected_prefix(ops, facts, sel, n - 1, before)
+      takes out == Seq.append(before, Seq.create(1, x))
+      takes Nickel.RegisterPast.member(sel, ops._1._1(x))
+      gives forall(f: Nickel.Register.fact) . stored(out, f) <==> selected_below(ops, facts, sel, n, f)
+    {
+      filter_has_selected_facts(ops, facts, sel, n - 1, before);
+      FStar.Classical.forall_intro(present_append_one(before, x));
+      FStar.Classical.forall_intro(below_step(ops, facts, sel, n))
+    };
+    proof kept(): unit
+      takes Nickel.RegisterPast.member(sel, ops._1._1(x))
+      gives forall(f: Nickel.Register.fact) . stored(out, f) <==> selected_below(ops, facts, sel, n, f)
+    { FStar.Classical.forall_intro(FStar.Classical.move_requires(grow)) };
+    proof skipped(): unit
+      takes not Nickel.RegisterPast.member(sel, ops._1._1(x))
+      gives forall(f: Nickel.Register.fact) . stored(out, f) <==> selected_below(ops, facts, sel, n, f)
+    {
+      filter_has_selected_facts(ops, facts, sel, n - 1, out);
+      FStar.Classical.forall_intro(below_step(ops, facts, sel, n))
+    };
+    FStar.Classical.move_requires(kept, ());
+    FStar.Classical.move_requires(skipped, ())
+  }
+}
