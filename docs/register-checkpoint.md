@@ -198,9 +198,8 @@ the retained length by one. These are conditional success laws on every typed
 replica, not only reachable replicas. Earlier publication, frame and installation
 laws still cover their separate all-return obligations.
 
-The candidate states content retention through successful canonicalization. Independent
-ancestry/valid-history preservation, canonical ordering and history agreement,
-full client refinement and fitting admission/progress remain open. An operation
+The content law alone does not supply ordering, independent ancestry/valid-history
+preservation, history agreement, full client refinement or fitting admission/progress. An operation
 that always refuses is not excluded by these success-only laws. No SEC or
 checkpoint acceptance follows from this cut alone. Rust APIs and implementation
 bytes are unchanged; the native extraction roots include the complete shared
@@ -230,3 +229,40 @@ fix is merged but is not activated in Nickel. Both the unchanged pinned producer
 and the corrected experimental producer check the complete register closure.
 The remaining text audit and checkpoint obligations stay open; exact-head CI
 and scoped repair review are required before accepting this cut.
+
+### strict storage order through actual publication
+
+The generic `Canonical.choose_is_least` law follows the actual shared minimum
+scan. `canonical_outputs_strict_id_order` establishes strict ID order for every
+successful canonical result, under explicit irreflexive/transitive/total comparator
+and exact value-policy premises. The input need not be a reachable history.
+The choice and canonical loops use their checked Result-loop contracts; native
+membership, step and fold bodies are withheld at the relevant consuming queries.
+A scoped boolean-shape lemma supplies the membership result shape under opacity.
+
+The register discharges the actual constructed comparator as writer-first, then
+counter. This storage order is separate from the Lamport/writer read priority.
+`execute_orders_fact_history`, `planned_orders_fact_history`,
+`receive_added_orders_fact_history` and `write_counted_orders_fact_history`
+carry the property through actual computation and publication. These are
+success-only laws on every typed replica; existing publication/neutrality laws
+retain their all-return domains. No new native implementation or API is involved.
+
+The focused gate reverses the actual choice comparison arguments and swaps the
+register's actual comparator slot for equality. Fresh extracted native modules
+must typecheck before the unchanged semantic owners reject ordinarily. The
+policy-slot fault is bound to the complete unique code-masked const declaration;
+missing, commented or duplicate policy items refuse preparation. Extraction
+explicitly retains `less_id`, already present in the healthy four-module output,
+so a wrong policy cannot turn the test into a missing-declaration error.
+
+Separate removal controls check minimum-to-step, canonical-to-execute and both
+plan-to-publication callers with the relevant bodies and automatic contracts
+withheld. The new Register visibility entries are exactly its `identity` and
+`less_id` definitions. New match-consuming queries are branch-local; no compiler
+sequencing repair is activated.
+
+Strict sorted output plus the earlier content law is still not a proved generic
+canonical agreement/success theorem. Independent exact ancestry, valid-history
+preservation, full client refinement and fitting admission/progress remain
+checkpoint obligations. No SEC or accepted checkpoint follows from this cut.
