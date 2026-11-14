@@ -609,3 +609,69 @@ let priority_maximum_is_causal_maximum (facts: t_Slice fact) (key: u64) (i: nat)
 let read_history_is_causal_read (facts: t_Slice fact) (initial: t_Slice u8) (key: u64) : Lemma (requires clocks_increase facts) (ensures causal_read facts key initial (Alloc.Vec.impl_1__as_slice (Native.read_history facts initial key))) =
   read_history_selects_maximum facts initial key;
   FStar.Classical.forall_intro (FStar.Classical.move_requires (priority_maximum_is_causal_maximum facts key))
+
+let ids_unique (facts: t_Slice fact) : Type0 =
+  forall(i: nat) (j: nat). Prims.l_and (Prims.l_and (i < Seq.length facts) (j < Seq.length facts)) ((Seq.index facts i).f_id == (Seq.index facts j).f_id) ==> i == j
+
+let counters_positive (facts: t_Slice fact) : Type0 =
+  forall(i: nat). i < Seq.length facts ==> v (Seq.index facts i).f_id.f_counter >= 1
+
+let predecessor_of (facts: t_Slice fact) (later: nat) (earlier: nat) : Type0 =
+  Prims.l_and (Prims.l_and (Prims.l_and (later < Seq.length facts) (earlier < Seq.length facts)) ((Seq.index facts earlier).f_id.f_peer == (Seq.index facts later).f_id.f_peer)) (v (Seq.index facts earlier).f_id.f_counter + 1 == v (Seq.index facts later).f_id.f_counter)
+
+let streams_chained (facts: t_Slice fact) : Type0 =
+  forall(i: nat). Prims.l_and (i < Seq.length facts) (v (Seq.index facts i).f_id.f_counter > 1) ==> (exists(j: nat) (steps: Prims.list nat). Prims.l_and (predecessor_of facts i j) (strict_ancestor_path facts i steps j))
+
+let stream_steps (facts: t_Slice fact) : Type0 =
+  forall(i: nat). Prims.l_and (i < Seq.length facts) (v (Seq.index facts i).f_id.f_counter > 1) ==> (exists(j: nat). Prims.l_and (predecessor_of facts i j) (clock_below facts j i))
+
+let chained_streams_step_clocks (facts: t_Slice fact) : Lemma (requires Prims.l_and (clocks_increase facts) (streams_chained facts)) (ensures stream_steps facts) =
+  let each (i: nat) (j: nat) (steps: Prims.list nat) : Lemma (requires strict_ancestor_path facts i steps j) (ensures clock_below facts j i) = ancestor_clock_is_smaller facts i steps j in
+  FStar.Classical.forall_intro_3 (FStar.Classical.move_requires_3 each)
+
+let same_stream_order (facts: t_Slice fact) (low: nat) (high: nat) : Type0 =
+  Prims.l_and (Prims.l_and (Prims.l_and (low < Seq.length facts) (high < Seq.length facts)) ((Seq.index facts low).f_id.f_peer == (Seq.index facts high).f_id.f_peer)) (v (Seq.index facts low).f_id.f_counter < v (Seq.index facts high).f_id.f_counter)
+
+let same_fields_same_id (facts: t_Slice fact) (a: nat) (b: nat) : Lemma (requires (Prims.l_and (a < Seq.length facts) (b < Seq.length facts) /\ (Seq.index facts a).f_id.f_peer == (Seq.index facts b).f_id.f_peer /\ (Seq.index facts a).f_id.f_counter == (Seq.index facts b).f_id.f_counter)) (ensures (Seq.index facts a).f_id == (Seq.index facts b).f_id) =
+  ()
+
+let later_stream_fact_has_step (facts: t_Slice fact) (low: nat) (high: nat) : Lemma (requires (Prims.l_and (stream_steps facts) (counters_positive facts) /\ same_stream_order facts low high)) (ensures exists(j: nat). Prims.l_and (predecessor_of facts high j) (clock_below facts j high)) =
+  ()
+
+let stream_step_composes (facts: t_Slice fact) (low: nat) (j: nat) (high: nat) : Lemma (requires (same_stream_order facts low high /\ Prims.l_and (predecessor_of facts high j) (clock_below facts j high) /\ Prims.l_or (clock_below facts low j) (j == low))) (ensures clock_below facts low high) =
+  ()
+
+let rec stream_clock_increases (facts: t_Slice fact) (gap: nat) (low: nat) (high: nat) : Lemma (requires (Prims.l_and (Prims.l_and (stream_steps facts) (ids_unique facts)) (counters_positive facts) /\ same_stream_order facts low high /\ gap == v (Seq.index facts high).f_id.f_counter - v (Seq.index facts low).f_id.f_counter)) (ensures clock_below facts low high) (decreases gap) =
+  let via (j: nat) : Lemma (requires Prims.l_and (predecessor_of facts high j) (clock_below facts j high)) (ensures clock_below facts low high) =
+    if v (Seq.index facts j).f_id.f_counter > v (Seq.index facts low).f_id.f_counter then
+      begin stream_clock_increases facts (gap - 1) low j end
+    else
+      begin same_fields_same_id facts j low end;
+    stream_step_composes facts low j high in
+  later_stream_fact_has_step facts low high;
+  FStar.Classical.forall_intro (FStar.Classical.move_requires via)
+
+let same_priority (a: fact) (b: fact) : Type0 =
+  Prims.l_and (a.f_payload.f_lamport == b.f_payload.f_lamport) (a.f_id.f_peer == b.f_id.f_peer)
+
+let priority_identifies_fact (facts: t_Slice fact) (a: nat) (b: nat) : Lemma (requires (Prims.l_and (Prims.l_and (stream_steps facts) (ids_unique facts)) (counters_positive facts) /\ Prims.l_and (a < Seq.length facts) (b < Seq.length facts) /\ same_priority (Seq.index facts a) (Seq.index facts b))) (ensures a == b) =
+  let ca = v (Seq.index facts a).f_id.f_counter in
+  let cb = v (Seq.index facts b).f_id.f_counter in
+  if ca < cb then
+    begin stream_clock_increases facts (cb - ca) a b end
+  else
+    begin if cb < ca then
+      begin stream_clock_increases facts (ca - cb) b a end
+    else
+      begin same_fields_same_id facts a b end end
+
+let bytes_same_through (x: t_Slice u8) (y: t_Slice u8) (z: t_Slice u8) : Lemma (requires Prims.l_and (bytes_same x z) (bytes_same y z)) (ensures bytes_same x y) =
+  ()
+
+let maximal_pair_is_one_fact (facts: t_Slice fact) (key: u64) (i: nat) (k: nat) : Lemma (requires (Prims.l_and (Prims.l_and (stream_steps facts) (ids_unique facts)) (counters_positive facts) /\ Prims.l_and (causal_maximal facts key i) (causal_maximal facts key k) /\ Prims.l_and (Prims.l_not (higher (Seq.index facts i) (Seq.index facts k))) (Prims.l_not (higher (Seq.index facts k) (Seq.index facts i))))) (ensures i == k) =
+  priority_identifies_fact facts i k
+
+let causal_read_is_single_valued (facts: t_Slice fact) (key: u64) (initial: t_Slice u8) (x: t_Slice u8) (y: t_Slice u8) : Lemma (requires (Prims.l_and (Prims.l_and (Prims.l_and (clocks_increase facts) (streams_chained facts)) (ids_unique facts)) (counters_positive facts) /\ causal_read facts key initial x /\ causal_read facts key initial y)) (ensures bytes_same x y) =
+  chained_streams_step_clocks facts;
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 (maximal_pair_is_one_fact facts key));
+  FStar.Classical.forall_intro_3 (FStar.Classical.move_requires_3 bytes_same_through)

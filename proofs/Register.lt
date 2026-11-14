@@ -1014,3 +1014,113 @@ proof read_history_is_causal_read(facts: t_Slice(fact), initial: t_Slice(u8), ke
   read_history_selects_maximum(facts, initial, key);
   FStar.Classical.forall_intro(FStar.Classical.move_requires(priority_maximum_is_causal_maximum(facts, key)))
 }
+
+// Single-valued read. A writer's stream is causally chained and stored ids are
+// unique, so two distinct stored facts never tie on (Lamport, writer).
+function ids_unique(facts: t_Slice(fact)): Type0 {
+  forall(i: nat, j: nat) . (i < Seq.length(facts) and j < Seq.length(facts) and
+    Seq.index(facts, i).f_id == Seq.index(facts, j).f_id) ==> i == j
+}
+function counters_positive(facts: t_Slice(fact)): Type0 {
+  forall(i: nat) . i < Seq.length(facts) ==> v(Seq.index(facts, i).f_id.f_counter) >= 1
+}
+function predecessor_of(facts: t_Slice(fact), later: nat, earlier: nat): Type0 {
+  later < Seq.length(facts) and earlier < Seq.length(facts) and
+  Seq.index(facts, earlier).f_id.f_peer == Seq.index(facts, later).f_id.f_peer and
+  v(Seq.index(facts, earlier).f_id.f_counter) + 1 == v(Seq.index(facts, later).f_id.f_counter)
+}
+// Validity premise: a stored non-first write has its predecessor as an ancestor.
+function streams_chained(facts: t_Slice(fact)): Type0 {
+  forall(i: nat) . (i < Seq.length(facts) and v(Seq.index(facts, i).f_id.f_counter) > 1) ==>
+    (exists(j: nat, steps: Prims.list(nat)) . predecessor_of(facts, i, j) and strict_ancestor_path(facts, i, steps, j))
+}
+// Path-free consequence used by the stream induction.
+function stream_steps(facts: t_Slice(fact)): Type0 {
+  forall(i: nat) . (i < Seq.length(facts) and v(Seq.index(facts, i).f_id.f_counter) > 1) ==>
+    (exists(j: nat) . predecessor_of(facts, i, j) and clock_below(facts, j, i))
+}
+proof chained_streams_step_clocks(facts: t_Slice(fact)): unit
+  takes clocks_increase(facts) and streams_chained(facts)
+  gives stream_steps(facts)
+{
+  proof each(i: nat, j: nat, steps: Prims.list(nat)): unit
+    takes strict_ancestor_path(facts, i, steps, j)
+    gives clock_below(facts, j, i)
+  { ancestor_clock_is_smaller(facts, i, steps, j) };
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(each))
+}
+function same_stream_order(facts: t_Slice(fact), low: nat, high: nat): Type0 {
+  low < Seq.length(facts) and high < Seq.length(facts) and
+  Seq.index(facts, low).f_id.f_peer == Seq.index(facts, high).f_id.f_peer and
+  v(Seq.index(facts, low).f_id.f_counter) < v(Seq.index(facts, high).f_id.f_counter)
+}
+proof same_fields_same_id(facts: t_Slice(fact), a: nat, b: nat): unit
+  takes a < Seq.length(facts) and b < Seq.length(facts)
+  takes Seq.index(facts, a).f_id.f_peer == Seq.index(facts, b).f_id.f_peer
+  takes Seq.index(facts, a).f_id.f_counter == Seq.index(facts, b).f_id.f_counter
+  gives Seq.index(facts, a).f_id == Seq.index(facts, b).f_id
+{ () }
+proof later_stream_fact_has_step(facts: t_Slice(fact), low: nat, high: nat): unit
+  takes stream_steps(facts) and counters_positive(facts)
+  takes same_stream_order(facts, low, high)
+  gives exists(j: nat) . predecessor_of(facts, high, j) and clock_below(facts, j, high)
+{ () }
+proof stream_step_composes(facts: t_Slice(fact), low: nat, j: nat, high: nat): unit
+  takes same_stream_order(facts, low, high)
+  takes predecessor_of(facts, high, j) and clock_below(facts, j, high)
+  takes clock_below(facts, low, j) or j == low
+  gives clock_below(facts, low, high)
+{ () }
+proof! stream_clock_increases(facts: t_Slice(fact), gap: nat, low: nat, high: nat): unit
+  decreases gap
+  takes stream_steps(facts) and ids_unique(facts) and counters_positive(facts)
+  takes same_stream_order(facts, low, high)
+  takes gap == v(Seq.index(facts, high).f_id.f_counter) - v(Seq.index(facts, low).f_id.f_counter)
+  gives clock_below(facts, low, high)
+{
+  proof via(j: nat): unit
+    takes predecessor_of(facts, high, j) and clock_below(facts, j, high)
+    gives clock_below(facts, low, high)
+  {
+    if v(Seq.index(facts, j).f_id.f_counter) > v(Seq.index(facts, low).f_id.f_counter) {
+      stream_clock_increases(facts, gap - 1, low, j)
+    } else { same_fields_same_id(facts, j, low) };
+    stream_step_composes(facts, low, j, high)
+  };
+  later_stream_fact_has_step(facts, low, high);
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(via))
+}
+function same_priority(a: fact, b: fact): Type0 {
+  a.f_payload.f_lamport == b.f_payload.f_lamport and a.f_id.f_peer == b.f_id.f_peer
+}
+proof priority_identifies_fact(facts: t_Slice(fact), a: nat, b: nat): unit
+  takes stream_steps(facts) and ids_unique(facts) and counters_positive(facts)
+  takes a < Seq.length(facts) and b < Seq.length(facts)
+  takes same_priority(Seq.index(facts, a), Seq.index(facts, b))
+  gives a == b
+{
+  const ca = v(Seq.index(facts, a).f_id.f_counter);
+  const cb = v(Seq.index(facts, b).f_id.f_counter);
+  if ca < cb { stream_clock_increases(facts, cb - ca, a, b) }
+  else { if cb < ca { stream_clock_increases(facts, ca - cb, b, a) } else { same_fields_same_id(facts, a, b) } }
+}
+proof bytes_same_through(x: t_Slice(u8), y: t_Slice(u8), z: t_Slice(u8)): unit
+  takes bytes_same(x, z) and bytes_same(y, z)
+  gives bytes_same(x, y)
+{ () }
+proof maximal_pair_is_one_fact(facts: t_Slice(fact), key: u64, i: nat, k: nat): unit
+  takes stream_steps(facts) and ids_unique(facts) and counters_positive(facts)
+  takes causal_maximal(facts, key, i) and causal_maximal(facts, key, k)
+  takes not higher(Seq.index(facts, i), Seq.index(facts, k)) and not higher(Seq.index(facts, k), Seq.index(facts, i))
+  gives i == k
+{ priority_identifies_fact(facts, i, k) }
+proof causal_read_is_single_valued(facts: t_Slice(fact), key: u64, initial: t_Slice(u8), x: t_Slice(u8), y: t_Slice(u8)): unit
+  takes clocks_increase(facts) and streams_chained(facts) and ids_unique(facts) and counters_positive(facts)
+  takes causal_read(facts, key, initial, x)
+  takes causal_read(facts, key, initial, y)
+  gives bytes_same(x, y)
+{
+  chained_streams_step_clocks(facts);
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(maximal_pair_is_one_fact(facts, key)));
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(bytes_same_through))
+}
