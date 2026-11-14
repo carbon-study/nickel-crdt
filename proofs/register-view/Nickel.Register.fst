@@ -580,3 +580,32 @@ let write_counted_retains_exact_facts (before: Native.t_Replica) (key: u64) (val
     Tactics.prune "Nickel_crdt.Register.planned";
     Tactics.smt_sync' 1 1
   )
+
+let parent_edge (facts: t_Slice fact) (newer: nat) (older: nat) : Type0 =
+  Prims.l_and (Prims.l_and (newer < Seq.length facts) (older < Seq.length facts)) (exists(k: nat). Prims.l_and (k < Seq.length (Alloc.Vec.impl_1__as_slice (Seq.index facts newer).f_after)) (Seq.index (Alloc.Vec.impl_1__as_slice (Seq.index facts newer).f_after) k == (Seq.index facts older).f_id))
+
+let rec strict_ancestor_path (facts: t_Slice fact) (newer: nat) (steps: Prims.list nat) (older: nat) : Tot Type0 (decreases steps) =
+  match steps with | Prims.Nil -> begin parent_edge facts newer older end | Prims.Cons next rest -> begin Prims.l_and (parent_edge facts newer next) (strict_ancestor_path facts next rest older) end
+
+let clock_below (facts: t_Slice fact) (older: nat) (newer: nat) : Type0 =
+  Prims.l_and (Prims.l_and (older < Seq.length facts) (newer < Seq.length facts)) (v (Seq.index facts older).f_payload.f_lamport < v (Seq.index facts newer).f_payload.f_lamport)
+
+let clocks_increase (facts: t_Slice fact) : Type0 =
+  forall(newer: nat) (older: nat). parent_edge facts newer older ==> clock_below facts older newer
+
+let rec ancestor_clock_is_smaller (facts: t_Slice fact) (newer: nat) (steps: Prims.list nat) (older: nat) : Lemma (requires (clocks_increase facts /\ strict_ancestor_path facts newer steps older)) (ensures clock_below facts older newer) (decreases steps) =
+  match steps with | Prims.Nil -> begin () end | Prims.Cons next rest -> begin ancestor_clock_is_smaller facts next rest older end
+
+let causal_maximal (facts: t_Slice fact) (key: u64) (i: nat) : Type0 =
+  Prims.l_and (Prims.l_and (i < Seq.length facts) ((Seq.index facts i).f_payload.f_key == key)) (Prims.l_not (exists(j: nat) (steps: Prims.list nat). Prims.l_and (Prims.l_and (j < Seq.length facts) ((Seq.index facts j).f_payload.f_key == key)) (strict_ancestor_path facts j steps i)))
+
+let causal_read (facts: t_Slice fact) (key: u64) (initial: t_Slice u8) (value: t_Slice u8) : Type0 =
+  Prims.l_or (Prims.l_and (forall(j: nat). j < Seq.length facts ==> (Seq.index facts j).f_payload.f_key =!= key) (bytes_same value initial)) (exists(i: nat). Prims.l_and (Prims.l_and (causal_maximal facts key i) (bytes_same value (Alloc.Vec.impl_1__as_slice (Seq.index facts i).f_payload.f_value))) (forall(j: nat). causal_maximal facts key j ==> Prims.l_not (higher (Seq.index facts j) (Seq.index facts i))))
+
+let priority_maximum_is_causal_maximum (facts: t_Slice fact) (key: u64) (i: nat) : Lemma (requires (clocks_increase facts /\ Prims.l_and (Prims.l_and (i < Seq.length facts) ((Seq.index facts i).f_payload.f_key == key)) (forall(j: nat). Prims.l_and (j < Seq.length facts) ((Seq.index facts j).f_payload.f_key == key) ==> Prims.l_not (higher (Seq.index facts j) (Seq.index facts i))))) (ensures causal_maximal facts key i) =
+  let dominated_is_impossible (j: nat) (steps: Prims.list nat) : Lemma (requires (Prims.l_and (j < Seq.length facts) ((Seq.index facts j).f_payload.f_key == key) /\ strict_ancestor_path facts j steps i)) (ensures Prims.l_False) = ancestor_clock_is_smaller facts j steps i in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 dominated_is_impossible)
+
+let read_history_is_causal_read (facts: t_Slice fact) (initial: t_Slice u8) (key: u64) : Lemma (requires clocks_increase facts) (ensures causal_read facts key initial (Alloc.Vec.impl_1__as_slice (Native.read_history facts initial key))) =
+  read_history_selects_maximum facts initial key;
+  FStar.Classical.forall_intro (FStar.Classical.move_requires (priority_maximum_is_causal_maximum facts key))

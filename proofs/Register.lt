@@ -943,3 +943,74 @@ proof write_counted_retains_exact_facts(before: Native.t_Replica, key: u64, valu
     Tactics.smt_sync'(1, 1)
   }
 }
+
+// Independent read meaning (#97 obligation 1, first slice). A history slice is
+// read through its causal maxima: a write to `key` is visible unless another
+// write to `key` has it as a strict ancestor. Ancestry is the parent relation
+// on positions of this slice, stated without any native graph function.
+function parent_edge(facts: t_Slice(fact), newer: nat, older: nat): Type0 {
+  newer < Seq.length(facts) and older < Seq.length(facts) and
+  (exists(k: nat) . k < Seq.length(Alloc.Vec.impl_1__as_slice(Seq.index(facts, newer).f_after)) and
+    Seq.index(Alloc.Vec.impl_1__as_slice(Seq.index(facts, newer).f_after), k) == Seq.index(facts, older).f_id)
+}
+function! strict_ancestor_path(facts: t_Slice(fact), newer: nat, steps: Prims.list(nat), older: nat): Type0
+  decreases steps
+{
+  match steps {
+    Prims.Nil => parent_edge(facts, newer, older),
+    Prims.Cons(next, rest) => parent_edge(facts, newer, next) and strict_ancestor_path(facts, next, rest, older)
+  }
+}
+// The clock half of history validity: every parent has a smaller Lamport clock.
+function clock_below(facts: t_Slice(fact), older: nat, newer: nat): Type0 {
+  older < Seq.length(facts) and newer < Seq.length(facts) and
+  v(Seq.index(facts, older).f_payload.f_lamport) < v(Seq.index(facts, newer).f_payload.f_lamport)
+}
+function clocks_increase(facts: t_Slice(fact)): Type0 {
+  forall(newer: nat, older: nat) . parent_edge(facts, newer, older) ==> clock_below(facts, older, newer)
+}
+proof! ancestor_clock_is_smaller(facts: t_Slice(fact), newer: nat, steps: Prims.list(nat), older: nat): unit
+  decreases steps
+  takes clocks_increase(facts)
+  takes strict_ancestor_path(facts, newer, steps, older)
+  gives clock_below(facts, older, newer)
+{
+  match steps {
+    Prims.Nil => (),
+    Prims.Cons(next, rest) => ancestor_clock_is_smaller(facts, next, rest, older)
+  }
+}
+function causal_maximal(facts: t_Slice(fact), key: u64, i: nat): Type0 {
+  i < Seq.length(facts) and Seq.index(facts, i).f_payload.f_key == key and
+  not (exists(j: nat, steps: Prims.list(nat)) . j < Seq.length(facts) and
+    Seq.index(facts, j).f_payload.f_key == key and strict_ancestor_path(facts, j, steps, i))
+}
+// Initial value when `key` was never written; otherwise the value of a causal
+// maximum that no other causal maximum outranks by (Lamport, writer).
+function causal_read(facts: t_Slice(fact), key: u64, initial: t_Slice(u8), value: t_Slice(u8)): Type0 {
+  ((forall(j: nat) . j < Seq.length(facts) ==> Seq.index(facts, j).f_payload.f_key =!= key) and bytes_same(value, initial)) or
+  (exists(i: nat) . causal_maximal(facts, key, i) and
+    bytes_same(value, Alloc.Vec.impl_1__as_slice(Seq.index(facts, i).f_payload.f_value)) and
+    (forall(j: nat) . causal_maximal(facts, key, j) ==> not higher(Seq.index(facts, j), Seq.index(facts, i))))
+}
+proof priority_maximum_is_causal_maximum(facts: t_Slice(fact), key: u64, i: nat): unit
+  takes clocks_increase(facts)
+  takes i < Seq.length(facts) and Seq.index(facts, i).f_payload.f_key == key and
+    (forall(j: nat) . (j < Seq.length(facts) and Seq.index(facts, j).f_payload.f_key == key) ==>
+      not higher(Seq.index(facts, j), Seq.index(facts, i)))
+  gives causal_maximal(facts, key, i)
+{
+  proof dominated_is_impossible(j: nat, steps: Prims.list(nat)): unit
+    takes j < Seq.length(facts) and Seq.index(facts, j).f_payload.f_key == key
+    takes strict_ancestor_path(facts, j, steps, i)
+    gives Prims.l_False
+  { ancestor_clock_is_smaller(facts, j, steps, i) };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(dominated_is_impossible))
+}
+proof read_history_is_causal_read(facts: t_Slice(fact), initial: t_Slice(u8), key: u64): unit
+  takes clocks_increase(facts)
+  gives causal_read(facts, key, initial, Alloc.Vec.impl_1__as_slice(Native.read_history(facts, initial, key)))
+{
+  read_history_selects_maximum(facts, initial, key);
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(priority_maximum_is_causal_maximum(facts, key)))
+}
