@@ -289,7 +289,37 @@ theorems and their callers are unchanged. Only the last name is new to the
 Register fence. The plan-order removal keeps its original semantic owner,
 actual call and query boundary.
 
-Strict sorted output plus the earlier content law is still not a proved generic
-canonical agreement/success theorem. Independent exact ancestry, valid-history
-preservation, full client refinement and fitting admission/progress remain
-checkpoint obligations. No SEC or accepted checkpoint follows from this cut.
+Canonical success, independent exact ancestry, valid-history preservation, full
+client refinement and fitting admission/progress remain checkpoint obligations.
+No SEC or accepted checkpoint follows from this cut.
+
+### successful canonical agreement on equal whole-fact contents
+
+`Canonical.canonical_is_permutation_independent` composes the checked content
+and strict-order contracts: with the same explicit strict comparator and exact
+value policy, two inputs of equal length containing exactly the same whole facts
+produce identical whole-fact vectors **if both actual canonicalizations succeed**.
+Neither input is restricted to reachable histories. The law says nothing about
+which calls succeed or about equality of errors.
+
+The finite argument is positional, with no numeric rank or finite identity
+universe assumption. Two ordered vectors with the same facts agree one position
+at a time: a first mismatch would place the two facts before each other, contrary
+to the strict comparator. Equal prefixes and irreflexivity also rule out finding
+either fact at an earlier position. Sequence extensionality gives vector equality.
+The actual canonicalizer is withheld at the consuming agreement queries; its
+checked exact-content and strict-order contracts supply the two results.
+
+`Register.execute_agrees_on_same_fact_contents` discharges the real register
+policy and carries this to the actual `execute` calls: equal whole-fact input
+contents and lengths, plus two successful executions, imply identical retained
+fact vectors. Private writer/counter/configuration fields need not agree and are
+not asserted equal. This is not equality of reads across different initial values,
+a receive/admission result, history validity or replica convergence.
+
+Four owning removal controls separately withhold the generic ordered-output,
+exact-content and vector-equality steps, then the generic agreement contract at
+the register caller. The existing fresh-extraction minimum-scan fault remains
+the native implementation-sensitivity control for the underlying ordering chain;
+it is not relabelled as a direct fault of the new agreement theorem. No Rust,
+model, compiler, runtime, budget or source-fence changes are involved.

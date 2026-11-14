@@ -379,3 +379,78 @@ let canonical_outputs_strict_id_order (#f: Type0) (#i: Type0) (#e: Type0) (input
 
 let strict_order_at (#f: Type0) (#i: Type0) (#e: Type0) (out: vector f) (ops: Nickel.EventGraph.graph_ops f i e) (p: usize) (q: usize) : Lemma (requires (strictly_ordered out ops /\ v p < Seq.length (Alloc.Vec.impl_1__as_slice out) /\ v q < Seq.length (Alloc.Vec.impl_1__as_slice out) /\ v p < v q)) (ensures ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) p)) (ops._1._1 (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) q)) == true) =
   ()
+
+let equal_prefix (#f: Type0) (left: vector f) (right: vector f) (at: nat) : Type0 =
+  forall(j: nat{Prims.l_and (j < Seq.length (Alloc.Vec.impl_1__as_slice left)) (j < Seq.length (Alloc.Vec.impl_1__as_slice right))}). j < at ==> Seq.index (Alloc.Vec.impl_1__as_slice left) j == Seq.index (Alloc.Vec.impl_1__as_slice right) j
+
+let ordered_vectors_next (#f: Type0) (#i: Type0) (#e: Type0) (left: vector f) (right: vector f) (ops: Nickel.EventGraph.graph_ops f i e) (at: nat{Prims.l_and (at < Seq.length (Alloc.Vec.impl_1__as_slice left)) (at < Seq.length (Alloc.Vec.impl_1__as_slice right))}) : Lemma (requires (strict_order ops._1._4 /\ exact_values ops /\ Prims.l_and (strictly_ordered left ops) (strictly_ordered right ops) /\ exact_contents (Alloc.Vec.impl_1__as_slice left) right /\ equal_prefix left right at)) (ensures Seq.index (Alloc.Vec.impl_1__as_slice left) at == Seq.index (Alloc.Vec.impl_1__as_slice right) at) =
+  let a = Seq.index (Alloc.Vec.impl_1__as_slice left) at in
+  let b = Seq.index (Alloc.Vec.impl_1__as_slice right) at in
+  assert (present (Alloc.Vec.impl_1__as_slice left) a);
+  assert (present (Alloc.Vec.impl_1__as_slice right) b);
+  let j = position (Alloc.Vec.impl_1__as_slice right) a ops in
+  let k = position (Alloc.Vec.impl_1__as_slice left) b ops in
+  if j < at then
+    begin strict_order_at left ops (mk_usize j) (mk_usize at);
+    Nickel.Vector.slice_index (Alloc.Vec.impl_1__as_slice left) (mk_usize j);
+    Nickel.Vector.slice_index (Alloc.Vec.impl_1__as_slice left) (mk_usize at);
+    assert Prims.l_False end
+  else
+    begin () end;
+  if k < at then
+    begin strict_order_at right ops (mk_usize k) (mk_usize at);
+    Nickel.Vector.slice_index (Alloc.Vec.impl_1__as_slice right) (mk_usize k);
+    Nickel.Vector.slice_index (Alloc.Vec.impl_1__as_slice right) (mk_usize at);
+    assert Prims.l_False end
+  else
+    begin () end;
+  if at < j then
+    begin strict_order_at right ops (mk_usize at) (mk_usize j);
+    Nickel.Vector.slice_index (Alloc.Vec.impl_1__as_slice right) (mk_usize at);
+    Nickel.Vector.slice_index (Alloc.Vec.impl_1__as_slice right) (mk_usize j);
+    if at < k then
+      begin strict_order_at left ops (mk_usize at) (mk_usize k);
+      Nickel.Vector.slice_index (Alloc.Vec.impl_1__as_slice left) (mk_usize at);
+      Nickel.Vector.slice_index (Alloc.Vec.impl_1__as_slice left) (mk_usize k);
+      assert Prims.l_False end
+    else
+      begin assert (k == at) end end
+  else
+    begin assert (j == at) end
+
+let rec ordered_vectors_prefix (#f: Type0) (#i: Type0) (#e: Type0) (left: vector f) (right: vector f) (ops: Nickel.EventGraph.graph_ops f i e) (at: nat{at <= Seq.length (Alloc.Vec.impl_1__as_slice left)}) : Lemma (requires (strict_order ops._1._4 /\ exact_values ops /\ Prims.l_and (strictly_ordered left ops) (strictly_ordered right ops) /\ exact_contents (Alloc.Vec.impl_1__as_slice left) right /\ equal_prefix left right at)) (ensures equal_prefix left right (Seq.length (Alloc.Vec.impl_1__as_slice left))) (decreases Seq.length (Alloc.Vec.impl_1__as_slice left) - at) =
+  if at < Seq.length (Alloc.Vec.impl_1__as_slice left) then
+    begin ordered_vectors_next left right ops at;
+    assert (equal_prefix left right (at + 1));
+    ordered_vectors_prefix left right ops (at + 1) end
+  else
+    begin () end
+
+let ordered_contents_determine_vector (#f: Type0) (#i: Type0) (#e: Type0) (left: vector f) (right: vector f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (requires (strict_order ops._1._4 /\ exact_values ops /\ Prims.l_and (strictly_ordered left ops) (strictly_ordered right ops) /\ exact_contents (Alloc.Vec.impl_1__as_slice left) right)) (ensures left == right) =
+  ordered_vectors_prefix left right ops 0;
+  Seq.lemma_eq_intro (Alloc.Vec.impl_1__as_slice left) (Alloc.Vec.impl_1__as_slice right);
+  Seq.lemma_eq_elim (Alloc.Vec.impl_1__as_slice left) (Alloc.Vec.impl_1__as_slice right)
+
+let same_input_contents_and_length (#f: Type0) (left: t_Slice f) (right: t_Slice f) : Type0 =
+  Prims.l_and (Seq.length left == Seq.length right) (forall(item: f). present left item <==> present right item)
+
+let successful_agreement (#f: Type0) (#e: Type0) (left: Result.t_Result (vector f) e) (right: Result.t_Result (vector f) e) : Type0 =
+  match (left, right) with | (Result.Result_Ok a, Result.Result_Ok b) -> begin a == b end | _ -> begin Prims.l_True end
+
+let canonical_is_permutation_independent (#f: Type0) (#i: Type0) (#e: Type0) (left: t_Slice f) (right: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (requires (strict_order ops._1._4 /\ exact_values ops /\ same_input_contents_and_length left right)) (ensures successful_agreement (Native.canonical left ops) (Native.canonical right ops)) =
+  canonical_preserves_exact_contents left ops;
+  canonical_preserves_exact_contents right ops;
+  canonical_outputs_strict_id_order left ops;
+  canonical_outputs_strict_id_order right ops;
+  match (Native.canonical left ops, Native.canonical right ops) with | (Result.Result_Ok a, Result.Result_Ok b) -> begin assert (Prims.l_and (Prims.l_and (Prims.l_and (exact_contents left a) (exact_contents right b)) (strictly_ordered a ops)) (strictly_ordered b ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.canonical";
+    Tactics.smt_sync' 1 1
+  );
+  ordered_contents_determine_vector a b ops;
+  assert (successful_agreement (Native.canonical left ops) (Native.canonical right ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.canonical";
+    Tactics.smt_sync' 1 1
+  ) end | _ -> begin assert (successful_agreement (Native.canonical left ops) (Native.canonical right ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.canonical";
+    Tactics.smt_sync' 1 1
+  ) end

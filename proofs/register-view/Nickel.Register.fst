@@ -719,3 +719,15 @@ let write_counted_orders_fact_history (before: Native.t_Replica) (key: u64) (val
     Tactics.prune "Nickel.Register.planned_adds_exact_fact";
     Tactics.smt_sync' 1 1
   )
+
+let execute_agrees_on_same_fact_contents (left: Native.t_Replica) (right: Native.t_Replica) : Lemma (requires Nickel.Canonical.same_input_contents_and_length (Alloc.Vec.impl_1__as_slice left.f_facts) (Alloc.Vec.impl_1__as_slice right.f_facts)) (ensures forall(a: Native.t_Replica) (b: Native.t_Replica). Prims.l_and (Native.execute () left == Result.Result_Ok a) (Native.execute () right == Result.Result_Ok b) ==> a.f_facts == b.f_facts) =
+  register_canonical_values_are_exact ();
+  register_order_policy_is_exact ();
+  Nickel.Canonical.canonical_is_permutation_independent (Alloc.Vec.impl_1__as_slice left.f_facts) (Alloc.Vec.impl_1__as_slice right.f_facts) Native.v_OPS._1;
+  assert (forall(a: Native.t_Replica) (b: Native.t_Replica). Prims.l_and (Native.execute () left == Result.Result_Ok a) (Native.execute () right == Result.Result_Ok b) ==> a.f_facts == b.f_facts) by (
+    Tactics.prune "Nickel_crdt.Event_layer.canonical";
+    Tactics.prune "Nickel_crdt.Register.v_OPS";
+    Tactics.prune "Nickel_crdt.Register.less_id";
+    Tactics.prune "Nickel_crdt.Register.identity";
+    Tactics.smt_sync' 1 1
+  )
