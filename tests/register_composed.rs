@@ -128,7 +128,7 @@ fn mutate(f: &Fact, which: usize) -> Fact {
 }
 
 #[derive(Default)]
-struct Tally { writes: usize, noedits: usize, added: usize, duplicate: usize, conflict: usize, invalid: usize, missing: usize }
+struct Tally { mutated: usize, writes: usize, noedits: usize, added: usize, duplicate: usize, conflict: usize, invalid: usize, missing: usize }
 
 fn run(seed: u64, steps: usize, tally: &mut Tally) {
     let writers = [10u64, 20, 30];
@@ -150,10 +150,22 @@ fn run(seed: u64, steps: usize, tally: &mut Tally) {
             model[r] = next;
         } else {
             let base = pool[rng.below(pool.len())].clone();
+            let mut faulted = false;
             let offered = if op < 8 { base } else if op == 8 && model[r].facts.contains_key(&base.id) {
                 let mut g = base; g.payload.value = vec![g.payload.value[0].wrapping_add(1)]; g
-            } else { mutate(&base, rng.below(8)) };
+            } else {
+                // Single fault: mutate only an offer this receiver would admit as Added,
+                // and keep the mutated ID absent, so no other rule also applies.
+                // Missing, Duplicate and Conflict keep their own unmutated cases above.
+                let which = rng.below(8);
+                let admissible = (0..16).map(|_| &pool[rng.below(pool.len())]).find(|f| {
+                    matches!(model[r].expect_receive(f).0, Ok(Admission::Added))
+                        && !model[r].facts.contains_key(&mutate(f, which).id)
+                });
+                match admissible { Some(f) => { tally.mutated += 1; faulted = true; mutate(f, which) } None => base }
+            };
             let (want, next) = model[r].expect_receive(&offered);
+            assert!(!faulted || want.is_err(), "{ctx}: a single-fault offer must be refused");
             let got = native[r].receive(offered);
             assert_eq!(got, want, "{ctx}: admission");
             match got {
@@ -175,7 +187,7 @@ fn composed_schedules_match_independent_oracle() {
     let mut tally = Tally::default();
     for seed in 1..=300 { run(seed, 80, &mut tally); }
     // Every contract outcome must actually occur, or the run proves less than it says.
-    for (name, n) in [("write", tally.writes), ("no-edit", tally.noedits), ("added", tally.added),
+    for (name, n) in [("single-fault offer", tally.mutated), ("write", tally.writes), ("no-edit", tally.noedits), ("added", tally.added),
         ("duplicate", tally.duplicate), ("conflict", tally.conflict), ("invalid", tally.invalid), ("missing", tally.missing)] {
         assert!(n > 0, "outcome never exercised: {name}");
         eprintln!("{name}: {n}");
