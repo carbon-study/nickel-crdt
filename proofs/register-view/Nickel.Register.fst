@@ -731,3 +731,26 @@ let execute_agrees_on_same_fact_contents (left: Native.t_Replica) (right: Native
     Tactics.prune "Nickel_crdt.Register.identity";
     Tactics.smt_sync' 1 1
   )
+
+let fact_ids_unique (facts: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global) : Type0 =
+  Nickel.Canonical.unique (Alloc.Vec.impl_1__as_slice facts) (fun (item: fact) -> item.f_id)
+
+let execute_succeeds_for_unique_ids (before: Native.t_Replica) : Lemma (requires fact_ids_unique before.f_facts) (ensures exists(next: Native.t_Replica). Native.execute () before == Result.Result_Ok next) =
+  register_canonical_values_are_exact ();
+  register_order_policy_is_exact ();
+  assert (Prims.l_and (Nickel.Canonical.exact_values Native.v_OPS._1) (Nickel.Canonical.unique (Alloc.Vec.impl_1__as_slice before.f_facts) Native.v_OPS._1._1._1)) by (
+    Tactics.prune "Nickel_crdt.Register.v_OPS";
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
+    Tactics.prune "Nickel_crdt.Register.identity";
+    Tactics.prune "Nickel_crdt.Register.less_id";
+    Tactics.smt_sync' 1 1
+  );
+  Nickel.Canonical.canonical_succeeds_for_unique_ids (Alloc.Vec.impl_1__as_slice before.f_facts) Native.v_OPS._1;
+  assert (exists(next: Native.t_Replica). Native.execute () before == Result.Result_Ok next) by (
+    Tactics.prune "Nickel_crdt.Event_layer.canonical";
+    Tactics.prune "Nickel_crdt.Register.v_OPS";
+    Tactics.prune "Nickel_crdt.Register.identity";
+    Tactics.prune "Nickel_crdt.Register.less_id";
+    Tactics.smt_sync' 1 1
+  )

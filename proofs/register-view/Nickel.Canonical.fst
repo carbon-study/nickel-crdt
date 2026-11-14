@@ -454,3 +454,111 @@ let canonical_is_permutation_independent (#f: Type0) (#i: Type0) (#e: Type0) (le
     Tactics.prune "Nickel_crdt.Event_layer.canonical";
     Tactics.smt_sync' 1 1
   ) end
+
+let scan_choice (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) (at: nat) (choice: Option.t_Option usize) : Type0 =
+  match choice with | Option.Option_None -> begin forall(j: usize{v j < Seq.length input}). v j < at ==> Native.has_fact out (ops._1._1 (Rust_primitives.Slice.slice_index input j)) ops == true end | Option.Option_Some k -> begin Prims.l_and (v k < at) (v k < Seq.length input) end
+
+let scan_none_seen_at (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) (j: usize{v j < Seq.length input}) : Lemma (requires scan_choice input out ops (Seq.length input) Option.Option_None) (ensures Native.has_fact out (ops._1._1 (Rust_primitives.Slice.slice_index input j)) ops == true) =
+  ()
+
+let choose_finishes_scan (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (ensures Nickel.LoopUtil.result_safe (scan_choice input out ops (Seq.length input)) (fun (_: e) -> Prims.l_False) (Native.choose_unseen input out ops)) =
+  let membership_shape (wanted: i) : Lemma (ensures Prims.l_or (Native.has_fact out wanted ops == true) (Native.has_fact out wanted ops == false)) = () in
+  FStar.Classical.forall_intro membership_shape;
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len input) (fun (at: nat) (choice: Option.t_Option usize) -> scan_choice input out ops at choice) (fun (choice: Option.t_Option usize) -> choice) (scan_choice input out ops (Seq.length input)) (fun (_: e) -> Prims.l_False);
+  assert (Nickel.LoopUtil.result_safe (scan_choice input out ops (Seq.length input)) (fun (_: e) -> Prims.l_False) (Native.choose_unseen input out ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.has_fact";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.smt_sync' 1 1
+  )
+
+let id_position (#f: Type0) (#i: Type0) (#e: Type0) (items: t_Slice f) (wanted: i) (ops: Nickel.EventGraph.graph_ops f i e{exact_values ops}) (present_id: unit{exists(j: nat). Prims.l_and (j < Seq.length items) (ops._1._1 (Seq.index items j) == wanted)}) : at: nat{Prims.l_and (at < Seq.length items) (ops._1._1 (Seq.index items at) == wanted)} =
+  match FStar.Fin.find items (fun (old: f) -> ops._1._3 (ops._1._1 old) wanted) 0 with | Some at -> begin at end | None -> begin 0 end
+
+let represented_ids (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) : Type0 =
+  forall(j: nat). j < Seq.length input ==> (exists(k: nat). Prims.l_and (k < Seq.length out) (ops._1._1 (Seq.index input j) == ops._1._1 (Seq.index out k)))
+
+let represented_position (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: t_Slice f{Prims.l_and (Seq.length out > 0) (Seq.length out < Seq.length input)}) (ops: Nickel.EventGraph.graph_ops f i e{Prims.l_and (exact_values ops) (represented_ids input out ops)}) (at: nat{at < Seq.length out + 1}) : FStar.Fin.under (Seq.length out) =
+  id_position out (ops._1._1 (Seq.index input at)) ops ()
+
+let shorter_output_misses_id (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (requires (exact_values ops /\ unique input ops._1._1 /\ Seq.length out < Seq.length input)) (ensures Prims.l_not (represented_ids input out ops)) =
+  let impossible () : Lemma (requires represented_ids input out ops) (ensures Prims.l_False) = if Seq.length out ==? 0 then
+    begin () end
+  else
+    begin let mapping = represented_position input out ops in
+    let positions = Seq.init (Seq.length out + 1) mapping in
+    Seq.lemma_init_len (Seq.length out + 1) mapping;
+    Seq.init_index (Seq.length out + 1) mapping;
+    match FStar.Fin.pigeonhole positions with | (a, b) -> begin assert (a < b);
+    assert (mapping a == mapping b);
+    assert (ops._1._1 (Seq.index input a) == ops._1._1 (Seq.index input b));
+    assert (a == b) end end in
+  FStar.Classical.move_requires impossible ()
+
+let succeeds (#f: Type0) (#e: Type0) (result: Result.t_Result (vector f) e) : Type0 =
+  match result with | Result.Result_Ok _ -> begin Prims.l_True end | Result.Result_Err _ -> begin Prims.l_False end
+
+let canonical_step_succeeds (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: vector f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (requires (exact_values ops /\ unique input ops._1._1 /\ Seq.length (Alloc.Vec.impl_1__as_slice out) < Seq.length input)) (ensures succeeds (Native.canonical_step input out ops)) =
+  let old = Alloc.Vec.impl_1__as_slice out in
+  choose_finishes_scan input old ops;
+  shorter_output_misses_id input old ops;
+  step_uses_selected_fact input out ops;
+  match Native.choose_unseen input old ops with | Result.Result_Ok (Option.Option_Some k) -> begin assert (v k < Seq.length input) by (
+    Tactics.prune "Nickel_crdt.Event_layer.choose_unseen";
+    Tactics.smt_sync' 1 1
+  );
+  push_is_exact out (Native.clone_selected_fact (Rust_primitives.Slice.slice_index input k) ops._1._5) ops._2._1;
+  Nickel.Vector.vector_length out;
+  assert (succeeds (Native.canonical_step input out ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.canonical_step";
+    Tactics.prune "Nickel_crdt.Event_layer.choose_unseen";
+    Tactics.prune "Nickel_crdt.Event_layer.push";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok Option.Option_None -> begin assert (scan_choice input old ops (Seq.length input) Option.Option_None) by (
+    Tactics.prune "Nickel_crdt.Event_layer.choose_unseen";
+    Tactics.smt_sync' 1 1
+  );
+  let each (j: nat{j < Seq.length input}) : Lemma (ensures exists(k: nat). Prims.l_and (k < Seq.length old) (ops._1._1 (Seq.index input j) == ops._1._1 (Seq.index old k))) =
+    scan_none_seen_at input old ops (mk_usize j);
+    assert (v (mk_usize j) == j);
+    Nickel.Vector.slice_index input (mk_usize j);
+    Nickel.EventGraph.fact_membership_is_exact old (ops._1._1 (Seq.index input j)) ops;
+    assert (Native.has_fact old (ops._1._1 (Seq.index input j)) ops == true) by (
+      Tactics.prune "Nickel_crdt.Event_layer.choose_unseen";
+      Tactics.prune "Nickel_crdt.Event_layer.has_fact";
+      Tactics.smt_sync' 1 1
+    );
+    assert (exists(k: nat). Prims.l_and (k < Seq.length old) (ops._1._1 (Seq.index input j) == ops._1._1 (Seq.index old k))) by (
+      Tactics.prune "Nickel_crdt.Event_layer.choose_unseen";
+      Tactics.prune "Nickel_crdt.Event_layer.has_fact";
+      Tactics.smt_sync' 1 1
+    ) in
+  FStar.Classical.forall_intro each;
+  assert (Prims.l_False) by (
+    Tactics.prune "Nickel_crdt.Event_layer.choose_unseen";
+    Tactics.prune "Nickel_crdt.Event_layer.has_fact";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Err _ -> begin assert (Prims.l_False) by (
+    Tactics.prune "Nickel_crdt.Event_layer.choose_unseen";
+    Tactics.smt_sync' 1 1
+  ) end
+
+let canonical_succeeds_for_unique_ids (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (requires (exact_values ops /\ unique input ops._1._1)) (ensures succeeds (Native.canonical input ops)) =
+  Nickel.Vector.empty_vector_value #f ();
+  let each_step (out: vector f) : Lemma (requires (Seq.length (Alloc.Vec.impl_1__as_slice out) < Seq.length input /\ content_prefix input (Seq.length (Alloc.Vec.impl_1__as_slice out)) out ops._1._1)) (ensures Prims.l_and (succeeds (Native.canonical_step input out ops)) (Nickel.LoopUtil.result_safe (fun (next: vector f) -> content_prefix input (Seq.length (Alloc.Vec.impl_1__as_slice out) + 1) next ops._1._1) (fun (_: e) -> Prims.l_False) (Native.canonical_step input out ops))) [SMTPat (Native.canonical_step input out ops)] =
+    canonical_step_succeeds input out ops;
+    step_preserves_content input out (Seq.length (Alloc.Vec.impl_1__as_slice out)) ops;
+    assert (Prims.l_and (succeeds (Native.canonical_step input out ops)) (Nickel.LoopUtil.result_safe (fun (next: vector f) -> content_prefix input (Seq.length (Alloc.Vec.impl_1__as_slice out) + 1) next ops._1._1) (fun (_: e) -> Prims.l_False) (Native.canonical_step input out ops))) by (
+      Tactics.prune "Nickel_crdt.Event_layer.canonical_step";
+      Tactics.smt_sync' 1 1
+    ) in
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len input) (fun (at: nat) (out: vector f) -> content_prefix input at out ops._1._1) (fun (out: vector f) -> out) (fun (_: vector f) -> Prims.l_True) (fun (_: e) -> Prims.l_False);
+  assert (succeeds (Native.canonical input ops)) by (
+    Tactics.prune "Alloc.Vec.impl__new";
+    Tactics.prune "Nickel_crdt.Event_layer.canonical_step";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.smt_sync' 1 1
+  )
