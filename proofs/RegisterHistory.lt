@@ -665,3 +665,111 @@ proof receive_added_freezes_id_read(before: Native.t_Replica, offered: Nickel.Re
     Tactics.smt_sync'(1, 1)
   }
 }
+
+// ---------------------------------------------------------------- order independence
+// Every id-level notion depends only on WHICH whole facts are stored, so a reordered
+// history (canonical storage order) has the same meaning.
+function same_members(a: Seq.seq(Nickel.Register.fact), b: Seq.seq(Nickel.Register.fact)): Type0 {
+  forall(f: Nickel.Register.fact) . stored(a, f) <==> stored(b, f)
+}
+proof! id_path_same(a: Seq.seq(Nickel.Register.fact), b: Seq.seq(Nickel.Register.fact), start: Envelope.t_Id,
+  steps: Prims.list(Envelope.t_Id), finish: Envelope.t_Id): unit
+  decreases steps
+  takes same_members(a, b)
+  gives id_path(a, start, steps, finish) <==> id_path(b, start, steps, finish)
+{
+  match steps {
+    Prims.Nil => (),
+    Prims.Cons(next, rest) => id_path_same(a, b, next, rest, finish)
+  }
+}
+proof order_free_meaning(a: Seq.seq(Nickel.Register.fact), b: Seq.seq(Nickel.Register.fact), sel: Envelope.t_Id => Type0,
+  key: u64, initial: t_Slice(u8), value: t_Slice(u8)): unit
+  takes same_members(a, b)
+  gives (stored_unique(a) <==> stored_unique(b)) and (id_clocks_increase(a) <==> id_clocks_increase(b)) and
+    (causal_read_in(a, sel, key, initial, value) <==> causal_read_in(b, sel, key, initial, value))
+{
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(id_path_same(a, b)));
+  assert(forall(x: Envelope.t_Id, y: Envelope.t_Id) . id_strictly_below(a, x, y) <==> id_strictly_below(b, x, y));
+  assert(forall(f: Nickel.Register.fact) . maximal_in(a, sel, key, f) <==> maximal_in(b, sel, key, f))
+}
+
+// ---------------------------------------------------------------- extension by an unreferenced fact
+function extends_by(h: Seq.seq(Nickel.Register.fact), h2: Seq.seq(Nickel.Register.fact), f: Nickel.Register.fact): Type0 {
+  forall(g: Nickel.Register.fact) . stored(h2, g) <==> (stored(h, g) or g == f)
+}
+function unreferenced(h: Seq.seq(Nickel.Register.fact), x: Envelope.t_Id): Type0 {
+  forall(g: Nickel.Register.fact) . stored(h, g) ==> not Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(g.f_after), x)
+}
+// a walk that does not start at the new fact never uses it: nothing points to it
+proof! id_path_extend(h: Seq.seq(Nickel.Register.fact), h2: Seq.seq(Nickel.Register.fact), f: Nickel.Register.fact,
+  start: Envelope.t_Id, steps: Prims.list(Envelope.t_Id), finish: Envelope.t_Id): unit
+  decreases steps
+  takes extends_by(h, h2, f) and unreferenced(h2, f.f_id)
+  takes start =!= f.f_id
+  gives id_path(h2, start, steps, finish) <==> id_path(h, start, steps, finish)
+{
+  match steps {
+    Prims.Nil => (),
+    Prims.Cons(next, rest) => {
+      proof next_is_old(): unit
+        takes id_edge(h2, start, next)
+        gives next =!= f.f_id
+      { () };
+      FStar.Classical.move_requires(next_is_old, ());
+      proof deeper(): unit
+        takes next =!= f.f_id
+        gives id_path(h2, next, rest, finish) <==> id_path(h, next, rest, finish)
+      { id_path_extend(h, h2, f, next, rest, finish) };
+      FStar.Classical.move_requires(deeper, ())
+    }
+  }
+}
+// reads over ids that exclude the new fact are unchanged by adding it
+proof read_unchanged_by_extension(h: Seq.seq(Nickel.Register.fact), h2: Seq.seq(Nickel.Register.fact), f: Nickel.Register.fact,
+  sel: Envelope.t_Id => Type0, key: u64, initial: t_Slice(u8), value: t_Slice(u8)): unit
+  takes extends_by(h, h2, f) and unreferenced(h2, f.f_id)
+  takes not sel(f.f_id)
+  gives causal_read_in(h2, sel, key, initial, value) <==> causal_read_in(h, sel, key, initial, value)
+{
+  proof walks(start: Envelope.t_Id, steps: Prims.list(Envelope.t_Id), finish: Envelope.t_Id): unit
+    takes sel(start)
+    gives id_path(h2, start, steps, finish) <==> id_path(h, start, steps, finish)
+  { id_path_extend(h, h2, f, start, steps, finish) };
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(walks));
+  assert(forall(x: Envelope.t_Id, y: Envelope.t_Id) . sel(x) ==> (id_strictly_below(h2, x, y) <==> id_strictly_below(h, x, y)));
+  assert(forall(g: Nickel.Register.fact) . maximal_in(h2, sel, key, g) <==> maximal_in(h, sel, key, g))
+}
+
+// ---------------------------------------------------------------- the exact past, id-level
+// On the register instance, RegisterPast's ops-level ancestry is the id-level ancestry.
+function id_ancestor(facts: Seq.seq(Nickel.Register.fact), roots: t_Slice(Envelope.t_Id), id: Envelope.t_Id): Type0 {
+  exists(root: Envelope.t_Id, steps: Prims.list(Envelope.t_Id)) .
+    Nickel.RegisterPast.member(roots, root) and id_path(facts, root, steps, id)
+}
+proof register_edge_is_id_edge(facts: t_Slice(Nickel.Register.fact), a: Envelope.t_Id, b: Envelope.t_Id): unit
+  gives Nickel.RegisterPast.causal_edge(Native.v_OPS._1, facts, a, b) <==> id_edge(facts, a, b)
+{ register_ops_are_exact() }
+proof! register_path_is_id_path(facts: t_Slice(Nickel.Register.fact), start: Envelope.t_Id, steps: Prims.list(Envelope.t_Id), finish: Envelope.t_Id): unit
+  decreases steps
+  gives Nickel.RegisterPast.causal_path(Native.v_OPS._1, facts, start, steps, finish) <==> id_path(facts, start, steps, finish)
+{
+  match steps {
+    Prims.Nil => {
+      assert(Nickel.RegisterPast.causal_path(Native.v_OPS._1, facts, start, steps, finish) <==> start == finish);
+      assert(id_path(facts, start, steps, finish) <==> start == finish)
+    },
+    Prims.Cons(next, rest) => {
+      register_edge_is_id_edge(facts, start, next);
+      register_path_is_id_path(facts, next, rest, finish);
+      assert(Nickel.RegisterPast.causal_path(Native.v_OPS._1, facts, start, steps, finish) <==>
+        (Nickel.RegisterPast.causal_edge(Native.v_OPS._1, facts, start, next) and Nickel.RegisterPast.causal_path(Native.v_OPS._1, facts, next, rest, finish)));
+      assert(id_path(facts, start, steps, finish) <==> (id_edge(facts, start, next) and id_path(facts, next, rest, finish)))
+    }
+  }
+}
+proof register_ancestor_is_id_ancestor(facts: t_Slice(Nickel.Register.fact), roots: t_Slice(Envelope.t_Id), id: Envelope.t_Id): unit
+  gives Nickel.RegisterPast.ancestor(Native.v_OPS._1, facts, roots, id) <==> id_ancestor(facts, roots, id)
+{
+  FStar.Classical.forall_intro_3(register_path_is_id_path(facts))
+}

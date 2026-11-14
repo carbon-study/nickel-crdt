@@ -19,7 +19,7 @@ import Tactics = FStar.Tactics.V2
 // Totality (a valid offer succeeds) is a separate, unclaimed direction.
 // Ancestry is stated through the ops' own id/parent callbacks; the register
 // instance discharges those applications in Register.lt.
-type fact = Envelope.t_Event(Native.t_Write)
+unfold type fact = Envelope.t_Event(Native.t_Write)
 unfold type rid = Envelope.t_Id
 unfold type rops = Nickel.EventGraph.graph_ops(fact, Envelope.t_Id, Native.t_Error)
 unfold type ids_vec = Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global)
