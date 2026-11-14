@@ -151,6 +151,21 @@ proof stream_step_composes(facts: t_Slice(Nickel.Register.fact), low: nat, j: na
   takes clock_below(facts, low, j) or j == low
   gives clock_below(facts, low, high)
 { () }
+// Small isolated steps of the stream induction (keeps its own query free of the
+// uniqueness and arithmetic quantifiers).
+proof stream_recursion_ready(facts: t_Slice(Nickel.Register.fact), gap: nat, low: nat, high: nat, j: nat): unit
+  takes same_stream_order(facts, low, high) and predecessor_of(facts, high, j)
+  takes gap == v(Seq.index(facts, high).f_id.f_counter) - v(Seq.index(facts, low).f_id.f_counter)
+  takes v(Seq.index(facts, j).f_id.f_counter) > v(Seq.index(facts, low).f_id.f_counter)
+  gives same_stream_order(facts, low, j) and gap > 0 and
+    gap - 1 == v(Seq.index(facts, j).f_id.f_counter) - v(Seq.index(facts, low).f_id.f_counter)
+{ () }
+proof stream_bottom_is_low(facts: t_Slice(Nickel.Register.fact), low: nat, high: nat, j: nat): unit
+  takes ids_unique(facts)
+  takes same_stream_order(facts, low, high) and predecessor_of(facts, high, j)
+  takes not (v(Seq.index(facts, j).f_id.f_counter) > v(Seq.index(facts, low).f_id.f_counter))
+  gives j == low
+{ same_fields_same_id(facts, j, low) }
 proof! stream_clock_increases(facts: t_Slice(Nickel.Register.fact), gap: nat, low: nat, high: nat): unit
   decreases gap
   takes stream_steps(facts) and ids_unique(facts) and counters_positive(facts)
@@ -163,8 +178,9 @@ proof! stream_clock_increases(facts: t_Slice(Nickel.Register.fact), gap: nat, lo
     gives clock_below(facts, low, high)
   {
     if v(Seq.index(facts, j).f_id.f_counter) > v(Seq.index(facts, low).f_id.f_counter) {
+      stream_recursion_ready(facts, gap, low, high, j);
       stream_clock_increases(facts, gap - 1, low, j)
-    } else { same_fields_same_id(facts, j, low) };
+    } else { stream_bottom_is_low(facts, low, high, j) };
     stream_step_composes(facts, low, j, high)
   };
   later_stream_fact_has_step(facts, low, high);
@@ -560,4 +576,92 @@ proof selected_maximum_is_causal_read_in(basis: t_Slice(Nickel.Register.fact), f
     maximum_is_maximal_in(basis, facts, sel, key, f)
   };
   FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(from_index))
+}
+
+// ---------------------------------------------------------------- admission freezes the id-level read
+function sel_of(selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global)): Envelope.t_Id => Type0 {
+  ((id: Envelope.t_Id) => Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(selected), id))
+}
+function frozen_id_read(before: Native.t_Replica, offered: Nickel.Register.fact,
+  selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global)): Type0 {
+  (stored_unique(Alloc.Vec.impl_1__as_slice(before.f_facts)) and id_clocks_increase(Alloc.Vec.impl_1__as_slice(before.f_facts))) ==>
+    causal_read_in(Alloc.Vec.impl_1__as_slice(before.f_facts), sel_of(selected), offered.f_payload.f_key,
+      Alloc.Vec.impl_1__as_slice(before.f_initial), Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed))
+}
+proof selected_value_respects_bytes(facts: t_Slice(Nickel.Register.fact), key: u64, initial: t_Slice(u8), x: t_Slice(u8), y: t_Slice(u8)): unit
+  takes Nickel.Register.selected_value(facts, key, initial, y) and Nickel.Register.bytes_same(x, y)
+  gives Nickel.Register.selected_value(facts, key, initial, x)
+{ () }
+proof basis_freezes_id_read(before: Native.t_Replica, offered: Nickel.Register.fact,
+  selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(Nickel.Register.fact, Alloc.Alloc.t_Global)): unit
+  takes Nickel.RegisterPast.selected_prefix(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected),
+    Seq.length(Alloc.Vec.impl_1__as_slice(before.f_facts)), Alloc.Vec.impl_1__as_slice(basis))
+  takes Nickel.Register.basis_payload_checks(before, offered, basis)
+  gives frozen_id_read(before, offered, selected)
+{
+  const facts = Alloc.Vec.impl_1__as_slice(before.f_facts);
+  const b = Alloc.Vec.impl_1__as_slice(basis);
+  register_ops_are_exact();
+  filter_has_selected_facts(Native.v_OPS._1, facts, Alloc.Vec.impl_1__as_slice(selected), Seq.length(facts), b);
+  assert(holds_selected(b, facts, sel_of(selected)));
+  Nickel.Register.read_history_selects_maximum(b, Alloc.Vec.impl_1__as_slice(before.f_initial), offered.f_payload.f_key);
+  selected_value_respects_bytes(b, offered.f_payload.f_key, Alloc.Vec.impl_1__as_slice(before.f_initial),
+    Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed),
+    Alloc.Vec.impl_1__as_slice(Native.read_history(b, Alloc.Vec.impl_1__as_slice(before.f_initial), offered.f_payload.f_key)));
+  FStar.Classical.move_requires(selected_maximum_is_causal_read_in(b, facts, sel_of(selected), offered.f_payload.f_key,
+    Alloc.Vec.impl_1__as_slice(before.f_initial)), Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed))
+}
+function id_frozen_admission(before: Native.t_Replica, offered: Nickel.Register.fact): Type0 {
+  exists(selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global)) .
+    Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
+      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(selected) and
+    (forall(id: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(selected), id) <==>
+      Nickel.RegisterPast.ancestor(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(offered.f_after), id)) and
+    frozen_id_read(before, offered, selected)
+}
+proof id_witness(before: Native.t_Replica, offered: Nickel.Register.fact,
+  selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(Nickel.Register.fact, Alloc.Alloc.t_Global)): unit
+  takes Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
+      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(selected) and
+    Nickel_crdt.Event_layer.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Result.Result_Ok(basis) and
+    Nickel.Register.basis_payload_checks(before, offered, basis)
+  gives id_frozen_admission(before, offered)
+{
+  selected_basis_is_exact(before, offered, selected, basis);
+  basis_freezes_id_read(before, offered, selected, basis);
+  assert(id_frozen_admission(before, offered)) by {
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof checks_give_id_frozen(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  takes Nickel.Register.selected_basis_checks(before, offered)
+  gives id_frozen_admission(before, offered)
+{
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(id_witness(before, offered)));
+  assert(id_frozen_admission(before, offered)) by {
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// An Added receive froze the id-level causal read of its exact ancestors, provided the
+// stored history has unique ids and clocks that increase along stored parent edges.
+proof receive_added_freezes_id_read(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  gives forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) ==
+    (next, Result.Result_Ok(Native.Admission_Added)) ==> id_frozen_admission(before, offered)
+{
+  Nickel.Register.receive_added_checks_payload(before, offered);
+  FStar.Classical.move_requires(checks_give_id_frozen(before), offered);
+  assert(forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) ==
+    (next, Result.Result_Ok(Native.Admission_Added)) ==> id_frozen_admission(before, offered)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel_crdt.Register.next_lamport");
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+    Tactics.smt_sync'(1, 1)
+  }
 }
