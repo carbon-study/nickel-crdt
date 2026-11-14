@@ -14,6 +14,7 @@ import Nickel.CausalEnvelope
 import Nickel.Canonical
 import Nickel.Register
 import Nickel.RegisterPast
+import Nickel.EventClassifier
 
 // History meaning and exact-basis admission bridge for the single-write register
 // (#97 obligation 1), split from Register.lt for the 60 s per-module budget.
@@ -918,6 +919,323 @@ proof receive_added_carries_observations(before: Native.t_Replica, offered: Nick
     Tactics.prune("Nickel_crdt.Register.next_lamport");
     Tactics.prune("Nickel_crdt.Event_layer.validate_event");
     Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// ---------------------------------------------------------------- an Added offer has a fresh id
+proof! lookup_none_misses<f: Type0, i: Type0>(facts: t_Slice(f), fact: f, id: f => i, eq: i => i => bool, same: f => f => bool,
+  at: usize where v(at) <= v(Core_models.Slice.impl__len(facts))): unit
+  decreases v(Core_models.Slice.impl__len(facts)) - v(at)
+  takes Nickel.EventClassifier.lookup(facts, fact, id, eq, same, at) == Option.Option_None
+  gives forall(k: nat) . (v(at) <= k and k < Seq.length(facts)) ==> eq(id(Seq.index(facts, k)), id(fact)) == false
+{
+  if v(at) < v(Core_models.Slice.impl__len(facts)) {
+    lookup_none_misses(facts, fact, id, eq, same, at +! mk_usize(1))
+  } else { () }
+}
+function fresh_id(before: Native.t_Replica, offered: Nickel.Register.fact): Type0 {
+  forall(g: Nickel.Register.fact) . stored(Alloc.Vec.impl_1__as_slice(before.f_facts), g) ==> g.f_id =!= offered.f_id
+}
+proof not_duplicate_is_fresh(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  takes Native.duplicate((), before, offered) == Result.Result_Ok(false)
+  gives fresh_id(before, offered)
+{
+  const facts = Alloc.Vec.impl_1__as_slice(before.f_facts);
+  register_ops_are_exact();
+  Nickel.EventClassifier.classification_is_exact(facts, offered, Native.v_OPS._1);
+  assert(Nickel_crdt.Event_layer.classify(facts, offered, Native.v_OPS._1) == Option.Option_None);
+  lookup_none_misses(facts, offered, Native.v_OPS._1._1._1, Native.v_OPS._1._1._3, Native.v_OPS._1._1._6, mk_usize(0))
+}
+proof planned_offer_is_fresh(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  gives forall(next: Native.t_Replica) . Native.planned((), before, offered) == Result.Result_Ok(Option.Option_Some(next)) ==> fresh_id(before, offered)
+{
+  Nickel.Register.shared_success_stages(before, offered, (), Native.duplicate, Native.validate, Native.prepare, Native.execute);
+  FStar.Classical.move_requires(not_duplicate_is_fresh(before), offered);
+  assert(forall(next: Native.t_Replica) . Native.planned((), before, offered) == Result.Result_Ok(Option.Option_Some(next)) ==> fresh_id(before, offered)) by {
+    Tactics.prune("Nickel_crdt.Event_shell.plan");
+    Tactics.prune("Nickel_crdt.Register.duplicate");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// ---------------------------------------------------------------- an Added offer's parents are stored
+function present_prefix(ops: Nickel.RegisterPast.rops, facts: t_Slice(Nickel.Register.fact), after: t_Slice(Envelope.t_Id), at: nat): Type0 {
+  forall(j: nat) . (j < at and j < Seq.length(after)) ==> Nickel_crdt.Event_layer.has_fact(facts, Seq.index(after, j), ops) == true
+}
+proof validate_after_checks_presence(ops: Nickel.RegisterPast.rops, facts: t_Slice(Nickel.Register.fact), after: t_Slice(Envelope.t_Id)): unit
+  gives Nickel.LoopUtil.result_safe(((_: unit) => present_prefix(ops, facts, after, Seq.length(after))), ((_: Native.t_Error) => Prims.l_True),
+    Nickel_crdt.Event_layer.validate_after(facts, after, ops))
+{
+  Nickel.RegisterPast.ops_shape(ops);
+  proof membership_boolean(wanted: Envelope.t_Id): unit
+    gives Nickel_crdt.Event_layer.has_fact(facts, wanted, ops) == true or Nickel_crdt.Event_layer.has_fact(facts, wanted, ops) == false
+  { () };
+  FStar.Classical.forall_intro(membership_boolean);
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(after),
+    ((at: nat, _: unit) => present_prefix(ops, facts, after, at)), ((_: unit) => ()),
+    ((_: unit) => present_prefix(ops, facts, after, Seq.length(after))), ((_: Native.t_Error) => Prims.l_True));
+  assert(Nickel.LoopUtil.result_safe(((_: unit) => present_prefix(ops, facts, after, Seq.length(after))), ((_: Native.t_Error) => Prims.l_True),
+    Nickel_crdt.Event_layer.validate_after(facts, after, ops))) by {
+    Tactics.prune("Nickel_crdt.Event_layer.has_fact");
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.prune("Nickel.LoopUtil.step_safe");
+    Tactics.prune("Nickel.LoopUtil.output_safe");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof past_checked_parents(ops: Nickel.RegisterPast.rops, facts: t_Slice(Nickel.Register.fact), roots: t_Slice(Envelope.t_Id)): unit
+  gives forall(s: Nickel.RegisterPast.ids_vec) . Nickel_crdt.Event_layer.past(facts, roots, ops) == Result.Result_Ok(s) ==>
+    Nickel_crdt.Event_layer.validate_after(facts, roots, ops) == Result.Result_Ok(())
+{
+  Nickel.RegisterPast.ops_shape(ops);
+  // keep the unit-result shape of the withheld check (pruning removes its typing)
+  proof result_shape(): unit
+    gives Nickel_crdt.Event_layer.validate_after(facts, roots, ops) == Result.Result_Ok(()) or
+      (exists(e: Native.t_Error) . Nickel_crdt.Event_layer.validate_after(facts, roots, ops) == Result.Result_Err(e))
+  { match Nickel_crdt.Event_layer.validate_after(facts, roots, ops) { Result.Result_Ok(_) => (), Result.Result_Err(_) => () } };
+  result_shape();
+  assert(forall(s: Nickel.RegisterPast.ids_vec) . Nickel_crdt.Event_layer.past(facts, roots, ops) == Result.Result_Ok(s) ==>
+    Nickel_crdt.Event_layer.validate_after(facts, roots, ops) == Result.Result_Ok(())) by {
+    Tactics.prune("Nickel_crdt.Event_layer.validate_after");
+    Tactics.prune("Nickel_crdt.Event_layer.past_pass");
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+function parents_stored(before: Native.t_Replica, offered: Nickel.Register.fact): Type0 {
+  forall(p: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(offered.f_after), p) ==>
+    (exists(g: Nickel.Register.fact) . stored(Alloc.Vec.impl_1__as_slice(before.f_facts), g) and g.f_id == p)
+}
+proof present_parents_are_stored(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  takes present_prefix(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(offered.f_after),
+    Seq.length(Alloc.Vec.impl_1__as_slice(offered.f_after)))
+  gives parents_stored(before, offered)
+{
+  const facts = Alloc.Vec.impl_1__as_slice(before.f_facts);
+  register_ops_are_exact();
+  proof each(p: Envelope.t_Id): unit
+    takes Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(offered.f_after), p)
+    gives exists(g: Nickel.Register.fact) . stored(facts, g) and g.f_id == p
+  { Nickel.EventGraph.fact_membership_is_exact(facts, p, Native.v_OPS._1) };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(each))
+}
+proof validated_parents_stored(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  gives forall(s: Nickel.RegisterPast.ids_vec) . Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
+      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(s) ==> parents_stored(before, offered)
+{
+  const facts = Alloc.Vec.impl_1__as_slice(before.f_facts);
+  const roots = Alloc.Vec.impl_1__as_slice(offered.f_after);
+  register_ops_are_exact();
+  Nickel.RegisterPast.validated_selection_is_past(facts, offered, before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS);
+  past_checked_parents(Native.v_OPS._1, facts, roots);
+  validate_after_checks_presence(Native.v_OPS._1, facts, roots);
+  FStar.Classical.move_requires(present_parents_are_stored(before), offered);
+  assert(forall(s: Nickel.RegisterPast.ids_vec) . Nickel_crdt.Event_layer.validate_event(facts, offered,
+      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(s) ==> parents_stored(before, offered)) by {
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel_crdt.Event_layer.past");
+    Tactics.prune("Nickel_crdt.Event_layer.validate_after");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// ---------------------------------------------------------------- closure and the unreferenced offer
+function closed(h: Seq.seq(Nickel.Register.fact)): Type0 {
+  forall(g: Nickel.Register.fact, p: Envelope.t_Id) . (stored(h, g) and Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(g.f_after), p)) ==>
+    (exists(k: Nickel.Register.fact) . stored(h, k) and k.f_id == p)
+}
+proof receive_added_offer_is_fresh(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  gives forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Added)) ==> fresh_id(before, offered)
+{
+  Nickel.Register.receive_publication_is_exact(before, offered);
+  planned_offer_is_fresh(before, offered);
+  match Native.planned((), before, offered) {
+    Result.Result_Err(_) => { assert(forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Added)) ==> fresh_id(before, offered)) by {
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+      Tactics.prune("Nickel_crdt.Register.planned");
+      Tactics.smt_sync'(1, 1)
+    } },
+    Result.Result_Ok(option) => match option {
+      Option.Option_None => { assert(forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Added)) ==> fresh_id(before, offered)) by {
+        Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+        Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.smt_sync'(1, 1)
+      } },
+      Option.Option_Some(candidate) => { assert(forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Added)) ==> fresh_id(before, offered)) by {
+        Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+        Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.smt_sync'(1, 1)
+      } },
+    },
+  }
+}
+proof receive_added_parents_stored(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  gives forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Added)) ==> parents_stored(before, offered)
+{
+  Nickel.Register.receive_added_checks_payload(before, offered);
+  validated_parents_stored(before, offered);
+  assert(forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Added)) ==> parents_stored(before, offered)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof closure_gives_unreferenced(h: Seq.seq(Nickel.Register.fact), h2: Seq.seq(Nickel.Register.fact), fnew: Nickel.Register.fact): unit
+  takes extends_by(h, h2, fnew) and closed(h)
+  takes forall(g: Nickel.Register.fact) . stored(h, g) ==> g.f_id =!= fnew.f_id
+  takes forall(p: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(fnew.f_after), p) ==>
+    (exists(k: Nickel.Register.fact) . stored(h, k) and k.f_id == p)
+  gives unreferenced(h2, fnew.f_id) and closed(h2)
+{ () }
+function history_extended_soundly(before: Native.t_Replica, offered: Nickel.Register.fact, next: Native.t_Replica): Type0 {
+  closed(Alloc.Vec.impl_1__as_slice(before.f_facts)) ==>
+    (unreferenced(Alloc.Vec.impl_1__as_slice(next.f_facts), offered.f_id) and closed(Alloc.Vec.impl_1__as_slice(next.f_facts)))
+}
+proof extended_from_parts(before: Native.t_Replica, offered: Nickel.Register.fact, next: Native.t_Replica): unit
+  takes Nickel.Register.appended_facts(before, offered, next) and fresh_id(before, offered) and parents_stored(before, offered)
+  gives history_extended_soundly(before, offered, next)
+{
+  const h = Alloc.Vec.impl_1__as_slice(before.f_facts);
+  const h2 = Alloc.Vec.impl_1__as_slice(next.f_facts);
+  assert(extends_by(h, h2, offered));
+  FStar.Classical.move_requires(closure_gives_unreferenced(h, h2), offered)
+}
+// An Added receive keeps the history parent-closed and leaves the offered id unreferenced.
+proof receive_added_extends_soundly(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  gives forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) ==
+    (next, Result.Result_Ok(Native.Admission_Added)) ==> history_extended_soundly(before, offered, next)
+{
+  Nickel.Register.receive_added_retains_exact_facts(before, offered);
+  receive_added_offer_is_fresh(before, offered);
+  receive_added_parents_stored(before, offered);
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(extended_from_parts(before, offered)));
+  assert(forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) ==
+    (next, Result.Result_Ok(Native.Admission_Added)) ==> history_extended_soundly(before, offered, next)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// ---------------------------------------------------------------- receive preserves observation validity
+// The invariant carried so far (#97 obligation 1, partial): stored ids unique, stored
+// clocks increasing along parent edges, parents stored, every observation valid.
+function observation_invariant(r: Native.t_Replica): Type0 {
+  stored_unique(Alloc.Vec.impl_1__as_slice(r.f_facts)) and id_clocks_increase(Alloc.Vec.impl_1__as_slice(r.f_facts)) and
+  closed(Alloc.Vec.impl_1__as_slice(r.f_facts)) and
+  observations_ok(Alloc.Vec.impl_1__as_slice(r.f_facts), Alloc.Vec.impl_1__as_slice(r.f_initial))
+}
+function observations_kept_on(before: Native.t_Replica, next: Native.t_Replica): Type0 {
+  observation_invariant(before) ==>
+    (closed(Alloc.Vec.impl_1__as_slice(next.f_facts)) and
+     observations_ok(Alloc.Vec.impl_1__as_slice(next.f_facts), Alloc.Vec.impl_1__as_slice(next.f_initial)))
+}
+proof kept_from_parts(before: Native.t_Replica, offered: Nickel.Register.fact, next: Native.t_Replica): unit
+  takes observations_carried(before, offered, next) and history_extended_soundly(before, offered, next)
+  takes Nickel.Register.private_frame(before, next)
+  gives observations_kept_on(before, next)
+{ () }
+// When receive returns Added: the published history stays parent-closed, and every stored
+// observation (old and new) is still the id-level causal read of its exact ancestors.
+// Not yet carried: id uniqueness and the clock part for the new fact (next step).
+proof receive_added_keeps_observations(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  gives forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) ==
+    (next, Result.Result_Ok(Native.Admission_Added)) ==> observations_kept_on(before, next)
+{
+  receive_added_carries_observations(before, offered);
+  receive_added_extends_soundly(before, offered);
+  Nickel.Register.receive_preserves_private(before, offered);
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(kept_from_parts(before, offered)));
+  assert(forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) ==
+    (next, Result.Result_Ok(Native.Admission_Added)) ==> observations_kept_on(before, next)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// ---------------------------------------------------------------- ids and clocks stay valid
+function parents_clock_below(before: Native.t_Replica, offered: Nickel.Register.fact): Type0 {
+  forall(fb: Nickel.Register.fact) . (stored(Alloc.Vec.impl_1__as_slice(before.f_facts), fb) and
+    Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(offered.f_after), fb.f_id)) ==>
+      v(fb.f_payload.f_lamport) < v(offered.f_payload.f_lamport)
+}
+proof basis_bounds_parent_clocks(before: Native.t_Replica, offered: Nickel.Register.fact,
+  selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(Nickel.Register.fact, Alloc.Alloc.t_Global)): unit
+  takes forall(id: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(selected), id) <==>
+    Nickel.RegisterPast.ancestor(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(offered.f_after), id)
+  takes Nickel.RegisterPast.selected_prefix(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected),
+    Seq.length(Alloc.Vec.impl_1__as_slice(before.f_facts)), Alloc.Vec.impl_1__as_slice(basis))
+  takes Nickel.Register.clock_successor(Alloc.Vec.impl_1__as_slice(basis), offered.f_payload.f_lamport)
+  gives parents_clock_below(before, offered)
+{
+  const facts = Alloc.Vec.impl_1__as_slice(before.f_facts);
+  register_ops_are_exact();
+  filter_has_selected_facts(Native.v_OPS._1, facts, Alloc.Vec.impl_1__as_slice(selected), Seq.length(facts), Alloc.Vec.impl_1__as_slice(basis));
+  proof each(fb: Nickel.Register.fact): unit
+    takes stored(facts, fb) and Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(offered.f_after), fb.f_id)
+    gives v(fb.f_payload.f_lamport) < v(offered.f_payload.f_lamport)
+  {
+    assert(Nickel.RegisterPast.causal_path(Native.v_OPS._1, facts, fb.f_id, Prims.Nil, fb.f_id));
+    assert(Nickel.RegisterPast.ancestor(Native.v_OPS._1, facts, Alloc.Vec.impl_1__as_slice(offered.f_after), fb.f_id));
+    assert(stored(Alloc.Vec.impl_1__as_slice(basis), fb))
+  };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(each))
+}
+proof frozen_basis_bounds_parents(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  takes exact_selected_basis(before, offered)
+  gives parents_clock_below(before, offered)
+{
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(basis_bounds_parent_clocks(before, offered)));
+  assert(parents_clock_below(before, offered)) by {
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof ids_and_clocks_extend(h: Seq.seq(Nickel.Register.fact), h2: Seq.seq(Nickel.Register.fact), fnew: Nickel.Register.fact): unit
+  takes extends_by(h, h2, fnew) and unreferenced(h2, fnew.f_id)
+  takes stored_unique(h) and id_clocks_increase(h)
+  takes forall(g: Nickel.Register.fact) . stored(h, g) ==> g.f_id =!= fnew.f_id
+  takes forall(fb: Nickel.Register.fact) . (stored(h, fb) and Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(fnew.f_after), fb.f_id)) ==>
+    v(fb.f_payload.f_lamport) < v(fnew.f_payload.f_lamport)
+  gives stored_unique(h2) and id_clocks_increase(h2)
+{ () }
+function invariant_kept(before: Native.t_Replica, next: Native.t_Replica): Type0 {
+  observation_invariant(before) ==> observation_invariant(next)
+}
+proof invariant_from_parts(before: Native.t_Replica, offered: Nickel.Register.fact, next: Native.t_Replica): unit
+  takes observations_kept_on(before, next) and history_extended_soundly(before, offered, next)
+  takes Nickel.Register.appended_facts(before, offered, next) and fresh_id(before, offered) and parents_clock_below(before, offered)
+  gives invariant_kept(before, next)
+{
+  const h = Alloc.Vec.impl_1__as_slice(before.f_facts);
+  const h2 = Alloc.Vec.impl_1__as_slice(next.f_facts);
+  assert(extends_by(h, h2, offered));
+  FStar.Classical.move_requires(ids_and_clocks_extend(h, h2), offered)
+}
+// #97 obligation 1, receive half: an Added receive preserves the history invariant
+// (unique stored ids; clocks increasing along stored parent edges; parents stored; every
+// stored observation = id-level causal read of its exact ancestors). Order-free by
+// construction, so canonical re-sorting cannot break it.
+proof receive_added_preserves_invariant(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  gives forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) ==
+    (next, Result.Result_Ok(Native.Admission_Added)) ==> invariant_kept(before, next)
+{
+  receive_added_keeps_observations(before, offered);
+  receive_added_extends_soundly(before, offered);
+  Nickel.Register.receive_added_retains_exact_facts(before, offered);
+  receive_added_offer_is_fresh(before, offered);
+  receive_added_basis_is_exact_ancestry(before, offered);
+  FStar.Classical.move_requires(frozen_basis_bounds_parents(before), offered);
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(invariant_from_parts(before, offered)));
+  assert(forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) ==
+    (next, Result.Result_Ok(Native.Admission_Added)) ==> invariant_kept(before, next)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
     Tactics.smt_sync'(1, 1)
   }
 }

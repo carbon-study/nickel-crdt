@@ -17,9 +17,9 @@ const env=process.env;
 for(const k of ['NICKEL_HAX_BIN','NICKEL_PROOF_FSTAR','NICKEL_HAX_SOURCE','NICKEL_FSTAR_MODEL_CACHE'])assert(env[k],k);
 const views=path.join(root,'proofs/register-view');
 const receipt=JSON.parse(await fs.readFile(path.join(views,'receipt.json'),'utf8'));
-const required=['Cargo.toml','Cargo.lock','src/lib.rs','src/register.rs','src/causal.rs','src/event_layer.rs','src/event_shell.rs','proofs/Register.lt','proofs/RegisterPast.lt','proofs/RegisterHistory.lt','proofs/Canonical.lt','proofs/Vector.lt','proofs/EventGraph.lt',
+const required=['Cargo.toml','Cargo.lock','src/lib.rs','src/register.rs','src/causal.rs','src/event_layer.rs','src/event_shell.rs','proofs/Register.lt','proofs/RegisterPast.lt','proofs/RegisterHistory.lt','proofs/Canonical.lt','proofs/Vector.lt','proofs/EventGraph.lt','proofs/EventClassifier.lt',
  'proofs/Prelude.lt','proofs/LoopUtil.lt','proofs/EventShell.lt','proofs/CausalEnvelope.lt',
- 'proofs/generated/Nickel.Vector.fst','proofs/generated/Nickel.EventGraph.fst','proofs/generated/Nickel.Prelude.fst','proofs/generated/Nickel.LoopUtil.fst','proofs/generated/Nickel.EventShell.fst',
+ 'proofs/generated/Nickel.Vector.fst','proofs/generated/Nickel.EventGraph.fst','proofs/generated/Nickel.EventClassifier.fst','proofs/generated/Nickel.Prelude.fst','proofs/generated/Nickel.LoopUtil.fst','proofs/generated/Nickel.EventShell.fst',
  'proofs/causal-envelope-view/Nickel.CausalEnvelope.fst',
  'proofs/register-view/Nickel.Canonical.fst','proofs/register-view/Nickel.RegisterPast.fst','proofs/register-view/Nickel.RegisterHistory.fst',
  ...['Register','Nickel_crdt.Register','Nickel_crdt.Causal','Nickel_crdt.Event_layer','Nickel_crdt.Event_shell'].map(n=>'proofs/register-view/'+(n==='Register'?'Nickel.Register':n)+'.fst')];
@@ -117,7 +117,7 @@ assert.throws(()=>registerPolicyAnchor(source.replace('const OPS:','// const OPS
 assert.throws(()=>registerPolicyAnchor(source.replace('const OPS:','const OTHER_OPS:'),'graph::graph_ops(identity, parents, same_id, less_id,'),'missing const policy never borrows a later item');
 const haxArgs=out=>['-C','--offline','--locked','-p','nickel-crdt',';','into','--output-dir',out,'-i','-** +nickel_crdt::register::**::new +nickel_crdt::register::**::write +nickel_crdt::register::**::receive +nickel_crdt::register::**::read +nickel_crdt::register::winner +nickel_crdt::register::later +nickel_crdt::register::bytes_equal +nickel_crdt::register::next_lamport +nickel_crdt::register::less_id +nickel_crdt::event_shell::receive +nickel_crdt::causal::classify +nickel_crdt::event_layer::**','fstar'];
 const inventory=['Nickel_crdt.Causal.fst','Nickel_crdt.Event_layer.fst','Nickel_crdt.Event_shell.fst','Nickel_crdt.Register.fst'];
-const proofFiles=['Nickel.Prelude.fst','Nickel.LoopUtil.fst','Nickel.EventShell.fst','Nickel.Vector.fst','Nickel.EventGraph.fst'];
+const proofFiles=['Nickel.Prelude.fst','Nickel.LoopUtil.fst','Nickel.EventShell.fst','Nickel.Vector.fst','Nickel.EventGraph.fst','Nickel.EventClassifier.fst'];
 async function support(dir){
  await fs.mkdir(dir,{recursive:true});
  for(const f of proofFiles)await put(path.join(dir,f),await fs.readFile(path.join(root,'proofs/generated',f)));

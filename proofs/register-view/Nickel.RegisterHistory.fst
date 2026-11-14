@@ -35,6 +35,8 @@ open Nickel.Register
 
 open Nickel.RegisterPast
 
+open Nickel.EventClassifier
+
 let parent_edge (facts: t_Slice Nickel.Register.fact) (newer: nat) (older: nat) : Type0 =
   Prims.l_and (Prims.l_and (newer < Seq.length facts) (older < Seq.length facts)) (exists(k: nat). Prims.l_and (k < Seq.length (Alloc.Vec.impl_1__as_slice (Seq.index facts newer).f_after)) (Seq.index (Alloc.Vec.impl_1__as_slice (Seq.index facts newer).f_after) k == (Seq.index facts older).f_id))
 
@@ -479,5 +481,202 @@ let receive_added_carries_observations (before: Native.t_Replica) (offered: Nick
     Tactics.prune "Nickel_crdt.Register.next_lamport";
     Tactics.prune "Nickel_crdt.Event_layer.validate_event";
     Tactics.prune "Nickel_crdt.Event_layer.select_basis";
+    Tactics.smt_sync' 1 1
+  )
+
+let rec lookup_none_misses (#f: Type0) (#i: Type0) (facts: t_Slice f) (fact: f) (id: f -> i) (eq: i -> i -> bool) (same: f -> f -> bool) (at: usize{v at <= v (Core_models.Slice.impl__len facts)}) : Lemma (requires Nickel.EventClassifier.lookup facts fact id eq same at == Option.Option_None) (ensures forall(k: nat). Prims.l_and (v at <= k) (k < Seq.length facts) ==> eq (id (Seq.index facts k)) (id fact) == false) (decreases v (Core_models.Slice.impl__len facts) - v at) =
+  if v at < v (Core_models.Slice.impl__len facts) then
+    begin lookup_none_misses facts fact id eq same (at +! mk_usize 1) end
+  else
+    begin () end
+
+let fresh_id (before: Native.t_Replica) (offered: Nickel.Register.fact) : Type0 =
+  forall(g: Nickel.Register.fact). stored (Alloc.Vec.impl_1__as_slice before.f_facts) g ==> g.f_id =!= offered.f_id
+
+let not_duplicate_is_fresh (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (requires Native.duplicate () before offered == Result.Result_Ok false) (ensures fresh_id before offered) =
+  let facts = Alloc.Vec.impl_1__as_slice before.f_facts in
+  register_ops_are_exact ();
+  Nickel.EventClassifier.classification_is_exact facts offered Native.v_OPS._1;
+  assert (Nickel_crdt.Event_layer.classify facts offered Native.v_OPS._1 == Option.Option_None);
+  lookup_none_misses facts offered Native.v_OPS._1._1._1 Native.v_OPS._1._1._3 Native.v_OPS._1._1._6 (mk_usize 0)
+
+let planned_offer_is_fresh (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (ensures forall(next: Native.t_Replica). Native.planned () before offered == Result.Result_Ok (Option.Option_Some next) ==> fresh_id before offered) =
+  Nickel.Register.shared_success_stages before offered () Native.duplicate Native.validate Native.prepare Native.execute;
+  FStar.Classical.move_requires (not_duplicate_is_fresh before) offered;
+  assert (forall(next: Native.t_Replica). Native.planned () before offered == Result.Result_Ok (Option.Option_Some next) ==> fresh_id before offered) by (
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
+    Tactics.prune "Nickel_crdt.Register.duplicate";
+    Tactics.smt_sync' 1 1
+  )
+
+let present_prefix (ops: Nickel.RegisterPast.rops) (facts: t_Slice Nickel.Register.fact) (after: t_Slice Envelope.t_Id) (at: nat) : Type0 =
+  forall(j: nat). Prims.l_and (j < at) (j < Seq.length after) ==> Nickel_crdt.Event_layer.has_fact facts (Seq.index after j) ops == true
+
+let validate_after_checks_presence (ops: Nickel.RegisterPast.rops) (facts: t_Slice Nickel.Register.fact) (after: t_Slice Envelope.t_Id) : Lemma (ensures Nickel.LoopUtil.result_safe (fun (_: unit) -> present_prefix ops facts after (Seq.length after)) (fun (_: Native.t_Error) -> Prims.l_True) (Nickel_crdt.Event_layer.validate_after facts after ops)) =
+  Nickel.RegisterPast.ops_shape ops;
+  let membership_boolean (wanted: Envelope.t_Id) : Lemma (ensures Prims.l_or (Nickel_crdt.Event_layer.has_fact facts wanted ops == true) (Nickel_crdt.Event_layer.has_fact facts wanted ops == false)) = () in
+  FStar.Classical.forall_intro membership_boolean;
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len after) (fun (at: nat) (_: unit) -> present_prefix ops facts after at) (fun (_: unit) -> ()) (fun (_: unit) -> present_prefix ops facts after (Seq.length after)) (fun (_: Native.t_Error) -> Prims.l_True);
+  assert (Nickel.LoopUtil.result_safe (fun (_: unit) -> present_prefix ops facts after (Seq.length after)) (fun (_: Native.t_Error) -> Prims.l_True) (Nickel_crdt.Event_layer.validate_after facts after ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.has_fact";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.smt_sync' 1 1
+  )
+
+let past_checked_parents (ops: Nickel.RegisterPast.rops) (facts: t_Slice Nickel.Register.fact) (roots: t_Slice Envelope.t_Id) : Lemma (ensures forall(s: Nickel.RegisterPast.ids_vec). Nickel_crdt.Event_layer.past facts roots ops == Result.Result_Ok s ==> Nickel_crdt.Event_layer.validate_after facts roots ops == Result.Result_Ok ()) =
+  Nickel.RegisterPast.ops_shape ops;
+  let result_shape () : Lemma (ensures Prims.l_or (Nickel_crdt.Event_layer.validate_after facts roots ops == Result.Result_Ok ()) (exists(e: Native.t_Error). Nickel_crdt.Event_layer.validate_after facts roots ops == Result.Result_Err e)) = match Nickel_crdt.Event_layer.validate_after facts roots ops with | Result.Result_Ok _ -> begin () end | Result.Result_Err _ -> begin () end in
+  result_shape ();
+  assert (forall(s: Nickel.RegisterPast.ids_vec). Nickel_crdt.Event_layer.past facts roots ops == Result.Result_Ok s ==> Nickel_crdt.Event_layer.validate_after facts roots ops == Result.Result_Ok ()) by (
+    Tactics.prune "Nickel_crdt.Event_layer.validate_after";
+    Tactics.prune "Nickel_crdt.Event_layer.past_pass";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.smt_sync' 1 1
+  )
+
+let parents_stored (before: Native.t_Replica) (offered: Nickel.Register.fact) : Type0 =
+  forall(p: Envelope.t_Id). Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice offered.f_after) p ==> (exists(g: Nickel.Register.fact). Prims.l_and (stored (Alloc.Vec.impl_1__as_slice before.f_facts) g) (g.f_id == p))
+
+let present_parents_are_stored (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (requires present_prefix Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice offered.f_after) (Seq.length (Alloc.Vec.impl_1__as_slice offered.f_after))) (ensures parents_stored before offered) =
+  let facts = Alloc.Vec.impl_1__as_slice before.f_facts in
+  register_ops_are_exact ();
+  let each (p: Envelope.t_Id) : Lemma (requires Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice offered.f_after) p) (ensures exists(g: Nickel.Register.fact). Prims.l_and (stored facts g) (g.f_id == p)) = Nickel.EventGraph.fact_membership_is_exact facts p Native.v_OPS._1 in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires each)
+
+let validated_parents_stored (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (ensures forall(s: Nickel.RegisterPast.ids_vec). Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS == Result.Result_Ok s ==> parents_stored before offered) =
+  let facts = Alloc.Vec.impl_1__as_slice before.f_facts in
+  let roots = Alloc.Vec.impl_1__as_slice offered.f_after in
+  register_ops_are_exact ();
+  Nickel.RegisterPast.validated_selection_is_past facts offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS;
+  past_checked_parents Native.v_OPS._1 facts roots;
+  validate_after_checks_presence Native.v_OPS._1 facts roots;
+  FStar.Classical.move_requires (present_parents_are_stored before) offered;
+  assert (forall(s: Nickel.RegisterPast.ids_vec). Nickel_crdt.Event_layer.validate_event facts offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS == Result.Result_Ok s ==> parents_stored before offered) by (
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel_crdt.Event_layer.past";
+    Tactics.prune "Nickel_crdt.Event_layer.validate_after";
+    Tactics.smt_sync' 1 1
+  )
+
+let closed (h: Seq.seq Nickel.Register.fact) : Type0 =
+  forall(g: Nickel.Register.fact) (p: Envelope.t_Id). Prims.l_and (stored h g) (Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice g.f_after) p) ==> (exists(k: Nickel.Register.fact). Prims.l_and (stored h k) (k.f_id == p))
+
+let receive_added_offer_is_fresh (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (ensures forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> fresh_id before offered) =
+  Nickel.Register.receive_publication_is_exact before offered;
+  planned_offer_is_fresh before offered;
+  match Native.planned () before offered with | Result.Result_Err _ -> begin assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> fresh_id before offered) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Ok option -> begin match option with | Option.Option_None -> begin assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> fresh_id before offered) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  ) end | Option.Option_Some candidate -> begin assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> fresh_id before offered) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  ) end end
+
+let receive_added_parents_stored (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (ensures forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> parents_stored before offered) =
+  Nickel.Register.receive_added_checks_payload before offered;
+  validated_parents_stored before offered;
+  assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> parents_stored before offered) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.Register.planned_checks_payload";
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel_crdt.Event_layer.select_basis";
+    Tactics.smt_sync' 1 1
+  )
+
+let closure_gives_unreferenced (h: Seq.seq Nickel.Register.fact) (h2: Seq.seq Nickel.Register.fact) (fnew: Nickel.Register.fact) : Lemma (requires (Prims.l_and (extends_by h h2 fnew) (closed h) /\ (forall(g: Nickel.Register.fact). stored h g ==> g.f_id =!= fnew.f_id) /\ (forall(p: Envelope.t_Id). Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice fnew.f_after) p ==> (exists(k: Nickel.Register.fact). Prims.l_and (stored h k) (k.f_id == p))))) (ensures Prims.l_and (unreferenced h2 fnew.f_id) (closed h2)) =
+  ()
+
+let history_extended_soundly (before: Native.t_Replica) (offered: Nickel.Register.fact) (next: Native.t_Replica) : Type0 =
+  closed (Alloc.Vec.impl_1__as_slice before.f_facts) ==> Prims.l_and (unreferenced (Alloc.Vec.impl_1__as_slice next.f_facts) offered.f_id) (closed (Alloc.Vec.impl_1__as_slice next.f_facts))
+
+let extended_from_parts (before: Native.t_Replica) (offered: Nickel.Register.fact) (next: Native.t_Replica) : Lemma (requires Prims.l_and (Prims.l_and (Nickel.Register.appended_facts before offered next) (fresh_id before offered)) (parents_stored before offered)) (ensures history_extended_soundly before offered next) =
+  let h = Alloc.Vec.impl_1__as_slice before.f_facts in
+  let h2 = Alloc.Vec.impl_1__as_slice next.f_facts in
+  assert (extends_by h h2 offered);
+  FStar.Classical.move_requires (closure_gives_unreferenced h h2) offered
+
+let receive_added_extends_soundly (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (ensures forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> history_extended_soundly before offered next) =
+  Nickel.Register.receive_added_retains_exact_facts before offered;
+  receive_added_offer_is_fresh before offered;
+  receive_added_parents_stored before offered;
+  FStar.Classical.forall_intro (FStar.Classical.move_requires (extended_from_parts before offered));
+  assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> history_extended_soundly before offered next) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.smt_sync' 1 1
+  )
+
+let observation_invariant (r: Native.t_Replica) : Type0 =
+  Prims.l_and (Prims.l_and (Prims.l_and (stored_unique (Alloc.Vec.impl_1__as_slice r.f_facts)) (id_clocks_increase (Alloc.Vec.impl_1__as_slice r.f_facts))) (closed (Alloc.Vec.impl_1__as_slice r.f_facts))) (observations_ok (Alloc.Vec.impl_1__as_slice r.f_facts) (Alloc.Vec.impl_1__as_slice r.f_initial))
+
+let observations_kept_on (before: Native.t_Replica) (next: Native.t_Replica) : Type0 =
+  observation_invariant before ==> Prims.l_and (closed (Alloc.Vec.impl_1__as_slice next.f_facts)) (observations_ok (Alloc.Vec.impl_1__as_slice next.f_facts) (Alloc.Vec.impl_1__as_slice next.f_initial))
+
+let kept_from_parts (before: Native.t_Replica) (offered: Nickel.Register.fact) (next: Native.t_Replica) : Lemma (requires (Prims.l_and (observations_carried before offered next) (history_extended_soundly before offered next) /\ Nickel.Register.private_frame before next)) (ensures observations_kept_on before next) =
+  ()
+
+let receive_added_keeps_observations (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (ensures forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> observations_kept_on before next) =
+  receive_added_carries_observations before offered;
+  receive_added_extends_soundly before offered;
+  Nickel.Register.receive_preserves_private before offered;
+  FStar.Classical.forall_intro (FStar.Classical.move_requires (kept_from_parts before offered));
+  assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> observations_kept_on before next) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.smt_sync' 1 1
+  )
+
+let parents_clock_below (before: Native.t_Replica) (offered: Nickel.Register.fact) : Type0 =
+  forall(fb: Nickel.Register.fact). Prims.l_and (stored (Alloc.Vec.impl_1__as_slice before.f_facts) fb) (Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice offered.f_after) fb.f_id) ==> v fb.f_payload.f_lamport < v offered.f_payload.f_lamport
+
+let basis_bounds_parent_clocks (before: Native.t_Replica) (offered: Nickel.Register.fact) (selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec Nickel.Register.fact Alloc.Alloc.t_Global) : Lemma (requires ((forall(id: Envelope.t_Id). Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.RegisterPast.ancestor Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice offered.f_after) id) /\ Nickel.RegisterPast.selected_prefix Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) (Seq.length (Alloc.Vec.impl_1__as_slice before.f_facts)) (Alloc.Vec.impl_1__as_slice basis) /\ Nickel.Register.clock_successor (Alloc.Vec.impl_1__as_slice basis) offered.f_payload.f_lamport)) (ensures parents_clock_below before offered) =
+  let facts = Alloc.Vec.impl_1__as_slice before.f_facts in
+  register_ops_are_exact ();
+  filter_has_selected_facts Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected) (Seq.length facts) (Alloc.Vec.impl_1__as_slice basis);
+  let each (fb: Nickel.Register.fact) : Lemma (requires Prims.l_and (stored facts fb) (Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice offered.f_after) fb.f_id)) (ensures v fb.f_payload.f_lamport < v offered.f_payload.f_lamport) =
+    assert (Nickel.RegisterPast.causal_path Native.v_OPS._1 facts fb.f_id Prims.Nil fb.f_id);
+    assert (Nickel.RegisterPast.ancestor Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice offered.f_after) fb.f_id);
+    assert (stored (Alloc.Vec.impl_1__as_slice basis) fb) in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires each)
+
+let frozen_basis_bounds_parents (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (requires exact_selected_basis before offered) (ensures parents_clock_below before offered) =
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 (basis_bounds_parent_clocks before offered));
+  assert (parents_clock_below before offered) by (
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel_crdt.Event_layer.select_basis";
+    Tactics.smt_sync' 1 1
+  )
+
+let ids_and_clocks_extend (h: Seq.seq Nickel.Register.fact) (h2: Seq.seq Nickel.Register.fact) (fnew: Nickel.Register.fact) : Lemma (requires (Prims.l_and (extends_by h h2 fnew) (unreferenced h2 fnew.f_id) /\ Prims.l_and (stored_unique h) (id_clocks_increase h) /\ (forall(g: Nickel.Register.fact). stored h g ==> g.f_id =!= fnew.f_id) /\ (forall(fb: Nickel.Register.fact). Prims.l_and (stored h fb) (Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice fnew.f_after) fb.f_id) ==> v fb.f_payload.f_lamport < v fnew.f_payload.f_lamport))) (ensures Prims.l_and (stored_unique h2) (id_clocks_increase h2)) =
+  ()
+
+let invariant_kept (before: Native.t_Replica) (next: Native.t_Replica) : Type0 =
+  observation_invariant before ==> observation_invariant next
+
+let invariant_from_parts (before: Native.t_Replica) (offered: Nickel.Register.fact) (next: Native.t_Replica) : Lemma (requires (Prims.l_and (observations_kept_on before next) (history_extended_soundly before offered next) /\ Prims.l_and (Prims.l_and (Nickel.Register.appended_facts before offered next) (fresh_id before offered)) (parents_clock_below before offered))) (ensures invariant_kept before next) =
+  let h = Alloc.Vec.impl_1__as_slice before.f_facts in
+  let h2 = Alloc.Vec.impl_1__as_slice next.f_facts in
+  assert (extends_by h h2 offered);
+  FStar.Classical.move_requires (ids_and_clocks_extend h h2) offered
+
+let receive_added_preserves_invariant (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (ensures forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> invariant_kept before next) =
+  receive_added_keeps_observations before offered;
+  receive_added_extends_soundly before offered;
+  Nickel.Register.receive_added_retains_exact_facts before offered;
+  receive_added_offer_is_fresh before offered;
+  receive_added_basis_is_exact_ancestry before offered;
+  FStar.Classical.move_requires (frozen_basis_bounds_parents before) offered;
+  FStar.Classical.forall_intro (FStar.Classical.move_requires (invariant_from_parts before offered));
+  assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> invariant_kept before next) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
     Tactics.smt_sync' 1 1
   )
