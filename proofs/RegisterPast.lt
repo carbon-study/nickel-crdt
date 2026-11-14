@@ -251,3 +251,183 @@ proof past_has_only_ancestors_and_keeps_roots(ops: rops, facts: t_Slice(fact), r
   ancestor_roots_and_edges(ops, facts, roots);
   past_stays_in_closed_set(ops, facts, roots, ancestor(ops, facts, roots))
 }
+
+// Completeness (the reverse inclusion), part 1: each successful pass covers one
+// more edge of depth.
+function expanded_prefix(ops: rops, fact: fact, finish: nat, selected: ids_vec): Type0 {
+  forall(i: usize where v(i) < Seq.length(ops._1._2(fact))) .
+    v(i) < finish ==> member(Alloc.Vec.impl_1__as_slice(selected), Seq.index(ops._1._2(fact), v(i)))
+}
+function expansion_ok(ops: rops, fact: fact, before: ids_vec, next: ids_vec): Type0 {
+  retains(Alloc.Vec.impl_1__as_slice(before), next) and
+  (member(Alloc.Vec.impl_1__as_slice(before), ops._1._1(fact)) ==> expanded_prefix(ops, fact, Seq.length(ops._1._2(fact)), next))
+}
+function expansion_result(ops: rops, fact: fact, before: ids_vec, result: Result.t_Result(ids_vec, Native.t_Error)): Type0 {
+  match result { Result.Result_Ok(next) => expansion_ok(ops, fact, before, next), _ => Prims.l_True }
+}
+proof extend_past_covers_predecessors(ops: rops, fact: fact, before: ids_vec): unit
+  takes ids_exact(ops)
+  gives expansion_result(ops, fact, before, Shared.extend_past(fact, before, ops))
+{
+  ops_shape(ops);
+  proof membership_boolean(ids: t_Slice(Envelope.t_Id), id: Envelope.t_Id): unit
+    gives Shared.has_id(ids, id, ops) == true or Shared.has_id(ids, id, ops) == false
+    hint Shared.has_id(ids, id, ops)
+  { () };
+  extend_past_preserves(ops, Alloc.Vec.impl_1__as_slice(before), ((_: Envelope.t_Id) => Prims.l_True), fact, before);
+  proof each_push(at: usize where v(at) < Seq.length(ops._1._2(fact)), selected: ids_vec): unit
+    takes expanded_prefix(ops, fact, v(at), selected)
+    gives (match Shared.push(selected, Seq.index(ops._1._2(fact), v(at)), ops._2._1) {
+      (next, Result.Result_Ok(_)) => expanded_prefix(ops, fact, v(at) + 1, next),
+      _ => Prims.l_True
+    } : Type0)
+  {
+    Nickel.Canonical.push_is_exact(selected, Seq.index(ops._1._2(fact), v(at)), ops._2._1);
+    assert((match Shared.push(selected, Seq.index(ops._1._2(fact), v(at)), ops._2._1) {
+      (next, Result.Result_Ok(_)) => expanded_prefix(ops, fact, v(at) + 1, next),
+      _ => Prims.l_True
+    } : Type0)) by {
+      Tactics.prune("Nickel_crdt.Event_layer.push");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_push));
+  proof skip_existing(at: usize where v(at) < Seq.length(ops._1._2(fact)), selected: ids_vec): unit
+    takes expanded_prefix(ops, fact, v(at), selected)
+    takes Shared.has_id(Alloc.Vec.impl_1__as_slice(selected), Seq.index(ops._1._2(fact), v(at)), ops) == true
+    gives expanded_prefix(ops, fact, v(at) + 1, selected)
+  { id_membership_is_exact(Alloc.Vec.impl_1__as_slice(selected), Seq.index(ops._1._2(fact), v(at)), ops) };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(skip_existing));
+  id_membership_is_exact(Alloc.Vec.impl_1__as_slice(before), ops._1._1(fact), ops);
+  if Shared.has_id(Alloc.Vec.impl_1__as_slice(before), ops._1._1(fact), ops) {
+    Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(ops._1._2(fact)),
+      ((at: nat, selected: ids_vec) => expanded_prefix(ops, fact, at, selected)),
+      ((selected: ids_vec) => selected), ((selected: ids_vec) => expanded_prefix(ops, fact, Seq.length(ops._1._2(fact)), selected)), ((_: Native.t_Error) => Prims.l_True));
+    assert(expansion_result(ops, fact, before, Shared.extend_past(fact, before, ops))) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.prune("Nickel_crdt.Event_layer.has_id");
+      Tactics.prune("Nickel_crdt.Event_layer.push");
+      Tactics.smt_sync'(1, 1)
+    }
+  } else {
+    assert(expansion_result(ops, fact, before, Shared.extend_past(fact, before, ops))) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.prune("Nickel_crdt.Event_layer.has_id");
+      Tactics.prune("Nickel_crdt.Event_layer.push");
+      Tactics.smt_sync'(1, 1)
+    }
+  }
+}
+
+function pass_prefix(ops: rops, facts: t_Slice(fact), before: ids_vec, finish: nat, next: ids_vec): Type0 {
+  retains(Alloc.Vec.impl_1__as_slice(before), next) and
+  (forall(i: usize where v(i) < Seq.length(facts)) . v(i) < finish ==> expansion_ok(ops, Seq.index(facts, v(i)), before, next))
+}
+function pass_result(ops: rops, facts: t_Slice(fact), before: ids_vec, result: Result.t_Result(ids_vec, Native.t_Error)): Type0 {
+  match result { Result.Result_Ok(next) => pass_prefix(ops, facts, before, Seq.length(facts), next), _ => Prims.l_True }
+}
+proof retains_member(before: ids_vec, next: ids_vec, id: Envelope.t_Id): unit
+  takes retains(Alloc.Vec.impl_1__as_slice(before), next)
+  takes member(Alloc.Vec.impl_1__as_slice(before), id)
+  gives member(Alloc.Vec.impl_1__as_slice(next), id)
+{ () }
+proof expansion_composes(ops: rops, facts: t_Slice(fact), before: ids_vec, at: usize where v(at) < Seq.length(facts), selected: ids_vec, next: ids_vec): unit
+  takes pass_prefix(ops, facts, before, v(at), selected)
+  takes expansion_ok(ops, Seq.index(facts, v(at)), selected, next)
+  gives pass_prefix(ops, facts, before, v(at) + 1, next)
+{
+  proof each_id(id: Envelope.t_Id): unit
+    takes member(Alloc.Vec.impl_1__as_slice(selected), id)
+    gives member(Alloc.Vec.impl_1__as_slice(next), id)
+  { retains_member(selected, next, id) };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(each_id));
+  proof prior_member(id: Envelope.t_Id): unit
+    takes member(Alloc.Vec.impl_1__as_slice(before), id)
+    gives member(Alloc.Vec.impl_1__as_slice(selected), id)
+  { retains_member(before, selected, id) };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(prior_member))
+}
+proof past_pass_covers_edges(ops: rops, facts: t_Slice(fact), before: ids_vec): unit
+  takes ids_exact(ops)
+  gives pass_result(ops, facts, before, Shared.past_pass(facts, before, ops))
+{
+  proof each_extend(selected: ids_vec, at: usize where v(at) < Seq.length(facts)): unit
+    takes pass_prefix(ops, facts, before, v(at), selected)
+    gives (match Shared.extend_past(Seq.index(facts, v(at)), selected, ops) {
+      Result.Result_Ok(next) => pass_prefix(ops, facts, before, v(at) + 1, next), _ => Prims.l_True
+    } : Type0)
+  {
+    extend_past_covers_predecessors(ops, Seq.index(facts, v(at)), selected);
+    proof each_next(next: ids_vec): unit
+      takes expansion_ok(ops, Seq.index(facts, v(at)), selected, next)
+      gives pass_prefix(ops, facts, before, v(at) + 1, next)
+    { expansion_composes(ops, facts, before, at, selected, next) };
+    FStar.Classical.forall_intro(FStar.Classical.move_requires(each_next));
+    assert((match Shared.extend_past(Seq.index(facts, v(at)), selected, ops) {
+      Result.Result_Ok(next) => pass_prefix(ops, facts, before, v(at) + 1, next), _ => Prims.l_True
+    } : Type0)) by {
+      Tactics.prune("Nickel_crdt.Event_layer.extend_past");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_extend));
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
+    pass_prefix(ops, facts, before), ((selected: ids_vec) => selected),
+    ((next: ids_vec) => pass_prefix(ops, facts, before, Seq.length(facts), next)), ((_: Native.t_Error) => Prims.l_True));
+  assert(pass_result(ops, facts, before, Shared.past_pass(facts, before, ops))) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.prune("Nickel_crdt.Event_layer.extend_past");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// Independent bounded edge reachability: at most depth predecessor edges.
+function! reachable_within(ops: rops, facts: t_Slice(fact), roots: t_Slice(Envelope.t_Id), depth: nat, id: Envelope.t_Id): Type0
+  decreases depth
+{
+  member(roots, id) or
+  (if depth ==? 0 { Prims.l_False } else {
+    exists(parent: Envelope.t_Id) . reachable_within(ops, facts, roots, depth - 1, parent) and causal_edge(ops, facts, parent, id)
+  })
+}
+function covers_depth(ops: rops, facts: t_Slice(fact), roots: t_Slice(Envelope.t_Id), depth: nat, selected: ids_vec): Type0 {
+  forall(id: Envelope.t_Id) . reachable_within(ops, facts, roots, depth, id) ==> member(Alloc.Vec.impl_1__as_slice(selected), id)
+}
+proof pass_edge_is_covered(ops: rops, facts: t_Slice(fact), before: ids_vec, next: ids_vec, parent: Envelope.t_Id, child: Envelope.t_Id): unit
+  takes pass_prefix(ops, facts, before, Seq.length(facts), next)
+  takes member(Alloc.Vec.impl_1__as_slice(before), parent)
+  takes causal_edge(ops, facts, parent, child)
+  gives member(Alloc.Vec.impl_1__as_slice(next), child)
+{
+  proof each_position(k: nat): unit
+    takes k < Seq.length(facts) and ops._1._1(Seq.index(facts, k)) == parent
+    takes member(ops._1._2(Seq.index(facts, k)), child)
+    gives member(Alloc.Vec.impl_1__as_slice(next), child)
+  {
+    const index = mk_usize(k);
+    assert(expansion_ok(ops, Seq.index(facts, v(index)), before, next))
+  };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(each_position))
+}
+proof pass_covers_next_depth(ops: rops, facts: t_Slice(fact), roots: t_Slice(Envelope.t_Id), depth: nat, before: ids_vec, next: ids_vec): unit
+  takes covers_depth(ops, facts, roots, depth, before)
+  takes pass_prefix(ops, facts, before, Seq.length(facts), next)
+  gives covers_depth(ops, facts, roots, depth + 1, next)
+{
+  proof old_member(id: Envelope.t_Id): unit
+    takes member(Alloc.Vec.impl_1__as_slice(before), id)
+    gives member(Alloc.Vec.impl_1__as_slice(next), id)
+  { retains_member(before, next, id) };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(old_member));
+  proof each_parent(parent: Envelope.t_Id, child: Envelope.t_Id): unit
+    takes reachable_within(ops, facts, roots, depth, parent)
+    takes causal_edge(ops, facts, parent, child)
+    gives member(Alloc.Vec.impl_1__as_slice(next), child)
+  { pass_edge_is_covered(ops, facts, before, next, parent, child) };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_parent));
+  proof each_id(id: Envelope.t_Id): unit
+    takes reachable_within(ops, facts, roots, depth + 1, id)
+    gives member(Alloc.Vec.impl_1__as_slice(next), id)
+  { () };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(each_id))
+}
