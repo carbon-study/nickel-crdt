@@ -832,3 +832,28 @@ proof exact_filter_output(ops: rops, facts: t_Slice(fact), selected: t_Slice(Env
     ((_: Native.t_Error) => Prims.l_False), Result.Result_Ok(basis))
   gives selected_prefix(ops, facts, selected, Seq.length(facts), Alloc.Vec.impl_1__as_slice(basis))
 { () }
+// A successful shared admission selected exactly the offered parents' ancestors.
+proof validated_selection_is_exact(facts: t_Slice(fact), offered: fact, events: usize, dependencies: usize, eops: reops): unit
+  takes ids_exact(eops._1)
+  gives forall(selected: ids_vec) . Shared.validate_event(facts, offered, events, dependencies, eops) == Result.Result_Ok(selected) ==>
+    (forall(id: Envelope.t_Id) . member(Alloc.Vec.impl_1__as_slice(selected), id) <==> ancestor(eops._1, facts, eops._1._1._2(offered), id))
+{
+  validated_selection_is_past(facts, offered, events, dependencies, eops);
+  successful_past_is_exact_closure(eops._1, facts, eops._1._1._2(offered));
+  proof each(selected: ids_vec): unit
+    takes Shared.past(facts, eops._1._1._2(offered), eops._1) == Result.Result_Ok(selected)
+    gives forall(id: Envelope.t_Id) . member(Alloc.Vec.impl_1__as_slice(selected), id) <==> ancestor(eops._1, facts, eops._1._1._2(offered), id)
+  {
+    assert(exact_past_result(eops._1, facts, eops._1._1._2(offered), Result.Result_Ok(selected))) by {
+      Tactics.prune("Nickel_crdt.Event_layer.past"); Tactics.smt_sync'(1, 1)
+    };
+    exact_selection_members(eops._1, facts, eops._1._1._2(offered), selected)
+  };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(each));
+  assert(forall(selected: ids_vec) . Shared.validate_event(facts, offered, events, dependencies, eops) == Result.Result_Ok(selected) ==>
+    (forall(id: Envelope.t_Id) . member(Alloc.Vec.impl_1__as_slice(selected), id) <==> ancestor(eops._1, facts, eops._1._1._2(offered), id))) by {
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel_crdt.Event_layer.past");
+    Tactics.smt_sync'(1, 1)
+  }
+}
