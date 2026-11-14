@@ -5,6 +5,7 @@ import FStar.Classical
 import Nickel.LoopUtil
 import Nickel.EventGraph
 import Nickel.Canonical
+import Nickel.Vector
 import Shared = Nickel_crdt.Event_layer
 import Native = Nickel_crdt.Register
 import Envelope = Nickel_crdt.Causal
@@ -718,5 +719,66 @@ proof successful_past_is_exact_closure(ops: rops, facts: t_Slice(fact), roots: t
         Tactics.prune("Nickel_crdt.Event_layer.past"); Tactics.smt_sync'(1, 1)
       }
     }
+  }
+}
+
+// Whole-fact selection: the actual basis is the storage-order filter of the
+// stored facts whose id is selected, each fact retained as a whole value.
+function copies_exact(ops: rops): Type0 { forall(a: fact) . ops._1._5(a) == a }
+unfold type facts_vec = Alloc.Vec.t_Vec(fact, Alloc.Alloc.t_Global)
+function! selected_prefix(ops: rops, facts: t_Slice(fact), selected: t_Slice(Envelope.t_Id),
+  finish: nat where finish <= Seq.length(facts), output: Seq.seq(fact)): Type0
+  decreases finish
+{
+  if finish ==? 0 { output == Seq.empty }
+  else {
+    const f = Seq.index(facts, finish - 1);
+    (member(selected, ops._1._1(f)) and
+      (exists(before: Seq.seq(fact)) .
+        selected_prefix(ops, facts, selected, finish - 1, before) and
+        output == Seq.append(before, Seq.create(1, f)))) or
+    (not member(selected, ops._1._1(f)) and selected_prefix(ops, facts, selected, finish - 1, output))
+  }
+}
+function basis_prefix(ops: rops, facts: t_Slice(fact), selected: t_Slice(Envelope.t_Id), at: nat, basis: facts_vec): Type0 {
+  at <= Seq.length(facts) and
+  (at <= Seq.length(facts) ==> selected_prefix(ops, facts, selected, at, Alloc.Vec.impl_1__as_slice(basis))) and
+  Seq.length(Alloc.Vec.impl_1__as_slice(basis)) <= at
+}
+proof actual_basis_is_exact_filter(ops: rops, facts: t_Slice(fact), selected: t_Slice(Envelope.t_Id)): unit
+  takes ids_exact(ops) and copies_exact(ops)
+  gives Nickel.LoopUtil.result_safe(
+    ((basis: facts_vec) => selected_prefix(ops, facts, selected, Seq.length(facts), Alloc.Vec.impl_1__as_slice(basis))),
+    ((_: Native.t_Error) => Prims.l_False), Shared.select_basis(facts, selected, ops))
+{
+  ops_shape(ops);
+  proof clone(f: fact): unit
+    gives Shared.clone_selected_fact(f, ops._1._5) == f
+  { () };
+  FStar.Classical.forall_intro(clone);
+  proof membership(ids: t_Slice(Envelope.t_Id), id: Envelope.t_Id): unit
+    gives (Shared.has_id(ids, id, ops) == true <==> member(ids, id)) and
+      (Shared.has_id(ids, id, ops) == true or Shared.has_id(ids, id, ops) == false)
+  { id_membership_is_exact(ids, id, ops) };
+  FStar.Classical.forall_intro_2(membership);
+  proof push(xs: facts_vec, item: fact): unit
+    gives Shared.push(xs, item, ops._2._1) == Nickel.Canonical.push_outcome(xs, item, ops._2._1)
+  { Nickel.Canonical.push_is_exact(xs, item, ops._2._1) };
+  FStar.Classical.forall_intro_2(push);
+  Nickel.Vector.empty_vector_contents<#fact>();
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
+    basis_prefix(ops, facts, selected), ((basis: facts_vec) => basis),
+    ((basis: facts_vec) => selected_prefix(ops, facts, selected, Seq.length(facts), Alloc.Vec.impl_1__as_slice(basis))),
+    ((_: Native.t_Error) => Prims.l_False));
+  assert(Nickel.LoopUtil.result_safe(
+    ((basis: facts_vec) => selected_prefix(ops, facts, selected, Seq.length(facts), Alloc.Vec.impl_1__as_slice(basis))),
+    ((_: Native.t_Error) => Prims.l_False), Shared.select_basis(facts, selected, ops))) by {
+    Tactics.prune("Nickel_crdt.Event_layer.clone_selected_fact");
+    Tactics.prune("Nickel_crdt.Event_layer.has_id");
+    Tactics.prune("Nickel_crdt.Event_layer.push");
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.prune("Nickel.LoopUtil.step_safe");
+    Tactics.prune("Nickel.LoopUtil.output_safe");
+    Tactics.smt_sync'(1, 1)
   }
 }
