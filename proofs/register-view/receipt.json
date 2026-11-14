@@ -29,9 +29,9 @@
     "proofs/register-view/Nickel_crdt.Event_layer.fst": "70dbc65530f9a9ac29fdfa6e181583c01197d07a1829f6f6c2f974323a141c04",
     "proofs/register-view/Nickel_crdt.Event_shell.fst": "ff4af721dad61b6528d724a336998be63a831c956353f52eac44ad7392dc4899",
     "proofs/RegisterPast.lt": "12b6c02d5b5ef62a71c760502a5a8b921fdc9b507a09b63616f831dedff9b5c1",
-    "proofs/RegisterHistory.lt": "90d4c97eb5dd8f68e3ffff470bebb835d8041d09563c0f5a14579df24e8aa0d0",
+    "proofs/RegisterHistory.lt": "fe3c6614723339d93d4fd40e4e095698be8608d304c47247c0159018c43e819f",
     "proofs/register-view/Nickel.RegisterPast.fst": "028ef52b8a79525b382867cfbf3a532641ebbd2b861be7f73efd4004c9f12625",
-    "proofs/register-view/Nickel.RegisterHistory.fst": "90a9dd60ea69cb172618488cbc3dd00a25b5bcff87032598390711a2502ccb46",
+    "proofs/register-view/Nickel.RegisterHistory.fst": "84b772ac76e41f5df928a72c0e58592b1ad694b9cb2937696f0c5c40f3bfce9e",
     "proofs/generated/Nickel.EventClassifier.fst": "c3f31194d0096d9320504be3428d4bdb4b7eeb27f04e71a6efa39fac7a0d89c7",
     "proofs/EventClassifier.lt": "f0074997190bc56b80a7fe658ccd42a4c6da0edcf7310a5ce5b845f69c62042e"
   }

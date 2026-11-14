@@ -1214,6 +1214,7 @@ let public_read_is_the_causal_read (r: Native.t_Replica) (key: u64) (x: t_Slice 
   FStar.Classical.move_requires (causal_read_is_single_valued_by_steps h key init (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read r key))) x;
   assert (Prims.l_and (causal_read h key init (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read r key))) (causal_read h key init x ==> Nickel.Register.bytes_same (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read r key)) x)) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__read";
+    Tactics.prune "Nickel.Register.public_read_is_history";
     Tactics.prune "Nickel_crdt.Register.read_history";
     Tactics.prune "Nickel_crdt.Register.winner";
     Tactics.prune "Nickel.RegisterHistory.causal_read";
