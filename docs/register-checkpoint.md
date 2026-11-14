@@ -276,9 +276,18 @@ plan-to-publication callers with the relevant bodies and automatic contracts
 withheld. The successful execute branch checks strict ordering under opacity
 before calling the policy refinement lemma, so its premise cannot be recovered
 by unfolding the canonicalizer outside the consuming query.
-The new Register visibility entries are exactly its `identity` and
-`less_id` definitions. New match-consuming queries are branch-local; no compiler
+The native definition visibility added for this cut is exactly the register's
+`identity` and `less_id`. New match-consuming queries are branch-local; no compiler
 sequencing repair is activated.
+
+The counted-write ordering query also withholds the hinted
+`planned_checks_payload`, `planned_preserves_private` and
+`planned_adds_exact_fact` contracts. It consumes the checked plan-order and
+candidate-installation laws directly; payload, private-frame and whole-history
+retention instantiations are not needed at this boundary. Those separate
+theorems and their callers are unchanged. Only the last name is new to the
+Register fence. The plan-order removal keeps its original semantic owner,
+actual call and query boundary.
 
 Strict sorted output plus the earlier content law is still not a proved generic
 canonical agreement/success theorem. Independent exact ancestry, valid-history

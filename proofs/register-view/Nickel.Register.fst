@@ -714,5 +714,8 @@ let write_counted_orders_fact_history (before: Native.t_Replica) (key: u64) (val
   assert (forall(next: Native.t_Replica) (authored: fact). Native.impl_Replica__write before key value == (next, Result.Result_Ok (Option.Option_Some authored)) ==> facts_in_id_order next.f_facts) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__write";
     Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.Register.planned_checks_payload";
+    Tactics.prune "Nickel.Register.planned_preserves_private";
+    Tactics.prune "Nickel.Register.planned_adds_exact_fact";
     Tactics.smt_sync' 1 1
   )
