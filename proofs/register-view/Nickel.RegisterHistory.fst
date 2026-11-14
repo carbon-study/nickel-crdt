@@ -776,6 +776,11 @@ let receive_added_preserves_history (before: Native.t_Replica) (offered: Nickel.
   assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> history_kept before next) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
     Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.RegisterHistory.history_kept";
+    Tactics.prune "Nickel.Register.receive_preserves_private";
+    Tactics.prune "Nickel.Register.planned_preserves_private";
+    Tactics.prune "Nickel.Register.planned_checks_payload";
+    Tactics.prune "Nickel.Register.planned_adds_exact_fact";
     Tactics.smt_sync' 1 1
   )
 
@@ -806,37 +811,72 @@ let write_counted_preserves_history (before: Native.t_Replica) (key: u64) (value
     Tactics.smt_sync' 1 1
   )
 
+let kept_reflexive (before: Native.t_Replica) : Lemma (ensures history_kept before before) =
+  ()
+
 let receive_preserves_history (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (ensures history_kept before (Native.impl_Replica__receive before offered)._1) =
+  kept_reflexive before;
   Nickel.Register.receive_publication_is_exact before offered;
   receive_added_preserves_history before offered;
   match Native.planned () before offered with | Result.Result_Err _ -> begin assert (history_kept before (Native.impl_Replica__receive before offered)._1) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
     Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.RegisterHistory.history_kept";
+    Tactics.prune "Nickel.Register.receive_preserves_private";
+    Tactics.prune "Nickel.Register.planned_preserves_private";
+    Tactics.prune "Nickel.Register.planned_checks_payload";
+    Tactics.prune "Nickel.Register.planned_adds_exact_fact";
     Tactics.smt_sync' 1 1
   ) end | Result.Result_Ok option -> begin match option with | Option.Option_None -> begin assert (history_kept before (Native.impl_Replica__receive before offered)._1) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
     Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.RegisterHistory.history_kept";
+    Tactics.prune "Nickel.Register.receive_preserves_private";
+    Tactics.prune "Nickel.Register.planned_preserves_private";
+    Tactics.prune "Nickel.Register.planned_checks_payload";
+    Tactics.prune "Nickel.Register.planned_adds_exact_fact";
     Tactics.smt_sync' 1 1
   ) end | Option.Option_Some candidate -> begin assert (history_kept before (Native.impl_Replica__receive before offered)._1) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
     Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.RegisterHistory.history_kept";
+    Tactics.prune "Nickel.Register.receive_preserves_private";
+    Tactics.prune "Nickel.Register.planned_preserves_private";
+    Tactics.prune "Nickel.Register.planned_checks_payload";
+    Tactics.prune "Nickel.Register.planned_adds_exact_fact";
     Tactics.smt_sync' 1 1
   ) end end
 
 let write_preserves_history (before: Native.t_Replica) (key: u64) (value: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (ensures history_kept before (Native.impl_Replica__write before key value)._1) =
+  kept_reflexive before;
   Nickel.Register.write_installs_successful_candidate before key value;
   write_counted_preserves_history before key value;
   match Native.impl_Replica__write before key value with | (next, result) -> begin match result with | Result.Result_Err _ -> begin assert (history_kept before (Native.impl_Replica__write before key value)._1) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__write";
     Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.RegisterHistory.history_kept";
+    Tactics.prune "Nickel.Register.receive_preserves_private";
+    Tactics.prune "Nickel.Register.planned_preserves_private";
+    Tactics.prune "Nickel.Register.planned_checks_payload";
+    Tactics.prune "Nickel.Register.planned_adds_exact_fact";
     Tactics.smt_sync' 1 1
   ) end | Result.Result_Ok option -> begin match option with | Option.Option_None -> begin assert (history_kept before (Native.impl_Replica__write before key value)._1) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__write";
     Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.RegisterHistory.history_kept";
+    Tactics.prune "Nickel.Register.receive_preserves_private";
+    Tactics.prune "Nickel.Register.planned_preserves_private";
+    Tactics.prune "Nickel.Register.planned_checks_payload";
+    Tactics.prune "Nickel.Register.planned_adds_exact_fact";
     Tactics.smt_sync' 1 1
   ) end | Option.Option_Some authored -> begin assert (history_kept before (Native.impl_Replica__write before key value)._1) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__write";
     Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.RegisterHistory.history_kept";
+    Tactics.prune "Nickel.Register.receive_preserves_private";
+    Tactics.prune "Nickel.Register.planned_preserves_private";
+    Tactics.prune "Nickel.Register.planned_checks_payload";
+    Tactics.prune "Nickel.Register.planned_adds_exact_fact";
     Tactics.smt_sync' 1 1
   ) end end end
 

@@ -1406,6 +1406,11 @@ proof receive_added_preserves_history(before: Native.t_Replica, offered: Nickel.
     (next, Result.Result_Ok(Native.Admission_Added)) ==> history_kept(before, next)) by {
     Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
     Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel.RegisterHistory.history_kept");
+    Tactics.prune("Nickel.Register.receive_preserves_private");
+    Tactics.prune("Nickel.Register.planned_preserves_private");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
     Tactics.smt_sync'(1, 1)
   }
 }
@@ -1454,28 +1459,47 @@ proof write_counted_preserves_history(before: Native.t_Replica, key: u64, value:
 }
 
 // ---------------------------------------------------------------- every return
+proof kept_reflexive(before: Native.t_Replica): unit
+  gives history_kept(before, before)
+{ () }
 // Every receive return preserves the history invariant: Added by the receive half;
 // Duplicate and every error leave the replica unchanged.
 proof receive_preserves_history(before: Native.t_Replica, offered: Nickel.Register.fact): unit
   gives history_kept(before, (Native.impl_Replica__receive(before, offered))._1)
 {
+  kept_reflexive(before);
   Nickel.Register.receive_publication_is_exact(before, offered);
   receive_added_preserves_history(before, offered);
   match Native.planned((), before, offered) {
     Result.Result_Err(_) => { assert(history_kept(before, (Native.impl_Replica__receive(before, offered))._1)) by {
       Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
       Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.prune("Nickel.RegisterHistory.history_kept");
+        Tactics.prune("Nickel.Register.receive_preserves_private");
+        Tactics.prune("Nickel.Register.planned_preserves_private");
+        Tactics.prune("Nickel.Register.planned_checks_payload");
+        Tactics.prune("Nickel.Register.planned_adds_exact_fact");
       Tactics.smt_sync'(1, 1)
     } },
     Result.Result_Ok(option) => match option {
       Option.Option_None => { assert(history_kept(before, (Native.impl_Replica__receive(before, offered))._1)) by {
         Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
         Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.prune("Nickel.RegisterHistory.history_kept");
+        Tactics.prune("Nickel.Register.receive_preserves_private");
+        Tactics.prune("Nickel.Register.planned_preserves_private");
+        Tactics.prune("Nickel.Register.planned_checks_payload");
+        Tactics.prune("Nickel.Register.planned_adds_exact_fact");
         Tactics.smt_sync'(1, 1)
       } },
       Option.Option_Some(candidate) => { assert(history_kept(before, (Native.impl_Replica__receive(before, offered))._1)) by {
         Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
         Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.prune("Nickel.RegisterHistory.history_kept");
+        Tactics.prune("Nickel.Register.receive_preserves_private");
+        Tactics.prune("Nickel.Register.planned_preserves_private");
+        Tactics.prune("Nickel.Register.planned_checks_payload");
+        Tactics.prune("Nickel.Register.planned_adds_exact_fact");
         Tactics.smt_sync'(1, 1)
       } },
     },
@@ -1486,6 +1510,7 @@ proof receive_preserves_history(before: Native.t_Replica, offered: Nickel.Regist
 proof write_preserves_history(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
   gives history_kept(before, (Native.impl_Replica__write(before, key, value))._1)
 {
+  kept_reflexive(before);
   Nickel.Register.write_installs_successful_candidate(before, key, value);
   write_counted_preserves_history(before, key, value);
   match Native.impl_Replica__write(before, key, value) {
@@ -1493,17 +1518,32 @@ proof write_preserves_history(before: Native.t_Replica, key: u64, value: Alloc.V
       Result.Result_Err(_) => { assert(history_kept(before, (Native.impl_Replica__write(before, key, value))._1)) by {
         Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
         Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.prune("Nickel.RegisterHistory.history_kept");
+        Tactics.prune("Nickel.Register.receive_preserves_private");
+        Tactics.prune("Nickel.Register.planned_preserves_private");
+        Tactics.prune("Nickel.Register.planned_checks_payload");
+        Tactics.prune("Nickel.Register.planned_adds_exact_fact");
         Tactics.smt_sync'(1, 1)
       } },
       Result.Result_Ok(option) => match option {
         Option.Option_None => { assert(history_kept(before, (Native.impl_Replica__write(before, key, value))._1)) by {
           Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
           Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.prune("Nickel.RegisterHistory.history_kept");
+        Tactics.prune("Nickel.Register.receive_preserves_private");
+        Tactics.prune("Nickel.Register.planned_preserves_private");
+        Tactics.prune("Nickel.Register.planned_checks_payload");
+        Tactics.prune("Nickel.Register.planned_adds_exact_fact");
           Tactics.smt_sync'(1, 1)
         } },
         Option.Option_Some(authored) => { assert(history_kept(before, (Native.impl_Replica__write(before, key, value))._1)) by {
           Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
           Tactics.prune("Nickel_crdt.Register.planned");
+        Tactics.prune("Nickel.RegisterHistory.history_kept");
+        Tactics.prune("Nickel.Register.receive_preserves_private");
+        Tactics.prune("Nickel.Register.planned_preserves_private");
+        Tactics.prune("Nickel.Register.planned_checks_payload");
+        Tactics.prune("Nickel.Register.planned_adds_exact_fact");
           Tactics.smt_sync'(1, 1)
         } },
       },
