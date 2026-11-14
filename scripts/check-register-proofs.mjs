@@ -60,8 +60,10 @@ if(env.NICKEL_LATTE_BIN){
 }
 const source=await fs.readFile(path.join(root,'src/register.rs'),'utf8');
 const graphSource=await fs.readFile(path.join(root,'src/event_layer.rs'),'utf8');
-const graphModes=new Set(['past-extend-never-pushes','past-extend-unselected','canonical-push-drops-value','canonical-copies-wrong-fact','canonical-discards-output','canonical-chooses-largest']);
+const graphModes=new Set(['past-skips-parent-check','past-extend-never-pushes','past-extend-unselected','canonical-push-drops-value','canonical-copies-wrong-fact','canonical-discards-output','canonical-chooses-largest']);
 const bodyModes=[
+ // History invariant (receive half): an Added offer's parents are stored only because past checks them.
+ ['past-skips-parent-check','fn past<','    validate_after(facts, after_ids, ops)?;\n','','RegisterHistory.past_checked_parents'],
  // Exact past directions (#97 obligation 1): each native fault breaks only its own direction.
  ['past-extend-never-pushes','fn extend_past<','if !has_id(&selected, &predecessor, ops) {','if false && !has_id(&selected, &predecessor, ops) {','RegisterPast.extend_past_covers_predecessors'],
  ['past-extend-unselected','fn extend_past<','if has_id(&selected, &id(fact), ops) {','if true {','RegisterPast.extend_past_preserves'],
@@ -103,7 +105,7 @@ const bodyModes=[
  ['read-wrong-key','pub fn read(','read_history(&self.facts, &self.initial, key)','read_history(&self.facts, &self.initial, 0)','public_read_is_history'],
  ['payload-ignores-observed','fn write_equal(','&& bytes_equal(&a.observed, &b.observed)','&& true','write_equal_is_exact'],
 ];
-assert(selected.every(n=>n==='positive'||bodyModes.some(m=>m[0]===n)||["without-read-maximum-contract","without-past-soundness-closure","without-past-completeness-paths","without-admission-exact-selection","without-admission-whole-basis","without-frozen-payload-checks","without-ancestor-clock-step","without-minimum-order-contract","without-canonical-order-contract","without-write-order-plan","without-receive-order-plan","without-generic-append-contract","without-canonical-selection-contract","without-canonical-coverage-contract","without-loop-unroll","without-loop-recursion","without-loop-empty","without-generic-step-equation","without-generic-push-contract","without-generic-membership-contract","without-generic-choice-loop","without-generic-canonical-loop","without-generic-choice-contract","without-generic-step-contract","without-register-canonical-policy","without-register-canonical-content","without-prepare-content","without-plan-prepared-content","without-receive-retention-plan","without-write-retention-installation","without-clock-loop-contract","without-added-clock-contract","without-added-clock-payload","without-validation-byte-contract","without-payload-validation-contract","without-payload-planning-contract","without-receive-payload-contract","without-added-publication-contract","without-write-receive-publication","without-write-receive-frame","without-winner-loop","without-read-winner","without-publication-contract","without-noedit-byte-contract","without-shared-planning-contract","without-prepare-frame","without-execute-frame","without-receive-publication-frame","without-plan-private-frame"].includes(n)),'unknown selected mode');
+assert(selected.every(n=>n==='positive'||bodyModes.some(m=>m[0]===n)||["without-read-filter","without-dominator-clock","without-extension-walk","without-unreferenced-walk","without-fresh-lookup","without-presence-loop","without-basis-filter","without-read-maximum-contract","without-past-soundness-closure","without-past-completeness-paths","without-admission-exact-selection","without-admission-whole-basis","without-frozen-payload-checks","without-ancestor-clock-step","without-minimum-order-contract","without-canonical-order-contract","without-write-order-plan","without-receive-order-plan","without-generic-append-contract","without-canonical-selection-contract","without-canonical-coverage-contract","without-loop-unroll","without-loop-recursion","without-loop-empty","without-generic-step-equation","without-generic-push-contract","without-generic-membership-contract","without-generic-choice-loop","without-generic-canonical-loop","without-generic-choice-contract","without-generic-step-contract","without-register-canonical-policy","without-register-canonical-content","without-prepare-content","without-plan-prepared-content","without-receive-retention-plan","without-write-retention-installation","without-clock-loop-contract","without-added-clock-contract","without-added-clock-payload","without-validation-byte-contract","without-payload-validation-contract","without-payload-planning-contract","without-receive-payload-contract","without-added-publication-contract","without-write-receive-publication","without-write-receive-frame","without-winner-loop","without-read-winner","without-publication-contract","without-noedit-byte-contract","without-shared-planning-contract","without-prepare-frame","without-execute-frame","without-receive-publication-frame","without-plan-private-frame"].includes(n)),'unknown selected mode');
 // The actual const policy has no brace body; bind this one construction-site
 // control to its complete exact code item, never a later function's body.
 function registerPolicyAnchor(source,anchor){
@@ -201,7 +203,21 @@ const canonicalWholeLoop=canonicalView.split('\n').find(l=>l.startsWith('  Nicke
 assert(canonicalChoiceLoop&&canonicalWholeLoop,'actual generic loop interfaces');
 // Branch-local queries make the formerly uncredited append probe a registered
 // control. The earlier nonterminal attempt remains retained.
+const presenceLoop=historyView.split('\n').find(l=>l.startsWith('  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len after)'));
+assert(presenceLoop,'actual validate_after loop contract');
 const depModes=[
+ // History invariant (receive half), one owner per new law.
+ // filter_has_selected_facts is a pure spec induction; withholding its step is a search, so its dependence is owned at its users.
+ ['without-read-filter',replaceInDeclaration('basis_freezes_id_read','filter_has_selected_facts Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected) (Seq.length facts) b;','();',historyView),'RegisterHistory.basis_freezes_id_read'],
+ ['without-dominator-clock',replaceInDeclaration('maximum_is_maximal_in','id_path_clock_decreases facts g next rest f','()',historyView),'RegisterHistory.maximum_is_maximal_in'],
+ ['without-extension-walk',replaceInDeclaration('rec id_path_extend','id_path_extend h h2 f next rest finish','()',historyView),'RegisterHistory.id_path_extend'],
+ ['without-unreferenced-walk',replaceInDeclaration('rec never_reaches_new','never_reaches_new h2 x next rest','()',historyView),'RegisterHistory.never_reaches_new'],
+ // lookup_none_misses' own step: split retries succeed after the failing query, so it is owned at its user.
+ ['without-fresh-lookup',replaceInDeclaration('not_duplicate_is_fresh','lookup_none_misses facts offered Native.v_OPS._1._1._1 Native.v_OPS._1._1._3 Native.v_OPS._1._1._6 (mk_usize 0)','()',historyView),'RegisterHistory.not_duplicate_is_fresh'],
+ ['without-presence-loop',replaceInDeclaration('validate_after_checks_presence',presenceLoop,'  ();',historyView),'RegisterHistory.validate_after_checks_presence'],
+ ['without-basis-filter',replaceInDeclaration('basis_bounds_parent_clocks','filter_has_selected_facts Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected) (Seq.length facts) (Alloc.Vec.impl_1__as_slice basis);','();',historyView),'RegisterHistory.basis_bounds_parent_clocks'],
+ // Withholding freshness at receive_added_preserves_invariant is a search (20 s, 100% rlimit): that composition
+ // dependence is uncontrolled; freshness itself is owned at not_duplicate_is_fresh.
  // Exact past and history meaning (#97 obligation 1): soundness and completeness are separate owners.
  ['without-past-soundness-closure',replaceInDeclaration('past_has_only_ancestors_and_keeps_roots','  past_stays_in_closed_set ops facts roots (ancestor ops facts roots)','  ()',pastView),'RegisterPast.past_has_only_ancestors_and_keeps_roots'],
  ['without-past-completeness-paths',replaceInDeclaration('successful_past_is_exact_closure','      past_contains_every_causal_path ops facts roots root steps id;','      ();',pastView),'RegisterPast.successful_past_is_exact_closure'],
