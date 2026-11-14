@@ -659,7 +659,14 @@ let execute_orders_fact_history (before: Native.t_Replica) : Lemma (ensures fora
   register_canonical_values_are_exact ();
   register_order_policy_is_exact ();
   Nickel.Canonical.canonical_outputs_strict_id_order (Alloc.Vec.impl_1__as_slice before.f_facts) Native.v_OPS._1;
-  match Nickel_crdt.Event_layer.canonical (Alloc.Vec.impl_1__as_slice before.f_facts) Native.v_OPS._1 with | Result.Result_Ok facts -> begin policy_order_refines_id_order facts;
+  match Nickel_crdt.Event_layer.canonical (Alloc.Vec.impl_1__as_slice before.f_facts) Native.v_OPS._1 with | Result.Result_Ok facts -> begin assert (Nickel.Canonical.strictly_ordered facts Native.v_OPS._1) by (
+    Tactics.prune "Nickel_crdt.Event_layer.canonical";
+    Tactics.prune "Nickel_crdt.Register.v_OPS";
+    Tactics.prune "Nickel_crdt.Register.less_id";
+    Tactics.prune "Nickel_crdt.Register.identity";
+    Tactics.smt_sync' 1 1
+  );
+  policy_order_refines_id_order facts;
   assert (forall(next: Native.t_Replica). Native.execute () before == Result.Result_Ok next ==> facts_in_id_order next.f_facts) by (
     Tactics.prune "Nickel_crdt.Event_layer.canonical";
     Tactics.prune "Nickel_crdt.Register.v_OPS";

@@ -67,6 +67,7 @@ const bodyModes=[
  ['past-extend-unselected','fn extend_past<','if has_id(&selected, &id(fact), ops) {','if true {','RegisterPast.extend_past_preserves'],
  ['canonical-chooses-largest','fn choose_unseen<','id_lt(&id(&facts[j]), &id(&facts[k]))','id_lt(&id(&facts[k]), &id(&facts[j]))','Canonical.choose_is_least'],
  ['register-wrong-order-policy','const OPS:','graph::graph_ops(identity, parents, same_id, less_id,','graph::graph_ops(identity, parents, same_id, same_id,','register_order_policy_is_exact'],
+ ['register-orders-counter-first','fn less_id(','a.peer < b.peer || (a.peer == b.peer && a.counter < b.counter)','a.counter < b.counter || (a.counter == b.counter && a.peer < b.peer)','less_id_is_lexicographic'],
  ['canonical-push-drops-value','fn push<','xs.push(value);','let _ = value;','Canonical.push_is_exact'],
  ['canonical-copies-wrong-fact','fn canonical_step<','clone_selected_fact(&facts[i], clone_fact)','clone_selected_fact(&facts[0], clone_fact)','Canonical.step_uses_selected_fact'],
  ['canonical-discards-output','fn canonical<','Ok(out)','Ok(Vec::new())','Canonical.canonical_selects_whole_facts'],
@@ -212,8 +213,8 @@ const depModes=[
  // Withholding the clock lemma at its use in priority_maximum_is_causal_maximum leaves a long search
  // (10.6 s, 58% rlimit locally) that crosses the 60 s module cap on CI; own the induction step instead.
  ['without-ancestor-clock-step',replaceInDeclaration('rec ancestor_clock_is_smaller','begin ancestor_clock_is_smaller facts next rest older end','begin () end',historyView),'RegisterHistory.ancestor_clock_is_smaller'],
-  ['without-minimum-order-contract',withholdPayloadContract('step_preserves_order','Nickel_crdt.Event_layer.choose_unseen',3,['Nickel.Canonical.choose_is_least'],['  choose_is_least input (Alloc.Vec.impl_1__as_slice out) ops;'],canonicalView),'Canonical.step_preserves_order'],
- ['without-canonical-order-contract',withholdPayloadContract('execute_orders_fact_history','Nickel_crdt.Event_layer.canonical',2,['Nickel.Canonical.canonical_outputs_strict_id_order'],['  Nickel.Canonical.canonical_outputs_strict_id_order (Alloc.Vec.impl_1__as_slice before.f_facts) Native.v_OPS._1;']),'execute_orders_fact_history'],
+ ['without-minimum-order-contract',withholdPayloadContract('step_preserves_order','Nickel_crdt.Event_layer.choose_unseen',3,['Nickel.Canonical.choose_is_least'],['  choose_is_least input (Alloc.Vec.impl_1__as_slice out) ops;'],canonicalView),'Canonical.step_preserves_order'],
+ ['without-canonical-order-contract',withholdPayloadContract('execute_orders_fact_history','Nickel_crdt.Event_layer.canonical',3,['Nickel.Canonical.canonical_outputs_strict_id_order'],['  Nickel.Canonical.canonical_outputs_strict_id_order (Alloc.Vec.impl_1__as_slice before.f_facts) Native.v_OPS._1;']),'execute_orders_fact_history'],
  ['without-write-order-plan',withholdPayloadContract('write_counted_orders_fact_history','Nickel_crdt.Register.planned',1,['Nickel.Register.planned_orders_fact_history'],['  FStar.Classical.forall_intro (planned_orders_fact_history before);']),'write_counted_orders_fact_history'],
  ['without-receive-order-plan',withholdPayloadContract('receive_added_orders_fact_history','Nickel_crdt.Register.planned',3,['Nickel.Register.planned_orders_fact_history'],['  planned_orders_fact_history before offered;']),'receive_added_orders_fact_history'],
  ['without-generic-append-contract',withholdPayloadContract('step_preserves_content','Nickel_crdt.Event_layer.push',4,['Nickel.Canonical.append_preserves_content'],['append_preserves_content input out (Rust_primitives.Slice.slice_index input k) ops;'],canonicalView),'Canonical.step_preserves_content'],
