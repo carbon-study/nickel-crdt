@@ -17,17 +17,20 @@ const env=process.env;
 for(const k of ['NICKEL_HAX_BIN','NICKEL_PROOF_FSTAR','NICKEL_HAX_SOURCE','NICKEL_FSTAR_MODEL_CACHE'])assert(env[k],k);
 const views=path.join(root,'proofs/register-view');
 const receipt=JSON.parse(await fs.readFile(path.join(views,'receipt.json'),'utf8'));
-const required=['Cargo.toml','Cargo.lock','src/lib.rs','src/register.rs','src/causal.rs','src/event_layer.rs','src/event_shell.rs','proofs/Register.lt','proofs/Canonical.lt','proofs/Vector.lt','proofs/EventGraph.lt',
+const required=['Cargo.toml','Cargo.lock','src/lib.rs','src/register.rs','src/causal.rs','src/event_layer.rs','src/event_shell.rs','proofs/Register.lt','proofs/RegisterPast.lt','proofs/Canonical.lt','proofs/Vector.lt','proofs/EventGraph.lt',
  'proofs/Prelude.lt','proofs/LoopUtil.lt','proofs/EventShell.lt','proofs/CausalEnvelope.lt',
  'proofs/generated/Nickel.Vector.fst','proofs/generated/Nickel.EventGraph.fst','proofs/generated/Nickel.Prelude.fst','proofs/generated/Nickel.LoopUtil.fst','proofs/generated/Nickel.EventShell.fst',
  'proofs/causal-envelope-view/Nickel.CausalEnvelope.fst',
- 'proofs/register-view/Nickel.Canonical.fst',
+ 'proofs/register-view/Nickel.Canonical.fst','proofs/register-view/Nickel.RegisterPast.fst',
  ...['Register','Nickel_crdt.Register','Nickel_crdt.Causal','Nickel_crdt.Event_layer','Nickel_crdt.Event_shell'].map(n=>'proofs/register-view/'+(n==='Register'?'Nickel.Register':n)+'.fst')];
 assert.equal(receipt.schemaVersion,1);assert.deepEqual(Object.keys(receipt.files).sort(),required.sort(),'complete checkpoint receipt required');
 for(const [f,h]of Object.entries(receipt.files))assert.equal(digest(await fs.readFile(path.join(root,f))),h,'stale checkpoint receipt: '+f);
 assertReformedSource('LoopUtil',await fs.readFile(path.join(root,'proofs/LoopUtil.lt'),'utf8'));
 assertReformedSource('Canonical',await fs.readFile(path.join(root,'proofs/Canonical.lt'),'utf8'));
 assertReformedSource('Register',await fs.readFile(path.join(root,'proofs/Register.lt'),'utf8'));
+assertReformedSource('RegisterPast',await fs.readFile(path.join(root,'proofs/RegisterPast.lt'),'utf8'));
+assert.throws(()=>assertReformedSource('RegisterPast','Tactics.prune("Nickel_crdt.Event_layer");'),'no broad shared namespace exception for exact past');
+assert.throws(()=>assertReformedSource('RegisterPast','Tactics.prune("Nickel_crdt.Register.v_OPS");'),'exact past stays generic over ops');
 assert.throws(()=>assertReformedSource('EditAccepted','Tactics.prune("Nickel_crdt.Register.bytes_equal");'),'new native visibility stays Register-scoped');
 assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Nickel.Register.planned_preserves_private");'),'write caller contract isolation stays Register-scoped');
 assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Nickel_crdt.Register.read_history");'),'payload callee visibility stays Register-scoped');
@@ -41,10 +44,12 @@ assert.throws(()=>assertReformedSource('Register','Tactics.prune("Nickel_crdt.Ev
 const loopView=await fs.readFile(path.join(root,'proofs/generated/Nickel.LoopUtil.fst'),'utf8');
 const canonicalView=await fs.readFile(path.join(views,'Nickel.Canonical.fst'),'utf8');
 const view=await fs.readFile(path.join(views,'Nickel.Register.fst'),'utf8');
-for(const checkedView of [view,canonicalView])assert(!/\b(?:admit|assume|lax|admit_smt_queries)\b/.test(checkedView));
+const pastView=await fs.readFile(path.join(views,'Nickel.RegisterPast.fst'),'utf8');
+for(const checkedView of [view,canonicalView,pastView])assert(!/\b(?:admit|assume|lax|admit_smt_queries)\b/.test(checkedView));
 if(env.NICKEL_LATTE_BIN){
  const l=await runAsync('loop producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/LoopUtil.lt')],root,{env});assert.equal(l.status,0);assert.equal(l.stdout,loopView,'complete loop producer/view parity');
  const c=await runAsync('canonical producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/Canonical.lt')],root,{env});assert.equal(c.status,0);assert.equal(c.stdout,canonicalView,'complete generic producer/view parity');
+ const rp=await runAsync('exact past producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/RegisterPast.lt')],root,{env});assert.equal(rp.status,0);assert.equal(rp.stdout,pastView,'complete exact past producer/view parity');
  const p=await runAsync('checkpoint producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/Register.lt')],root,{env});
  await fs.writeFile(path.join(output,'producer.log'),p.log);assert.equal(p.status,0);assert.equal(p.stdout,view,'full producer/view parity');
 }
@@ -95,6 +100,7 @@ async function support(dir){
  await fs.mkdir(dir,{recursive:true});
  for(const f of proofFiles)await put(path.join(dir,f),await fs.readFile(path.join(root,'proofs/generated',f)));
  await put(path.join(dir,'Nickel.Canonical.fst'),canonicalView);
+ await put(path.join(dir,'Nickel.RegisterPast.fst'),pastView);
  await put(path.join(dir,'Nickel.CausalEnvelope.fst'),await fs.readFile(path.join(root,'proofs/causal-envelope-view/Nickel.CausalEnvelope.fst')));
 }
 async function check(dir,roots,log){

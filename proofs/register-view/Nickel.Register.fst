@@ -704,3 +704,77 @@ let receive_added_freezes_causal_observation (before: Native.t_Replica) (offered
     Tactics.prune "Nickel_crdt.Event_layer.select_basis";
     Tactics.smt_sync' 1 1
   )
+
+open Nickel.RegisterPast
+
+let register_ops_are_exact () : Lemma (ensures Prims.l_and (Prims.l_and (Prims.l_and (Nickel.RegisterPast.ids_exact Native.v_OPS._1) (Nickel.RegisterPast.copies_exact Native.v_OPS._1)) (forall(f: fact). Native.v_OPS._1._1._1 f == f.f_id)) (forall(f: fact). Native.v_OPS._1._1._2 f == Alloc.Vec.impl_1__as_slice f.f_after)) =
+  let graph = Nickel_crdt.Event_layer.graph_ops Native.identity Native.parents Native.same_id Native.less_id Native.copy_fact Native.fact_equal Native.invalid Native.missing in
+  Nickel.EventGraph.graph_ops_preserve_callbacks Native.identity Native.parents Native.same_id Native.less_id Native.copy_fact Native.fact_equal Native.invalid Native.missing;
+  Nickel.EventGraph.event_ops_preserve_callbacks graph Native.previous Native.forbidden Native.capacity Native.capacity Native.invalid Native.invalid;
+  assert (Native.v_OPS._1 == graph) by (
+    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
+    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
+    Tactics.smt_sync' 1 1
+  );
+  register_canonical_values_are_exact ();
+  let each_identity (f: fact) : Lemma (ensures graph._1._1 f == f.f_id) = assert (graph._1._1 == Native.identity) in
+  let each_parents (f: fact) : Lemma (ensures graph._1._2 f == Alloc.Vec.impl_1__as_slice f.f_after) = assert (graph._1._2 == Native.parents) in
+  FStar.Classical.forall_intro each_identity;
+  FStar.Classical.forall_intro each_parents
+
+let exact_selected_basis (before: Native.t_Replica) (offered: fact) : Type0 =
+  exists(selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global). Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS == Result.Result_Ok selected) (Nickel_crdt.Event_layer.select_basis (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) Native.v_OPS._1 == Result.Result_Ok basis)) (forall(id: Envelope.t_Id). Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.RegisterPast.ancestor Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice offered.f_after) id)) (Nickel.RegisterPast.selected_prefix Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) (Seq.length (Alloc.Vec.impl_1__as_slice before.f_facts)) (Alloc.Vec.impl_1__as_slice basis))) (frozen_causal_observation before offered basis)
+
+let selected_basis_is_exact (before: Native.t_Replica) (offered: fact) (selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global) : Lemma (requires (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS == Result.Result_Ok selected /\ Nickel_crdt.Event_layer.select_basis (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) Native.v_OPS._1 == Result.Result_Ok basis)) (ensures Prims.l_and (forall(id: Envelope.t_Id). Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.RegisterPast.ancestor Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice offered.f_after) id) (Nickel.RegisterPast.selected_prefix Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) (Seq.length (Alloc.Vec.impl_1__as_slice before.f_facts)) (Alloc.Vec.impl_1__as_slice basis))) =
+  let facts = Alloc.Vec.impl_1__as_slice before.f_facts in
+  let roots = Alloc.Vec.impl_1__as_slice offered.f_after in
+  register_ops_are_exact ();
+  Nickel.RegisterPast.validated_selection_is_exact facts offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS;
+  assert (forall(id: Envelope.t_Id). Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.RegisterPast.ancestor Native.v_OPS._1 facts roots id) by (
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.smt_sync' 1 1
+  );
+  Nickel.RegisterPast.actual_basis_is_exact_filter Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected);
+  assert (Nickel.LoopUtil.result_safe (fun (out: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global) -> Nickel.RegisterPast.selected_prefix Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected) (Seq.length facts) (Alloc.Vec.impl_1__as_slice out)) (fun (_: Native.t_Error) -> Prims.l_False) (Result.Result_Ok basis)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.select_basis";
+    Tactics.smt_sync' 1 1
+  );
+  Nickel.RegisterPast.exact_filter_output Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected) basis;
+  assert (Nickel.RegisterPast.selected_prefix Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected) (Seq.length facts) (Alloc.Vec.impl_1__as_slice basis)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.select_basis";
+    Tactics.smt_sync' 1 1
+  );
+  assert (Prims.l_and (forall(id: Envelope.t_Id). Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.RegisterPast.ancestor Native.v_OPS._1 facts roots id) (Nickel.RegisterPast.selected_prefix Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected) (Seq.length facts) (Alloc.Vec.impl_1__as_slice basis))) by (
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel_crdt.Event_layer.select_basis";
+    Tactics.smt_sync' 1 1
+  )
+
+let witness_is_exact (before: Native.t_Replica) (offered: fact) (selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec fact Alloc.Alloc.t_Global) : Lemma (requires Prims.l_and (Prims.l_and (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS == Result.Result_Ok selected) (Nickel_crdt.Event_layer.select_basis (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) Native.v_OPS._1 == Result.Result_Ok basis)) (frozen_causal_observation before offered basis)) (ensures exact_selected_basis before offered) =
+  selected_basis_is_exact before offered selected basis;
+  assert (exact_selected_basis before offered) by (
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel_crdt.Event_layer.select_basis";
+    Tactics.smt_sync' 1 1
+  )
+
+let selected_frozen_is_exact (before: Native.t_Replica) (offered: fact) : Lemma (requires selected_basis_frozen before offered) (ensures exact_selected_basis before offered) =
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 (witness_is_exact before offered));
+  assert (exact_selected_basis before offered) by (
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel_crdt.Event_layer.select_basis";
+    Tactics.smt_sync' 1 1
+  )
+
+let receive_added_basis_is_exact_ancestry (before: Native.t_Replica) (offered: fact) : Lemma (ensures forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> exact_selected_basis before offered) =
+  receive_added_freezes_causal_observation before offered;
+  FStar.Classical.move_requires (selected_frozen_is_exact before) offered;
+  assert (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> exact_selected_basis before offered) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.Register.planned_checks_payload";
+    Tactics.prune "Nickel_crdt.Register.next_lamport";
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel_crdt.Event_layer.select_basis";
+    Tactics.smt_sync' 1 1
+  )

@@ -121,7 +121,7 @@
         root = ./.;
         fileset = pkgs.lib.fileset.unions [
           ./Cargo.toml ./Cargo.lock ./proof-smoke ./src ./tests/register_checkpoint.rs
-          ./proofs/Register.lt ./proofs/Canonical.lt ./proofs/register-view
+          ./proofs/Register.lt ./proofs/RegisterPast.lt ./proofs/Canonical.lt ./proofs/register-view
           ./proofs/Prelude.lt ./proofs/LoopUtil.lt ./proofs/Vector.lt ./proofs/EventGraph.lt ./proofs/EventShell.lt ./proofs/CausalEnvelope.lt
           ./proofs/generated/Nickel.Prelude.fst ./proofs/generated/Nickel.LoopUtil.fst
           ./proofs/generated/Nickel.Vector.fst ./proofs/generated/Nickel.EventGraph.fst
