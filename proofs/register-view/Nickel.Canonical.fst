@@ -66,6 +66,37 @@ let choose_is_fresh (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out:
     Tactics.smt_sync' 1 1
   )
 
+let strict_lt (#f: Type0) (#i: Type0) (#e: Type0) (ops: Nickel.EventGraph.graph_ops f i e) : Type0 =
+  Prims.l_and (forall(a: i). Prims.l_not (ops._1._4 a a == true)) (forall(a: i) (b: i) (c: i). Prims.l_and (ops._1._4 a b == true) (ops._1._4 b c == true) ==> ops._1._4 a c == true)
+
+let unseen (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) (j: usize{v j < Seq.length input}) : Type0 =
+  Prims.l_not (Native.has_fact out (ops._1._1 (Rust_primitives.Slice.slice_index input j)) ops == true)
+
+let least_prefix (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) (at: nat) (choice: Option.t_Option usize) : Type0 =
+  match choice with | Option.Option_None -> begin forall(j: usize{v j < Seq.length input}). v j < at ==> Prims.l_not (unseen input out ops j) end | Option.Option_Some k -> begin Prims.l_and (Prims.l_and (Prims.l_and (v k < at) (v k < Seq.length input)) (unseen input out ops k)) (forall(j: usize{v j < Seq.length input}). Prims.l_and (v j < at) (unseen input out ops j) ==> Prims.l_not (ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index input j)) (ops._1._1 (Rust_primitives.Slice.slice_index input k)) == true)) end
+
+let least_choice (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) (choice: Option.t_Option usize) : Type0 =
+  least_prefix input out ops (Seq.length input) choice
+
+let least_next (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) (j: usize{v j < Seq.length input}) (choice: Option.t_Option usize) : Option.t_Option usize =
+  if Native.has_fact out (ops._1._1 (Rust_primitives.Slice.slice_index input j)) ops then
+    begin choice end
+  else
+    begin match choice with | Option.Option_None -> begin Option.Option_Some j end | Option.Option_Some k -> begin if v k < v (Core_models.Slice.impl__len input) && ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index input j)) (ops._1._1 (Rust_primitives.Slice.slice_index input k)) then
+      begin Option.Option_Some j end
+    else
+      begin choice end end end
+
+let least_extends (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (requires strict_lt ops) (ensures forall(j: Nickel.LoopUtil.position (mk_usize 0) (Core_models.Slice.impl__len input)) (choice: Option.t_Option usize). least_prefix input out ops (v j) choice ==> least_prefix input out ops (v j + 1) (least_next input out ops j choice)) =
+  let each (j: Nickel.LoopUtil.position (mk_usize 0) (Core_models.Slice.impl__len input)) (choice: Option.t_Option usize) : Lemma (ensures least_prefix input out ops (v j) choice ==> least_prefix input out ops (v j + 1) (least_next input out ops j choice)) = if Native.has_fact out (ops._1._1 (Rust_primitives.Slice.slice_index input j)) ops then
+    begin () end
+  else
+    begin match choice with | Option.Option_None -> begin () end | Option.Option_Some k -> begin if v k < v (Core_models.Slice.impl__len input) && ops._1._4 (ops._1._1 (Rust_primitives.Slice.slice_index input j)) (ops._1._1 (Rust_primitives.Slice.slice_index input k)) then
+      begin () end
+    else
+      begin () end end end in
+  FStar.Classical.forall_intro_2 each
+
 let appended_content (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (out: vector f) (ops: Nickel.EventGraph.graph_ops f i e) (result: vector f & Result.t_Result unit e) : Type0 =
   match result with | (next, Result.Result_Ok _) -> begin content_prefix input (Seq.length (Alloc.Vec.impl_1__as_slice out) + 1) next ops._1._1 end | _ -> begin Prims.l_True end
 

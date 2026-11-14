@@ -65,6 +65,56 @@ proof choose_is_fresh<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), out: t_Sl
     Tactics.smt_sync'(1, 1)
   }
 }
+// Ordering assumptions on the policy's id comparison, stated explicitly: the
+// generic laws below use only these, not any concrete key encoding.
+function strict_lt<f: Type0, i: Type0, e: Type0>(ops: Nickel.EventGraph.graph_ops(f, i, e)): Type0 {
+  (forall(a: i) . not (ops._1._4(a, a) == true)) and
+  (forall(a: i, b: i, c: i) . (ops._1._4(a, b) == true and ops._1._4(b, c) == true) ==> ops._1._4(a, c) == true)
+}
+function unseen<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), out: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e), j: usize where v(j) < Seq.length(input)): Type0 {
+  not (Native.has_fact(out, ops._1._1(Rust_primitives.Slice.slice_index(input, j)), ops) == true)
+}
+// The chosen unseen fact has no unseen fact before `at` with a smaller id.
+function least_prefix<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), out: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e), at: nat, choice: Option.t_Option(usize)): Type0 {
+  match choice {
+    Option.Option_None => forall(j: usize where v(j) < Seq.length(input)) . v(j) < at ==> not (unseen(input, out, ops, j)),
+    Option.Option_Some(k) => v(k) < at and v(k) < Seq.length(input) and unseen(input, out, ops, k) and
+      (forall(j: usize where v(j) < Seq.length(input)) . (v(j) < at and unseen(input, out, ops, j)) ==>
+        not (ops._1._4(ops._1._1(Rust_primitives.Slice.slice_index(input, j)), ops._1._1(Rust_primitives.Slice.slice_index(input, k))) == true)),
+  }
+}
+function least_choice<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), out: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e), choice: Option.t_Option(usize)): Type0 {
+  least_prefix(input, out, ops, Seq.length(input), choice)
+}
+// One loop step in spec terms, mirroring choose_unseen's body.
+function least_next<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), out: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e), j: usize where v(j) < Seq.length(input), choice: Option.t_Option(usize)): Option.t_Option(usize) {
+  if Native.has_fact(out, ops._1._1(Rust_primitives.Slice.slice_index(input, j)), ops) { choice } else {
+    match choice {
+      Option.Option_None => Option.Option_Some(j),
+      Option.Option_Some(k) => if v(k) < v(Core_models.Slice.impl__len(input)) && ops._1._4(ops._1._1(Rust_primitives.Slice.slice_index(input, j)), ops._1._1(Rust_primitives.Slice.slice_index(input, k))) { Option.Option_Some(j) } else { choice },
+    }
+  }
+}
+proof least_extends<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), out: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e)): unit
+  takes strict_lt(ops)
+  gives forall(j: Nickel.LoopUtil.position(mk_usize(0), Core_models.Slice.impl__len(input)), choice: Option.t_Option(usize)) .
+    least_prefix(input, out, ops, v(j), choice) ==> least_prefix(input, out, ops, v(j) + 1, least_next(input, out, ops, j, choice))
+{
+  proof each(j: Nickel.LoopUtil.position(mk_usize(0), Core_models.Slice.impl__len(input)), choice: Option.t_Option(usize)): unit
+    gives least_prefix(input, out, ops, v(j), choice) ==> least_prefix(input, out, ops, v(j) + 1, least_next(input, out, ops, j, choice))
+  {
+    // One case per least_next branch.
+    if Native.has_fact(out, ops._1._1(Rust_primitives.Slice.slice_index(input, j)), ops) { () } else {
+      match choice {
+        Option.Option_None => (),
+        Option.Option_Some(k) => {
+          if v(k) < v(Core_models.Slice.impl__len(input)) && ops._1._4(ops._1._1(Rust_primitives.Slice.slice_index(input, j)), ops._1._1(Rust_primitives.Slice.slice_index(input, k))) { () } else { () }
+        }
+      }
+    }
+  };
+  FStar.Classical.forall_intro_2(each)
+}
 function appended_content<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), out: vector(f), ops: Nickel.EventGraph.graph_ops(f, i, e), result: (vector(f), Result.t_Result(unit, e))): Type0 {
   match result {
     (next, Result.Result_Ok(_)) => content_prefix(input, Seq.length(Alloc.Vec.impl_1__as_slice(out)) + 1, next, ops._1._1),
