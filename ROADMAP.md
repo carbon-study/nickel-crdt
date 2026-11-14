@@ -99,6 +99,7 @@ earlier delivery does not quietly remove anchors, children or recovery from it.
 
 | available now | what it does not establish |
 | --- | --- |
+| native single-write keyed-register candidate with an external caller and bounded equality/read/no-edit/publication proofs | valid-history/clock preservation and full client refinement remain open; the checkpoint is not accepted, and atomic multi-write registers are still next |
 | actual shared native graph/shell used by text and a batch example, with constructed policies, generic foundations and checked concrete text bridges | generic past/canonical/semantic convergence and second-client refinement remain obligations; wrapper retirement is incomplete |
 | experimental Rust edit/admit and source-linked return, identity, exact publication, canonical storage and partial WF laws | independent semantic refinement, full WF, valid-fitting admission progress and whole-CRDT convergence remain open |
 | locked Rust → hax → F* scaffold, authored Latte proofs and semantic mutation controls | hax translation/models remain trusted; no Rust/F* equivalence theorem |

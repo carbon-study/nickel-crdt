@@ -18,18 +18,22 @@ function evaluate(dir){return JSON.parse(run('nix',['eval','--json','--no-write-
 const temp=await fs.mkdtemp(path.join(os.tmpdir(),'nickel-inputs-'));
 const text=['proofs','proofs-core-a','proofs-core-b','proofs-shard-0','proofs-shard-1','proofs-shard-2'];
 const cases=[
+  ['register native checker','scripts/check-register-native.mjs',['register-native','gate-inputs']],
+  ['register proof checker','scripts/check-register-proofs.mjs',['register-proofs','gate-inputs']],
+  ['register authored proof','proofs/Register.lt',['register-proofs','gate-inputs']],
+  ['generic canonical proof','proofs/Canonical.lt',['register-proofs','gate-inputs']],
   ['setup helper','scripts/latte-hax-lane.mjs',['gate-inputs']],
   ['unrelated comparison tool','scripts/compare-edit-storage.mjs',['gate-inputs']],
   ['packaging guard','scripts/check-gate-inputs.mjs',['gate-inputs']],
   ['text contract','scripts/check-accepted-contracts.mjs',[...text,'gate-inputs']],
   ['causal checker','scripts/check-causal-envelope.mjs',['shared-proofs','gate-inputs']],
   ['shared native checker','scripts/check-shared-native.mjs',['shared-native','gate-inputs']],
-  ['shared mutation scope','scripts/mutation-scope.mjs',[...text,'shared-native','shared-proofs','gate-inputs']],
-  ['shared proof runtime','scripts/proof-cache.mjs',[...text,'proof-models','shared-native','shared-proofs','gate-inputs']],
-  ['model builder','scripts/build-proof-models.mjs',[...text,'proof-models','shared-proofs','gate-inputs']],
-  ['model budget checker','scripts/check-proof-timeouts.mjs',[...text,'proof-models','shared-proofs','gate-inputs']],
+  ['shared mutation scope','scripts/mutation-scope.mjs',[...text,'shared-native','shared-proofs','register-native','register-proofs','gate-inputs']],
+  ['shared proof runtime','scripts/proof-cache.mjs',[...text,'proof-models','shared-native','shared-proofs','register-native','register-proofs','gate-inputs']],
+  ['model builder','scripts/build-proof-models.mjs',[...text,'proof-models','shared-proofs','register-proofs','gate-inputs']],
+  ['model budget checker','scripts/check-proof-timeouts.mjs',[...text,'proof-models','shared-proofs','register-proofs','gate-inputs']],
   ['text authored proof','proofs/EditPast.lt',[...text,'gate-inputs']],
-  ['text Rust implementation','src/edit.rs',[...text,'native','edit-reference','shared-native','gate-inputs']],
+  ['text Rust implementation','src/edit.rs',[...text,'native','edit-reference','shared-native','register-native','register-proofs','gate-inputs']],
 ];
 const results=[];
 try {

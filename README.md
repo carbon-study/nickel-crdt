@@ -9,6 +9,16 @@ accept different concurrent subsets. Retained [native capacity witnesses](docs/r
 make this limitation explicit; the crate supplies no general over-capacity
 synchronization or retry-progress policy.
 
+## Keyed-register checkpoint candidate
+
+The [native checkpoint](docs/register-checkpoint.md) adds single-write keyed
+write/read/replication through the actual shared graph and publication shell.
+Run `cargo run --locked --example register-checkpoint`. The read-selection,
+equality, no-edit and publication proofs are bounded components; full register
+validity/refinement and convergence remain open. This is not acceptance of the
+complete [register-first cut](docs/register-first-cut.md), atomic multi-write
+registers or Undo/Redo.
+
 ## Shared-layer experiment
 
 The [shared-layer migration](docs/shared-layer-experiment.md) routes the existing

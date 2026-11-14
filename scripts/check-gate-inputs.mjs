@@ -12,6 +12,8 @@ export const entries = {
   shared: ['check-causal-envelope.mjs'],
   sharedNative: ['check-shared-native.mjs'],
   models: ['build-proof-models.mjs'],
+  registerNative: ['check-register-native.mjs'],
+  register: ['check-register-proofs.mjs'],
 };
 export function dependencies(source, name) {
   const specs = [...new vm.SourceTextModule(source, {identifier:name}).dependencySpecifiers];

@@ -1,6 +1,6 @@
 # native keyed registers before the complete text profile
 
-**Status: scope approved, implementation not delivered.** The first subset
+**Status: scope approved; a [native checkpoint candidate](register-checkpoint.md) exists, but is not accepted.** The first subset
 supports writing, reading and replicating keyed register values through the
 actual shared causal layer. It excludes Undo/Redo. Ren approved a single-write
 checkpoint followed by atomic multi-write register events, including Carbon's
