@@ -479,6 +479,8 @@ proof! filter_has_selected_facts(ops: Nickel.RegisterPast.rops, facts: t_Slice(N
 }
 
 // Id-level ancestry over STORED facts (no positions): a stored fact's parent ids.
+// QUALIFICATION: stored_unique says equal ids imply the same WHOLE fact; it still permits a
+// vector to repeat one identical entry (it is not positional id uniqueness).
 function stored_unique(facts: Seq.seq(Nickel.Register.fact)): Type0 {
   forall(f: Nickel.Register.fact, g: Nickel.Register.fact) .
     (stored(facts, f) and stored(facts, g) and f.f_id == g.f_id) ==> f == g
@@ -527,6 +529,9 @@ proof! id_path_clock_decreases(facts: Seq.seq(Nickel.Register.fact), fa: Nickel.
 }
 
 // Id-level causal read of `key` over the stored facts whose ids satisfy `sel`.
+// QUALIFICATION: this is a relation. Without the stream conditions (chained writer streams)
+// two distinct maximal facts can tie on (Lamport, writer), so one history may relate to
+// several values; single-valuedness is causal_read_is_single_valued's (positional) job.
 function maximal_in(facts: Seq.seq(Nickel.Register.fact), sel: Envelope.t_Id => Type0, key: u64, f: Nickel.Register.fact): Type0 {
   stored(facts, f) and sel(f.f_id) and f.f_payload.f_key == key and
   not (exists(g: Nickel.Register.fact) . stored(facts, g) and sel(g.f_id) and g.f_payload.f_key == key and
@@ -593,6 +598,20 @@ proof selected_value_respects_bytes(facts: t_Slice(Nickel.Register.fact), key: u
   takes Nickel.Register.selected_value(facts, key, initial, y) and Nickel.Register.bytes_same(x, y)
   gives Nickel.Register.selected_value(facts, key, initial, x)
 { () }
+// Native-free core: any value that is the basis' priority maximum and equals the observation.
+proof freeze_from_maximum(before: Native.t_Replica, offered: Nickel.Register.fact,
+  selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(Nickel.Register.fact, Alloc.Alloc.t_Global), r: t_Slice(u8)): unit
+  takes holds_selected(Alloc.Vec.impl_1__as_slice(basis), Alloc.Vec.impl_1__as_slice(before.f_facts), sel_of(selected))
+  takes Nickel.Register.selected_value(Alloc.Vec.impl_1__as_slice(basis), offered.f_payload.f_key, Alloc.Vec.impl_1__as_slice(before.f_initial), r)
+  takes Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed), r)
+  gives frozen_id_read(before, offered, selected)
+{
+  const b = Alloc.Vec.impl_1__as_slice(basis);
+  selected_value_respects_bytes(b, offered.f_payload.f_key, Alloc.Vec.impl_1__as_slice(before.f_initial),
+    Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed), r);
+  FStar.Classical.move_requires(selected_maximum_is_causal_read_in(b, Alloc.Vec.impl_1__as_slice(before.f_facts), sel_of(selected), offered.f_payload.f_key,
+    Alloc.Vec.impl_1__as_slice(before.f_initial)), Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed))
+}
 proof basis_freezes_id_read(before: Native.t_Replica, offered: Nickel.Register.fact,
   selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(Nickel.Register.fact, Alloc.Alloc.t_Global)): unit
   takes Nickel.RegisterPast.selected_prefix(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected),
@@ -605,12 +624,17 @@ proof basis_freezes_id_read(before: Native.t_Replica, offered: Nickel.Register.f
   register_ops_are_exact();
   filter_has_selected_facts(Native.v_OPS._1, facts, Alloc.Vec.impl_1__as_slice(selected), Seq.length(facts), b);
   assert(holds_selected(b, facts, sel_of(selected)));
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(freeze_from_maximum(before, offered, selected, basis)));
   Nickel.Register.read_history_selects_maximum(b, Alloc.Vec.impl_1__as_slice(before.f_initial), offered.f_payload.f_key);
-  selected_value_respects_bytes(b, offered.f_payload.f_key, Alloc.Vec.impl_1__as_slice(before.f_initial),
-    Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed),
-    Alloc.Vec.impl_1__as_slice(Native.read_history(b, Alloc.Vec.impl_1__as_slice(before.f_initial), offered.f_payload.f_key)));
-  FStar.Classical.move_requires(selected_maximum_is_causal_read_in(b, facts, sel_of(selected), offered.f_payload.f_key,
-    Alloc.Vec.impl_1__as_slice(before.f_initial)), Alloc.Vec.impl_1__as_slice(offered.f_payload.f_observed))
+  // contract-only consumer: the native read and winner bodies stay hidden here, and the
+  // spec predicates are matched as terms (the helper above carries their meaning)
+  assert(frozen_id_read(before, offered, selected)) by {
+    Tactics.prune("Nickel_crdt.Register.read_history");
+    Tactics.prune("Nickel_crdt.Register.winner");
+    Tactics.prune("Nickel.RegisterHistory.frozen_id_read");
+    Tactics.prune("Nickel.RegisterHistory.causal_read_in");
+    Tactics.smt_sync'(1, 1)
+  }
 }
 function id_frozen_admission(before: Native.t_Replica, offered: Nickel.Register.fact): Type0 {
   exists(selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global)) .
@@ -943,8 +967,23 @@ proof not_duplicate_is_fresh(before: Native.t_Replica, offered: Nickel.Register.
 {
   const facts = Alloc.Vec.impl_1__as_slice(before.f_facts);
   register_ops_are_exact();
+  // keep classify's Option shape while its body is hidden
+  proof classify_shape(): unit
+    gives Nickel_crdt.Event_layer.classify(facts, offered, Native.v_OPS._1) == Option.Option_None or
+      Nickel_crdt.Event_layer.classify(facts, offered, Native.v_OPS._1) == Option.Option_Some(true) or
+      Nickel_crdt.Event_layer.classify(facts, offered, Native.v_OPS._1) == Option.Option_Some(false)
+  { match Nickel_crdt.Event_layer.classify(facts, offered, Native.v_OPS._1) { Option.Option_None => (), Option.Option_Some(_) => () } };
+  classify_shape();
+  assert(Nickel_crdt.Event_layer.classify(facts, offered, Native.v_OPS._1) == Option.Option_None) by {
+    Tactics.prune("Nickel_crdt.Event_layer.classify");
+    Tactics.smt_sync'(1, 1)
+  };
+  // contract-only consumer of the classification law
   Nickel.EventClassifier.classification_is_exact(facts, offered, Native.v_OPS._1);
-  assert(Nickel_crdt.Event_layer.classify(facts, offered, Native.v_OPS._1) == Option.Option_None);
+  assert(Nickel.EventClassifier.lookup(facts, offered, Native.v_OPS._1._1._1, Native.v_OPS._1._1._3, Native.v_OPS._1._1._6, mk_usize(0)) == Option.Option_None) by {
+    Tactics.prune("Nickel_crdt.Event_layer.classify");
+    Tactics.smt_sync'(1, 1)
+  };
   lookup_none_misses(facts, offered, Native.v_OPS._1._1._1, Native.v_OPS._1._1._3, Native.v_OPS._1._1._6, mk_usize(0))
 }
 proof planned_offer_is_fresh(before: Native.t_Replica, offered: Nickel.Register.fact): unit

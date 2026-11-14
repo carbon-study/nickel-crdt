@@ -326,15 +326,26 @@ let frozen_id_read (before: Native.t_Replica) (offered: Nickel.Register.fact) (s
 let selected_value_respects_bytes (facts: t_Slice Nickel.Register.fact) (key: u64) (initial: t_Slice u8) (x: t_Slice u8) (y: t_Slice u8) : Lemma (requires Prims.l_and (Nickel.Register.selected_value facts key initial y) (Nickel.Register.bytes_same x y)) (ensures Nickel.Register.selected_value facts key initial x) =
   ()
 
+let freeze_from_maximum (before: Native.t_Replica) (offered: Nickel.Register.fact) (selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec Nickel.Register.fact Alloc.Alloc.t_Global) (r: t_Slice u8) : Lemma (requires (holds_selected (Alloc.Vec.impl_1__as_slice basis) (Alloc.Vec.impl_1__as_slice before.f_facts) (sel_of selected) /\ Nickel.Register.selected_value (Alloc.Vec.impl_1__as_slice basis) offered.f_payload.f_key (Alloc.Vec.impl_1__as_slice before.f_initial) r /\ Nickel.Register.bytes_same (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed) r)) (ensures frozen_id_read before offered selected) =
+  let b = Alloc.Vec.impl_1__as_slice basis in
+  selected_value_respects_bytes b offered.f_payload.f_key (Alloc.Vec.impl_1__as_slice before.f_initial) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed) r;
+  FStar.Classical.move_requires (selected_maximum_is_causal_read_in b (Alloc.Vec.impl_1__as_slice before.f_facts) (sel_of selected) offered.f_payload.f_key (Alloc.Vec.impl_1__as_slice before.f_initial)) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed)
+
 let basis_freezes_id_read (before: Native.t_Replica) (offered: Nickel.Register.fact) (selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec Nickel.Register.fact Alloc.Alloc.t_Global) : Lemma (requires (Nickel.RegisterPast.selected_prefix Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) (Seq.length (Alloc.Vec.impl_1__as_slice before.f_facts)) (Alloc.Vec.impl_1__as_slice basis) /\ Nickel.Register.basis_payload_checks before offered basis)) (ensures frozen_id_read before offered selected) =
   let facts = Alloc.Vec.impl_1__as_slice before.f_facts in
   let b = Alloc.Vec.impl_1__as_slice basis in
   register_ops_are_exact ();
   filter_has_selected_facts Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected) (Seq.length facts) b;
   assert (holds_selected b facts (sel_of selected));
+  FStar.Classical.forall_intro (FStar.Classical.move_requires (freeze_from_maximum before offered selected basis));
   Nickel.Register.read_history_selects_maximum b (Alloc.Vec.impl_1__as_slice before.f_initial) offered.f_payload.f_key;
-  selected_value_respects_bytes b offered.f_payload.f_key (Alloc.Vec.impl_1__as_slice before.f_initial) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed) (Alloc.Vec.impl_1__as_slice (Native.read_history b (Alloc.Vec.impl_1__as_slice before.f_initial) offered.f_payload.f_key));
-  FStar.Classical.move_requires (selected_maximum_is_causal_read_in b facts (sel_of selected) offered.f_payload.f_key (Alloc.Vec.impl_1__as_slice before.f_initial)) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed)
+  assert (frozen_id_read before offered selected) by (
+    Tactics.prune "Nickel_crdt.Register.read_history";
+    Tactics.prune "Nickel_crdt.Register.winner";
+    Tactics.prune "Nickel.RegisterHistory.frozen_id_read";
+    Tactics.prune "Nickel.RegisterHistory.causal_read_in";
+    Tactics.smt_sync' 1 1
+  )
 
 let id_frozen_admission (before: Native.t_Replica) (offered: Nickel.Register.fact) : Type0 =
   exists(selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global). Prims.l_and (Prims.l_and (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS == Result.Result_Ok selected) (forall(id: Envelope.t_Id). Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.RegisterPast.ancestor Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice offered.f_after) id)) (frozen_id_read before offered selected)
@@ -496,8 +507,17 @@ let fresh_id (before: Native.t_Replica) (offered: Nickel.Register.fact) : Type0 
 let not_duplicate_is_fresh (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (requires Native.duplicate () before offered == Result.Result_Ok false) (ensures fresh_id before offered) =
   let facts = Alloc.Vec.impl_1__as_slice before.f_facts in
   register_ops_are_exact ();
+  let classify_shape () : Lemma (ensures Prims.l_or (Prims.l_or (Nickel_crdt.Event_layer.classify facts offered Native.v_OPS._1 == Option.Option_None) (Nickel_crdt.Event_layer.classify facts offered Native.v_OPS._1 == Option.Option_Some true)) (Nickel_crdt.Event_layer.classify facts offered Native.v_OPS._1 == Option.Option_Some false)) = match Nickel_crdt.Event_layer.classify facts offered Native.v_OPS._1 with | Option.Option_None -> begin () end | Option.Option_Some _ -> begin () end in
+  classify_shape ();
+  assert (Nickel_crdt.Event_layer.classify facts offered Native.v_OPS._1 == Option.Option_None) by (
+    Tactics.prune "Nickel_crdt.Event_layer.classify";
+    Tactics.smt_sync' 1 1
+  );
   Nickel.EventClassifier.classification_is_exact facts offered Native.v_OPS._1;
-  assert (Nickel_crdt.Event_layer.classify facts offered Native.v_OPS._1 == Option.Option_None);
+  assert (Nickel.EventClassifier.lookup facts offered Native.v_OPS._1._1._1 Native.v_OPS._1._1._3 Native.v_OPS._1._1._6 (mk_usize 0) == Option.Option_None) by (
+    Tactics.prune "Nickel_crdt.Event_layer.classify";
+    Tactics.smt_sync' 1 1
+  );
   lookup_none_misses facts offered Native.v_OPS._1._1._1 Native.v_OPS._1._1._3 Native.v_OPS._1._1._6 (mk_usize 0)
 
 let planned_offer_is_fresh (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (ensures forall(next: Native.t_Replica). Native.planned () before offered == Result.Result_Ok (Option.Option_Some next) ==> fresh_id before offered) =
