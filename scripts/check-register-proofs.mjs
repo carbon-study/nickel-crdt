@@ -54,6 +54,7 @@ const graphModes=new Set(['canonical-push-drops-value','canonical-copies-wrong-f
 const bodyModes=[
  ['canonical-chooses-largest','fn choose_unseen<','id_lt(&id(&facts[j]), &id(&facts[k]))','id_lt(&id(&facts[k]), &id(&facts[j]))','Canonical.choose_is_least'],
  ['register-wrong-order-policy','const OPS:','graph::graph_ops(identity, parents, same_id, less_id,','graph::graph_ops(identity, parents, same_id, same_id,','register_order_policy_is_exact'],
+ ['register-orders-counter-first','fn less_id(','a.peer < b.peer || (a.peer == b.peer && a.counter < b.counter)','a.counter < b.counter || (a.counter == b.counter && a.peer < b.peer)','less_id_is_lexicographic'],
  ['canonical-push-drops-value','fn push<','xs.push(value);','let _ = value;','Canonical.push_is_exact'],
  ['canonical-copies-wrong-fact','fn canonical_step<','clone_selected_fact(&facts[i], clone_fact)','clone_selected_fact(&facts[0], clone_fact)','Canonical.step_uses_selected_fact'],
  ['canonical-discards-output','fn canonical<','Ok(out)','Ok(Vec::new())','Canonical.canonical_selects_whole_facts'],

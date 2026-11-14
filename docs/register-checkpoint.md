@@ -265,6 +265,12 @@ missing, commented or duplicate policy items refuse preparation. Extraction
 explicitly retains `less_id`, already present in the healthy four-module output,
 so a wrong policy cannot turn the test into a missing-declaration error.
 
+A separate native-body control changes `less_id` to counter-first, then writer.
+That remains a strict total order, but violates the writer-first contract;
+`less_id_is_lexicographic` must reject it ordinarily after fresh extraction and
+native typechecking. This checks the specified order independently of the
+comparator-slot fault and generic strictness premises.
+
 Separate removal controls check minimum-to-step, canonical-to-execute and both
 plan-to-publication callers with the relevant bodies and automatic contracts
 withheld. The new Register visibility entries are exactly its `identity` and
