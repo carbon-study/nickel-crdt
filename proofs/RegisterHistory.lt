@@ -773,3 +773,84 @@ proof register_ancestor_is_id_ancestor(facts: t_Slice(Nickel.Register.fact), roo
 {
   FStar.Classical.forall_intro_3(register_path_is_id_path(facts))
 }
+
+// ---------------------------------------------------------------- observation validity is preserved
+// Each stored fact's observation is the id-level causal read of its exact ancestors.
+function anc_of(h: Seq.seq(Nickel.Register.fact), f: Nickel.Register.fact): Envelope.t_Id => Type0 {
+  ((id: Envelope.t_Id) => id_ancestor(h, Alloc.Vec.impl_1__as_slice(f.f_after), id))
+}
+function observation_ok(h: Seq.seq(Nickel.Register.fact), initial: t_Slice(u8), f: Nickel.Register.fact): Type0 {
+  causal_read_in(h, anc_of(h, f), f.f_payload.f_key, initial, Alloc.Vec.impl_1__as_slice(f.f_payload.f_observed))
+}
+function observations_ok(h: Seq.seq(Nickel.Register.fact), initial: t_Slice(u8)): Type0 {
+  forall(f: Nickel.Register.fact) . stored(h, f) ==> observation_ok(h, initial, f)
+}
+// nothing points to an unreferenced id, so no walk from elsewhere ends there
+proof! never_reaches_new(h2: Seq.seq(Nickel.Register.fact), x: Envelope.t_Id, root: Envelope.t_Id, steps: Prims.list(Envelope.t_Id)): unit
+  decreases steps
+  takes unreferenced(h2, x)
+  takes root =!= x
+  gives not id_path(h2, root, steps, x)
+{
+  match steps {
+    Prims.Nil => (),
+    Prims.Cons(next, rest) => {
+      proof deeper(): unit
+        takes id_edge(h2, root, next)
+        gives not id_path(h2, next, rest, x)
+      { never_reaches_new(h2, x, next, rest) };
+      FStar.Classical.move_requires(deeper, ())
+    }
+  }
+}
+// ancestry from roots that avoid the new id is unchanged by the extension, and never reaches it
+proof ancestry_unchanged_by_extension(h: Seq.seq(Nickel.Register.fact), h2: Seq.seq(Nickel.Register.fact), fnew: Nickel.Register.fact,
+  roots: t_Slice(Envelope.t_Id)): unit
+  takes extends_by(h, h2, fnew) and unreferenced(h2, fnew.f_id)
+  takes not Nickel.RegisterPast.member(roots, fnew.f_id)
+  gives (forall(id: Envelope.t_Id) . id_ancestor(h2, roots, id) <==> id_ancestor(h, roots, id)) and
+    not id_ancestor(h2, roots, fnew.f_id)
+{
+  proof walks(root: Envelope.t_Id, steps: Prims.list(Envelope.t_Id), finish: Envelope.t_Id): unit
+    takes Nickel.RegisterPast.member(roots, root)
+    gives id_path(h2, root, steps, finish) <==> id_path(h, root, steps, finish)
+  { id_path_extend(h, h2, fnew, root, steps, finish) };
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(walks));
+  proof never_reaches(root: Envelope.t_Id, steps: Prims.list(Envelope.t_Id)): unit
+    takes Nickel.RegisterPast.member(roots, root)
+    gives not id_path(h2, root, steps, fnew.f_id)
+  { never_reaches_new(h2, fnew.f_id, root, steps) };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(never_reaches))
+}
+proof read_respects_sel(h: Seq.seq(Nickel.Register.fact), s1: Envelope.t_Id => Type0, s2: Envelope.t_Id => Type0,
+  key: u64, initial: t_Slice(u8), value: t_Slice(u8)): unit
+  takes forall(id: Envelope.t_Id) . s1(id) <==> s2(id)
+  gives causal_read_in(h, s1, key, initial, value) <==> causal_read_in(h, s2, key, initial, value)
+{
+  assert(forall(g: Nickel.Register.fact) . maximal_in(h, s1, key, g) <==> maximal_in(h, s2, key, g))
+}
+proof observation_kept(h: Seq.seq(Nickel.Register.fact), h2: Seq.seq(Nickel.Register.fact), fnew: Nickel.Register.fact,
+  initial: t_Slice(u8), g: Nickel.Register.fact): unit
+  takes extends_by(h, h2, fnew) and unreferenced(h2, fnew.f_id)
+  takes stored(h2, g)
+  takes observation_ok(h, initial, g)
+  gives observation_ok(h2, initial, g)
+{
+  ancestry_unchanged_by_extension(h, h2, fnew, Alloc.Vec.impl_1__as_slice(g.f_after));
+  read_unchanged_by_extension(h, h2, fnew, anc_of(h2, g), g.f_payload.f_key, initial, Alloc.Vec.impl_1__as_slice(g.f_payload.f_observed));
+  read_respects_sel(h, anc_of(h2, g), anc_of(h, g), g.f_payload.f_key, initial, Alloc.Vec.impl_1__as_slice(g.f_payload.f_observed))
+}
+// Adding an unreferenced fact whose observation is valid in the old history keeps every
+// stored observation valid (the observation half of history-validity preservation).
+proof observations_preserved(h: Seq.seq(Nickel.Register.fact), h2: Seq.seq(Nickel.Register.fact), fnew: Nickel.Register.fact,
+  initial: t_Slice(u8)): unit
+  takes extends_by(h, h2, fnew) and unreferenced(h2, fnew.f_id)
+  takes observations_ok(h, initial) and observation_ok(h, initial, fnew)
+  gives observations_ok(h2, initial)
+{
+  proof each(g: Nickel.Register.fact): unit
+    takes stored(h2, g)
+    gives observation_ok(h2, initial, g)
+  { observation_kept(h, h2, fnew, initial, g) };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(each))
+}
