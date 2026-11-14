@@ -1223,3 +1223,47 @@ let public_read_is_the_causal_read (r: Native.t_Replica) (key: u64) (x: t_Slice 
     Tactics.prune "Nickel.RegisterHistory.stream_steps";
     Tactics.smt_sync' 1 1
   )
+
+let new_public_producer (writer: u64) (initial: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) (limits: Native.t_Limits) : Lemma (ensures forall(r: Native.t_Replica). Native.impl_Replica__new writer initial limits == Result.Result_Ok r ==> Prims.l_and (Prims.l_and (public_history r) (r.f_writer == writer)) (v r.f_next_counter == 1)) =
+  new_establishes_public_history writer initial limits;
+  let each (r: Native.t_Replica) : Lemma (requires Native.impl_Replica__new writer initial limits == Result.Result_Ok r) (ensures Prims.l_and (r.f_writer == writer) (v r.f_next_counter == 1)) = () in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires each);
+  assert (forall(r: Native.t_Replica). Native.impl_Replica__new writer initial limits == Result.Result_Ok r ==> Prims.l_and (Prims.l_and (public_history r) (r.f_writer == writer)) (v r.f_next_counter == 1)) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__new";
+    Tactics.prune "Nickel.RegisterHistory.public_history";
+    Tactics.smt_sync' 1 1
+  )
+
+let receive_public_producer (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (requires public_history before) (ensures Prims.l_and (public_history (Native.impl_Replica__receive before offered)._1) (Nickel.Register.private_frame before (Native.impl_Replica__receive before offered)._1)) =
+  receive_preserves_public_history before offered;
+  Nickel.Register.receive_preserves_private before offered;
+  assert (Prims.l_and (public_history (Native.impl_Replica__receive before offered)._1) (Nickel.Register.private_frame before (Native.impl_Replica__receive before offered)._1)) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
+    Tactics.prune "Nickel.RegisterHistory.public_history";
+    Tactics.prune "Nickel.Register.private_frame";
+    Tactics.prune "Nickel.Register.receive_preserves_private";
+    Tactics.prune "Nickel.Register.planned_preserves_private";
+    Tactics.prune "Nickel.Register.planned_checks_payload";
+    Tactics.prune "Nickel.Register.planned_adds_exact_fact";
+    Tactics.smt_sync' 1 1
+  )
+
+let write_public_producer (before: Native.t_Replica) (key: u64) (value: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (requires public_history before) (ensures Prims.l_and (Prims.l_and (public_history (Native.impl_Replica__write before key value)._1) (Nickel.Register.write_outcome before (Native.impl_Replica__write before key value))) (Nickel.Register.write_installation before key value (Native.impl_Replica__write before key value))) =
+  write_preserves_public_history before key value;
+  Nickel.Register.write_publication_on_every_return before key value;
+  Nickel.Register.write_installs_successful_candidate before key value;
+  assert (Prims.l_and (Prims.l_and (public_history (Native.impl_Replica__write before key value)._1) (Nickel.Register.write_outcome before (Native.impl_Replica__write before key value))) (Nickel.Register.write_installation before key value (Native.impl_Replica__write before key value))) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__write";
+    Tactics.prune "Nickel.RegisterHistory.public_history";
+    Tactics.prune "Nickel.Register.write_outcome";
+    Tactics.prune "Nickel.Register.write_installation";
+    Tactics.smt_sync' 1 1
+  )
+
+let counted_write_does_not_wrap (before: Native.t_Replica) (key: u64) (value: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (ensures forall(next: Native.t_Replica) (authored: Nickel.Register.fact). Native.impl_Replica__write before key value == (next, Result.Result_Ok (Option.Option_Some authored)) ==> v before.f_next_counter < Rust_primitives.Integers.maxint Rust_primitives.Integers.U64) =
+  Nickel.Register.write_publication_on_every_return before key value;
+  assert (forall(next: Native.t_Replica) (authored: Nickel.Register.fact). Native.impl_Replica__write before key value == (next, Result.Result_Ok (Option.Option_Some authored)) ==> v before.f_next_counter < Rust_primitives.Integers.maxint Rust_primitives.Integers.U64) by (
+    Tactics.prune "Nickel_crdt.Register.impl_Replica__write";
+    Tactics.smt_sync' 1 1
+  )
