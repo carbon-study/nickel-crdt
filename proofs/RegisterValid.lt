@@ -14,6 +14,7 @@ import Nickel.CausalEnvelope
 import Nickel.Canonical
 import Nickel.Register
 import Nickel.RegisterPast
+import Nickel.PastExact
 import Nickel.EventClassifier
 import Nickel.RegisterHistory
 
@@ -22,14 +23,14 @@ import Nickel.RegisterHistory
 // ---------------------------------------------------------------- ids and clocks stay valid
 function parents_clock_below(before: Native.t_Replica, offered: Nickel.Register.fact): Type0 {
   forall(fb: Nickel.Register.fact) . (stored(Alloc.Vec.impl_1__as_slice(before.f_facts), fb) and
-    Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(offered.f_after), fb.f_id)) ==>
+    Nickel.PastExact.member(Alloc.Vec.impl_1__as_slice(offered.f_after), fb.f_id)) ==>
       v(fb.f_payload.f_lamport) < v(offered.f_payload.f_lamport)
 }
 proof basis_bounds_parent_clocks(before: Native.t_Replica, offered: Nickel.Register.fact,
   selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(Nickel.Register.fact, Alloc.Alloc.t_Global)): unit
-  takes forall(id: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(selected), id) <==>
-    Nickel.RegisterPast.ancestor(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(offered.f_after), id)
-  takes Nickel.RegisterPast.selected_prefix(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected),
+  takes forall(id: Envelope.t_Id) . Nickel.PastExact.member(Alloc.Vec.impl_1__as_slice(selected), id) <==>
+    Nickel.PastExact.ancestor(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(offered.f_after), id)
+  takes Nickel.PastExact.selected_prefix(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected),
     Seq.length(Alloc.Vec.impl_1__as_slice(before.f_facts)), Alloc.Vec.impl_1__as_slice(basis))
   takes Nickel.Register.clock_successor(Alloc.Vec.impl_1__as_slice(basis), offered.f_payload.f_lamport)
   gives parents_clock_below(before, offered)
@@ -38,11 +39,11 @@ proof basis_bounds_parent_clocks(before: Native.t_Replica, offered: Nickel.Regis
   register_ops_are_exact();
   filter_has_selected_facts(Native.v_OPS._1, facts, Alloc.Vec.impl_1__as_slice(selected), Seq.length(facts), Alloc.Vec.impl_1__as_slice(basis));
   proof each(fb: Nickel.Register.fact): unit
-    takes stored(facts, fb) and Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(offered.f_after), fb.f_id)
+    takes stored(facts, fb) and Nickel.PastExact.member(Alloc.Vec.impl_1__as_slice(offered.f_after), fb.f_id)
     gives v(fb.f_payload.f_lamport) < v(offered.f_payload.f_lamport)
   {
-    assert(Nickel.RegisterPast.causal_path(Native.v_OPS._1, facts, fb.f_id, Prims.Nil, fb.f_id));
-    assert(Nickel.RegisterPast.ancestor(Native.v_OPS._1, facts, Alloc.Vec.impl_1__as_slice(offered.f_after), fb.f_id));
+    assert(Nickel.PastExact.causal_path(Native.v_OPS._1, facts, fb.f_id, Prims.Nil, fb.f_id));
+    assert(Nickel.PastExact.ancestor(Native.v_OPS._1, facts, Alloc.Vec.impl_1__as_slice(offered.f_after), fb.f_id));
     assert(stored(Alloc.Vec.impl_1__as_slice(basis), fb))
   };
   FStar.Classical.forall_intro(FStar.Classical.move_requires(each))
@@ -62,7 +63,7 @@ proof ids_and_clocks_extend(h: Seq.seq(Nickel.Register.fact), h2: Seq.seq(Nickel
   takes extends_by(h, h2, fnew) and unreferenced(h2, fnew.f_id)
   takes stored_unique(h) and id_clocks_increase(h)
   takes forall(g: Nickel.Register.fact) . stored(h, g) ==> g.f_id =!= fnew.f_id
-  takes forall(fb: Nickel.Register.fact) . (stored(h, fb) and Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(fnew.f_after), fb.f_id)) ==>
+  takes forall(fb: Nickel.Register.fact) . (stored(h, fb) and Nickel.PastExact.member(Alloc.Vec.impl_1__as_slice(fnew.f_after), fb.f_id)) ==>
     v(fb.f_payload.f_lamport) < v(fnew.f_payload.f_lamport)
   gives stored_unique(h2) and id_clocks_increase(h2)
 { () }
@@ -167,9 +168,9 @@ function offered_clock_and_value(before: Native.t_Replica, offered: Nickel.Regis
 }
 proof witness_clock_and_value(before: Native.t_Replica, offered: Nickel.Register.fact,
   selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(Nickel.Register.fact, Alloc.Alloc.t_Global)): unit
-  takes forall(id: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(selected), id) <==>
-    Nickel.RegisterPast.ancestor(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(offered.f_after), id)
-  takes Nickel.RegisterPast.selected_prefix(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected),
+  takes forall(id: Envelope.t_Id) . Nickel.PastExact.member(Alloc.Vec.impl_1__as_slice(selected), id) <==>
+    Nickel.PastExact.ancestor(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(offered.f_after), id)
+  takes Nickel.PastExact.selected_prefix(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected),
     Seq.length(Alloc.Vec.impl_1__as_slice(before.f_facts)), Alloc.Vec.impl_1__as_slice(basis))
   takes frozen_causal_observation(before, offered, basis)
   gives offered_clock_and_value(before, offered)
@@ -195,60 +196,8 @@ proof exact_basis_gives_clock_and_value(before: Native.t_Replica, offered: Nicke
   }
 }
 // ---------------------------------------------------------------- writer streams (native checks)
-function no_forbidden_prefix(facts: t_Slice(Nickel.Register.fact), offered: Nickel.Register.fact, eops: Nickel.RegisterPast.reops,
-  selected: Nickel.RegisterPast.ids_vec, at: nat): Type0 {
-  forall(j: nat) . (j < at and j < Seq.length(facts)) ==>
-    not (Nickel_crdt.Event_layer.has_id(Alloc.Vec.impl_1__as_slice(selected), eops._1._1._1(Seq.index(facts, j)), eops._1) == true and
-         eops._2._2(eops._1._1._1(Seq.index(facts, j)), eops._1._1._1(offered)) == true)
-}
-function stream_checks(facts: t_Slice(Nickel.Register.fact), offered: Nickel.Register.fact, eops: Nickel.RegisterPast.reops,
-  selected: Nickel.RegisterPast.ids_vec): Type0 {
-  (match eops._2._1(eops._1._1._1(offered)) {
-    Option.Option_Some(prev) => Nickel_crdt.Event_layer.has_id(Alloc.Vec.impl_1__as_slice(selected), prev, eops._1) == true,
-    Option.Option_None => Prims.l_True,
-  } : Type0) and
-  no_forbidden_prefix(facts, offered, eops, selected, Seq.length(facts))
-}
-// A successful shared admission checked the predecessor and the forbidden-ancestor rule
-// against exactly its selection.
-proof validated_stream_checks(facts: t_Slice(Nickel.Register.fact), offered: Nickel.Register.fact, events: usize, dependencies: usize,
-  eops: Nickel.RegisterPast.reops): unit
-  gives forall(selected: Nickel.RegisterPast.ids_vec) . Nickel_crdt.Event_layer.validate_event(facts, offered, events, dependencies, eops) == Result.Result_Ok(selected) ==>
-    stream_checks(facts, offered, eops, selected)
-{
-  assert(eops == (eops._1, (eops._2._1, eops._2._2, (eops._2._3._1, eops._2._3._2, eops._2._3._3, eops._2._3._4))));
-  Nickel.RegisterPast.ops_shape(eops._1);
-  proof membership_boolean(ids: t_Slice(Envelope.t_Id), id: Envelope.t_Id): unit
-    gives Nickel_crdt.Event_layer.has_id(ids, id, eops._1) == true or Nickel_crdt.Event_layer.has_id(ids, id, eops._1) == false
-    hint Nickel_crdt.Event_layer.has_id(ids, id, eops._1)
-  { () };
-  match Nickel_crdt.Event_layer.past(facts, eops._1._1._2(offered), eops._1) {
-    Result.Result_Ok(past_ids) => {
-      Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
-        ((at: nat, _: unit) => no_forbidden_prefix(facts, offered, eops, past_ids, at)), ((_: unit) => past_ids),
-        ((x: Nickel.RegisterPast.ids_vec) => x == past_ids and no_forbidden_prefix(facts, offered, eops, past_ids, Seq.length(facts))),
-        ((_: Native.t_Error) => Prims.l_True));
-      assert(forall(selected: Nickel.RegisterPast.ids_vec) . Nickel_crdt.Event_layer.validate_event(facts, offered, events, dependencies, eops) == Result.Result_Ok(selected) ==>
-        stream_checks(facts, offered, eops, selected)) by {
-        Tactics.prune("Nickel_crdt.Event_layer.past");
-        Tactics.prune("Nickel_crdt.Event_layer.has_id");
-        Tactics.prune("Nickel_crdt.Event_layer.duplicate_ids");
-        Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
-        Tactics.smt_sync'(1, 1)
-      }
-    },
-    Result.Result_Err(_) => {
-      assert(forall(selected: Nickel.RegisterPast.ids_vec) . Nickel_crdt.Event_layer.validate_event(facts, offered, events, dependencies, eops) == Result.Result_Ok(selected) ==>
-        stream_checks(facts, offered, eops, selected)) by {
-        Tactics.prune("Nickel_crdt.Event_layer.past");
-        Tactics.prune("Nickel_crdt.Event_layer.has_id");
-        Tactics.prune("Nickel_crdt.Event_layer.duplicate_ids");
-        Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
-        Tactics.smt_sync'(1, 1)
-      }
-    }
-  }
-}
+// The native stream checks (no_forbidden_prefix, stream_checks, validated_stream_checks) are proved
+// once, generically over the event ops, in Nickel.PastExact.
 
 // ---------------------------------------------------------------- writer streams (meaning)
 // A stored fact's writer stream is sound w.r.t. its exact ancestors: counter >= 1; a non-first
@@ -329,7 +278,7 @@ proof closed_ancestors_stored(before: Native.t_Replica, offered: Nickel.Register
 {
   const h = Alloc.Vec.impl_1__as_slice(before.f_facts);
   proof each(root: Envelope.t_Id, steps: Prims.list(Envelope.t_Id), x: Envelope.t_Id): unit
-    takes Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(offered.f_after), root)
+    takes Nickel.PastExact.member(Alloc.Vec.impl_1__as_slice(offered.f_after), root)
     takes id_path(h, root, steps, x)
     gives exists(g: Nickel.Register.fact) . stored(h, g) and g.f_id == x
   { closed_path_ends_stored(h, root, steps, x) };
@@ -341,9 +290,9 @@ function prev_id(id: Envelope.t_Id): Envelope.t_Id {
 }
 proof offered_stream_from_checks(before: Native.t_Replica, offered: Nickel.Register.fact,
   selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global)): unit
-  takes forall(id: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(selected), id) <==>
-    Nickel.RegisterPast.ancestor(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(offered.f_after), id)
-  takes stream_checks(Alloc.Vec.impl_1__as_slice(before.f_facts), offered, Native.v_OPS, selected)
+  takes forall(id: Envelope.t_Id) . Nickel.PastExact.member(Alloc.Vec.impl_1__as_slice(selected), id) <==>
+    Nickel.PastExact.ancestor(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(offered.f_after), id)
+  takes Nickel.PastExact.stream_checks(Alloc.Vec.impl_1__as_slice(before.f_facts), offered, Native.v_OPS, selected)
   takes v(offered.f_id.f_counter) > 0
   takes ancestors_stored(before, offered)
   gives stream_ok_in(Alloc.Vec.impl_1__as_slice(before.f_facts), anc_of(Alloc.Vec.impl_1__as_slice(before.f_facts), offered), offered)
@@ -353,8 +302,8 @@ proof offered_stream_from_checks(before: Native.t_Replica, offered: Nickel.Regis
   register_ops_are_exact();
   FStar.Classical.forall_intro(register_ancestor_is_id_ancestor(facts, Alloc.Vec.impl_1__as_slice(offered.f_after)));
   proof membership(id: Envelope.t_Id): unit
-    gives Nickel_crdt.Event_layer.has_id(sel, id, Native.v_OPS._1) == true <==> Nickel.RegisterPast.member(sel, id)
-  { Nickel.RegisterPast.id_membership_is_exact(sel, id, Native.v_OPS._1) };
+    gives Nickel_crdt.Event_layer.has_id(sel, id, Native.v_OPS._1) == true <==> Nickel.PastExact.member(sel, id)
+  { Nickel.PastExact.id_membership_is_exact(sel, id, Native.v_OPS._1) };
   FStar.Classical.forall_intro(membership);
   // predecessor rule: the native previous id is selected, hence a stored ancestor one step below
   proof predecessor_at(p: Envelope.t_Id): unit
@@ -368,13 +317,13 @@ proof offered_stream_from_checks(before: Native.t_Replica, offered: Nickel.Regis
       Tactics.smt_sync'(1, 1)
     };
     assert(anc_of(facts, offered)(p)) by {
-      Tactics.prune("Nickel.RegisterValid.stream_checks");
+      Tactics.prune("Nickel.PastExact.stream_checks");
       Tactics.prune("Nickel.RegisterValid.ancestors_stored");
       Tactics.smt_sync'(1, 1)
     };
     assert(p.f_peer == offered.f_id.f_peer and v(p.f_counter) + 1 == v(offered.f_id.f_counter)) by {
       Tactics.prune("Nickel.RegisterHistory.anc_of");
-      Tactics.prune("Nickel.RegisterValid.stream_checks");
+      Tactics.prune("Nickel.PastExact.stream_checks");
       Tactics.prune("Nickel.RegisterValid.ancestors_stored");
       Tactics.smt_sync'(1, 1)
     }
@@ -392,7 +341,7 @@ proof offered_stream_from_checks(before: Native.t_Replica, offered: Nickel.Regis
   {
     assert(Nickel_crdt.Event_layer.has_id(sel, Seq.index(facts, j).f_id, Native.v_OPS._1) == true) by {
       Tactics.prune("Nickel_crdt.Register.forbidden");
-      Tactics.prune("Nickel.RegisterValid.stream_checks");
+      Tactics.prune("Nickel.PastExact.stream_checks");
       Tactics.prune("Nickel.RegisterValid.ancestors_stored");
       Tactics.smt_sync'(1, 1)
     };
@@ -404,14 +353,14 @@ proof offered_stream_from_checks(before: Native.t_Replica, offered: Nickel.Regis
       Tactics.smt_sync'(1, 1)
     };
     assert(Native.forbidden(Seq.index(facts, j).f_id, offered.f_id) == false) by {
-      Tactics.prune("Nickel.RegisterValid.stream_checks");
+      Tactics.prune("Nickel.PastExact.stream_checks");
       Tactics.prune("Nickel.RegisterHistory.anc_of");
       Tactics.prune("Nickel.RegisterValid.ancestors_stored");
       Tactics.smt_sync'(1, 1)
     };
     assert(v(Seq.index(facts, j).f_id.f_counter) < v(offered.f_id.f_counter)) by {
       Tactics.prune("Nickel.RegisterHistory.anc_of");
-      Tactics.prune("Nickel.RegisterValid.stream_checks");
+      Tactics.prune("Nickel.PastExact.stream_checks");
       Tactics.prune("Nickel.RegisterValid.ancestors_stored");
       Tactics.smt_sync'(1, 1)
     }
@@ -424,7 +373,7 @@ proof offered_stream_from_checks(before: Native.t_Replica, offered: Nickel.Regis
   assert(v(offered.f_id.f_counter) > 1 ==> (exists(g: Nickel.Register.fact) . stored(facts, g) and anc_of(facts, offered)(g.f_id) and
     g.f_id.f_peer == offered.f_id.f_peer and v(g.f_id.f_counter) + 1 == v(offered.f_id.f_counter))) by {
     Tactics.prune("Nickel.RegisterHistory.anc_of");
-    Tactics.prune("Nickel.RegisterValid.stream_checks");
+    Tactics.prune("Nickel.PastExact.stream_checks");
     Tactics.prune("Nickel.RegisterValid.ancestors_stored");
     Tactics.prune("Nickel_crdt.Register.forbidden");
     Tactics.smt_sync'(1, 1)
@@ -432,13 +381,13 @@ proof offered_stream_from_checks(before: Native.t_Replica, offered: Nickel.Regis
   assert(forall(g: Nickel.Register.fact) . (stored(facts, g) and anc_of(facts, offered)(g.f_id) and g.f_id.f_peer == offered.f_id.f_peer) ==>
     v(g.f_id.f_counter) < v(offered.f_id.f_counter)) by {
     Tactics.prune("Nickel.RegisterHistory.anc_of");
-    Tactics.prune("Nickel.RegisterValid.stream_checks");
+    Tactics.prune("Nickel.PastExact.stream_checks");
     Tactics.prune("Nickel.RegisterValid.ancestors_stored");
     Tactics.prune("Nickel_crdt.Register.forbidden");
     Tactics.smt_sync'(1, 1)
   };
   assert(stream_ok_in(facts, anc_of(facts, offered), offered)) by {
-    Tactics.prune("Nickel.RegisterValid.stream_checks");
+    Tactics.prune("Nickel.PastExact.stream_checks");
     Tactics.prune("Nickel.RegisterValid.ancestors_stored");
     Tactics.prune("Nickel_crdt.Register.forbidden");
     Tactics.smt_sync'(1, 1)
@@ -466,8 +415,8 @@ proof stream_witness(before: Native.t_Replica, offered: Nickel.Register.fact,
   gives offered_stream_ok(before, offered)
 {
   selected_basis_is_exact(before, offered, selected, basis);
-  validated_stream_checks(Alloc.Vec.impl_1__as_slice(before.f_facts), offered, before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS);
-  assert(stream_checks(Alloc.Vec.impl_1__as_slice(before.f_facts), offered, Native.v_OPS, selected)) by {
+  Nickel.PastExact.validated_stream_checks(Alloc.Vec.impl_1__as_slice(before.f_facts), offered, before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS);
+  assert(Nickel.PastExact.stream_checks(Alloc.Vec.impl_1__as_slice(before.f_facts), offered, Native.v_OPS, selected)) by {
     Tactics.prune("Nickel_crdt.Event_layer.validate_event");
     Tactics.smt_sync'(1, 1)
   };

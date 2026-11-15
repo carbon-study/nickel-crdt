@@ -17,11 +17,11 @@ const env=process.env;
 for(const k of ['NICKEL_HAX_BIN','NICKEL_PROOF_FSTAR','NICKEL_HAX_SOURCE','NICKEL_FSTAR_MODEL_CACHE'])assert(env[k],k);
 const views=path.join(root,'proofs/register-view');
 const receipt=JSON.parse(await fs.readFile(path.join(views,'receipt.json'),'utf8'));
-const required=['Cargo.toml','Cargo.lock','src/lib.rs','src/register.rs','src/causal.rs','src/event_layer.rs','src/event_shell.rs','proofs/Register.lt','proofs/RegisterPast.lt','proofs/RegisterHistory.lt','proofs/RegisterValid.lt','proofs/RegisterPublic.lt','proofs/RegisterFrontier.lt','proofs/Canonical.lt','proofs/Vector.lt','proofs/EventGraph.lt','proofs/EventClassifier.lt',
+const required=['Cargo.toml','Cargo.lock','src/lib.rs','src/register.rs','src/causal.rs','src/event_layer.rs','src/event_shell.rs','proofs/Register.lt','proofs/RegisterPast.lt','proofs/PastExact.lt','proofs/RegisterHistory.lt','proofs/RegisterValid.lt','proofs/RegisterPublic.lt','proofs/RegisterFrontier.lt','proofs/Canonical.lt','proofs/Vector.lt','proofs/EventGraph.lt','proofs/EventClassifier.lt',
  'proofs/Prelude.lt','proofs/LoopUtil.lt','proofs/EventShell.lt','proofs/CausalEnvelope.lt',
  'proofs/generated/Nickel.Vector.fst','proofs/generated/Nickel.EventGraph.fst','proofs/generated/Nickel.EventClassifier.fst','proofs/generated/Nickel.Prelude.fst','proofs/generated/Nickel.LoopUtil.fst','proofs/generated/Nickel.EventShell.fst',
  'proofs/causal-envelope-view/Nickel.CausalEnvelope.fst',
- 'proofs/register-view/Nickel.Canonical.fst','proofs/register-view/Nickel.RegisterPast.fst','proofs/register-view/Nickel.RegisterHistory.fst','proofs/register-view/Nickel.RegisterValid.fst','proofs/register-view/Nickel.RegisterPublic.fst','proofs/register-view/Nickel.RegisterFrontier.fst',
+ 'proofs/register-view/Nickel.Canonical.fst','proofs/register-view/Nickel.RegisterPast.fst','proofs/register-view/Nickel.PastExact.fst','proofs/register-view/Nickel.RegisterHistory.fst','proofs/register-view/Nickel.RegisterValid.fst','proofs/register-view/Nickel.RegisterPublic.fst','proofs/register-view/Nickel.RegisterFrontier.fst',
  ...['Register','Nickel_crdt.Register','Nickel_crdt.Causal','Nickel_crdt.Event_layer','Nickel_crdt.Event_shell'].map(n=>'proofs/register-view/'+(n==='Register'?'Nickel.Register':n)+'.fst')];
 assert.equal(receipt.schemaVersion,1);assert.deepEqual(Object.keys(receipt.files).sort(),required.sort(),'complete checkpoint receipt required');
 for(const [f,h]of Object.entries(receipt.files))assert.equal(digest(await fs.readFile(path.join(root,f))),h,'stale checkpoint receipt: '+f);
@@ -29,15 +29,17 @@ assertReformedSource('LoopUtil',await fs.readFile(path.join(root,'proofs/LoopUti
 assertReformedSource('Canonical',await fs.readFile(path.join(root,'proofs/Canonical.lt'),'utf8'));
 assertReformedSource('Register',await fs.readFile(path.join(root,'proofs/Register.lt'),'utf8'));
 assertReformedSource('RegisterPast',await fs.readFile(path.join(root,'proofs/RegisterPast.lt'),'utf8'));
-assert.throws(()=>assertReformedSource('RegisterPast','Tactics.prune("Nickel_crdt.Event_layer");'),'no broad shared namespace exception for exact past');
-assert.throws(()=>assertReformedSource('RegisterPast','Tactics.prune("Nickel_crdt.Register.v_OPS");'),'exact past stays generic over ops');
+assertReformedSource('PastExact',await fs.readFile(path.join(root,'proofs/PastExact.lt'),'utf8'));
+assert.throws(()=>assertReformedSource('RegisterPast','Tactics.prune("Nickel_crdt.Event_layer.past");'),'the register past instance has no proofs to hide anything for');
+assert.throws(()=>assertReformedSource('PastExact','Tactics.prune("Nickel_crdt.Event_layer");'),'no broad shared namespace exception for exact past');
+assert.throws(()=>assertReformedSource('PastExact','Tactics.prune("Nickel_crdt.Register.v_OPS");'),'exact past stays generic over ops');
 assertReformedSource('RegisterHistory',await fs.readFile(path.join(root,'proofs/RegisterHistory.lt'),'utf8'));
 assertReformedSource('RegisterValid',await fs.readFile(path.join(root,'proofs/RegisterValid.lt'),'utf8'));
 assertReformedSource('RegisterPublic',await fs.readFile(path.join(root,'proofs/RegisterPublic.lt'),'utf8'));
 assertReformedSource('RegisterFrontier',await fs.readFile(path.join(root,'proofs/RegisterFrontier.lt'),'utf8'));
 assert.throws(()=>assertReformedSource('RegisterFrontier','Tactics.prune("Nickel_crdt.Register");'),'no broad frontier native namespace');
 assert.throws(()=>assertReformedSource('RegisterHistory','Tactics.prune("Nickel_crdt.Register");'),'no broad native namespace exception for history meaning');
-assert.throws(()=>assertReformedSource('RegisterHistory','Tactics.prune("Nickel.RegisterPast.ancestor");'),'history meaning keeps exact-past ancestry visible');
+assert.throws(()=>assertReformedSource('RegisterHistory','Tactics.prune("Nickel.PastExact.ancestor");'),'history meaning keeps exact-past ancestry visible');
 assert.throws(()=>assertReformedSource('EditAccepted','Tactics.prune("Nickel_crdt.Register.bytes_equal");'),'new native visibility stays Register-scoped');
 assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Nickel.Register.planned_preserves_private");'),'write caller contract isolation stays Register-scoped');
 assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Nickel_crdt.Register.read_history");'),'payload callee visibility stays Register-scoped');
@@ -53,12 +55,13 @@ assert.throws(()=>assertReformedSource('Register','Tactics.prune("Nickel_crdt.Ev
 const loopView=await fs.readFile(path.join(root,'proofs/generated/Nickel.LoopUtil.fst'),'utf8');
 const canonicalView=await fs.readFile(path.join(views,'Nickel.Canonical.fst'),'utf8');
 const view=await fs.readFile(path.join(views,'Nickel.Register.fst'),'utf8');
-const pastView=await fs.readFile(path.join(views,'Nickel.RegisterPast.fst'),'utf8');
+const pastView=await fs.readFile(path.join(views,'Nickel.PastExact.fst'),'utf8');
+const registerPastView=await fs.readFile(path.join(views,'Nickel.RegisterPast.fst'),'utf8');
 const historyView=await fs.readFile(path.join(views,'Nickel.RegisterHistory.fst'),'utf8');
 const validView=await fs.readFile(path.join(views,'Nickel.RegisterValid.fst'),'utf8');
 const publicView=await fs.readFile(path.join(views,'Nickel.RegisterPublic.fst'),'utf8');
 const frontierView=await fs.readFile(path.join(views,'Nickel.RegisterFrontier.fst'),'utf8');
-for(const checkedView of [view,canonicalView,pastView,historyView,validView,publicView,frontierView])assert(!/\b(?:admit|assume|lax|admit_smt_queries)\b/.test(checkedView));
+for(const checkedView of [view,canonicalView,pastView,registerPastView,historyView,validView,publicView,frontierView])assert(!/\b(?:admit|assume|lax|admit_smt_queries)\b/.test(checkedView));
 if(env.NICKEL_LATTE_BIN){
  const rf=await runAsync('frontier meaning producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/RegisterFrontier.lt')],root,{env});assert.equal(rf.status,0);assert.equal(rf.stdout,frontierView,'complete register frontier producer/view parity');
  const l=await runAsync('loop producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/LoopUtil.lt')],root,{env});assert.equal(l.status,0);assert.equal(l.stdout,loopView,'complete loop producer/view parity');
@@ -66,7 +69,8 @@ if(env.NICKEL_LATTE_BIN){
  const rh=await runAsync('history producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/RegisterHistory.lt')],root,{env});assert.equal(rh.status,0);assert.equal(rh.stdout,historyView,'complete history producer/view parity');
  const rv=await runAsync('valid-history producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/RegisterValid.lt')],root,{env});assert.equal(rv.status,0);assert.equal(rv.stdout,validView,'complete valid-history producer/view parity');
  const rpub=await runAsync('public producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/RegisterPublic.lt')],root,{env});assert.equal(rpub.status,0);assert.equal(rpub.stdout,publicView,'complete public producer/view parity');
- const rp=await runAsync('exact past producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/RegisterPast.lt')],root,{env});assert.equal(rp.status,0);assert.equal(rp.stdout,pastView,'complete exact past producer/view parity');
+ const rp=await runAsync('exact past producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/PastExact.lt')],root,{env});assert.equal(rp.status,0);assert.equal(rp.stdout,pastView,'complete exact past producer/view parity');
+ const rrp=await runAsync('register past instance producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/RegisterPast.lt')],root,{env});assert.equal(rrp.status,0);assert.equal(rrp.stdout,registerPastView,'complete register past instance producer/view parity');
  const p=await runAsync('checkpoint producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/Register.lt')],root,{env});
  await fs.writeFile(path.join(output,'producer.log'),p.log);assert.equal(p.status,0);assert.equal(p.stdout,view,'full producer/view parity');
 }
@@ -96,8 +100,8 @@ const bodyModes=[
  // History invariant (receive half): an Added offer's parents are stored only because past checks them.
  ['past-skips-parent-check','fn past<','    validate_after(facts, after_ids, ops)?;\n','','RegisterHistory.past_checked_parents'],
  // Exact past directions (#97 obligation 1): each native fault breaks only its own direction.
- ['past-extend-never-pushes','fn extend_past<','if !has_id(&selected, &predecessor, ops) {','if false && !has_id(&selected, &predecessor, ops) {','RegisterPast.extend_past_covers_predecessors'],
- ['past-extend-unselected','fn extend_past<','if has_id(&selected, &id(fact), ops) {','if true {','RegisterPast.extend_past_preserves'],
+ ['past-extend-never-pushes','fn extend_past<','if !has_id(&selected, &predecessor, ops) {','if false && !has_id(&selected, &predecessor, ops) {','PastExact.extend_past_covers_predecessors'],
+ ['past-extend-unselected','fn extend_past<','if has_id(&selected, &id(fact), ops) {','if true {','PastExact.extend_past_preserves'],
  ['canonical-chooses-largest','fn choose_unseen<','id_lt(&id(&facts[j]), &id(&facts[k]))','id_lt(&id(&facts[k]), &id(&facts[j]))','Canonical.choose_is_least'],
  ['register-wrong-order-policy','const OPS:','graph::graph_ops(identity, parents, same_id, less_id,','graph::graph_ops(identity, parents, same_id, same_id,','register_order_policy_is_exact'],
  ['register-orders-counter-first','fn less_id(','a.peer < b.peer || (a.peer == b.peer && a.counter < b.counter)','a.counter < b.counter || (a.counter == b.counter && a.peer < b.peer)','less_id_is_lexicographic'],
@@ -156,7 +160,8 @@ async function support(dir){
  for(const f of proofFiles)await put(path.join(dir,f),await fs.readFile(path.join(root,'proofs/generated',f)));
  await put(path.join(dir,'Nickel.Canonical.fst'),canonicalView);
  await put(path.join(dir,'Nickel.RegisterFrontier.fst'),frontierView);
- await put(path.join(dir,'Nickel.RegisterPast.fst'),pastView);
+ await put(path.join(dir,'Nickel.RegisterPast.fst'),registerPastView);
+ await put(path.join(dir,'Nickel.PastExact.fst'),pastView);
  await put(path.join(dir,'Nickel.CausalEnvelope.fst'),await fs.readFile(path.join(root,'proofs/causal-envelope-view/Nickel.CausalEnvelope.fst')));
 }
 async function check(dir,roots,log){
@@ -164,8 +169,8 @@ async function check(dir,roots,log){
  await fs.writeFile(log,r.log);return r;
 }
 // Register no longer imports RegisterPast; RegisterHistory imports both. Verify the owner's module
-// (positive: everything) so a RegisterPast or RegisterHistory owner is actually checked.
-const rootsFor=owner=>!owner?['Nickel.Register.fst','Nickel.RegisterPublic.fst','Nickel.RegisterFrontier.fst']:owner.startsWith('RegisterFrontier.')?['Nickel.RegisterFrontier.fst']:owner.startsWith('RegisterPublic.')?['Nickel.RegisterPublic.fst']:owner.startsWith('RegisterValid.')?['Nickel.RegisterValid.fst']:owner.startsWith('RegisterHistory.')?['Nickel.RegisterHistory.fst']:owner.startsWith('RegisterPast.')?['Nickel.RegisterPast.fst']:['Nickel.Register.fst'];
+// (positive: everything) so a PastExact or RegisterHistory owner is actually checked.
+const rootsFor=owner=>!owner?['Nickel.Register.fst','Nickel.RegisterPublic.fst','Nickel.RegisterFrontier.fst']:owner.startsWith('RegisterFrontier.')?['Nickel.RegisterFrontier.fst']:owner.startsWith('RegisterPublic.')?['Nickel.RegisterPublic.fst']:owner.startsWith('RegisterValid.')?['Nickel.RegisterValid.fst']:owner.startsWith('RegisterHistory.')?['Nickel.RegisterHistory.fst']:owner.startsWith('PastExact.')?['Nickel.PastExact.fst']:['Nickel.Register.fst'];
 const results=[];
 for(const [name,header,anchor,replacement,owner] of [['positive',null,null,null,null],...bodyModes]){
  if(selected.length&&!selected.includes(name)&&name!=='positive')continue;
@@ -184,7 +189,7 @@ for(const [name,header,anchor,replacement,owner] of [['positive',null,null,null,
  const native=await check(dir,['Nickel_crdt.Register.fst'],path.join(mode,'native-typecheck.log'));assert.equal(native.status,0,name+': native type error is not owner rejection');
  const file=path.join(dir,'Nickel.Register.fst');await put(file,view);await put(path.join(dir,'Nickel.RegisterHistory.fst'),historyView);await put(path.join(dir,'Nickel.RegisterValid.fst'),validView);await put(path.join(dir,'Nickel.RegisterPublic.fst'),publicView);
  const checked=await check(dir,rootsFor(owner),path.join(mode,'proof.log'));
- const ordinary=owner?hasOrdinaryTheoremRejection({status:checked.status,log:checked.log,theorem:/^(Canonical|RegisterPast|RegisterHistory|RegisterValid|RegisterPublic|RegisterFrontier)\./.test(owner)?'Nickel.'+owner:'Nickel.Register.'+owner,view:owner.startsWith('Canonical.')?canonicalView:owner.startsWith('RegisterPast.')?pastView:owner.startsWith('RegisterHistory.')?historyView:owner.startsWith('RegisterValid.')?validView:owner.startsWith('RegisterPublic.')?publicView:owner.startsWith('RegisterFrontier.')?frontierView:view}):null;
+ const ordinary=owner?hasOrdinaryTheoremRejection({status:checked.status,log:checked.log,theorem:/^(Canonical|PastExact|RegisterHistory|RegisterValid|RegisterPublic|RegisterFrontier)\./.test(owner)?'Nickel.'+owner:'Nickel.Register.'+owner,view:owner.startsWith('Canonical.')?canonicalView:owner.startsWith('PastExact.')?pastView:owner.startsWith('RegisterHistory.')?historyView:owner.startsWith('RegisterValid.')?validView:owner.startsWith('RegisterPublic.')?publicView:owner.startsWith('RegisterFrontier.')?frontierView:view}):null;
  if(owner)assert(ordinary,name+': ordinary named owner rejection required');else assert.equal(checked.status,0,'checkpoint positive failed');
  results.push({name,owner,status:checked.status,ordinary,sourceFile,source:digest(changed),log:digest(checked.log)});
  console.log('PASS '+name);
@@ -251,8 +256,8 @@ const depModes=[
  ["without-filter-coverage-composition",replaceInDeclaration("actual_frontier_covers_history","FStar.Classical.forall_intro (FStar.Classical.move_requires (filter_covers_history h));",'  ();',frontierView),"RegisterFrontier.actual_frontier_covers_history"],
  ["without-write-frontier-installation",replaceInDeclaration("counted_write_roots_cover_at","Nickel.Register.write_installs_successful_candidate before key value;",'  ();',frontierView),"RegisterFrontier.counted_write_roots_cover_at"],
  ["without-write-frontier-coverage",replaceInDeclaration("counted_write_roots_cover_at","actual_frontier_covers_history (Alloc.Vec.impl_1__as_slice before.f_facts);",'  ();',frontierView),"RegisterFrontier.counted_write_roots_cover_at"],
- ["without-all-selected-contract",replaceInDeclaration("all_selected_prefix_is_input","all_selected_prefix_is_input_induct ops facts selected finish output",'  ()',pastView),"RegisterPast.all_selected_prefix_is_input"],
- ["without-whole-basis-prefix",replaceInDeclaration("covered_basis_is_whole_history","Nickel.RegisterPast.all_selected_prefix_is_input Native.v_OPS._1 h selected (Seq.length h) basis",'  ()',frontierView),"RegisterFrontier.covered_basis_is_whole_history"],
+ ["without-all-selected-contract",replaceInDeclaration("all_selected_prefix_is_input","all_selected_prefix_is_input_induct ops facts selected finish output",'  ()',pastView),"PastExact.all_selected_prefix_is_input"],
+ ["without-whole-basis-prefix",replaceInDeclaration("covered_basis_is_whole_history","Nickel.PastExact.all_selected_prefix_is_input Native.v_OPS._1 h selected (Seq.length h) basis",'  ()',frontierView),"RegisterFrontier.covered_basis_is_whole_history"],
  ["without-added-basis-contract",replaceInDeclaration("added_basis_at","receive_added_basis_is_exact_ancestry before authored;",'  ();',frontierView),"RegisterFrontier.added_basis_at"],
  ["without-counted-basis-added",replaceInDeclaration("counted_write_basis_is_whole_history_at","write_counted_is_added_receive before key value next authored;",'  ();',frontierView),"RegisterFrontier.counted_write_basis_is_whole_history_at"],
  ["without-counted-basis-exact",replaceInDeclaration("counted_write_basis_is_whole_history_at","added_basis_at before authored (Native.impl_Replica__receive before authored)._1;",'  ();',frontierView),"RegisterFrontier.counted_write_basis_is_whole_history_at"],
@@ -331,7 +336,7 @@ const depModes=[
  ['without-public-new-unique',replaceInDeclaration('new_establishes_public_history','  Nickel.Register.new_has_unique_ids writer initial limits;','  ();',publicView),'RegisterPublic.new_establishes_public_history'],
  ['without-stream-extension',replaceInDeclaration('stream_kept','  ancestry_unchanged_by_extension h h2 fnew (Alloc.Vec.impl_1__as_slice g.f_after);','  ();',validView),'RegisterValid.stream_kept'],
  ['without-stream-preservation',replaceInDeclaration('history_from_parts','  FStar.Classical.move_requires (streams_preserved h h2) offered','  ()',validView),'RegisterValid.history_from_parts'],
- ['without-stream-native-checks',replaceInDeclaration('stream_witness','  validated_stream_checks (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS;','  ();',validView),'RegisterValid.stream_witness'],
+ ['without-stream-native-checks',replaceInDeclaration('stream_witness','  Nickel.PastExact.validated_stream_checks (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS;','  ();',validView),'RegisterValid.stream_witness'],
  ['without-receive-stream-witness',replaceInDeclaration('receive_added_offer_stream','  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 (stream_witness before offered));','  ();',validView),'RegisterValid.receive_added_offer_stream'],
  ['without-clock-extension',replaceInDeclaration('clock_kept','  ancestry_unchanged_by_extension h h2 fnew (Alloc.Vec.impl_1__as_slice g.f_after);','  ();',validView),'RegisterValid.clock_kept'],
  ['without-plan-receive-history',withholdPayloadContract('planned_preserves_history','Nickel_crdt.Register.impl_Replica__receive',1,['Nickel.RegisterValid.receive_added_preserves_history'],['  receive_added_preserves_history before offered;'],validView),'RegisterValid.planned_preserves_history'],
@@ -351,10 +356,10 @@ const depModes=[
  // Withholding freshness at receive_added_preserves_invariant is a search (20 s, 100% rlimit): that composition
  // dependence is uncontrolled; freshness itself is owned at not_duplicate_is_fresh.
  // Exact past and history meaning (#97 obligation 1): soundness and completeness are separate owners.
- ['without-past-soundness-closure',replaceInDeclaration('past_has_only_ancestors_and_keeps_roots','  past_stays_in_closed_set ops facts roots (ancestor ops facts roots)','  ()',pastView),'RegisterPast.past_has_only_ancestors_and_keeps_roots'],
- ['without-past-completeness-paths',replaceInDeclaration('successful_past_is_exact_closure','      past_contains_every_causal_path ops facts roots root steps id;','      ();',pastView),'RegisterPast.successful_past_is_exact_closure'],
- ['without-admission-exact-selection',replaceInDeclaration('selected_basis_is_exact','  Nickel.RegisterPast.validated_selection_is_exact facts offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS;','  ();',historyView),'RegisterHistory.selected_basis_is_exact'],
- ['without-admission-whole-basis',replaceInDeclaration('selected_basis_is_exact','  Nickel.RegisterPast.actual_basis_is_exact_filter Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected);','  ();',historyView),'RegisterHistory.selected_basis_is_exact'],
+ ['without-past-soundness-closure',replaceInDeclaration('past_has_only_ancestors_and_keeps_roots','  past_stays_in_closed_set ops facts roots (ancestor ops facts roots)','  ()',pastView),'PastExact.past_has_only_ancestors_and_keeps_roots'],
+ ['without-past-completeness-paths',replaceInDeclaration('successful_past_is_exact_closure','      past_contains_every_causal_path ops facts roots root steps id;','      ();',pastView),'PastExact.successful_past_is_exact_closure'],
+ ['without-admission-exact-selection',replaceInDeclaration('selected_basis_is_exact','  Nickel.PastExact.validated_selection_is_exact facts offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS;','  ();',historyView),'RegisterHistory.selected_basis_is_exact'],
+ ['without-admission-whole-basis',replaceInDeclaration('selected_basis_is_exact','  Nickel.PastExact.actual_basis_is_exact_filter Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected);','  ();',historyView),'RegisterHistory.selected_basis_is_exact'],
  // The read bridge consumes the maximum-read contract with the native read/winner bodies hidden.
  ['without-read-maximum-contract',withholdPayloadContract('read_history_is_causal_read','Nickel_crdt.Register.read_history',1,['Nickel.Register.read_history_selects_maximum'],['  Nickel.Register.read_history_selects_maximum facts initial key;'],historyView),'RegisterHistory.read_history_is_causal_read'],
  ['without-frozen-payload-checks',replaceInDeclaration('receive_added_freezes_causal_observation','  Nickel.Register.receive_added_checks_payload before offered;','  ();',historyView),'RegisterHistory.receive_added_freezes_causal_observation'],
@@ -432,7 +437,7 @@ const depModes=[
 ];
 for(const [name,changed,owner]of depModes){
  if(selected.length&&!selected.includes(name))continue;
- const generic=owner.startsWith('Canonical.')||owner.startsWith('LoopUtil.')||owner.startsWith('RegisterPast.')||owner.startsWith('RegisterHistory.')||owner.startsWith('RegisterValid.')||owner.startsWith('RegisterPublic.')||owner.startsWith('RegisterFrontier.'),baseView=owner.startsWith('LoopUtil.')?loopView:owner.startsWith('Canonical.')?canonicalView:owner.startsWith('RegisterPast.')?pastView:owner.startsWith('RegisterHistory.')?historyView:owner.startsWith('RegisterValid.')?validView:owner.startsWith('RegisterPublic.')?publicView:owner.startsWith('RegisterFrontier.')?frontierView:view,ownerFile=generic?path.join(positive,'Nickel.'+owner.split('.')[0]+'.fst'):file;
+ const generic=owner.startsWith('Canonical.')||owner.startsWith('LoopUtil.')||owner.startsWith('PastExact.')||owner.startsWith('RegisterHistory.')||owner.startsWith('RegisterValid.')||owner.startsWith('RegisterPublic.')||owner.startsWith('RegisterFrontier.'),baseView=owner.startsWith('LoopUtil.')?loopView:owner.startsWith('Canonical.')?canonicalView:owner.startsWith('PastExact.')?pastView:owner.startsWith('RegisterHistory.')?historyView:owner.startsWith('RegisterValid.')?validView:owner.startsWith('RegisterPublic.')?publicView:owner.startsWith('RegisterFrontier.')?frontierView:view,ownerFile=generic?path.join(positive,'Nickel.'+owner.split('.')[0]+'.fst'):file;
  await fs.writeFile(path.join(output,name+'.fst'),changed);
  try{await put(ownerFile,changed);const r=await check(positive,rootsFor(owner),path.join(output,name+'.log'));const ordinary=hasOrdinaryTheoremRejection({status:r.status,log:r.log,theorem:generic?'Nickel.'+owner:'Nickel.Register.'+owner,view:changed});assert(ordinary,name+': checked callee dependence required');results.push({name,owner,status:r.status,ordinary,view:digest(changed),log:digest(r.log)});console.log('PASS '+name);}
  finally{await put(ownerFile,baseView);}

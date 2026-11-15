@@ -35,6 +35,8 @@ open Nickel.Register
 
 open Nickel.RegisterPast
 
+open Nickel.PastExact
+
 open Nickel.EventClassifier
 
 open Nickel.RegisterHistory
@@ -84,7 +86,7 @@ let new_establishes_public_history (writer: u64) (initial: Alloc.Vec.t_Vec u8 Al
     Tactics.smt_sync' 1 1
   )
 
-let index_is_member (ids: t_Slice Envelope.t_Id) (k: nat) : Lemma (requires k < Seq.length ids) (ensures Nickel.RegisterPast.member ids (Seq.index ids k)) =
+let index_is_member (ids: t_Slice Envelope.t_Id) (k: nat) : Lemma (requires k < Seq.length ids) (ensures Nickel.PastExact.member ids (Seq.index ids k)) =
   assert (v (mk_usize k) == k)
 
 let positional_clocks_from_ids (facts: t_Slice Nickel.Register.fact) : Lemma (requires id_clocks_increase facts) (ensures clocks_increase facts) =
@@ -97,7 +99,7 @@ let positional_clocks_from_ids (facts: t_Slice Nickel.Register.fact) : Lemma (re
 let stream_step_at (h: t_Slice Nickel.Register.fact) (i: nat) : Lemma (requires (Prims.l_and (Prims.l_and (stored_unique h) (id_clocks_increase h)) (streams_ok h) /\ Prims.l_and (i < Seq.length h) (v (Seq.index h i).f_id.f_counter > 1))) (ensures exists(j: nat). Prims.l_and (predecessor_of h i j) (clock_below h j i)) =
   let f = Seq.index h i in
   assert (stored h f);
-  let via (g: Nickel.Register.fact) (j: nat) (root: Envelope.t_Id) (steps: Prims.list Envelope.t_Id) : Lemma (requires (Prims.l_and (j < Seq.length h) (Seq.index h j == g) /\ Prims.l_and (g.f_id.f_peer == f.f_id.f_peer) (v g.f_id.f_counter + 1 == v f.f_id.f_counter) /\ Prims.l_and (Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice f.f_after) root) (id_path h root steps g.f_id))) (ensures exists(j: nat). Prims.l_and (predecessor_of h i j) (clock_below h j i)) =
+  let via (g: Nickel.Register.fact) (j: nat) (root: Envelope.t_Id) (steps: Prims.list Envelope.t_Id) : Lemma (requires (Prims.l_and (j < Seq.length h) (Seq.index h j == g) /\ Prims.l_and (g.f_id.f_peer == f.f_id.f_peer) (v g.f_id.f_counter + 1 == v f.f_id.f_counter) /\ Prims.l_and (Nickel.PastExact.member (Alloc.Vec.impl_1__as_slice f.f_after) root) (id_path h root steps g.f_id))) (ensures exists(j: nat). Prims.l_and (predecessor_of h i j) (clock_below h j i)) =
     assert (id_edge h f.f_id root);
     assert (id_path h f.f_id (Prims.Cons root steps) g.f_id);
     assert (stored h g);
@@ -478,7 +480,7 @@ let receive_duplicate_meaning (before: Native.t_Replica) (offered: Nickel.Regist
   ()
 
 let valid_offer (h: Seq.seq Nickel.Register.fact) (initial: t_Slice u8) (f: Nickel.Register.fact) : Type0 =
-  Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (forall(p: Envelope.t_Id). Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice f.f_after) p ==> (exists(g: Nickel.Register.fact). Prims.l_and (stored h g) (g.f_id == p))) (observation_ok h initial f)) (clock_exact_in h (anc_of h f) f.f_payload.f_lamport)) (Prims.l_not (Nickel.Register.bytes_same (Alloc.Vec.impl_1__as_slice f.f_payload.f_value) (Alloc.Vec.impl_1__as_slice f.f_payload.f_observed)))) (stream_ok_in h (anc_of h f) f)
+  Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (forall(p: Envelope.t_Id). Nickel.PastExact.member (Alloc.Vec.impl_1__as_slice f.f_after) p ==> (exists(g: Nickel.Register.fact). Prims.l_and (stored h g) (g.f_id == p))) (observation_ok h initial f)) (clock_exact_in h (anc_of h f) f.f_payload.f_lamport)) (Prims.l_not (Nickel.Register.bytes_same (Alloc.Vec.impl_1__as_slice f.f_payload.f_value) (Alloc.Vec.impl_1__as_slice f.f_payload.f_observed)))) (stream_ok_in h (anc_of h f) f)
 
 let receive_added_meaning (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (requires public_history before) (ensures forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> Prims.l_and (Prims.l_and (Prims.l_and (fresh_id before offered) (valid_offer (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice before.f_initial) offered)) (extends_by (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice next.f_facts) offered)) (public_history next)) =
   receive_added_offer_is_fresh before offered;

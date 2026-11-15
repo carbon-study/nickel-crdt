@@ -14,6 +14,7 @@ import Nickel.CausalEnvelope
 import Nickel.Canonical
 import Nickel.Register
 import Nickel.RegisterPast
+import Nickel.PastExact
 import Nickel.EventClassifier
 import Nickel.RegisterHistory
 import Nickel.RegisterValid
@@ -90,7 +91,7 @@ proof new_establishes_public_history(writer: u64, initial: Alloc.Vec.t_Vec(u8, A
 // A slice entry is a member (RegisterPast's absent-prefix form).
 proof index_is_member(ids: t_Slice(Envelope.t_Id), k: nat): unit
   takes k < Seq.length(ids)
-  gives Nickel.RegisterPast.member(ids, Seq.index(ids, k))
+  gives Nickel.PastExact.member(ids, Seq.index(ids, k))
 { assert(v(mk_usize(k)) == k) }
 // Id-level parent clocks give the positional parent-clock premise of the read bridge.
 proof positional_clocks_from_ids(facts: t_Slice(Nickel.Register.fact)): unit
@@ -121,7 +122,7 @@ proof stream_step_at(h: t_Slice(Nickel.Register.fact), i: nat): unit
   proof via(g: Nickel.Register.fact, j: nat, root: Envelope.t_Id, steps: Prims.list(Envelope.t_Id)): unit
     takes j < Seq.length(h) and Seq.index(h, j) == g
     takes g.f_id.f_peer == f.f_id.f_peer and v(g.f_id.f_counter) + 1 == v(f.f_id.f_counter)
-    takes Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(f.f_after), root) and id_path(h, root, steps, g.f_id)
+    takes Nickel.PastExact.member(Alloc.Vec.impl_1__as_slice(f.f_after), root) and id_path(h, root, steps, g.f_id)
     gives exists(j: nat) . predecessor_of(h, i, j) and clock_below(h, j, i)
   {
     assert(id_edge(h, f.f_id, root));
@@ -644,7 +645,7 @@ proof receive_duplicate_meaning(before: Native.t_Replica, offered: Nickel.Regist
 // native interpreter: parents retained, observation = causal read of its exact ancestors,
 // exact clock successor, a changed value, and its writer-stream clause.
 function valid_offer(h: Seq.seq(Nickel.Register.fact), initial: t_Slice(u8), f: Nickel.Register.fact): Type0 {
-  (forall(p: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(f.f_after), p) ==>
+  (forall(p: Envelope.t_Id) . Nickel.PastExact.member(Alloc.Vec.impl_1__as_slice(f.f_after), p) ==>
     (exists(g: Nickel.Register.fact) . stored(h, g) and g.f_id == p)) and
   observation_ok(h, initial, f) and
   clock_exact_in(h, anc_of(h, f), f.f_payload.f_lamport) and

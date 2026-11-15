@@ -35,6 +35,8 @@ open Nickel.Register
 
 open Nickel.RegisterPast
 
+open Nickel.PastExact
+
 open Nickel.EventClassifier
 
 let parent_edge (facts: t_Slice Nickel.Register.fact) (newer: nat) (older: nat) : Type0 =
@@ -173,7 +175,7 @@ let receive_added_freezes_causal_observation (before: Native.t_Replica) (offered
     Tactics.smt_sync' 1 1
   )
 
-let register_ops_are_exact () : Lemma (ensures Prims.l_and (Prims.l_and (Prims.l_and (Nickel.RegisterPast.ids_exact Native.v_OPS._1) (Nickel.RegisterPast.copies_exact Native.v_OPS._1)) (forall(f: Nickel.Register.fact). Native.v_OPS._1._1._1 f == f.f_id)) (forall(f: Nickel.Register.fact). Native.v_OPS._1._1._2 f == Alloc.Vec.impl_1__as_slice f.f_after)) =
+let register_ops_are_exact () : Lemma (ensures Prims.l_and (Prims.l_and (Prims.l_and (Nickel.PastExact.ids_exact Native.v_OPS._1) (Nickel.PastExact.copies_exact Native.v_OPS._1)) (forall(f: Nickel.Register.fact). Native.v_OPS._1._1._1 f == f.f_id)) (forall(f: Nickel.Register.fact). Native.v_OPS._1._1._2 f == Alloc.Vec.impl_1__as_slice f.f_after)) =
   let graph = Nickel_crdt.Event_layer.graph_ops Native.identity Native.parents Native.same_id Native.less_id Native.copy_fact Native.fact_equal Native.invalid Native.missing in
   Nickel.EventGraph.graph_ops_preserve_callbacks Native.identity Native.parents Native.same_id Native.less_id Native.copy_fact Native.fact_equal Native.invalid Native.missing;
   Nickel.EventGraph.event_ops_preserve_callbacks graph Native.previous Native.forbidden Native.capacity Native.capacity Native.invalid Native.invalid;
@@ -189,28 +191,28 @@ let register_ops_are_exact () : Lemma (ensures Prims.l_and (Prims.l_and (Prims.l
   FStar.Classical.forall_intro each_parents
 
 let exact_selected_basis (before: Native.t_Replica) (offered: Nickel.Register.fact) : Type0 =
-  exists(selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec Nickel.Register.fact Alloc.Alloc.t_Global). Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS == Result.Result_Ok selected) (Nickel_crdt.Event_layer.select_basis (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) Native.v_OPS._1 == Result.Result_Ok basis)) (forall(id: Envelope.t_Id). Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.RegisterPast.ancestor Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice offered.f_after) id)) (Nickel.RegisterPast.selected_prefix Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) (Seq.length (Alloc.Vec.impl_1__as_slice before.f_facts)) (Alloc.Vec.impl_1__as_slice basis))) (frozen_causal_observation before offered basis)
+  exists(selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec Nickel.Register.fact Alloc.Alloc.t_Global). Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS == Result.Result_Ok selected) (Nickel_crdt.Event_layer.select_basis (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) Native.v_OPS._1 == Result.Result_Ok basis)) (forall(id: Envelope.t_Id). Nickel.PastExact.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.PastExact.ancestor Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice offered.f_after) id)) (Nickel.PastExact.selected_prefix Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) (Seq.length (Alloc.Vec.impl_1__as_slice before.f_facts)) (Alloc.Vec.impl_1__as_slice basis))) (frozen_causal_observation before offered basis)
 
-let selected_basis_is_exact (before: Native.t_Replica) (offered: Nickel.Register.fact) (selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec Nickel.Register.fact Alloc.Alloc.t_Global) : Lemma (requires (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS == Result.Result_Ok selected /\ Nickel_crdt.Event_layer.select_basis (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) Native.v_OPS._1 == Result.Result_Ok basis)) (ensures Prims.l_and (forall(id: Envelope.t_Id). Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.RegisterPast.ancestor Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice offered.f_after) id) (Nickel.RegisterPast.selected_prefix Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) (Seq.length (Alloc.Vec.impl_1__as_slice before.f_facts)) (Alloc.Vec.impl_1__as_slice basis))) =
+let selected_basis_is_exact (before: Native.t_Replica) (offered: Nickel.Register.fact) (selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec Nickel.Register.fact Alloc.Alloc.t_Global) : Lemma (requires (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS == Result.Result_Ok selected /\ Nickel_crdt.Event_layer.select_basis (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) Native.v_OPS._1 == Result.Result_Ok basis)) (ensures Prims.l_and (forall(id: Envelope.t_Id). Nickel.PastExact.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.PastExact.ancestor Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice offered.f_after) id) (Nickel.PastExact.selected_prefix Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) (Seq.length (Alloc.Vec.impl_1__as_slice before.f_facts)) (Alloc.Vec.impl_1__as_slice basis))) =
   let facts = Alloc.Vec.impl_1__as_slice before.f_facts in
   let roots = Alloc.Vec.impl_1__as_slice offered.f_after in
   register_ops_are_exact ();
-  Nickel.RegisterPast.validated_selection_is_exact facts offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS;
-  assert (forall(id: Envelope.t_Id). Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.RegisterPast.ancestor Native.v_OPS._1 facts roots id) by (
+  Nickel.PastExact.validated_selection_is_exact facts offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS;
+  assert (forall(id: Envelope.t_Id). Nickel.PastExact.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.PastExact.ancestor Native.v_OPS._1 facts roots id) by (
     Tactics.prune "Nickel_crdt.Event_layer.validate_event";
     Tactics.smt_sync' 1 1
   );
-  Nickel.RegisterPast.actual_basis_is_exact_filter Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected);
-  assert (Nickel.LoopUtil.result_safe (fun (out: Alloc.Vec.t_Vec Nickel.Register.fact Alloc.Alloc.t_Global) -> Nickel.RegisterPast.selected_prefix Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected) (Seq.length facts) (Alloc.Vec.impl_1__as_slice out)) (fun (_: Native.t_Error) -> Prims.l_False) (Result.Result_Ok basis)) by (
+  Nickel.PastExact.actual_basis_is_exact_filter Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected);
+  assert (Nickel.LoopUtil.result_safe (fun (out: Alloc.Vec.t_Vec Nickel.Register.fact Alloc.Alloc.t_Global) -> Nickel.PastExact.selected_prefix Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected) (Seq.length facts) (Alloc.Vec.impl_1__as_slice out)) (fun (_: Native.t_Error) -> Prims.l_False) (Result.Result_Ok basis)) by (
     Tactics.prune "Nickel_crdt.Event_layer.select_basis";
     Tactics.smt_sync' 1 1
   );
-  Nickel.RegisterPast.exact_filter_output Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected) basis;
-  assert (Nickel.RegisterPast.selected_prefix Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected) (Seq.length facts) (Alloc.Vec.impl_1__as_slice basis)) by (
+  Nickel.PastExact.exact_filter_output Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected) basis;
+  assert (Nickel.PastExact.selected_prefix Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected) (Seq.length facts) (Alloc.Vec.impl_1__as_slice basis)) by (
     Tactics.prune "Nickel_crdt.Event_layer.select_basis";
     Tactics.smt_sync' 1 1
   );
-  assert (Prims.l_and (forall(id: Envelope.t_Id). Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.RegisterPast.ancestor Native.v_OPS._1 facts roots id) (Nickel.RegisterPast.selected_prefix Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected) (Seq.length facts) (Alloc.Vec.impl_1__as_slice basis))) by (
+  assert (Prims.l_and (forall(id: Envelope.t_Id). Nickel.PastExact.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.PastExact.ancestor Native.v_OPS._1 facts roots id) (Nickel.PastExact.selected_prefix Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected) (Seq.length facts) (Alloc.Vec.impl_1__as_slice basis))) by (
     Tactics.prune "Nickel_crdt.Event_layer.validate_event";
     Tactics.prune "Nickel_crdt.Event_layer.select_basis";
     Tactics.smt_sync' 1 1
@@ -260,22 +262,23 @@ let present_append_one (xs: Seq.seq Nickel.Register.fact) (x: Nickel.Register.fa
   assert (Seq.index ys (Seq.length xs) == x)
 
 let selected_below (ops: Nickel.RegisterPast.rops) (facts: t_Slice Nickel.Register.fact) (sel: t_Slice Envelope.t_Id) (n: nat) (f: Nickel.Register.fact) : Type0 =
-  exists(i: nat). Prims.l_and (Prims.l_and (Prims.l_and (i < n) (i < Seq.length facts)) (Seq.index facts i == f)) (Nickel.RegisterPast.member sel (ops._1._1 (Seq.index facts i)))
+  exists(i: nat). Prims.l_and (Prims.l_and (Prims.l_and (i < n) (i < Seq.length facts)) (Seq.index facts i == f)) (Nickel.PastExact.member sel (ops._1._1 (Seq.index facts i)))
 
-let below_step (ops: Nickel.RegisterPast.rops) (facts: t_Slice Nickel.Register.fact) (sel: t_Slice Envelope.t_Id) (n: nat{Prims.l_and (0 < n) (n <= Seq.length facts)}) (f: Nickel.Register.fact) : Lemma (ensures selected_below ops facts sel n f <==> Prims.l_or (selected_below ops facts sel (n - 1) f) (Prims.l_and (Seq.index facts (n - 1) == f) (Nickel.RegisterPast.member sel (ops._1._1 (Seq.index facts (n - 1)))))) =
+let below_step (ops: Nickel.RegisterPast.rops) (facts: t_Slice Nickel.Register.fact) (sel: t_Slice Envelope.t_Id) (n: nat{Prims.l_and (0 < n) (n <= Seq.length facts)}) (f: Nickel.Register.fact) : Lemma (ensures selected_below ops facts sel n f <==> Prims.l_or (selected_below ops facts sel (n - 1) f) (Prims.l_and (Seq.index facts (n - 1) == f) (Nickel.PastExact.member sel (ops._1._1 (Seq.index facts (n - 1)))))) =
   ()
 
-let rec filter_has_selected_facts (ops: Nickel.RegisterPast.rops) (facts: t_Slice Nickel.Register.fact) (sel: t_Slice Envelope.t_Id) (n: nat{n <= Seq.length facts}) (out: Seq.seq Nickel.Register.fact) : Lemma (requires Nickel.RegisterPast.selected_prefix ops facts sel n out) (ensures forall(f: Nickel.Register.fact). stored out f <==> selected_below ops facts sel n f) (decreases n) =
+let rec filter_has_selected_facts (ops: Nickel.RegisterPast.rops) (facts: t_Slice Nickel.Register.fact) (sel: t_Slice Envelope.t_Id) (n: nat{n <= Seq.length facts}) (out: Seq.seq Nickel.Register.fact) : Lemma (requires Nickel.PastExact.selected_prefix ops facts sel n out) (ensures forall(f: Nickel.Register.fact). stored out f <==> selected_below ops facts sel n f) (decreases n) =
   if n ==? 0 then
-    begin () end
+    begin Nickel.PastExact.selected_prefix_zero ops facts sel out end
   else
     begin let x = Seq.index facts (n - 1) in
-    let grow (before: Seq.seq Nickel.Register.fact) : Lemma (requires (Nickel.RegisterPast.selected_prefix ops facts sel (n - 1) before /\ out == Seq.append before (Seq.create 1 x) /\ Nickel.RegisterPast.member sel (ops._1._1 x))) (ensures forall(f: Nickel.Register.fact). stored out f <==> selected_below ops facts sel n f) =
+    Nickel.PastExact.selected_prefix_step ops facts sel n out;
+    let grow (before: Seq.seq Nickel.Register.fact) : Lemma (requires (Nickel.PastExact.selected_prefix ops facts sel (n - 1) before /\ out == Seq.append before (Seq.create 1 x) /\ Nickel.PastExact.member sel (ops._1._1 x))) (ensures forall(f: Nickel.Register.fact). stored out f <==> selected_below ops facts sel n f) =
       filter_has_selected_facts ops facts sel (n - 1) before;
       FStar.Classical.forall_intro (present_append_one before x);
       FStar.Classical.forall_intro (below_step ops facts sel n) in
-    let kept () : Lemma (requires Nickel.RegisterPast.member sel (ops._1._1 x)) (ensures forall(f: Nickel.Register.fact). stored out f <==> selected_below ops facts sel n f) = FStar.Classical.forall_intro (FStar.Classical.move_requires grow) in
-    let skipped () : Lemma (requires Prims.l_not (Nickel.RegisterPast.member sel (ops._1._1 x))) (ensures forall(f: Nickel.Register.fact). stored out f <==> selected_below ops facts sel n f) =
+    let kept () : Lemma (requires Nickel.PastExact.member sel (ops._1._1 x)) (ensures forall(f: Nickel.Register.fact). stored out f <==> selected_below ops facts sel n f) = FStar.Classical.forall_intro (FStar.Classical.move_requires grow) in
+    let skipped () : Lemma (requires Prims.l_not (Nickel.PastExact.member sel (ops._1._1 x))) (ensures forall(f: Nickel.Register.fact). stored out f <==> selected_below ops facts sel n f) =
       filter_has_selected_facts ops facts sel (n - 1) out;
       FStar.Classical.forall_intro (below_step ops facts sel n) in
     FStar.Classical.move_requires kept ();
@@ -285,7 +288,7 @@ let stored_unique (facts: Seq.seq Nickel.Register.fact) : Type0 =
   forall(f: Nickel.Register.fact) (g: Nickel.Register.fact). Prims.l_and (Prims.l_and (stored facts f) (stored facts g)) (f.f_id == g.f_id) ==> f == g
 
 let id_edge (facts: Seq.seq Nickel.Register.fact) (newer: Envelope.t_Id) (older: Envelope.t_Id) : Type0 =
-  exists(f: Nickel.Register.fact). Prims.l_and (Prims.l_and (stored facts f) (f.f_id == newer)) (Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice f.f_after) older)
+  exists(f: Nickel.Register.fact). Prims.l_and (Prims.l_and (stored facts f) (f.f_id == newer)) (Nickel.PastExact.member (Alloc.Vec.impl_1__as_slice f.f_after) older)
 
 let rec id_path (facts: Seq.seq Nickel.Register.fact) (start: Envelope.t_Id) (steps: Prims.list Envelope.t_Id) (finish: Envelope.t_Id) : Tot Type0 (decreases steps) =
   match steps with | Prims.Nil -> begin start == finish end | Prims.Cons next rest -> begin Prims.l_and (id_edge facts start next) (id_path facts next rest finish) end
@@ -294,10 +297,10 @@ let id_strictly_below (facts: Seq.seq Nickel.Register.fact) (newer: Envelope.t_I
   exists(next: Envelope.t_Id) (rest: Prims.list Envelope.t_Id). id_path facts newer (Prims.Cons next rest) older
 
 let id_clocks_increase (facts: Seq.seq Nickel.Register.fact) : Type0 =
-  forall(fa: Nickel.Register.fact) (fb: Nickel.Register.fact). Prims.l_and (Prims.l_and (stored facts fa) (stored facts fb)) (Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice fa.f_after) fb.f_id) ==> v fb.f_payload.f_lamport < v fa.f_payload.f_lamport
+  forall(fa: Nickel.Register.fact) (fb: Nickel.Register.fact). Prims.l_and (Prims.l_and (stored facts fa) (stored facts fb)) (Nickel.PastExact.member (Alloc.Vec.impl_1__as_slice fa.f_after) fb.f_id) ==> v fb.f_payload.f_lamport < v fa.f_payload.f_lamport
 
 let rec id_path_clock_decreases (facts: Seq.seq Nickel.Register.fact) (fa: Nickel.Register.fact) (next: Envelope.t_Id) (rest: Prims.list Envelope.t_Id) (fb: Nickel.Register.fact) : Lemma (requires (Prims.l_and (stored_unique facts) (id_clocks_increase facts) /\ Prims.l_and (stored facts fa) (stored facts fb) /\ id_path facts fa.f_id (Prims.Cons next rest) fb.f_id)) (ensures v fb.f_payload.f_lamport < v fa.f_payload.f_lamport) (decreases rest) =
-  match rest with | Prims.Nil -> begin () end | Prims.Cons next2 rest2 -> begin let via (fn: Nickel.Register.fact) : Lemma (requires (Prims.l_and (stored facts fn) (fn.f_id == next) /\ Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice fn.f_after) next2)) (ensures v fb.f_payload.f_lamport < v fa.f_payload.f_lamport) = id_path_clock_decreases facts fn next2 rest2 fb in
+  match rest with | Prims.Nil -> begin () end | Prims.Cons next2 rest2 -> begin let via (fn: Nickel.Register.fact) : Lemma (requires (Prims.l_and (stored facts fn) (fn.f_id == next) /\ Nickel.PastExact.member (Alloc.Vec.impl_1__as_slice fn.f_after) next2)) (ensures v fb.f_payload.f_lamport < v fa.f_payload.f_lamport) = id_path_clock_decreases facts fn next2 rest2 fb in
   FStar.Classical.forall_intro (FStar.Classical.move_requires via) end
 
 let maximal_in (facts: Seq.seq Nickel.Register.fact) (sel: Envelope.t_Id -> Type0) (key: u64) (f: Nickel.Register.fact) : Type0 =
@@ -318,7 +321,7 @@ let selected_maximum_is_causal_read_in (basis: t_Slice Nickel.Register.fact) (fa
   FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 from_index)
 
 let sel_of (selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) : Envelope.t_Id -> Type0 =
-  fun (id: Envelope.t_Id) -> Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice selected) id
+  fun (id: Envelope.t_Id) -> Nickel.PastExact.member (Alloc.Vec.impl_1__as_slice selected) id
 
 let frozen_id_read (before: Native.t_Replica) (offered: Nickel.Register.fact) (selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) : Type0 =
   Prims.l_and (stored_unique (Alloc.Vec.impl_1__as_slice before.f_facts)) (id_clocks_increase (Alloc.Vec.impl_1__as_slice before.f_facts)) ==> causal_read_in (Alloc.Vec.impl_1__as_slice before.f_facts) (sel_of selected) offered.f_payload.f_key (Alloc.Vec.impl_1__as_slice before.f_initial) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed)
@@ -331,7 +334,7 @@ let freeze_from_maximum (before: Native.t_Replica) (offered: Nickel.Register.fac
   selected_value_respects_bytes b offered.f_payload.f_key (Alloc.Vec.impl_1__as_slice before.f_initial) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed) r;
   FStar.Classical.move_requires (selected_maximum_is_causal_read_in b (Alloc.Vec.impl_1__as_slice before.f_facts) (sel_of selected) offered.f_payload.f_key (Alloc.Vec.impl_1__as_slice before.f_initial)) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed)
 
-let basis_freezes_id_read (before: Native.t_Replica) (offered: Nickel.Register.fact) (selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec Nickel.Register.fact Alloc.Alloc.t_Global) : Lemma (requires (Nickel.RegisterPast.selected_prefix Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) (Seq.length (Alloc.Vec.impl_1__as_slice before.f_facts)) (Alloc.Vec.impl_1__as_slice basis) /\ Nickel.Register.basis_payload_checks before offered basis)) (ensures frozen_id_read before offered selected) =
+let basis_freezes_id_read (before: Native.t_Replica) (offered: Nickel.Register.fact) (selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec Nickel.Register.fact Alloc.Alloc.t_Global) : Lemma (requires (Nickel.PastExact.selected_prefix Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) (Seq.length (Alloc.Vec.impl_1__as_slice before.f_facts)) (Alloc.Vec.impl_1__as_slice basis) /\ Nickel.Register.basis_payload_checks before offered basis)) (ensures frozen_id_read before offered selected) =
   let facts = Alloc.Vec.impl_1__as_slice before.f_facts in
   let b = Alloc.Vec.impl_1__as_slice basis in
   register_ops_are_exact ();
@@ -348,7 +351,7 @@ let basis_freezes_id_read (before: Native.t_Replica) (offered: Nickel.Register.f
   )
 
 let id_frozen_admission (before: Native.t_Replica) (offered: Nickel.Register.fact) : Type0 =
-  exists(selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global). Prims.l_and (Prims.l_and (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS == Result.Result_Ok selected) (forall(id: Envelope.t_Id). Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.RegisterPast.ancestor Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice offered.f_after) id)) (frozen_id_read before offered selected)
+  exists(selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global). Prims.l_and (Prims.l_and (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS == Result.Result_Ok selected) (forall(id: Envelope.t_Id). Nickel.PastExact.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.PastExact.ancestor Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice offered.f_after) id)) (frozen_id_read before offered selected)
 
 let id_witness (before: Native.t_Replica) (offered: Nickel.Register.fact) (selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) (basis: Alloc.Vec.t_Vec Nickel.Register.fact Alloc.Alloc.t_Global) : Lemma (requires Prims.l_and (Prims.l_and (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS == Result.Result_Ok selected) (Nickel_crdt.Event_layer.select_basis (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice selected) Native.v_OPS._1 == Result.Result_Ok basis)) (Nickel.Register.basis_payload_checks before offered basis)) (ensures id_frozen_admission before offered) =
   selected_basis_is_exact before offered selected basis;
@@ -395,7 +398,7 @@ let extends_by (h: Seq.seq Nickel.Register.fact) (h2: Seq.seq Nickel.Register.fa
   forall(g: Nickel.Register.fact). stored h2 g <==> Prims.l_or (stored h g) (g == f)
 
 let unreferenced (h: Seq.seq Nickel.Register.fact) (x: Envelope.t_Id) : Type0 =
-  forall(g: Nickel.Register.fact). stored h g ==> Prims.l_not (Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice g.f_after) x)
+  forall(g: Nickel.Register.fact). stored h g ==> Prims.l_not (Nickel.PastExact.member (Alloc.Vec.impl_1__as_slice g.f_after) x)
 
 let rec id_path_extend (h: Seq.seq Nickel.Register.fact) (h2: Seq.seq Nickel.Register.fact) (f: Nickel.Register.fact) (start: Envelope.t_Id) (steps: Prims.list Envelope.t_Id) (finish: Envelope.t_Id) : Lemma (requires (Prims.l_and (extends_by h h2 f) (unreferenced h2 f.f_id) /\ start =!= f.f_id)) (ensures id_path h2 start steps finish <==> id_path h start steps finish) (decreases steps) =
   match steps with | Prims.Nil -> begin () end | Prims.Cons next rest -> begin let next_is_old () : Lemma (requires id_edge h2 start next) (ensures next =!= f.f_id) = () in
@@ -410,19 +413,20 @@ let read_unchanged_by_extension (h: Seq.seq Nickel.Register.fact) (h2: Seq.seq N
   assert (forall(g: Nickel.Register.fact). maximal_in h2 sel key g <==> maximal_in h sel key g)
 
 let id_ancestor (facts: Seq.seq Nickel.Register.fact) (roots: t_Slice Envelope.t_Id) (id: Envelope.t_Id) : Type0 =
-  exists(root: Envelope.t_Id) (steps: Prims.list Envelope.t_Id). Prims.l_and (Nickel.RegisterPast.member roots root) (id_path facts root steps id)
+  exists(root: Envelope.t_Id) (steps: Prims.list Envelope.t_Id). Prims.l_and (Nickel.PastExact.member roots root) (id_path facts root steps id)
 
-let register_edge_is_id_edge (facts: t_Slice Nickel.Register.fact) (a: Envelope.t_Id) (b: Envelope.t_Id) : Lemma (ensures Nickel.RegisterPast.causal_edge Native.v_OPS._1 facts a b <==> id_edge facts a b) =
+let register_edge_is_id_edge (facts: t_Slice Nickel.Register.fact) (a: Envelope.t_Id) (b: Envelope.t_Id) : Lemma (ensures Nickel.PastExact.causal_edge Native.v_OPS._1 facts a b <==> id_edge facts a b) =
   register_ops_are_exact ()
 
-let rec register_path_is_id_path (facts: t_Slice Nickel.Register.fact) (start: Envelope.t_Id) (steps: Prims.list Envelope.t_Id) (finish: Envelope.t_Id) : Lemma (ensures Nickel.RegisterPast.causal_path Native.v_OPS._1 facts start steps finish <==> id_path facts start steps finish) (decreases steps) =
-  match steps with | Prims.Nil -> begin assert (Nickel.RegisterPast.causal_path Native.v_OPS._1 facts start steps finish <==> start == finish);
+let rec register_path_is_id_path (facts: t_Slice Nickel.Register.fact) (start: Envelope.t_Id) (steps: Prims.list Envelope.t_Id) (finish: Envelope.t_Id) : Lemma (ensures Nickel.PastExact.causal_path Native.v_OPS._1 facts start steps finish <==> id_path facts start steps finish) (decreases steps) =
+  Nickel.PastExact.causal_path_equations Native.v_OPS._1 facts;
+  match steps with | Prims.Nil -> begin assert (Nickel.PastExact.causal_path Native.v_OPS._1 facts start steps finish <==> start == finish);
   assert (id_path facts start steps finish <==> start == finish) end | Prims.Cons next rest -> begin register_edge_is_id_edge facts start next;
   register_path_is_id_path facts next rest finish;
-  assert (Nickel.RegisterPast.causal_path Native.v_OPS._1 facts start steps finish <==> Prims.l_and (Nickel.RegisterPast.causal_edge Native.v_OPS._1 facts start next) (Nickel.RegisterPast.causal_path Native.v_OPS._1 facts next rest finish));
+  assert (Nickel.PastExact.causal_path Native.v_OPS._1 facts start steps finish <==> Prims.l_and (Nickel.PastExact.causal_edge Native.v_OPS._1 facts start next) (Nickel.PastExact.causal_path Native.v_OPS._1 facts next rest finish));
   assert (id_path facts start steps finish <==> Prims.l_and (id_edge facts start next) (id_path facts next rest finish)) end
 
-let register_ancestor_is_id_ancestor (facts: t_Slice Nickel.Register.fact) (roots: t_Slice Envelope.t_Id) (id: Envelope.t_Id) : Lemma (ensures Nickel.RegisterPast.ancestor Native.v_OPS._1 facts roots id <==> id_ancestor facts roots id) =
+let register_ancestor_is_id_ancestor (facts: t_Slice Nickel.Register.fact) (roots: t_Slice Envelope.t_Id) (id: Envelope.t_Id) : Lemma (ensures Nickel.PastExact.ancestor Native.v_OPS._1 facts roots id <==> id_ancestor facts roots id) =
   FStar.Classical.forall_intro_3 (register_path_is_id_path facts)
 
 let anc_of (h: Seq.seq Nickel.Register.fact) (f: Nickel.Register.fact) : Envelope.t_Id -> Type0 =
@@ -438,10 +442,10 @@ let rec never_reaches_new (h2: Seq.seq Nickel.Register.fact) (x: Envelope.t_Id) 
   match steps with | Prims.Nil -> begin () end | Prims.Cons next rest -> begin let deeper () : Lemma (requires id_edge h2 root next) (ensures Prims.l_not (id_path h2 next rest x)) = never_reaches_new h2 x next rest in
   FStar.Classical.move_requires deeper () end
 
-let ancestry_unchanged_by_extension (h: Seq.seq Nickel.Register.fact) (h2: Seq.seq Nickel.Register.fact) (fnew: Nickel.Register.fact) (roots: t_Slice Envelope.t_Id) : Lemma (requires (Prims.l_and (extends_by h h2 fnew) (unreferenced h2 fnew.f_id) /\ Prims.l_not (Nickel.RegisterPast.member roots fnew.f_id))) (ensures Prims.l_and (forall(id: Envelope.t_Id). id_ancestor h2 roots id <==> id_ancestor h roots id) (Prims.l_not (id_ancestor h2 roots fnew.f_id))) =
-  let walks (root: Envelope.t_Id) (steps: Prims.list Envelope.t_Id) (finish: Envelope.t_Id) : Lemma (requires Nickel.RegisterPast.member roots root) (ensures id_path h2 root steps finish <==> id_path h root steps finish) = id_path_extend h h2 fnew root steps finish in
+let ancestry_unchanged_by_extension (h: Seq.seq Nickel.Register.fact) (h2: Seq.seq Nickel.Register.fact) (fnew: Nickel.Register.fact) (roots: t_Slice Envelope.t_Id) : Lemma (requires (Prims.l_and (extends_by h h2 fnew) (unreferenced h2 fnew.f_id) /\ Prims.l_not (Nickel.PastExact.member roots fnew.f_id))) (ensures Prims.l_and (forall(id: Envelope.t_Id). id_ancestor h2 roots id <==> id_ancestor h roots id) (Prims.l_not (id_ancestor h2 roots fnew.f_id))) =
+  let walks (root: Envelope.t_Id) (steps: Prims.list Envelope.t_Id) (finish: Envelope.t_Id) : Lemma (requires Nickel.PastExact.member roots root) (ensures id_path h2 root steps finish <==> id_path h root steps finish) = id_path_extend h h2 fnew root steps finish in
   FStar.Classical.forall_intro_3 (FStar.Classical.move_requires_3 walks);
-  let never_reaches (root: Envelope.t_Id) (steps: Prims.list Envelope.t_Id) : Lemma (requires Nickel.RegisterPast.member roots root) (ensures Prims.l_not (id_path h2 root steps fnew.f_id)) = never_reaches_new h2 fnew.f_id root steps in
+  let never_reaches (root: Envelope.t_Id) (steps: Prims.list Envelope.t_Id) : Lemma (requires Nickel.PastExact.member roots root) (ensures Prims.l_not (id_path h2 root steps fnew.f_id)) = never_reaches_new h2 fnew.f_id root steps in
   FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 never_reaches)
 
 let read_respects_sel (h: Seq.seq Nickel.Register.fact) (s1: Envelope.t_Id -> Type0) (s2: Envelope.t_Id -> Type0) (key: u64) (initial: t_Slice u8) (value: t_Slice u8) : Lemma (requires forall(id: Envelope.t_Id). s1 id <==> s2 id) (ensures causal_read_in h s1 key initial value <==> causal_read_in h s2 key initial value) =
@@ -456,7 +460,7 @@ let observations_preserved (h: Seq.seq Nickel.Register.fact) (h2: Seq.seq Nickel
   let each (g: Nickel.Register.fact) : Lemma (requires stored h2 g) (ensures observation_ok h2 initial g) = observation_kept h h2 fnew initial g in
   FStar.Classical.forall_intro (FStar.Classical.move_requires each)
 
-let selected_read_is_observation (before: Native.t_Replica) (offered: Nickel.Register.fact) (selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) : Lemma (requires ((forall(id: Envelope.t_Id). Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.RegisterPast.ancestor Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice offered.f_after) id) /\ frozen_id_read before offered selected)) (ensures Prims.l_and (stored_unique (Alloc.Vec.impl_1__as_slice before.f_facts)) (id_clocks_increase (Alloc.Vec.impl_1__as_slice before.f_facts)) ==> observation_ok (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice before.f_initial) offered) =
+let selected_read_is_observation (before: Native.t_Replica) (offered: Nickel.Register.fact) (selected: Alloc.Vec.t_Vec Envelope.t_Id Alloc.Alloc.t_Global) : Lemma (requires ((forall(id: Envelope.t_Id). Nickel.PastExact.member (Alloc.Vec.impl_1__as_slice selected) id <==> Nickel.PastExact.ancestor Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice offered.f_after) id) /\ frozen_id_read before offered selected)) (ensures Prims.l_and (stored_unique (Alloc.Vec.impl_1__as_slice before.f_facts)) (id_clocks_increase (Alloc.Vec.impl_1__as_slice before.f_facts)) ==> observation_ok (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice before.f_initial) offered) =
   let facts = Alloc.Vec.impl_1__as_slice before.f_facts in
   FStar.Classical.forall_intro (register_ancestor_is_id_ancestor facts (Alloc.Vec.impl_1__as_slice offered.f_after));
   read_respects_sel facts (sel_of selected) (anc_of facts offered) offered.f_payload.f_key (Alloc.Vec.impl_1__as_slice before.f_initial) (Alloc.Vec.impl_1__as_slice offered.f_payload.f_observed)
@@ -533,7 +537,7 @@ let present_prefix (ops: Nickel.RegisterPast.rops) (facts: t_Slice Nickel.Regist
   forall(j: nat). Prims.l_and (j < at) (j < Seq.length after) ==> Nickel_crdt.Event_layer.has_fact facts (Seq.index after j) ops == true
 
 let validate_after_checks_presence (ops: Nickel.RegisterPast.rops) (facts: t_Slice Nickel.Register.fact) (after: t_Slice Envelope.t_Id) : Lemma (ensures Nickel.LoopUtil.result_safe (fun (_: unit) -> present_prefix ops facts after (Seq.length after)) (fun (_: Native.t_Error) -> Prims.l_True) (Nickel_crdt.Event_layer.validate_after facts after ops)) =
-  Nickel.RegisterPast.ops_shape ops;
+  Nickel.PastExact.ops_shape ops;
   let membership_boolean (wanted: Envelope.t_Id) : Lemma (ensures Prims.l_or (Nickel_crdt.Event_layer.has_fact facts wanted ops == true) (Nickel_crdt.Event_layer.has_fact facts wanted ops == false)) = () in
   FStar.Classical.forall_intro membership_boolean;
   Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len after) (fun (at: nat) (_: unit) -> present_prefix ops facts after at) (fun (_: unit) -> ()) (fun (_: unit) -> present_prefix ops facts after (Seq.length after)) (fun (_: Native.t_Error) -> Prims.l_True);
@@ -546,7 +550,7 @@ let validate_after_checks_presence (ops: Nickel.RegisterPast.rops) (facts: t_Sli
   )
 
 let past_checked_parents (ops: Nickel.RegisterPast.rops) (facts: t_Slice Nickel.Register.fact) (roots: t_Slice Envelope.t_Id) : Lemma (ensures forall(s: Nickel.RegisterPast.ids_vec). Nickel_crdt.Event_layer.past facts roots ops == Result.Result_Ok s ==> Nickel_crdt.Event_layer.validate_after facts roots ops == Result.Result_Ok ()) =
-  Nickel.RegisterPast.ops_shape ops;
+  Nickel.PastExact.ops_shape ops;
   let result_shape () : Lemma (ensures Prims.l_or (Nickel_crdt.Event_layer.validate_after facts roots ops == Result.Result_Ok ()) (exists(e: Native.t_Error). Nickel_crdt.Event_layer.validate_after facts roots ops == Result.Result_Err e)) = match Nickel_crdt.Event_layer.validate_after facts roots ops with | Result.Result_Ok _ -> begin () end | Result.Result_Err _ -> begin () end in
   result_shape ();
   assert (forall(s: Nickel.RegisterPast.ids_vec). Nickel_crdt.Event_layer.past facts roots ops == Result.Result_Ok s ==> Nickel_crdt.Event_layer.validate_after facts roots ops == Result.Result_Ok ()) by (
@@ -557,19 +561,19 @@ let past_checked_parents (ops: Nickel.RegisterPast.rops) (facts: t_Slice Nickel.
   )
 
 let parents_stored (before: Native.t_Replica) (offered: Nickel.Register.fact) : Type0 =
-  forall(p: Envelope.t_Id). Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice offered.f_after) p ==> (exists(g: Nickel.Register.fact). Prims.l_and (stored (Alloc.Vec.impl_1__as_slice before.f_facts) g) (g.f_id == p))
+  forall(p: Envelope.t_Id). Nickel.PastExact.member (Alloc.Vec.impl_1__as_slice offered.f_after) p ==> (exists(g: Nickel.Register.fact). Prims.l_and (stored (Alloc.Vec.impl_1__as_slice before.f_facts) g) (g.f_id == p))
 
 let present_parents_are_stored (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (requires present_prefix Native.v_OPS._1 (Alloc.Vec.impl_1__as_slice before.f_facts) (Alloc.Vec.impl_1__as_slice offered.f_after) (Seq.length (Alloc.Vec.impl_1__as_slice offered.f_after))) (ensures parents_stored before offered) =
   let facts = Alloc.Vec.impl_1__as_slice before.f_facts in
   register_ops_are_exact ();
-  let each (p: Envelope.t_Id) : Lemma (requires Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice offered.f_after) p) (ensures exists(g: Nickel.Register.fact). Prims.l_and (stored facts g) (g.f_id == p)) = Nickel.EventGraph.fact_membership_is_exact facts p Native.v_OPS._1 in
+  let each (p: Envelope.t_Id) : Lemma (requires Nickel.PastExact.member (Alloc.Vec.impl_1__as_slice offered.f_after) p) (ensures exists(g: Nickel.Register.fact). Prims.l_and (stored facts g) (g.f_id == p)) = Nickel.EventGraph.fact_membership_is_exact facts p Native.v_OPS._1 in
   FStar.Classical.forall_intro (FStar.Classical.move_requires each)
 
 let validated_parents_stored (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (ensures forall(s: Nickel.RegisterPast.ids_vec). Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS == Result.Result_Ok s ==> parents_stored before offered) =
   let facts = Alloc.Vec.impl_1__as_slice before.f_facts in
   let roots = Alloc.Vec.impl_1__as_slice offered.f_after in
   register_ops_are_exact ();
-  Nickel.RegisterPast.validated_selection_is_past facts offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS;
+  Nickel.PastExact.validated_selection_is_past facts offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS;
   past_checked_parents Native.v_OPS._1 facts roots;
   validate_after_checks_presence Native.v_OPS._1 facts roots;
   FStar.Classical.move_requires (present_parents_are_stored before) offered;
@@ -581,7 +585,7 @@ let validated_parents_stored (before: Native.t_Replica) (offered: Nickel.Registe
   )
 
 let closed (h: Seq.seq Nickel.Register.fact) : Type0 =
-  forall(g: Nickel.Register.fact) (p: Envelope.t_Id). Prims.l_and (stored h g) (Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice g.f_after) p) ==> (exists(k: Nickel.Register.fact). Prims.l_and (stored h k) (k.f_id == p))
+  forall(g: Nickel.Register.fact) (p: Envelope.t_Id). Prims.l_and (stored h g) (Nickel.PastExact.member (Alloc.Vec.impl_1__as_slice g.f_after) p) ==> (exists(k: Nickel.Register.fact). Prims.l_and (stored h k) (k.f_id == p))
 
 let receive_added_offer_is_fresh (before: Native.t_Replica) (offered: Nickel.Register.fact) : Lemma (ensures forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Added) ==> fresh_id before offered) =
   Nickel.Register.receive_publication_is_exact before offered;
@@ -612,7 +616,7 @@ let receive_added_parents_stored (before: Native.t_Replica) (offered: Nickel.Reg
     Tactics.smt_sync' 1 1
   )
 
-let closure_gives_unreferenced (h: Seq.seq Nickel.Register.fact) (h2: Seq.seq Nickel.Register.fact) (fnew: Nickel.Register.fact) : Lemma (requires (Prims.l_and (extends_by h h2 fnew) (closed h) /\ (forall(g: Nickel.Register.fact). stored h g ==> g.f_id =!= fnew.f_id) /\ (forall(p: Envelope.t_Id). Nickel.RegisterPast.member (Alloc.Vec.impl_1__as_slice fnew.f_after) p ==> (exists(k: Nickel.Register.fact). Prims.l_and (stored h k) (k.f_id == p))))) (ensures Prims.l_and (unreferenced h2 fnew.f_id) (closed h2)) =
+let closure_gives_unreferenced (h: Seq.seq Nickel.Register.fact) (h2: Seq.seq Nickel.Register.fact) (fnew: Nickel.Register.fact) : Lemma (requires (Prims.l_and (extends_by h h2 fnew) (closed h) /\ (forall(g: Nickel.Register.fact). stored h g ==> g.f_id =!= fnew.f_id) /\ (forall(p: Envelope.t_Id). Nickel.PastExact.member (Alloc.Vec.impl_1__as_slice fnew.f_after) p ==> (exists(k: Nickel.Register.fact). Prims.l_and (stored h k) (k.f_id == p))))) (ensures Prims.l_and (unreferenced h2 fnew.f_id) (closed h2)) =
   ()
 
 let history_extended_soundly (before: Native.t_Replica) (offered: Nickel.Register.fact) (next: Native.t_Replica) : Type0 =
