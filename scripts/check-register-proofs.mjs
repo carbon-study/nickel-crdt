@@ -62,8 +62,10 @@ if(env.NICKEL_LATTE_BIN){
 }
 const source=await fs.readFile(path.join(root,'src/register.rs'),'utf8');
 const graphSource=await fs.readFile(path.join(root,'src/event_layer.rs'),'utf8');
-const graphModes=new Set(['frontier-reference-always-false','frontier-reference-empty-input','frontier-reference-wrong-fact','frontier-empty-errors','past-skips-parent-check','past-extend-never-pushes','past-extend-unselected','canonical-push-drops-value','canonical-copies-wrong-fact','canonical-discards-output','canonical-chooses-largest','canonical-choice-always-errors']);
+const graphModes=new Set(['frontier-pushes-first-id','frontier-inverts-child','frontier-reference-always-false','frontier-reference-empty-input','frontier-reference-wrong-fact','frontier-empty-errors','past-skips-parent-check','past-extend-never-pushes','past-extend-unselected','canonical-push-drops-value','canonical-copies-wrong-fact','canonical-discards-output','canonical-chooses-largest','canonical-choice-always-errors']);
 const bodyModes=[
+ ["frontier-pushes-first-id","pub fn frontier<","push(&mut out, id(f), internal)?","push(&mut out, id(&facts[0]), internal)?","Canonical.frontier_is_nonparent_filter"],
+ ["frontier-inverts-child","pub fn frontier<","if !child {","if child {","Canonical.frontier_is_nonparent_filter"],
  ["frontier-reference-always-false","fn referenced_by_any<","    child\n}","    false\n}","Canonical.referenced_by_any_is_exact"],
  ["frontier-reference-empty-input","pub fn frontier<","referenced_by_any(facts, f, ops)","referenced_by_any(&[], f, ops)","Canonical.frontier_is_nonparent_filter"],
  ["frontier-reference-wrong-fact","pub fn frontier<","referenced_by_any(facts, f, ops)","referenced_by_any(facts, &facts[0], ops)","Canonical.frontier_is_nonparent_filter"],

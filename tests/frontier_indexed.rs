@@ -33,11 +33,12 @@ fn frontier_matches_nonparents_and_preserves_callback_order() {
     let mut cases = 0;
     for n in 0..=4 {
         for repeated in [false, true] {
+            for sentinel in [false, true] {
             for mask in 0u32..(1u32 << (n*n)) {
                 let ids: Vec<u64> = (0..n).map(|j| if repeated { (j%2) as u64 } else { (n-j) as u64 }).collect();
                 let facts: Vec<Fact> = (0..n).map(|j| {
                     let mut after: Vec<u64> = (0..n).filter(|k| mask & (1 << (j*n+k)) != 0).map(|k| ids[k]).collect();
-                    after.push(99); // absent parent; frontier does not require closure
+                    if sentinel { after.push(99); } // also cover empty parent lists
                     Fact { id: ids[j], after }
                 }).collect();
                 let expected: Vec<u64> = ids.iter().copied().filter(|i| !facts.iter().any(|f| f.after.contains(i))).collect();
@@ -51,5 +52,6 @@ fn frontier_matches_nonparents_and_preserves_callback_order() {
             }
         }
     }
-    assert_eq!(cases, 132134);
+        }
+    assert_eq!(cases, 264268);
 }
