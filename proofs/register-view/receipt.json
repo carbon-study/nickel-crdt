@@ -35,8 +35,8 @@
     "proofs/generated/Nickel.EventClassifier.fst": "c3f31194d0096d9320504be3428d4bdb4b7eeb27f04e71a6efa39fac7a0d89c7",
     "proofs/EventClassifier.lt": "f0074997190bc56b80a7fe658ccd42a4c6da0edcf7310a5ce5b845f69c62042e",
     "proofs/RegisterValid.lt": "f1058e45de5b9899798c3042dccbbf7d360e8d5075f53147bdfec1d6f6c70f17",
-    "proofs/RegisterPublic.lt": "39516db58c7e73167a7cf53eec92df31633a389331bbd5415411d99ea5707e25",
+    "proofs/RegisterPublic.lt": "8990bfe75e6fad7db2c87b55c7a1e6a5446bbdc229e2a7aea7caeb3dedbf9f87",
     "proofs/register-view/Nickel.RegisterValid.fst": "3862858949563e51d06a7015652355e789b3816e8ca932c5c14325fbe20ecbe3",
-    "proofs/register-view/Nickel.RegisterPublic.fst": "8b77d4e7dfeaa9b0bf1ea3d9541c284a29026fca0aab6a9b23460e59ec0bf523"
+    "proofs/register-view/Nickel.RegisterPublic.fst": "698bb765f47216815efb0231104accca30a6cca1267c510dffaed05fc4fd7564"
   }
 }
