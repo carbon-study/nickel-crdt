@@ -283,7 +283,7 @@ proof covered_basis_is_whole_history(h: t_Slice(Nickel.Register.fact), roots: t_
 }
 function whole_basis(before: Native.t_Replica, authored: Nickel.Register.fact): Type0 {
   exists(selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(Nickel.Register.fact, Alloc.Alloc.t_Global)) .
-    Graph.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), authored, before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Core_models.Result.Result_Ok(selected) and
+    Graph.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), authored, Native.v_OPS) == Core_models.Result.Result_Ok(selected) and
     Graph.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Core_models.Result.Result_Ok(basis) and
     Alloc.Vec.impl_1__as_slice(basis) == Alloc.Vec.impl_1__as_slice(before.f_facts)
 }
@@ -292,7 +292,7 @@ proof exact_basis_is_whole(before: Native.t_Replica, authored: Nickel.Register.f
   gives whole_basis(before, authored)
 {
   proof exact(selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(Nickel.Register.fact, Alloc.Alloc.t_Global)): unit
-    takes Graph.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), authored, before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Core_models.Result.Result_Ok(selected)
+    takes Graph.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), authored, Native.v_OPS) == Core_models.Result.Result_Ok(selected)
     takes Graph.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Core_models.Result.Result_Ok(basis)
     takes forall(id: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(selected), id) <==> Nickel.RegisterPast.ancestor(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(authored.f_after), id)
     takes Nickel.RegisterPast.selected_prefix(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Seq.length(Alloc.Vec.impl_1__as_slice(before.f_facts)), Alloc.Vec.impl_1__as_slice(basis))

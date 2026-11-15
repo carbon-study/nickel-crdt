@@ -142,7 +142,7 @@ assert(selected.every(n=>n==='positive'||["without-noedit-byte-law","without-noe
 // The actual const policy has no brace body; bind this one construction-site
 // control to its complete exact code item, never a later function's body.
 function registerPolicyAnchor(source,anchor){
- const item='const OPS: graph::EventOps<Fact, Id, Error> = graph::event_ops(\n    graph::graph_ops(identity, parents, same_id, less_id, copy_fact, fact_equal, invalid, missing),\n    previous, forbidden, capacity, capacity, invalid, invalid,\n);';
+ const item='const OPS: graph::EventOps<Fact, Id, Error> = graph::event_ops(\n    graph::graph_ops(identity, parents, same_id, less_id, copy_fact, fact_equal, invalid, missing),\n    previous, forbidden, invalid, invalid,\n);';
  assert.equal(source.split(item).length,2,'one exact register policy item');
  const at=source.indexOf(item);assert.equal(codeMask(source).slice(at,at+item.length),item,'policy item is code');
  assert.equal(item.split(anchor).length,2,'one policy slot');return at+item.indexOf(anchor);
@@ -313,7 +313,7 @@ const depModes=[
  ['without-write-meaning-added',replaceInDeclaration('write_counted_meaning',"    receive_added_meaning_at before authored (Native.impl_Replica__receive before authored)._1;",'  ();',publicView),'RegisterPublic.write_counted_meaning'],
  ['without-added-meaning-at',replaceInDeclaration('receive_added_meaning_at',"  receive_added_meaning before offered;",'  ();',publicView),'RegisterPublic.receive_added_meaning_at'],
  // Public producer bookkeeping (local meaning, not ID allocation/recovery).
- ['without-producer-new-history',replaceInDeclaration('new_public_producer',"  new_establishes_public_history writer initial limits;",'  ();',publicView),'RegisterPublic.new_public_producer'],
+ ['without-producer-new-history',replaceInDeclaration('new_public_producer',"  new_establishes_public_history writer initial;",'  ();',publicView),'RegisterPublic.new_public_producer'],
  ['without-producer-receive-history',replaceInDeclaration('receive_public_producer',"  receive_preserves_public_history before offered;",'  ();',publicView),'RegisterPublic.receive_public_producer'],
  ['without-producer-receive-frame',replaceInDeclaration('receive_public_producer',"  Nickel.Register.receive_preserves_private before offered;",'  ();',publicView),'RegisterPublic.receive_public_producer'],
  ['without-producer-write-history',replaceInDeclaration('write_public_producer',"  write_preserves_public_history before key value;",'  ();',publicView),'RegisterPublic.write_public_producer'],
@@ -334,11 +334,11 @@ const depModes=[
  ['without-public-receive-unique',replaceInDeclaration('receive_preserves_public_history','  Nickel.Register.receive_preserves_unique_ids before offered;','  ();',publicView),'RegisterPublic.receive_preserves_public_history'],
  ['without-public-write-history',replaceInDeclaration('write_preserves_public_history','  write_preserves_history before key value;','  ();',publicView),'RegisterPublic.write_preserves_public_history'],
  ['without-public-write-unique',replaceInDeclaration('write_preserves_public_history','  Nickel.Register.write_preserves_unique_ids before key value;','  ();',publicView),'RegisterPublic.write_preserves_public_history'],
- ['without-public-new-history',replaceInDeclaration('new_establishes_public_history','  new_establishes_history writer initial limits;','  ();',publicView),'RegisterPublic.new_establishes_public_history'],
- ['without-public-new-unique',replaceInDeclaration('new_establishes_public_history','  Nickel.Register.new_has_unique_ids writer initial limits;','  ();',publicView),'RegisterPublic.new_establishes_public_history'],
+ ['without-public-new-history',replaceInDeclaration('new_establishes_public_history','  new_establishes_history writer initial;','  ();',publicView),'RegisterPublic.new_establishes_public_history'],
+ ['without-public-new-unique',replaceInDeclaration('new_establishes_public_history','  Nickel.Register.new_has_unique_ids writer initial;','  ();',publicView),'RegisterPublic.new_establishes_public_history'],
  ['without-stream-extension',replaceInDeclaration('stream_kept','  ancestry_unchanged_by_extension h h2 fnew (Alloc.Vec.impl_1__as_slice g.f_after);','  ();',validView),'RegisterValid.stream_kept'],
  ['without-stream-preservation',replaceInDeclaration('history_from_parts','  FStar.Classical.move_requires (streams_preserved h h2) offered','  ()',validView),'RegisterValid.history_from_parts'],
- ['without-stream-native-checks',replaceInDeclaration('stream_witness','  validated_stream_checks (Alloc.Vec.impl_1__as_slice before.f_facts) offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS;','  ();',validView),'RegisterValid.stream_witness'],
+ ['without-stream-native-checks',replaceInDeclaration('stream_witness','  validated_stream_checks (Alloc.Vec.impl_1__as_slice before.f_facts) offered Native.v_OPS;','  ();',validView),'RegisterValid.stream_witness'],
  ['without-receive-stream-witness',replaceInDeclaration('receive_added_offer_stream','  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 (stream_witness before offered));','  ();',validView),'RegisterValid.receive_added_offer_stream'],
  ['without-clock-extension',replaceInDeclaration('clock_kept','  ancestry_unchanged_by_extension h h2 fnew (Alloc.Vec.impl_1__as_slice g.f_after);','  ();',validView),'RegisterValid.clock_kept'],
  ['without-plan-receive-history',withholdPayloadContract('planned_preserves_history','Nickel_crdt.Register.impl_Replica__receive',1,['Nickel.RegisterValid.receive_added_preserves_history'],['  receive_added_preserves_history before offered;'],validView),'RegisterValid.planned_preserves_history'],
@@ -360,7 +360,7 @@ const depModes=[
  // Exact past and history meaning (#97 obligation 1): soundness and completeness are separate owners.
  ['without-past-soundness-closure',replaceInDeclaration('past_has_only_ancestors_and_keeps_roots','  past_stays_in_closed_set ops facts roots (ancestor ops facts roots)','  ()',pastView),'RegisterPast.past_has_only_ancestors_and_keeps_roots'],
  ['without-past-completeness-paths',replaceInDeclaration('successful_past_is_exact_closure','      past_contains_every_causal_path ops facts roots root steps id;','      ();',pastView),'RegisterPast.successful_past_is_exact_closure'],
- ['without-admission-exact-selection',replaceInDeclaration('selected_basis_is_exact','  Nickel.RegisterPast.validated_selection_is_exact facts offered before.f_limits.f_events before.f_limits.f_dependencies Native.v_OPS;','  ();',historyView),'RegisterHistory.selected_basis_is_exact'],
+ ['without-admission-exact-selection',replaceInDeclaration('selected_basis_is_exact','  Nickel.RegisterPast.validated_selection_is_exact facts offered Native.v_OPS;','  ();',historyView),'RegisterHistory.selected_basis_is_exact'],
  ['without-admission-whole-basis',replaceInDeclaration('selected_basis_is_exact','  Nickel.RegisterPast.actual_basis_is_exact_filter Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected);','  ();',historyView),'RegisterHistory.selected_basis_is_exact'],
  // The read bridge consumes the maximum-read contract with the native read/winner bodies hidden.
  ['without-read-maximum-contract',withholdPayloadContract('read_history_is_causal_read','Nickel_crdt.Register.read_history',1,['Nickel.Register.read_history_selects_maximum'],['  Nickel.Register.read_history_selects_maximum facts initial key;'],historyView),'RegisterHistory.read_history_is_causal_read'],

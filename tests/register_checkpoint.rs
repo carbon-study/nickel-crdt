@@ -1,10 +1,9 @@
 // External crate boundary: no private implementation helpers or test model state.
 use nickel_crdt::causal::Id;
-use nickel_crdt::register::{Admission, Error, Fact, Limits, Replica, Write};
+use nickel_crdt::register::{Admission, Error, Fact, Replica, Write};
 use std::collections::{BTreeMap, BTreeSet};
 
-fn limits() -> Limits { Limits { events: 32, dependencies: 32, value_bytes: 32 } }
-fn replica(writer: u64) -> Replica { Replica::new(writer, vec![0], limits()).unwrap() }
+fn replica(writer: u64) -> Replica { Replica::new(writer, vec![0]).unwrap() }
 fn snapshot(r: &Replica) -> String { format!("{r:?}") }
 
 // Independent meaning: close the parent relation by set union, discard writes
@@ -98,7 +97,7 @@ fn rejection_and_duplicate_preserve_full_snapshot() {
             4 => f.after.push(root.id),
             5 => f.after = vec![Id { peer: 99, counter: 1 }],
             6 => f.id.counter = 2, // producer c1 absent from author basis
-            _ => f.payload.value = vec![0; 33],
+            _ => f.payload.value = f.payload.observed.clone(),
         }
         assert!(r.receive(f).is_err(), "bad case {bad}");
         assert_eq!(snapshot(&r), before, "bad case {bad}");
@@ -108,17 +107,16 @@ fn rejection_and_duplicate_preserve_full_snapshot() {
 }
 
 #[test]
-fn limits_counter_and_opaque_bytes() {
-    let mut a = Replica::new(1, vec![0], Limits { events: 1, dependencies: 0, value_bytes: 4 }).unwrap();
+fn opaque_bytes_have_no_engine_policy_budget() {
+    let mut a = Replica::new(1, vec![0]).unwrap();
     let f = a.write(123, vec![255, 0, 128, 42]).unwrap().unwrap();
     let before = snapshot(&a);
     assert_eq!(a.receive(f), Ok(Admission::Duplicate)); // even full
     assert_eq!(snapshot(&a), before);
     assert!(a.write(123, vec![255, 0, 128, 42]).unwrap().is_none()); // no edit even full
     assert_eq!(snapshot(&a), before);
-    assert!(matches!(a.write(456, vec![1]), Err(Error::Capacity)));
-    assert_eq!(snapshot(&a), before);
-    assert!(Replica::new(2, vec![0, 1], Limits { value_bytes: 1, ..limits() }).is_err());
+    assert!(a.write(456, vec![1]).unwrap().is_some());
+    assert!(Replica::new(2, vec![0; 4097]).is_ok());
 }
 
 // Exercise every dependency-respecting delivery of a six-event history,
@@ -181,4 +179,17 @@ fn logical_clock_scans_every_key_and_reports_exact_overflow() {
     assert_eq!(next_lamport(&[facts[2].clone(), facts[0].clone(), facts[1].clone()]), Ok(21));
     assert_eq!(next_lamport(&[with_clock(1, 7, u64::MAX - 1)]), Ok(u64::MAX));
     assert_eq!(next_lamport(&[with_clock(1, 7, u64::MAX)]), Err(Error::ClockExhausted));
+}
+
+// All-return safety includes a rejected local write, independently of harness
+// budgets. Reusing a writer is deliberately invalid, not a recovery API.
+#[test]
+fn failed_write_keeps_full_snapshot() {
+    let mut previous_session = Replica::new(7, vec![0]).unwrap();
+    let fact = previous_session.write(1, vec![1]).unwrap().unwrap();
+    let mut restarted = Replica::new(7, vec![0]).unwrap();
+    restarted.receive(fact).unwrap();
+    let before = snapshot(&restarted);
+    assert!(matches!(restarted.write(1, vec![2]), Err(Error::Conflict)));
+    assert_eq!(snapshot(&restarted), before);
 }

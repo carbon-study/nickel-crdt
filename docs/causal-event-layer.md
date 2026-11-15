@@ -50,14 +50,14 @@ keyword count does not establish parametricity.
 | `ready`, `choose_ready` | shared causal scheduling | only IDs/edges are inspected; retain least eligible storage index and progress premises |
 | `interpret_scheduled` | mixed driver | choice/done bookkeeping is shared; `Tree`, node groups and `interpret_event` are text-specific state/effects |
 | `Replica::duplicate` | shared duplicate/conflict classification | equal ID with different payload remains conflict, including an operation targeting a different container |
-| `Replica::validate_new` | **mixed**, not a generic validator today | event/dependency limits, dependency duplicates/presence and producer predecessor rules separate from scalar/birth/delete/gap checks |
-| `Replica::plan`, `receive`, `edit`, `with_counter`, `next_counter_after` | mixed transactional publication and producer shell | current `plan` calls text validation/rebuild and counts ordering links; current `edit` binds a text request. Preserve all-return state/counter laws through a new payload adapter |
+| `Replica::validate_new` | **mixed**, not a generic validator today | dependency duplicates/presence and producer predecessor rules separate from scalar/delete/gap checks; artificial resource ceilings have moved to caller harnesses |
+| `Replica::plan`, `receive`, `edit`, `with_counter`, `next_counter_after` | mixed transactional publication and producer shell | current `plan` calls text validation/rebuild; current `edit` binds a text request. Preserve all-return state/counter laws through a new payload adapter |
 | `push<T>`, checked arithmetic | reusable implementation support | mathematical and native overflow/capacity contracts still required |
 | `BirthId`, `Side`, `Node`, `Tree` methods, `birth_lt` | text client | derive scalar occurrence identity, retained traversal and FugueMax placement; do not put a text tree in the shared log |
-| `validate_scalars`, `duplicate_births`, `has_birth`, `deletes`, `visible` | text client | scalar validity, text target/visibility rules and text resource counts |
+| `validate_scalars`, `duplicate_births`, `has_birth`, `deletes`, `visible` | text client | scalar validity, text target/visibility rules |
 | `select_basis`, `event_basis` | shared-candidate whole-event selection plus client composition | selecting whole facts by chosen IDs is generic in substance; author text reconstruction is not |
 | `replay_nodes`, `replay_author`, `author_context`, `interpret_event`, `interpret` | text client and its driver adapter | actual `Tree.add` replay is not independent text meaning; keep author-basis discipline and receiver-extra-history obligations |
-| `Limits`, `Invalid`, `Capacity`, `Error`, `Admission`, `Local`, `Replica` | split shared shell from client results/state | preserve current text API via an adapter; generic resource/error policy is an open choice, not deletion of existing error cases |
+| `Invalid`, `Capacity`, `Error`, `Admission`, `Local`, `Replica` | split shared shell from client results/state | preserve semantic outcomes through adapters; Limits and artificial policy errors were explicitly removed by the policy-budget migration, while identity/integer bounds remain |
 
 ### Proof families
 
@@ -162,11 +162,12 @@ The engine's in-memory publication proof does not establish browser persistence,
 crash durability or cross-document atomicity. Carbon's adapter must compose
 its persistence and notification boundary separately.
 
-Resource fitting must include envelope length, batch length/encoding, per-kind
-objects, intermediate author states and derived structures. Counts such as
-`births` and `ordering_links` remain text-specific. Shared event capacity alone
-does not prove a batch fits. Today's over-capacity arrival-order limitation
-remains; this proposal supplies no over-capacity synchronization policy.
+Application/transport workload budgets may bound envelope and batch encodings,
+objects, intermediate author states or derived storage. These budgets are outside
+the engine; births and ordering_links are no longer engine policy checks. Actual
+integer/identity bounds and independent semantic fitting, termination and client
+refinement obligations remain. Shared publication alone supplies none of those
+arguments; see [policy budgets](policy-budgets.md).
 
 ### Unsupported data formats are not unknown engine operations
 

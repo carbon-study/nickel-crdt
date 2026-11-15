@@ -731,7 +731,7 @@ function! event_work_prefix(facts: t_Slice(Native.t_Fact), count: nat,
   if count ==? 0 {
     Alloc.Vec.impl_1__as_slice(done) == Seq.empty and
     Alloc.Vec.impl_1__as_slice(operations) == Seq.empty and
-    tree == Core_models.Default.f_default<#Native.t_Tree, #Native.impl_5>(())
+    tree == Core_models.Default.f_default<#Native.t_Tree, #Native.impl_4>(())
   } else {
     exists(step: event_work_step) .
       (match step { (previous_done, previous_operations, previous_tree, _, _) =>
@@ -781,7 +781,7 @@ proof prefix_extension_is_actual_work(facts: t_Slice(Native.t_Fact), count: nat,
 proof prefix_starts_at_actual_empty(facts: t_Slice(Native.t_Fact)): unit
   gives event_work_prefix(facts, 0, Alloc.Vec.impl__new<#Native.t_EventId>(()),
     Alloc.Vec.impl__new<#operation_pair>(()),
-    Core_models.Default.f_default<#Native.t_Tree, #Native.impl_5>(()))
+    Core_models.Default.f_default<#Native.t_Tree, #Native.impl_4>(()))
 { () }
 // Any outer error on ranked distinct facts is explained by event/tree work,
 // rather than scheduler choice, the index guard or the two bookkeeping pushes.

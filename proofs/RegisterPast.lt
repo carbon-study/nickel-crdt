@@ -785,11 +785,11 @@ proof actual_basis_is_exact_filter(ops: rops, facts: t_Slice(fact), selected: t_
 
 // Native boundary: a successful shared admission returns past's selection unchanged.
 unfold type reops = Nickel.EventGraph.event_ops(fact, Envelope.t_Id, Native.t_Error)
-proof validated_selection_is_past(facts: t_Slice(fact), offered: fact, events: usize, dependencies: usize, eops: reops): unit
-  gives forall(selected: ids_vec) . Shared.validate_event(facts, offered, events, dependencies, eops) == Result.Result_Ok(selected) ==>
+proof validated_selection_is_past(facts: t_Slice(fact), offered: fact, eops: reops): unit
+  gives forall(selected: ids_vec) . Shared.validate_event(facts, offered, eops) == Result.Result_Ok(selected) ==>
     Shared.past(facts, eops._1._1._2(offered), eops._1) == Result.Result_Ok(selected)
 {
-  assert(eops == (eops._1, (eops._2._1, eops._2._2, (eops._2._3._1, eops._2._3._2, eops._2._3._3, eops._2._3._4))));
+  assert(eops == (eops._1, (eops._2._1, eops._2._2, (eops._2._3._1, eops._2._3._2))));
   ops_shape(eops._1);
   proof membership_boolean(ids: t_Slice(Envelope.t_Id), id: Envelope.t_Id): unit
     gives Shared.has_id(ids, id, eops._1) == true or Shared.has_id(ids, id, eops._1) == false
@@ -801,7 +801,7 @@ proof validated_selection_is_past(facts: t_Slice(fact), offered: fact, events: u
       Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
         ((_: nat, _: unit) => Prims.l_True), ((_: unit) => past_ids),
         ((x: ids_vec) => x == past_ids), ((_: Native.t_Error) => Prims.l_True));
-      assert(forall(selected: ids_vec) . Shared.validate_event(facts, offered, events, dependencies, eops) == Result.Result_Ok(selected) ==>
+      assert(forall(selected: ids_vec) . Shared.validate_event(facts, offered, eops) == Result.Result_Ok(selected) ==>
         Shared.past(facts, eops._1._1._2(offered), eops._1) == Result.Result_Ok(selected)) by {
         Tactics.prune("Nickel_crdt.Event_layer.past");
         Tactics.prune("Nickel_crdt.Event_layer.has_id");
@@ -811,7 +811,7 @@ proof validated_selection_is_past(facts: t_Slice(fact), offered: fact, events: u
       }
     },
     Result.Result_Err(_) => {
-      assert(forall(selected: ids_vec) . Shared.validate_event(facts, offered, events, dependencies, eops) == Result.Result_Ok(selected) ==>
+      assert(forall(selected: ids_vec) . Shared.validate_event(facts, offered, eops) == Result.Result_Ok(selected) ==>
         Shared.past(facts, eops._1._1._2(offered), eops._1) == Result.Result_Ok(selected)) by {
         Tactics.prune("Nickel_crdt.Event_layer.past");
         Tactics.prune("Nickel_crdt.Event_layer.has_id");
@@ -833,12 +833,12 @@ proof exact_filter_output(ops: rops, facts: t_Slice(fact), selected: t_Slice(Env
   gives selected_prefix(ops, facts, selected, Seq.length(facts), Alloc.Vec.impl_1__as_slice(basis))
 { () }
 // A successful shared admission selected exactly the offered parents' ancestors.
-proof validated_selection_is_exact(facts: t_Slice(fact), offered: fact, events: usize, dependencies: usize, eops: reops): unit
+proof validated_selection_is_exact(facts: t_Slice(fact), offered: fact, eops: reops): unit
   takes ids_exact(eops._1)
-  gives forall(selected: ids_vec) . Shared.validate_event(facts, offered, events, dependencies, eops) == Result.Result_Ok(selected) ==>
+  gives forall(selected: ids_vec) . Shared.validate_event(facts, offered, eops) == Result.Result_Ok(selected) ==>
     (forall(id: Envelope.t_Id) . member(Alloc.Vec.impl_1__as_slice(selected), id) <==> ancestor(eops._1, facts, eops._1._1._2(offered), id))
 {
-  validated_selection_is_past(facts, offered, events, dependencies, eops);
+  validated_selection_is_past(facts, offered, eops);
   successful_past_is_exact_closure(eops._1, facts, eops._1._1._2(offered));
   proof each(selected: ids_vec): unit
     takes Shared.past(facts, eops._1._1._2(offered), eops._1) == Result.Result_Ok(selected)
@@ -850,7 +850,7 @@ proof validated_selection_is_exact(facts: t_Slice(fact), offered: fact, events: 
     exact_selection_members(eops._1, facts, eops._1._1._2(offered), selected)
   };
   FStar.Classical.forall_intro(FStar.Classical.move_requires(each));
-  assert(forall(selected: ids_vec) . Shared.validate_event(facts, offered, events, dependencies, eops) == Result.Result_Ok(selected) ==>
+  assert(forall(selected: ids_vec) . Shared.validate_event(facts, offered, eops) == Result.Result_Ok(selected) ==>
     (forall(id: Envelope.t_Id) . member(Alloc.Vec.impl_1__as_slice(selected), id) <==> ancestor(eops._1, facts, eops._1._1._2(offered), id))) by {
     Tactics.prune("Nickel_crdt.Event_layer.validate_event");
     Tactics.prune("Nickel_crdt.Event_layer.past");

@@ -23,7 +23,7 @@ unfold type graph_errors (e: Type0) = (unit -> e) & (unit -> e)
 
 unfold type graph_ops (f: Type0) (i: Type0) (e: Type0) = graph_fields f i & graph_errors e
 
-unfold type admission_errors (e: Type0) = (unit -> e) & (unit -> e) & (unit -> e) & (unit -> e)
+unfold type admission_errors (e: Type0) = (unit -> e) & (unit -> e)
 
 unfold type admission_fields (i: Type0) (e: Type0) = (i -> Option.t_Option i) & (i -> i -> bool) & admission_errors e
 
@@ -35,10 +35,10 @@ let graph_callbacks_match (#f: Type0) (#i: Type0) (#e: Type0) (ops: graph_ops f 
 let graph_ops_preserve_callbacks (#f: Type0) (#i: Type0) (#e: Type0) (id: f -> i) (after: f -> t_Slice i) (eq: i -> i -> bool) (lt: i -> i -> bool) (copy: f -> f) (same: f -> f -> bool) (internal: unit -> e) (missing: unit -> e) : Lemma (ensures graph_callbacks_match (Native.graph_ops id after eq lt copy same internal missing) id after eq lt copy same internal missing) =
   ()
 
-let event_callbacks_match (#f: Type0) (#i: Type0) (#e: Type0) (ops: event_ops f i e) (graph: graph_ops f i e) (predecessor: i -> Option.t_Option i) (forbidden: i -> i -> bool) (capacity: unit -> e) (dependencies: unit -> e) (duplicate: unit -> e) (producer: unit -> e) : Type0 =
-  Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (ops._1 == graph) (ops._2._1 == predecessor)) (ops._2._2 == forbidden)) (ops._2._3._1 == capacity)) (ops._2._3._2 == dependencies)) (ops._2._3._3 == duplicate)) (ops._2._3._4 == producer)
+let event_callbacks_match (#f: Type0) (#i: Type0) (#e: Type0) (ops: event_ops f i e) (graph: graph_ops f i e) (predecessor: i -> Option.t_Option i) (forbidden: i -> i -> bool) (duplicate: unit -> e) (producer: unit -> e) : Type0 =
+  Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (ops._1 == graph) (ops._2._1 == predecessor)) (ops._2._2 == forbidden)) (ops._2._3._1 == duplicate)) (ops._2._3._2 == producer)
 
-let event_ops_preserve_callbacks (#f: Type0) (#i: Type0) (#e: Type0) (graph: graph_ops f i e) (predecessor: i -> Option.t_Option i) (forbidden: i -> i -> bool) (capacity: unit -> e) (dependencies: unit -> e) (duplicate: unit -> e) (producer: unit -> e) : Lemma (ensures event_callbacks_match (Native.event_ops graph predecessor forbidden capacity dependencies duplicate producer) graph predecessor forbidden capacity dependencies duplicate producer) =
+let event_ops_preserve_callbacks (#f: Type0) (#i: Type0) (#e: Type0) (graph: graph_ops f i e) (predecessor: i -> Option.t_Option i) (forbidden: i -> i -> bool) (duplicate: unit -> e) (producer: unit -> e) : Lemma (ensures event_callbacks_match (Native.event_ops graph predecessor forbidden duplicate producer) graph predecessor forbidden duplicate producer) =
   ()
 
 let absent_prefix (#i: Type0) (ids: t_Slice i) (wanted: i) (eq: i -> i -> bool) (finish: nat) : Type0 =

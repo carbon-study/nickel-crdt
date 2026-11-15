@@ -30,14 +30,14 @@ function edited_facts_valid(result: (Native.t_Replica, Result.t_Result(Native.t_
 }
 
 // A successful constructor establishes all four invariants.
-proof new_establishes_valid_facts(writer: Option.t_Option(Native.t_Writer), limits: Native.t_Limits): unit
-  gives constructed_facts_valid(Native.impl_Replica__new(writer, limits))
+proof new_establishes_valid_facts(writer: Option.t_Option(Native.t_Writer)): unit
+  gives constructed_facts_valid(Native.impl_Replica__new(writer))
 {
-  Accepted.new_establishes_unique_ids(writer, limits);
-  Accepted.new_establishes_fact_order(writer, limits);
-  WellFormed.new_establishes_scalar_validity(writer, limits);
-  WellFormed.new_establishes_causal_closure(writer, limits);
-  assert(constructed_facts_valid(Native.impl_Replica__new(writer, limits))) by {
+  Accepted.new_establishes_unique_ids(writer);
+  Accepted.new_establishes_fact_order(writer);
+  WellFormed.new_establishes_scalar_validity(writer);
+  WellFormed.new_establishes_causal_closure(writer);
+  assert(constructed_facts_valid(Native.impl_Replica__new(writer))) by {
     Tactics.prune("Nickel_crdt.Edit.impl_Replica__new");
     Tactics.smt_sync'(1, 1)
   }
@@ -78,7 +78,7 @@ proof edit_preserves_valid_facts(before: Native.t_Replica, gap: usize, insert: A
 // Public outcomes, with no valid-before premise. A receive error or duplicate
 // changes nothing. Added publishes exactly one fresh whole fact, with valid
 // scalars and existing direct predecessors, in unique event-key storage order.
-// Every receive return preserves writer, counter and limits.
+// Every receive return preserves writer and counter.
 function receive_contract(before: Native.t_Replica, fact: Native.t_Fact,
   outcome: (Native.t_Replica, Result.t_Result(Native.t_Admission, Native.t_Error))): Type0 {
   Atomic.receive_neutral(before, outcome) and
@@ -178,7 +178,7 @@ proof invalid_counter_is_rejected(before: Native.t_Replica, fact: Native.t_Fact)
   }
 }
 
-// Same shared history means equal facts, tree and limits. Private writer and
+// Same shared history means equal facts and tree. Private writer and
 // counter may differ. These premises do not cover extra concurrent history.
 proof equal_shared_history_gives_same_admission(before: Native.t_Replica, remote: Native.t_Replica, fact: Native.t_Fact): unit
   takes Commit.same_shared(before, remote)

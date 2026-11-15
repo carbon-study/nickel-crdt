@@ -20,7 +20,7 @@ const modes=[
     "fn event_equal<",
     "eq(&left.payload, &right.payload)",
     "true",
-    "atomic_map::tests::duplicates_conflicts_and_capacity_leave_everything_unchanged"
+    "atomic_map::tests::duplicates_and_conflicts_leave_everything_unchanged"
   ],
   [
     "dependency-equality",

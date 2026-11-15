@@ -12,7 +12,7 @@ await fs.mkdir(output,{recursive:true});
 assert(holdLock(path.join(output,'register-native.lock')),'register native output is owned by another invocation');
 const source=await fs.readFile(path.join(root,'src/register.rs'),'utf8');
 const modes=[
- ['write-advances-before-admission','pub fn write(','let mut candidate = self.clone();','self.next_counter = next; let mut candidate = self.clone();','limits_counter_and_opaque_bytes'],
+ ['write-advances-before-admission','pub fn write(','let mut candidate = self.clone();','self.next_counter = next; let mut candidate = self.clone();','failed_write_keeps_full_snapshot'],
  ['winner-reverses-clock','pub fn later(', 'a.payload.lamport > b.payload.lamport', 'a.payload.lamport < b.payload.lamport','concurrent_winners_losers_noedit_and_independent_keys'],
  ['winner-reverses-writer','pub fn later(', 'a.id.peer > b.id.peer', 'a.id.peer < b.id.peer','concurrent_winners_losers_noedit_and_independent_keys'],
  ['noedit-counted','pub fn write(', 'if bytes_equal(&value, &observed)', 'if false','concurrent_winners_losers_noedit_and_independent_keys'],

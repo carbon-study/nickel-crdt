@@ -15,18 +15,12 @@
 use crate::causal::{Event, Id};
 use crate::{event_layer as graph, event_shell as shell};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Limits {
-    pub events: usize,
-    pub dependencies: usize,
-    pub value_bytes: usize,
-}
+
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Error {
     Conflict,
     Missing,
-    Capacity,
     Invalid,
     ClockExhausted,
     CounterExhausted,
@@ -49,7 +43,6 @@ pub struct Replica {
     writer: u64,
     next_counter: u64,
     initial: Vec<u8>,
-    limits: Limits,
     facts: Vec<Fact>,
 }
 
@@ -77,7 +70,6 @@ fn less_id(a: &Id, b: &Id) -> bool {
 fn copy_fact(f: &Fact) -> Fact { f.clone() }
 fn invalid() -> Error { Error::Invalid }
 fn missing() -> Error { Error::Missing }
-fn capacity() -> Error { Error::Capacity }
 fn previous(id: &Id) -> Option<Id> {
     if id.counter > 1 { Some(Id { peer: id.peer, counter: id.counter - 1 }) }
     else { None }
@@ -87,7 +79,7 @@ fn forbidden(ancestor: &Id, offered: &Id) -> bool {
 }
 const OPS: graph::EventOps<Fact, Id, Error> = graph::event_ops(
     graph::graph_ops(identity, parents, same_id, less_id, copy_fact, fact_equal, invalid, missing),
-    previous, forbidden, capacity, capacity, invalid, invalid,
+    previous, forbidden, invalid, invalid,
 );
 
 /// Strict visible-write priority, not the shared writer-first storage order.
@@ -134,15 +126,14 @@ pub fn next_lamport(facts: &[Fact]) -> Result<u64, Error> {
 }
 
 impl Replica {
-    pub fn new(writer: u64, initial: Vec<u8>, limits: Limits) -> Result<Self, Error> {
-        if initial.len() > limits.value_bytes { return Err(Error::Capacity); }
-        Ok(Self { writer, next_counter: 1, initial, limits, facts: Vec::new() })
+    pub fn new(writer: u64, initial: Vec<u8>) -> Result<Self, Error> {
+        Ok(Self { writer, next_counter: 1, initial, facts: Vec::new() })
     }
     pub fn facts(&self) -> &[Fact] { &self.facts }
     pub fn next_counter(&self) -> u64 { self.next_counter }
     pub fn read(&self, key: u64) -> Vec<u8> { read_history(&self.facts, &self.initial, key) }
 
-    /// Duplicate before capacity/validation. Only a successful detached plan
+    /// Duplicate before payload validation. Only a successful detached plan
     /// publishes, through the same shell used by the actual text engine.
     pub fn receive(&mut self, fact: Fact) -> Result<Admission, Error> {
         shell::receive_into(self, &fact, &(), planned, Admission::Added, Admission::Duplicate)
@@ -150,7 +141,6 @@ impl Replica {
 
     /// None is an equal-to-observed no-edit: no event, counter or facts change.
     pub fn write(&mut self, key: u64, value: Vec<u8>) -> Result<Option<Fact>, Error> {
-        if value.len() > self.limits.value_bytes { return Err(Error::Capacity); }
         let observed = self.read(key);
         if bytes_equal(&value, &observed) { return Ok(None); }
         let next = self.next_counter.checked_add(1).ok_or(Error::CounterExhausted)?;
@@ -182,12 +172,9 @@ fn duplicate(_: &(), before: &Replica, fact: &Fact) -> Result<bool, Error> {
 fn validate(_: &(), before: &Replica, fact: &Fact) -> Result<(), Error> {
     if fact.id.counter == 0 { return Err(Error::Invalid); }
     let selected = graph::validate_event(
-        &before.facts, fact, before.limits.events, before.limits.dependencies, &OPS,
+        &before.facts, fact, &OPS,
     )?;
-    if fact.payload.value.len() > before.limits.value_bytes
-        || fact.payload.observed.len() > before.limits.value_bytes {
-        return Err(Error::Capacity);
-    }
+
     let basis = graph::select_basis(&before.facts, &selected, &OPS.0)?;
     if !bytes_equal(&fact.payload.observed,
         &read_history(&basis, &before.initial, fact.payload.key))
@@ -214,7 +201,7 @@ mod tests {
     use super::*;
     #[test]
     fn exhausted_counter_does_not_turn_noedit_into_an_error() {
-        let mut r = Replica::new(7, vec![0], Limits { events: 2, dependencies: 2, value_bytes: 8 }).unwrap();
+        let mut r = Replica::new(7, vec![0]).unwrap();
         r.next_counter = u64::MAX;
         let before = format!("{r:?}");
         assert!(r.write(123, vec![0]).unwrap().is_none());
@@ -230,10 +217,9 @@ mod tests {
     }
     #[test]
     fn received_own_stream_is_not_counter_recovery() {
-        let limits = Limits { events: 3, dependencies: 3, value_bytes: 8 };
-        let mut old = Replica::new(7, vec![0], limits).unwrap();
+            let mut old = Replica::new(7, vec![0]).unwrap();
         let fact = old.write(1, vec![1]).unwrap().unwrap();
-        let mut restarted = Replica::new(7, vec![0], limits).unwrap();
+        let mut restarted = Replica::new(7, vec![0]).unwrap();
         restarted.receive(fact).unwrap();
         let before = format!("{restarted:?}");
         assert!(matches!(restarted.write(1, vec![2]), Err(Error::Conflict)));

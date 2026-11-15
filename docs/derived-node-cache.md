@@ -135,8 +135,10 @@ call observations. These are optimized single-run observations on the shared,
 non-isolated x86_64 Intel i9-12900KF host, not maxima, stable speed estimates,
 ARM/phone measurements or a whole-memory bound. The earlier reference timings
 are not a simultaneous or counterbalanced baseline.
-The cache adds retained metadata; the existing `ordering_links` check still
-counts the result tree and does not account for that extra cache storage.
+The historical cache experiment added retained metadata; its then-existing
+`ordering_links` check counted only the result tree, not that extra storage.
+That engine policy check has since been removed; these measurements do not
+change the [current caller-budget boundary](policy-budgets.md).
 
 | cached timing shape | checked events / retained births | last author / receive | sum of checked public calls | outcome |
 |---|---|---|---|---|

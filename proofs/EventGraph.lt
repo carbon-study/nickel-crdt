@@ -12,7 +12,7 @@ unfold type graph_fields(f: Type0, i: Type0) =
 unfold type graph_errors(e: Type0) = (unit => e, unit => e)
 unfold type graph_ops(f: Type0, i: Type0, e: Type0) =
   (graph_fields(f, i), graph_errors(e))
-unfold type admission_errors(e: Type0) = (unit => e, unit => e, unit => e, unit => e)
+unfold type admission_errors(e: Type0) = (unit => e, unit => e)
 unfold type admission_fields(i: Type0, e: Type0) =
   (i => Option.t_Option(i), i => i => bool, admission_errors(e))
 unfold type event_ops(f: Type0, i: Type0, e: Type0) =
@@ -35,16 +35,15 @@ proof graph_ops_preserve_callbacks<f: Type0, i: Type0, e: Type0>(
 { () }
 function event_callbacks_match<f: Type0, i: Type0, e: Type0>(ops: event_ops(f, i, e),
   graph: graph_ops(f, i, e), predecessor: i => Option.t_Option(i), forbidden: i => i => bool,
-  capacity: unit => e, dependencies: unit => e, duplicate: unit => e, producer: unit => e): Type0 {
+  duplicate: unit => e, producer: unit => e): Type0 {
   (ops._1 == graph) and (ops._2._1 == predecessor) and (ops._2._2 == forbidden) and
-  (ops._2._3._1 == capacity) and (ops._2._3._2 == dependencies) and
-  (ops._2._3._3 == duplicate) and (ops._2._3._4 == producer)
+  (ops._2._3._1 == duplicate) and (ops._2._3._2 == producer)
 }
 proof event_ops_preserve_callbacks<f: Type0, i: Type0, e: Type0>(
   graph: graph_ops(f, i, e), predecessor: i => Option.t_Option(i), forbidden: i => i => bool,
-  capacity: unit => e, dependencies: unit => e, duplicate: unit => e, producer: unit => e): unit
-  gives event_callbacks_match(Native.event_ops(graph, predecessor, forbidden, capacity, dependencies, duplicate, producer),
-    graph, predecessor, forbidden, capacity, dependencies, duplicate, producer)
+  duplicate: unit => e, producer: unit => e): unit
+  gives event_callbacks_match(Native.event_ops(graph, predecessor, forbidden, duplicate, producer),
+    graph, predecessor, forbidden, duplicate, producer)
 { () }
 
 // These scans only need the supplied comparison; equality laws belong to clients.

@@ -237,7 +237,7 @@ function frozen_causal_observation(before: Native.t_Replica, offered: Nickel.Reg
 function selected_basis_frozen(before: Native.t_Replica, offered: Nickel.Register.fact): Type0 {
   exists(selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(Nickel.Register.fact, Alloc.Alloc.t_Global)) .
     Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
-      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(selected) and
+      Native.v_OPS) == Result.Result_Ok(selected) and
     Nickel_crdt.Event_layer.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Result.Result_Ok(basis) and
     frozen_causal_observation(before, offered, basis)
 }
@@ -290,7 +290,7 @@ proof register_ops_are_exact(): unit
 {
   const graph = Nickel_crdt.Event_layer.graph_ops(Native.identity, Native.parents, Native.same_id, Native.less_id, Native.copy_fact, Native.fact_equal, Native.invalid, Native.missing);
   Nickel.EventGraph.graph_ops_preserve_callbacks(Native.identity, Native.parents, Native.same_id, Native.less_id, Native.copy_fact, Native.fact_equal, Native.invalid, Native.missing);
-  Nickel.EventGraph.event_ops_preserve_callbacks(graph, Native.previous, Native.forbidden, Native.capacity, Native.capacity, Native.invalid, Native.invalid);
+  Nickel.EventGraph.event_ops_preserve_callbacks(graph, Native.previous, Native.forbidden, Native.invalid, Native.invalid);
   assert(Native.v_OPS._1 == graph) by {
     Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
     Tactics.prune("Nickel_crdt.Event_layer.event_ops");
@@ -314,7 +314,7 @@ proof register_ops_are_exact(): unit
 function exact_selected_basis(before: Native.t_Replica, offered: Nickel.Register.fact): Type0 {
   exists(selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(Nickel.Register.fact, Alloc.Alloc.t_Global)) .
     Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
-      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(selected) and
+      Native.v_OPS) == Result.Result_Ok(selected) and
     Nickel_crdt.Event_layer.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Result.Result_Ok(basis) and
     (forall(id: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(selected), id) <==>
       Nickel.RegisterPast.ancestor(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(offered.f_after), id)) and
@@ -325,7 +325,7 @@ function exact_selected_basis(before: Native.t_Replica, offered: Nickel.Register
 proof selected_basis_is_exact(before: Native.t_Replica, offered: Nickel.Register.fact,
   selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(Nickel.Register.fact, Alloc.Alloc.t_Global)): unit
   takes Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
-      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(selected)
+      Native.v_OPS) == Result.Result_Ok(selected)
   takes Nickel_crdt.Event_layer.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Result.Result_Ok(basis)
   gives (forall(id: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(selected), id) <==>
       Nickel.RegisterPast.ancestor(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(offered.f_after), id)) and
@@ -335,7 +335,7 @@ proof selected_basis_is_exact(before: Native.t_Replica, offered: Nickel.Register
   const facts = Alloc.Vec.impl_1__as_slice(before.f_facts);
   const roots = Alloc.Vec.impl_1__as_slice(offered.f_after);
   register_ops_are_exact();
-  Nickel.RegisterPast.validated_selection_is_exact(facts, offered, before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS);
+  Nickel.RegisterPast.validated_selection_is_exact(facts, offered, Native.v_OPS);
   assert(forall(id: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(selected), id) <==>
       Nickel.RegisterPast.ancestor(Native.v_OPS._1, facts, roots, id)) by {
     Tactics.prune("Nickel_crdt.Event_layer.validate_event");
@@ -366,7 +366,7 @@ proof selected_basis_is_exact(before: Native.t_Replica, offered: Nickel.Register
 proof witness_is_exact(before: Native.t_Replica, offered: Nickel.Register.fact,
   selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(Nickel.Register.fact, Alloc.Alloc.t_Global)): unit
   takes Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
-      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(selected) and
+      Native.v_OPS) == Result.Result_Ok(selected) and
     Nickel_crdt.Event_layer.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Result.Result_Ok(basis) and
     frozen_causal_observation(before, offered, basis)
   gives exact_selected_basis(before, offered)
@@ -639,7 +639,7 @@ proof basis_freezes_id_read(before: Native.t_Replica, offered: Nickel.Register.f
 function id_frozen_admission(before: Native.t_Replica, offered: Nickel.Register.fact): Type0 {
   exists(selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global)) .
     Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
-      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(selected) and
+      Native.v_OPS) == Result.Result_Ok(selected) and
     (forall(id: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(selected), id) <==>
       Nickel.RegisterPast.ancestor(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(offered.f_after), id)) and
     frozen_id_read(before, offered, selected)
@@ -647,7 +647,7 @@ function id_frozen_admission(before: Native.t_Replica, offered: Nickel.Register.
 proof id_witness(before: Native.t_Replica, offered: Nickel.Register.fact,
   selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(Nickel.Register.fact, Alloc.Alloc.t_Global)): unit
   takes Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
-      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(selected) and
+      Native.v_OPS) == Result.Result_Ok(selected) and
     Nickel_crdt.Event_layer.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Result.Result_Ok(basis) and
     Nickel.Register.basis_payload_checks(before, offered, basis)
   gives id_frozen_admission(before, offered)
@@ -1061,17 +1061,17 @@ proof present_parents_are_stored(before: Native.t_Replica, offered: Nickel.Regis
 }
 proof validated_parents_stored(before: Native.t_Replica, offered: Nickel.Register.fact): unit
   gives forall(s: Nickel.RegisterPast.ids_vec) . Nickel_crdt.Event_layer.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), offered,
-      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(s) ==> parents_stored(before, offered)
+      Native.v_OPS) == Result.Result_Ok(s) ==> parents_stored(before, offered)
 {
   const facts = Alloc.Vec.impl_1__as_slice(before.f_facts);
   const roots = Alloc.Vec.impl_1__as_slice(offered.f_after);
   register_ops_are_exact();
-  Nickel.RegisterPast.validated_selection_is_past(facts, offered, before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS);
+  Nickel.RegisterPast.validated_selection_is_past(facts, offered, Native.v_OPS);
   past_checked_parents(Native.v_OPS._1, facts, roots);
   validate_after_checks_presence(Native.v_OPS._1, facts, roots);
   FStar.Classical.move_requires(present_parents_are_stored(before), offered);
   assert(forall(s: Nickel.RegisterPast.ids_vec) . Nickel_crdt.Event_layer.validate_event(facts, offered,
-      before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Result.Result_Ok(s) ==> parents_stored(before, offered)) by {
+      Native.v_OPS) == Result.Result_Ok(s) ==> parents_stored(before, offered)) by {
     Tactics.prune("Nickel_crdt.Event_layer.validate_event");
     Tactics.prune("Nickel_crdt.Event_layer.past");
     Tactics.prune("Nickel_crdt.Event_layer.validate_after");

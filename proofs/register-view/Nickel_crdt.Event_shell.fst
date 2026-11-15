@@ -17,8 +17,8 @@ let plan
       (execute: (v_C -> v_R -> Core_models.Result.t_Result v_R v_E))
     : Core_models.Result.t_Result (Core_models.Option.t_Option v_R) v_E =
   match duplicate context before fact <: Core_models.Result.t_Result bool v_E with
-  | Core_models.Result.Result_Ok hoist26 ->
-    if hoist26
+  | Core_models.Result.Result_Ok hoist24 ->
+    if hoist24
     then
       Core_models.Result.Result_Ok
       (Core_models.Option.Option_None <: Core_models.Option.t_Option v_R)

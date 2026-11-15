@@ -1,14 +1,9 @@
-use nickel_crdt::atomic_map::{BatchReplica, Limits, Op, Value};
+use nickel_crdt::atomic_map::{BatchReplica, Op, Value};
 
 #[test]
 fn stored_batch_order_is_preserved_after_record_creation() {
     let mut replica = BatchReplica::new(
-        83,
-        Limits {
-            events: 4,
-            dependencies: 4,
-        },
-    );
+        83);
     replica
         .author(vec![Op::CreateRecord { record: "r".into() }])
         .unwrap();
