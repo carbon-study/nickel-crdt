@@ -4,10 +4,20 @@ An application-independent CRDT library, intended for Carbon and potentially Dar
 
 This repository contains an [experimental Rust edit/admit candidate](docs/rust-edit-admit.md), the toolchain scaffold and restricted executable references. Two Rust producers can exchange insert/delete/replace facts using FugueMax ordering. Transactional return paths, same-history two-instance commit coherence, accepted event-ID uniqueness and exact successful fact publication have implementation-linked proofs; general semantic refinement, convergence and ordering proofs remain open. **There is no verified CRDT release or stable public API.**
 
-At the experimental aggregate resource ceilings, different arrival orders can
-accept different concurrent subsets. Retained [native capacity witnesses](docs/rust-edit-admit.md#capacity-is-an-admission-boundary-not-a-synchronization-policy)
-make this limitation explicit; the crate supplies no general over-capacity
-synchronization or retry-progress policy.
+Artificial workload budgets now live in the caller/test harness, not engine
+configuration. The [policy-budget migration](docs/policy-budgets.md) records the
+API/proof changes and retained overflow boundaries. This removes one source of
+order-dependent refusal; it does not establish admission progress or SEC.
+
+## Keyed-register checkpoint candidate
+
+The [native checkpoint](docs/register-checkpoint.md) adds single-write keyed
+write/read/replication through the actual shared graph and publication shell.
+Run `cargo run --locked --example register-checkpoint`. The read-selection,
+equality, no-edit and publication proofs are bounded components; full register
+validity/refinement and convergence remain open. This is not acceptance of the
+complete [register-first cut](docs/register-first-cut.md), atomic multi-write
+registers or Undo/Redo.
 
 ## Shared-layer experiment
 

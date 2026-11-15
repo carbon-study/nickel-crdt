@@ -43,11 +43,17 @@ let rec preserve (#state: Type0) (#result: Type0) (start: usize) (finish: usize{
   if v start < v finish then
     begin unroll start finish inv value f;
     assert (step_safe p post returned (v start) (f value start));
-    match f value start with | ControlFlow_Break _ -> begin () end | ControlFlow_Continue next -> begin preserve (start +! mk_int 1) finish inv next f p post returned end;
+    match f value start with | ControlFlow_Break (ControlFlow_Break ret) -> begin assert (output_safe post returned (fold_range_return start finish inv value f)) by (
+      Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+      Tactics.smt_sync' 1 1
+    ) end | ControlFlow_Break (ControlFlow_Continue (_, next)) -> begin assert (output_safe post returned (fold_range_return start finish inv value f)) by (
+      Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+      Tactics.smt_sync' 1 1
+    ) end | ControlFlow_Continue next -> begin preserve (start +! mk_int 1) finish inv next f p post returned;
     assert (output_safe post returned (fold_range_return start finish inv value f)) by (
       Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
       Tactics.smt_sync' 1 1
-    ) end
+    ) end end
   else
     begin empty start finish inv value f;
     assert (output_safe post returned (fold_range_return start finish inv value f)) by (

@@ -21,7 +21,7 @@ let text_graph_ops () : Nickel.EventGraph.graph_ops Native.t_Fact Native.t_Event
   Shared.graph_ops Native.fact_id Native.fact_after Native.same_event_id Native.earlier_event_id Native.clone_selected_fact Native.fact_equal Native.internal_error Native.missing_error
 
 let text_event_ops () : Nickel.EventGraph.event_ops Native.t_Fact Native.t_EventId Native.t_Error =
-  Shared.event_ops (text_graph_ops ()) Native.required_predecessor Native.forbidden_ancestor Native.event_capacity_error Native.dependency_capacity_error Native.duplicate_dependency_error Native.predecessor_error
+  Shared.event_ops (text_graph_ops ()) Native.required_predecessor Native.forbidden_ancestor Native.duplicate_dependency_error Native.predecessor_error
 
 let text_graph_callbacks_are_exact () : Lemma (ensures Nickel.EventGraph.graph_callbacks_match (text_graph_ops ()) Native.fact_id Native.fact_after Native.same_event_id Native.earlier_event_id Native.clone_selected_fact Native.fact_equal Native.internal_error Native.missing_error) =
   Nickel.EventGraph.graph_ops_preserve_callbacks Native.fact_id Native.fact_after Native.same_event_id Native.earlier_event_id Native.clone_selected_fact Native.fact_equal Native.internal_error Native.missing_error;
@@ -35,7 +35,7 @@ let text_policy_is_exact () : Lemma (ensures Native.v_TEXT_OPS == text_event_ops
 
 let text_graph_policy_is_exact () : Lemma (ensures Native.v_TEXT_OPS._1 == text_graph_ops ()) =
   text_policy_is_exact ();
-  Nickel.EventGraph.event_ops_preserve_callbacks (text_graph_ops ()) Native.required_predecessor Native.forbidden_ancestor Native.event_capacity_error Native.dependency_capacity_error Native.duplicate_dependency_error Native.predecessor_error;
+  Nickel.EventGraph.event_ops_preserve_callbacks (text_graph_ops ()) Native.required_predecessor Native.forbidden_ancestor Native.duplicate_dependency_error Native.predecessor_error;
   assert (Native.v_TEXT_OPS._1 == text_graph_ops ()) by (
     Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
     Tactics.prune "Nickel_crdt.Event_layer.event_ops";

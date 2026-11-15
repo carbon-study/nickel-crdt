@@ -135,8 +135,10 @@ call observations. These are optimized single-run observations on the shared,
 non-isolated x86_64 Intel i9-12900KF host, not maxima, stable speed estimates,
 ARM/phone measurements or a whole-memory bound. The earlier reference timings
 are not a simultaneous or counterbalanced baseline.
-The cache adds retained metadata; the existing `ordering_links` check still
-counts the result tree and does not account for that extra cache storage.
+The historical cache experiment added retained metadata; its then-existing
+`ordering_links` check counted only the result tree, not that extra storage.
+That engine policy check has since been removed; these measurements do not
+change the [current caller-budget boundary](policy-budgets.md).
 
 | cached timing shape | checked events / retained births | last author / receive | sum of checked public calls | outcome |
 |---|---|---|---|---|
@@ -152,7 +154,8 @@ worth the proof work. These observations do not make it a verified backend,
 a stable latency budget, or an editor-ready release.
 
 There is an important proof-domain issue before adoption. Current
-`EditCommit.same_shared` compares facts/tree/limits without a cache. An arbitrary
+`EditCommit.same_shared` compares exact facts and tree, without a cache or a
+policy-limits field. An arbitrary
 poisoned cache can change future behavior despite equality of those fields;
 the corruption control exhibits the danger. Adding cache equality or a new
 validity premise would change the claim. It must not be smuggled into a recheck

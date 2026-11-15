@@ -1,6 +1,6 @@
 # native keyed registers before the complete text profile
 
-**Status: scope approved, implementation not delivered.** The first subset
+**Status: scope approved; a [native checkpoint candidate](register-checkpoint.md) exists, but is not accepted.** The first subset
 supports writing, reading and replicating keyed register values through the
 actual shared causal layer. It excludes Undo/Redo. Ren approved a single-write
 checkpoint followed by atomic multi-write register events, including Carbon's
@@ -13,8 +13,8 @@ its history requirements. The reference experiments are not the native implement
 A separately compiled native caller creates two real replicas, writes independently
 keyed values, exchanges the resulting events and reads their values. It exercises
 concurrent writes, a later causal overwrite, an equal-to-observed no-edit,
-duplicate/conflicting events and invalid/capacity rejection. It can compose these
-operations within the supported bounds, rather than call a hardcoded replay.
+duplicate/conflicting events and invalid rejection. It can compose these
+operations within the declared representation domain, rather than call a hardcoded replay.
 
 Keys are caller data and are independent of writer IDs. Values can retain tagged
 opaque bytes. Carbon owns format interpretation and incompatible-editor locks;
@@ -29,13 +29,24 @@ For writes/reads, carry the applicable register contract:
 - retain every counted write, including concurrent losers. A deterministic winner
   is not permission for winner-only storage/compaction or a new GC scheme;
 - validate and compute privately, then publish once. Specify duplicate, conflict,
-  invalid and capacity returns and preserve the promised state/counter neutrality.
+  invalid and real numeric-exhaustion returns and preserve the promised
+  state/counter neutrality.
 
 Initial-value configuration, concrete writer representation/fencing assumptions,
-encoding of the retained value and numeric supported limits must be explicit at
-construction. The shared arbitrary-ID boundary does not require changing the
+encoding of the retained value and real numeric representation boundaries must
+be explicit. Initial values and writer identity are supplied at construction. The shared arbitrary-ID boundary does not require changing the
 text Alice/Bo representation at the same time. An example's u64 IDs do not supply
 a public allocation/recovery protocol or prove random identifiers unique.
+
+Under the approved [policy-ceiling migration](policy-budgets.md), register event,
+parent and value-byte budgets belong to callers, not engine admission. The native
+register constructor takes no budget configuration and returns no policy Capacity
+error. This checkpoint does not require or deliver a register-budget harness.
+The retained capacity witnesses in `tests/capacity_boundary.rs` use the text-only
+guard in `tests/support`; they are not register-capacity coverage. Caller-selected
+budgets may refuse before engine admission and need their own neutrality/error
+contract. Removing these ceilings does not remove clock/counter exhaustion or
+prove allocation success, admission progress or termination.
 
 ## proof work belongs to this client
 
@@ -83,8 +94,9 @@ semantic claims; no weakening to obtain a shared label.
 
 Strong eventual consistency additionally needs eventual delivery/admission and
 termination/progress in a declared domain. Transport is external to the crate;
-missing dependencies, finite capacity and retry conditions must be explicit.
-Equal limits do not guarantee equal admitted subsets under different deliveries.
+missing dependencies, any caller-imposed budgets and retry conditions must be
+explicit. Equal caller budgets do not guarantee equal admitted subsets under
+different deliveries.
 Do not turn equal-history convergence into an unconditional liveness claim or
 compare device-local private stacks/counters as replicated document meaning.
 No whole-CRDT strong eventual consistency theorem is delivered by this plan.
@@ -106,3 +118,43 @@ key shape and coupling require their own contracts. Atomic multi-write register
 events need explicit within-batch observation/counting semantics and whole-batch
 rejection/publication. They do not decide the open multi-text BirthId question. Runs, incrementality, codecs, persistence, arbitrary
 writer allocation and Carbon integration remain separate work.
+
+## share the exact-past proof before extending the client set
+
+Ren identified the duplicated past proof in
+[Discord message 1571563087587319994](https://discord.com/channels/1423457371052834828/1423457371954483214/1571563087587319994).
+The text `past`, `past_pass` and `extend_past` forwards call the same native
+shared implementation that RegisterPast proves against. Before multi-write
+registers or another client adds a third proof chain, consolidate this boundary:
+
+- Parameterize the shared exact-past argument over fact, ID and error types,
+  retaining its explicit callback/equality/copy premises. Discharge those premises
+  for the actual native text and register policy values.
+- Keep concrete client laws as thin compositions. Preserve every existing text
+  statement, domain and pattern, including its distinct success, totality and
+  two-receiver agreement obligations. Matching declaration names alone does not
+  establish equal domains or justify deleting a proof.
+- Migrate the owning native body/argument and contract-dependence controls and
+  packaged roots. Delete the duplicated chain only after the old concrete claims
+  recheck through the common argument with the owning bodies withheld.
+
+The shared exact-past module also includes the writer-sequence slice: `validated_stream_checks`
+over the shared validation loop, and `streams_ok` and its preservation over an
+ID → (writer, counter) projection. Keep the actual client policy/projection
+premises visible and discharge the concrete instance bridges. A writer-stream
+predecessor rule is not an author-only Undo authorization rule, nor a
+device/owner mapping.
+
+The [follow-up assessment](https://discord.com/channels/1423457371052834828/1423457371954483214/1571564396528799784)
+and [coordinated scope](https://discord.com/channels/1423457371052834828/1423457371954483214/1571579109430001855)
+also require:
+
+- Report removed versus touched proof lines separately for text and register.
+  Moving a chain without retiring the second instance is not net deduplication.
+- Record each actual forward retirement and what was checked in
+  [shared-wrapper-retirement.md](shared-wrapper-retirement.md), as it happens.
+  A staged generic module alone does not retire the text forwards.
+
+Do this after single-write checkpoint acceptance and before multi-write registers
+or another client. It is not an added single-write checkpoint gate, an
+implemented generic proof or authorization for a wholesale wrapper reform.

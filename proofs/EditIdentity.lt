@@ -20,9 +20,9 @@ proof writer_index_is_exact(writer: Native.t_Writer): unit
 { () }
 
 proof writer_equality_exact(a: Native.t_Writer, b: Native.t_Writer): unit
-  gives Native.impl_1.f_eq(a, b) == (a ==? b)
+  gives Native.impl.f_eq(a, b) == (a ==? b)
 {
-  assert(Native.impl_1.f_eq(a, b) == (a ==? b)) by {
+  assert(Native.impl.f_eq(a, b) == (a ==? b)) by {
     Tactics.prune("Nickel_crdt.Edit.writer_index");
     Tactics.prune("Alloc.Vec.from_seq");
     Tactics.prune("Alloc.Vec.impl_1__as_slice");
@@ -33,10 +33,10 @@ proof writer_equality_exact(a: Native.t_Writer, b: Native.t_Writer): unit
   }
 }
 proof event_equality_exact(a: Native.t_EventId, b: Native.t_EventId): unit
-  gives Native.impl_2.f_eq(a, b) == (a ==? b)
+  gives Native.impl_1.f_eq(a, b) == (a ==? b)
 { () }
 proof birth_equality_exact(a: Native.t_BirthId, b: Native.t_BirthId): unit
-  gives Native.impl_3.f_eq(a, b) == (a ==? b)
+  gives Native.impl_2.f_eq(a, b) == (a ==? b)
 { () }
 proof fact_equality_exact(a: Native.t_Fact, b: Native.t_Fact): unit
   gives Native.fact_equal(a, b) == (a ==? b)

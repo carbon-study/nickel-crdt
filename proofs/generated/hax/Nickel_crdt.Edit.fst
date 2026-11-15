@@ -17,7 +17,7 @@ type t_EventId = {
   f_counter:u64
 }
 
-let impl_14: Core_models.Clone.t_Clone t_EventId =
+let impl_13: Core_models.Clone.t_Clone t_EventId =
   { f_clone = (fun x -> x); f_clone_pre = (fun _ -> True); f_clone_post = (fun _ _ -> True) }
 
 type t_BirthId = {
@@ -25,7 +25,7 @@ type t_BirthId = {
   f_index:usize
 }
 
-let impl_20: Core_models.Clone.t_Clone t_BirthId =
+let impl_19: Core_models.Clone.t_Clone t_BirthId =
   { f_clone = (fun x -> x); f_clone_pre = (fun _ -> True); f_clone_post = (fun _ _ -> True) }
 
 type t_Fact = {
@@ -36,16 +36,8 @@ type t_Fact = {
   f_gap:Core_models.Option.t_Option usize
 }
 
-let impl_26: Core_models.Clone.t_Clone t_Fact =
+let impl_25: Core_models.Clone.t_Clone t_Fact =
   { f_clone = (fun x -> x); f_clone_pre = (fun _ -> True); f_clone_post = (fun _ _ -> True) }
-
-type t_Limits = {
-  f_events:usize;
-  f_births:usize;
-  f_scalars:usize;
-  f_dependencies:usize;
-  f_ordering_links:usize
-}
 
 type t_Invalid =
   | Invalid_Counter : t_Invalid
@@ -58,16 +50,8 @@ type t_Invalid =
   | Invalid_Gap : t_Invalid
   | Invalid_PlacementWithoutBirth : t_Invalid
   | Invalid_NoWriter : t_Invalid
-  | Invalid_Profile : t_Invalid
 
-type t_Capacity =
-  | Capacity_Events : t_Capacity
-  | Capacity_Births : t_Capacity
-  | Capacity_Scalars : t_Capacity
-  | Capacity_Dependencies : t_Capacity
-  | Capacity_DeleteTargets : t_Capacity
-  | Capacity_OrderingLinks : t_Capacity
-  | Capacity_Counter : t_Capacity
+type t_Capacity = | Capacity_Counter : t_Capacity
 
 type t_Error =
   | Error_Invalid : t_Invalid -> t_Error
@@ -98,7 +82,7 @@ type t_Node = {
   f_right:Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global
 }
 
-let impl_70: Core_models.Clone.t_Clone t_Node =
+let impl_63: Core_models.Clone.t_Clone t_Node =
   { f_clone = (fun x -> x); f_clone_pre = (fun _ -> True); f_clone_post = (fun _ _ -> True) }
 
 type t_Tree = {
@@ -111,7 +95,7 @@ type t_Visit =
   | Visit_Emit : t_BirthId -> t_Visit
 
 [@@ FStar.Tactics.Typeclasses.tcinstance]
-let impl_1: Core_models.Cmp.t_PartialEq t_Writer t_Writer =
+let impl: Core_models.Cmp.t_PartialEq t_Writer t_Writer =
   {
     f_eq_pre = (fun (self: t_Writer) (other: t_Writer) -> true);
     f_eq_post = (fun (self: t_Writer) (other: t_Writer) (out: bool) -> true);
@@ -122,7 +106,7 @@ let impl_1: Core_models.Cmp.t_PartialEq t_Writer t_Writer =
   }
 
 [@@ FStar.Tactics.Typeclasses.tcinstance]
-let impl_2: Core_models.Cmp.t_PartialEq t_EventId t_EventId =
+let impl_1: Core_models.Cmp.t_PartialEq t_EventId t_EventId =
   {
     f_eq_pre = (fun (self: t_EventId) (other: t_EventId) -> true);
     f_eq_post = (fun (self: t_EventId) (other: t_EventId) (out: bool) -> true);
@@ -133,7 +117,7 @@ let impl_2: Core_models.Cmp.t_PartialEq t_EventId t_EventId =
   }
 
 [@@ FStar.Tactics.Typeclasses.tcinstance]
-let impl_3: Core_models.Cmp.t_PartialEq t_BirthId t_BirthId =
+let impl_2: Core_models.Cmp.t_PartialEq t_BirthId t_BirthId =
   {
     f_eq_pre = (fun (self: t_BirthId) (other: t_BirthId) -> true);
     f_eq_post = (fun (self: t_BirthId) (other: t_BirthId) (out: bool) -> true);
@@ -267,7 +251,7 @@ let duplicate_births (xs: t_Slice t_BirthId) : bool =
   | Core_models.Ops.Control_flow.ControlFlow_Continue _ -> false
 
 [@@ FStar.Tactics.Typeclasses.tcinstance]
-let impl_5: Core_models.Default.t_Default t_Tree =
+let impl_4: Core_models.Default.t_Default t_Tree =
   {
     f_default_pre = (fun (_: Prims.unit) -> true);
     f_default_post = (fun (_: Prims.unit) (out: t_Tree) -> true);
@@ -500,38 +484,26 @@ let deletes (facts: t_Slice t_Fact) (id: t_BirthId) : bool =
 type t_Replica = {
   f_writer:Core_models.Option.t_Option t_Writer;
   f_next_counter:u64;
-  f_limits:t_Limits;
   f_facts:Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global;
   f_tree:t_Tree
 }
 
-let impl_82: Core_models.Clone.t_Clone t_Replica =
+let impl_75: Core_models.Clone.t_Clone t_Replica =
   { f_clone = (fun x -> x); f_clone_pre = (fun _ -> True); f_clone_post = (fun _ _ -> True) }
 
-let impl_Replica__new (writer: Core_models.Option.t_Option t_Writer) (limits: t_Limits)
+let impl_Replica__new (writer: Core_models.Option.t_Option t_Writer)
     : Core_models.Result.t_Result t_Replica t_Error =
-  if
-    limits.f_events >. mk_usize 128 || limits.f_births >. mk_usize 512 ||
-    limits.f_scalars >. mk_usize 64 ||
-    limits.f_dependencies >. mk_usize 64 ||
-    limits.f_ordering_links >. mk_usize 1536
-  then
-    Core_models.Result.Result_Err (invalid (Invalid_Profile <: t_Invalid))
+  Core_models.Result.Result_Ok
+  ({
+      f_writer = writer;
+      f_next_counter = mk_u64 1;
+      f_facts = Alloc.Vec.impl__new #t_Fact ();
+      f_tree = Core_models.Default.f_default #t_Tree #FStar.Tactics.Typeclasses.solve ()
+    }
     <:
-    Core_models.Result.t_Result t_Replica t_Error
-  else
-    Core_models.Result.Result_Ok
-    ({
-        f_writer = writer;
-        f_next_counter = mk_u64 1;
-        f_limits = limits;
-        f_facts = Alloc.Vec.impl__new #t_Fact ();
-        f_tree = Core_models.Default.f_default #t_Tree #FStar.Tactics.Typeclasses.solve ()
-      }
-      <:
-      t_Replica)
-    <:
-    Core_models.Result.t_Result t_Replica t_Error
+    t_Replica)
+  <:
+  Core_models.Result.t_Result t_Replica t_Error
 
 let impl_Replica__with_tree (self: t_Replica) (tree: t_Tree) : t_Replica =
   let self:t_Replica = { self with f_tree = tree } <: t_Replica in
@@ -566,7 +538,9 @@ let push (#v_T: Type0) (xs: Alloc.Vec.t_Vec v_T Alloc.Alloc.t_Global) (value: v_
 
 let impl_Tree__whole (self: t_Tree)
     : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global) t_Error =
-  if (Alloc.Vec.impl_1__len #t_Node #Alloc.Alloc.t_Global self.f_nodes <: usize) >. mk_usize 512
+  if
+    (Alloc.Vec.impl_1__len #t_Node #Alloc.Alloc.t_Global self.f_nodes <: usize) >.
+    (Core_models.Num.impl_usize__MAX /! mk_usize 2 <: usize)
   then
     Core_models.Result.Result_Err (Error_Internal <: t_Error)
     <:
@@ -3161,12 +3135,6 @@ let required_predecessor (id: t_EventId) : Core_models.Option.t_Option t_EventId
 let forbidden_ancestor (ancestor current: t_EventId) : bool =
   ancestor.f_writer =. current.f_writer && ancestor.f_counter >=. current.f_counter
 
-let event_capacity_error (_: Prims.unit) : t_Error =
-  Error_Capacity (Capacity_Events <: t_Capacity) <: t_Error
-
-let dependency_capacity_error (_: Prims.unit) : t_Error =
-  Error_Capacity (Capacity_Dependencies <: t_Capacity) <: t_Error
-
 let duplicate_dependency_error (_: Prims.unit) : t_Error =
   invalid (Invalid_DependencyDuplicate <: t_Invalid)
 
@@ -3179,9 +3147,10 @@ let v_TEXT_OPS: ((((t_Fact -> t_EventId) & (t_Fact -> t_Slice t_EventId) &
       (t_Fact -> t_Fact -> bool)) &
     ((Prims.unit -> t_Error) & (Prims.unit -> t_Error))) &
   ((t_EventId -> Core_models.Option.t_Option t_EventId) & (t_EventId -> t_EventId -> bool) &
-    ((Prims.unit -> t_Error) & (Prims.unit -> t_Error) & (Prims.unit -> t_Error) &
-      (Prims.unit -> t_Error)))) =
-  Nickel_crdt.Event_layer.event_ops #t_Fact #t_EventId #t_Error
+    ((Prims.unit -> t_Error) & (Prims.unit -> t_Error)))) =
+  Nickel_crdt.Event_layer.event_ops #t_Fact
+    #t_EventId
+    #t_Error
     (Nickel_crdt.Event_layer.graph_ops #t_Fact #t_EventId #t_Error fact_id fact_after same_event_id
         earlier_event_id clone_selected_fact fact_equal internal_error missing_error
       <:
@@ -3189,8 +3158,10 @@ let v_TEXT_OPS: ((((t_Fact -> t_EventId) & (t_Fact -> t_Slice t_EventId) &
           (t_EventId -> t_EventId -> bool) &
           (t_Fact -> t_Fact) &
           (t_Fact -> t_Fact -> bool)) &
-        ((Prims.unit -> t_Error) & (Prims.unit -> t_Error)))) required_predecessor
-    forbidden_ancestor event_capacity_error dependency_capacity_error duplicate_dependency_error
+        ((Prims.unit -> t_Error) & (Prims.unit -> t_Error))))
+    required_predecessor
+    forbidden_ancestor
+    duplicate_dependency_error
     predecessor_error
 
 let duplicate_events (xs: t_Slice t_EventId) : bool =
@@ -3717,316 +3688,203 @@ let impl_Replica__duplicate (facts: t_Slice t_Fact) (fact: t_Fact)
       <:
       Core_models.Result.t_Result bool t_Error
 
-let impl_Replica__validate_new (facts: t_Slice t_Fact) (limits: t_Limits) (fact: t_Fact)
+let impl_Replica__validate_new (facts: t_Slice t_Fact) (fact: t_Fact)
     : Core_models.Result.t_Result Prims.unit t_Error =
   match
-    Nickel_crdt.Event_layer.validate_event #t_Fact
-      #t_EventId
-      #t_Error
-      facts
-      fact
-      limits.f_events
-      limits.f_dependencies
-      v_TEXT_OPS
+    Nickel_crdt.Event_layer.validate_event #t_Fact #t_EventId #t_Error facts fact v_TEXT_OPS
     <:
     Core_models.Result.t_Result (Alloc.Vec.t_Vec t_EventId Alloc.Alloc.t_Global) t_Error
   with
   | Core_models.Result.Result_Ok selected ->
-    if (Alloc.Vec.impl_1__len #u32 #Alloc.Alloc.t_Global fact.f_insert <: usize) >. limits.f_scalars
-    then
-      Core_models.Result.Result_Err (Error_Capacity (Capacity_Scalars <: t_Capacity) <: t_Error)
-      <:
-      Core_models.Result.t_Result Prims.unit t_Error
-    else
-      let births:usize = mk_usize 0 in
-      (match
-          Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
-            (Core_models.Slice.impl__len #t_Fact facts <: usize)
-            (fun births temp_1_ ->
-                let births:usize = births in
-                let _:usize = temp_1_ in
-                true)
-            births
-            (fun births i ->
-                let births:usize = births in
-                let i:usize = i in
-                match
-                  add births
-                    (Alloc.Vec.impl_1__len #u32
-                        #Alloc.Alloc.t_Global
-                        (facts.[ i ] <: t_Fact).f_insert
-                      <:
-                      usize)
-                  <:
-                  Core_models.Result.t_Result usize t_Error
-                with
-                | Core_models.Result.Result_Ok hoist50 ->
-                  Core_models.Ops.Control_flow.ControlFlow_Continue hoist50
-                  <:
-                  Core_models.Ops.Control_flow.t_ControlFlow
-                    (Core_models.Ops.Control_flow.t_ControlFlow
-                        (Core_models.Result.t_Result Prims.unit t_Error) (Prims.unit & usize)) usize
-                | Core_models.Result.Result_Err err ->
-                  Core_models.Ops.Control_flow.ControlFlow_Break
-                  (Core_models.Ops.Control_flow.ControlFlow_Break
-                    (Core_models.Result.Result_Err err
-                      <:
-                      Core_models.Result.t_Result Prims.unit t_Error)
+    (match
+        validate_scalars (Alloc.Vec.impl_1__as_slice fact.f_insert <: t_Slice u32)
+        <:
+        Core_models.Result.t_Result Prims.unit t_Error
+      with
+      | Core_models.Result.Result_Ok _ ->
+        let basis:Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global = Alloc.Vec.impl__new #t_Fact () in
+        (match
+            Rust_primitives.Hax.Folds.fold_return (Core_models.Iter.Traits.Collect.f_into_iter #(Core_models.Slice.Iter.t_Iter
+                    t_Fact)
+                  #FStar.Tactics.Typeclasses.solve
+                  (Core_models.Slice.impl__iter #t_Fact facts
                     <:
-                    Core_models.Ops.Control_flow.t_ControlFlow
-                      (Core_models.Result.t_Result Prims.unit t_Error) (Prims.unit & usize))
-                  <:
-                  Core_models.Ops.Control_flow.t_ControlFlow
-                    (Core_models.Ops.Control_flow.t_ControlFlow
-                        (Core_models.Result.t_Result Prims.unit t_Error) (Prims.unit & usize)) usize
-            )
-          <:
-          Core_models.Ops.Control_flow.t_ControlFlow
-            (Core_models.Result.t_Result Prims.unit t_Error) usize
-        with
-        | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
-        | Core_models.Ops.Control_flow.ControlFlow_Continue births ->
-          match
-            add births (Alloc.Vec.impl_1__len #u32 #Alloc.Alloc.t_Global fact.f_insert <: usize)
-            <:
-            Core_models.Result.t_Result usize t_Error
-          with
-          | Core_models.Result.Result_Ok hoist51 ->
-            if hoist51 >. limits.f_births
-            then
-              Core_models.Result.Result_Err
-              (Error_Capacity (Capacity_Births <: t_Capacity) <: t_Error)
-              <:
-              Core_models.Result.t_Result Prims.unit t_Error
-            else
-              if
-                (Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global fact.f_delete <: usize) >.
-                mk_usize 512
-              then
-                Core_models.Result.Result_Err
-                (Error_Capacity (Capacity_DeleteTargets <: t_Capacity) <: t_Error)
+                    Core_models.Slice.Iter.t_Iter t_Fact)
                 <:
-                Core_models.Result.t_Result Prims.unit t_Error
-              else
-                (match
-                    validate_scalars (Alloc.Vec.impl_1__as_slice fact.f_insert <: t_Slice u32)
+                Core_models.Slice.Iter.t_Iter t_Fact)
+              basis
+              (fun basis f ->
+                  let basis:Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global = basis in
+                  let f:t_Fact = f in
+                  if
+                    has_event (Alloc.Vec.impl_1__as_slice selected <: t_Slice t_EventId) f.f_id
                     <:
-                    Core_models.Result.t_Result Prims.unit t_Error
-                  with
-                  | Core_models.Result.Result_Ok _ ->
-                    let basis:Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global =
-                      Alloc.Vec.impl__new #t_Fact ()
+                    bool
+                  then
+                    let
+                    (tmp0: Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global),
+                    (out: Core_models.Result.t_Result Prims.unit t_Error) =
+                      push #t_Fact
+                        basis
+                        (Core_models.Clone.f_clone #t_Fact #FStar.Tactics.Typeclasses.solve f
+                          <:
+                          t_Fact)
                     in
-                    (match
-                        Rust_primitives.Hax.Folds.fold_return (Core_models.Iter.Traits.Collect.f_into_iter
-                              #(Core_models.Slice.Iter.t_Iter t_Fact)
-                              #FStar.Tactics.Typeclasses.solve
-                              (Core_models.Slice.impl__iter #t_Fact facts
-                                <:
-                                Core_models.Slice.Iter.t_Iter t_Fact)
-                            <:
-                            Core_models.Slice.Iter.t_Iter t_Fact)
-                          basis
-                          (fun basis f ->
-                              let basis:Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global = basis in
-                              let f:t_Fact = f in
-                              if
-                                has_event (Alloc.Vec.impl_1__as_slice selected <: t_Slice t_EventId)
-                                  f.f_id
-                                <:
-                                bool
-                              then
-                                let
-                                (tmp0: Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global),
-                                (out: Core_models.Result.t_Result Prims.unit t_Error) =
-                                  push #t_Fact
-                                    basis
-                                    (Core_models.Clone.f_clone #t_Fact
-                                        #FStar.Tactics.Typeclasses.solve
-                                        f
-                                      <:
-                                      t_Fact)
-                                in
-                                let basis:Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global = tmp0 in
-                                match out <: Core_models.Result.t_Result Prims.unit t_Error with
-                                | Core_models.Result.Result_Ok _ ->
-                                  Core_models.Ops.Control_flow.ControlFlow_Continue basis
-                                  <:
-                                  Core_models.Ops.Control_flow.t_ControlFlow
-                                    (Core_models.Ops.Control_flow.t_ControlFlow
-                                        (Core_models.Result.t_Result Prims.unit t_Error)
-                                        (Prims.unit & Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global))
-                                    (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global)
-                                | Core_models.Result.Result_Err err ->
-                                  Core_models.Ops.Control_flow.ControlFlow_Break
-                                  (Core_models.Ops.Control_flow.ControlFlow_Break
-                                    (Core_models.Result.Result_Err err
-                                      <:
-                                      Core_models.Result.t_Result Prims.unit t_Error)
-                                    <:
-                                    Core_models.Ops.Control_flow.t_ControlFlow
-                                      (Core_models.Result.t_Result Prims.unit t_Error)
-                                      (Prims.unit & Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global))
-                                  <:
-                                  Core_models.Ops.Control_flow.t_ControlFlow
-                                    (Core_models.Ops.Control_flow.t_ControlFlow
-                                        (Core_models.Result.t_Result Prims.unit t_Error)
-                                        (Prims.unit & Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global))
-                                    (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global)
-                              else
-                                Core_models.Ops.Control_flow.ControlFlow_Continue basis
-                                <:
-                                Core_models.Ops.Control_flow.t_ControlFlow
-                                  (Core_models.Ops.Control_flow.t_ControlFlow
-                                      (Core_models.Result.t_Result Prims.unit t_Error)
-                                      (Prims.unit & Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global))
-                                  (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global))
+                    let basis:Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global = tmp0 in
+                    match out <: Core_models.Result.t_Result Prims.unit t_Error with
+                    | Core_models.Result.Result_Ok _ ->
+                      Core_models.Ops.Control_flow.ControlFlow_Continue basis
+                      <:
+                      Core_models.Ops.Control_flow.t_ControlFlow
+                        (Core_models.Ops.Control_flow.t_ControlFlow
+                            (Core_models.Result.t_Result Prims.unit t_Error)
+                            (Prims.unit & Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global))
+                        (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global)
+                    | Core_models.Result.Result_Err err ->
+                      Core_models.Ops.Control_flow.ControlFlow_Break
+                      (Core_models.Ops.Control_flow.ControlFlow_Break
+                        (Core_models.Result.Result_Err err
+                          <:
+                          Core_models.Result.t_Result Prims.unit t_Error)
                         <:
                         Core_models.Ops.Control_flow.t_ControlFlow
                           (Core_models.Result.t_Result Prims.unit t_Error)
-                          (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global)
-                      with
-                      | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
-                      | Core_models.Ops.Control_flow.ControlFlow_Continue basis ->
-                        match
-                          visible (Alloc.Vec.impl_1__as_slice basis <: t_Slice t_Fact)
-                          <:
-                          Core_models.Result.t_Result
-                            (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global) t_Error
-                        with
-                        | Core_models.Result.Result_Ok seen ->
-                          (match
-                              Rust_primitives.Hax.Folds.fold_return (Core_models.Iter.Traits.Collect.f_into_iter
-                                    #(Core_models.Slice.Iter.t_Iter t_BirthId)
-                                    #FStar.Tactics.Typeclasses.solve
-                                    (Core_models.Slice.impl__iter #t_BirthId
-                                        (Alloc.Vec.impl_1__as_slice fact.f_delete
-                                          <:
-                                          t_Slice t_BirthId)
-                                      <:
-                                      Core_models.Slice.Iter.t_Iter t_BirthId)
-                                  <:
-                                  Core_models.Slice.Iter.t_Iter t_BirthId)
-                                ()
-                                (fun temp_0_ id ->
-                                    let _:Prims.unit = temp_0_ in
-                                    let id:t_BirthId = id in
-                                    if
-                                      ~.(has_birth (Alloc.Vec.impl_1__as_slice seen
-                                            <:
-                                            t_Slice t_BirthId)
-                                          id
-                                        <:
-                                        bool)
-                                      <:
-                                      bool
-                                    then
-                                      Core_models.Ops.Control_flow.ControlFlow_Break
-                                      (Core_models.Ops.Control_flow.ControlFlow_Break
-                                        (Core_models.Result.Result_Err
-                                          (invalid (Invalid_DeleteNotVisible <: t_Invalid)
-                                            <:
-                                            t_Error)
-                                          <:
-                                          Core_models.Result.t_Result Prims.unit t_Error)
-                                        <:
-                                        Core_models.Ops.Control_flow.t_ControlFlow
-                                          (Core_models.Result.t_Result Prims.unit t_Error)
-                                          (Prims.unit & Prims.unit))
-                                      <:
-                                      Core_models.Ops.Control_flow.t_ControlFlow
-                                        (Core_models.Ops.Control_flow.t_ControlFlow
-                                            (Core_models.Result.t_Result Prims.unit t_Error)
-                                            (Prims.unit & Prims.unit)) Prims.unit
-                                    else
-                                      Core_models.Ops.Control_flow.ControlFlow_Continue ()
-                                      <:
-                                      Core_models.Ops.Control_flow.t_ControlFlow
-                                        (Core_models.Ops.Control_flow.t_ControlFlow
-                                            (Core_models.Result.t_Result Prims.unit t_Error)
-                                            (Prims.unit & Prims.unit)) Prims.unit)
-                              <:
-                              Core_models.Ops.Control_flow.t_ControlFlow
-                                (Core_models.Result.t_Result Prims.unit t_Error) Prims.unit
-                            with
-                            | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
-                            | Core_models.Ops.Control_flow.ControlFlow_Continue _ ->
-                              if
-                                duplicate_births (Alloc.Vec.impl_1__as_slice fact.f_delete
-                                    <:
-                                    t_Slice t_BirthId)
-                              then
-                                Core_models.Result.Result_Err
-                                (invalid (Invalid_DeleteDuplicate <: t_Invalid))
-                                <:
-                                Core_models.Result.t_Result Prims.unit t_Error
-                              else
-                                if
-                                  Alloc.Vec.impl_1__is_empty #u32
-                                    #Alloc.Alloc.t_Global
-                                    fact.f_insert
-                                then
-                                  if Core_models.Option.impl__is_some #usize fact.f_gap
-                                  then
-                                    Core_models.Result.Result_Err
-                                    (invalid (Invalid_PlacementWithoutBirth <: t_Invalid))
-                                    <:
-                                    Core_models.Result.t_Result Prims.unit t_Error
-                                  else
-                                    Core_models.Result.Result_Ok (() <: Prims.unit)
-                                    <:
-                                    Core_models.Result.t_Result Prims.unit t_Error
-                                else
-                                  if
-                                    ~.(match
-                                        (match fact.f_gap <: Core_models.Option.t_Option usize with
-                                          | Core_models.Option.Option_Some gap ->
-                                            (match
-                                                gap <=.
-                                                (Alloc.Vec.impl_1__len #t_BirthId
-                                                    #Alloc.Alloc.t_Global
-                                                    seen
-                                                  <:
-                                                  usize)
-                                                <:
-                                                bool
-                                              with
-                                              | true ->
-                                                Core_models.Option.Option_Some true
-                                                <:
-                                                Core_models.Option.t_Option bool
-                                              | _ ->
-                                                Core_models.Option.Option_None
-                                                <:
-                                                Core_models.Option.t_Option bool)
-                                          | _ ->
-                                            Core_models.Option.Option_None
-                                            <:
-                                            Core_models.Option.t_Option bool)
-                                        <:
-                                        Core_models.Option.t_Option bool
-                                      with
-                                      | Core_models.Option.Option_Some x -> x
-                                      | Core_models.Option.Option_None  -> false)
-                                  then
-                                    Core_models.Result.Result_Err
-                                    (invalid (Invalid_Gap <: t_Invalid))
-                                    <:
-                                    Core_models.Result.t_Result Prims.unit t_Error
-                                  else
-                                    Core_models.Result.Result_Ok (() <: Prims.unit)
-                                    <:
-                                    Core_models.Result.t_Result Prims.unit t_Error)
-                        | Core_models.Result.Result_Err err ->
-                          Core_models.Result.Result_Err err
-                          <:
-                          Core_models.Result.t_Result Prims.unit t_Error)
-                  | Core_models.Result.Result_Err err ->
-                    Core_models.Result.Result_Err err
+                          (Prims.unit & Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global))
+                      <:
+                      Core_models.Ops.Control_flow.t_ControlFlow
+                        (Core_models.Ops.Control_flow.t_ControlFlow
+                            (Core_models.Result.t_Result Prims.unit t_Error)
+                            (Prims.unit & Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global))
+                        (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global)
+                  else
+                    Core_models.Ops.Control_flow.ControlFlow_Continue basis
                     <:
-                    Core_models.Result.t_Result Prims.unit t_Error)
-          | Core_models.Result.Result_Err err ->
-            Core_models.Result.Result_Err err <: Core_models.Result.t_Result Prims.unit t_Error)
+                    Core_models.Ops.Control_flow.t_ControlFlow
+                      (Core_models.Ops.Control_flow.t_ControlFlow
+                          (Core_models.Result.t_Result Prims.unit t_Error)
+                          (Prims.unit & Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global))
+                      (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global))
+            <:
+            Core_models.Ops.Control_flow.t_ControlFlow
+              (Core_models.Result.t_Result Prims.unit t_Error)
+              (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global)
+          with
+          | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
+          | Core_models.Ops.Control_flow.ControlFlow_Continue basis ->
+            match
+              visible (Alloc.Vec.impl_1__as_slice basis <: t_Slice t_Fact)
+              <:
+              Core_models.Result.t_Result (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global) t_Error
+            with
+            | Core_models.Result.Result_Ok seen ->
+              (match
+                  Rust_primitives.Hax.Folds.fold_return (Core_models.Iter.Traits.Collect.f_into_iter
+                        #(Core_models.Slice.Iter.t_Iter t_BirthId)
+                        #FStar.Tactics.Typeclasses.solve
+                        (Core_models.Slice.impl__iter #t_BirthId
+                            (Alloc.Vec.impl_1__as_slice fact.f_delete <: t_Slice t_BirthId)
+                          <:
+                          Core_models.Slice.Iter.t_Iter t_BirthId)
+                      <:
+                      Core_models.Slice.Iter.t_Iter t_BirthId)
+                    ()
+                    (fun temp_0_ id ->
+                        let _:Prims.unit = temp_0_ in
+                        let id:t_BirthId = id in
+                        if
+                          ~.(has_birth (Alloc.Vec.impl_1__as_slice seen <: t_Slice t_BirthId) id
+                            <:
+                            bool)
+                          <:
+                          bool
+                        then
+                          Core_models.Ops.Control_flow.ControlFlow_Break
+                          (Core_models.Ops.Control_flow.ControlFlow_Break
+                            (Core_models.Result.Result_Err
+                              (invalid (Invalid_DeleteNotVisible <: t_Invalid) <: t_Error)
+                              <:
+                              Core_models.Result.t_Result Prims.unit t_Error)
+                            <:
+                            Core_models.Ops.Control_flow.t_ControlFlow
+                              (Core_models.Result.t_Result Prims.unit t_Error)
+                              (Prims.unit & Prims.unit))
+                          <:
+                          Core_models.Ops.Control_flow.t_ControlFlow
+                            (Core_models.Ops.Control_flow.t_ControlFlow
+                                (Core_models.Result.t_Result Prims.unit t_Error)
+                                (Prims.unit & Prims.unit)) Prims.unit
+                        else
+                          Core_models.Ops.Control_flow.ControlFlow_Continue ()
+                          <:
+                          Core_models.Ops.Control_flow.t_ControlFlow
+                            (Core_models.Ops.Control_flow.t_ControlFlow
+                                (Core_models.Result.t_Result Prims.unit t_Error)
+                                (Prims.unit & Prims.unit)) Prims.unit)
+                  <:
+                  Core_models.Ops.Control_flow.t_ControlFlow
+                    (Core_models.Result.t_Result Prims.unit t_Error) Prims.unit
+                with
+                | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
+                | Core_models.Ops.Control_flow.ControlFlow_Continue _ ->
+                  if
+                    duplicate_births (Alloc.Vec.impl_1__as_slice fact.f_delete <: t_Slice t_BirthId)
+                  then
+                    Core_models.Result.Result_Err (invalid (Invalid_DeleteDuplicate <: t_Invalid))
+                    <:
+                    Core_models.Result.t_Result Prims.unit t_Error
+                  else
+                    if Alloc.Vec.impl_1__is_empty #u32 #Alloc.Alloc.t_Global fact.f_insert
+                    then
+                      if Core_models.Option.impl__is_some #usize fact.f_gap
+                      then
+                        Core_models.Result.Result_Err
+                        (invalid (Invalid_PlacementWithoutBirth <: t_Invalid))
+                        <:
+                        Core_models.Result.t_Result Prims.unit t_Error
+                      else
+                        Core_models.Result.Result_Ok (() <: Prims.unit)
+                        <:
+                        Core_models.Result.t_Result Prims.unit t_Error
+                    else
+                      if
+                        ~.(match
+                            (match fact.f_gap <: Core_models.Option.t_Option usize with
+                              | Core_models.Option.Option_Some gap ->
+                                (match
+                                    gap <=.
+                                    (Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global seen
+                                      <:
+                                      usize)
+                                    <:
+                                    bool
+                                  with
+                                  | true ->
+                                    Core_models.Option.Option_Some true
+                                    <:
+                                    Core_models.Option.t_Option bool
+                                  | _ ->
+                                    Core_models.Option.Option_None
+                                    <:
+                                    Core_models.Option.t_Option bool)
+                              | _ ->
+                                Core_models.Option.Option_None <: Core_models.Option.t_Option bool)
+                            <:
+                            Core_models.Option.t_Option bool
+                          with
+                          | Core_models.Option.Option_Some x -> x
+                          | Core_models.Option.Option_None  -> false)
+                      then
+                        Core_models.Result.Result_Err (invalid (Invalid_Gap <: t_Invalid))
+                        <:
+                        Core_models.Result.t_Result Prims.unit t_Error
+                      else
+                        Core_models.Result.Result_Ok (() <: Prims.unit)
+                        <:
+                        Core_models.Result.t_Result Prims.unit t_Error)
+            | Core_models.Result.Result_Err err ->
+              Core_models.Result.Result_Err err <: Core_models.Result.t_Result Prims.unit t_Error)
+      | Core_models.Result.Result_Err err ->
+        Core_models.Result.Result_Err err <: Core_models.Result.t_Result Prims.unit t_Error)
   | Core_models.Result.Result_Err err ->
     Core_models.Result.Result_Err err <: Core_models.Result.t_Result Prims.unit t_Error
 
@@ -4061,17 +3919,15 @@ let interpret (facts: t_Slice t_Fact) : Core_models.Result.t_Result t_Tree t_Err
   | Core_models.Result.Result_Err err ->
     Core_models.Result.Result_Err err <: Core_models.Result.t_Result t_Tree t_Error
 
-let plan_duplicate (_: t_Limits) (before: t_Replica) (fact: t_Fact)
+let plan_duplicate (_: Prims.unit) (before: t_Replica) (fact: t_Fact)
     : Core_models.Result.t_Result bool t_Error =
   impl_Replica__duplicate (Alloc.Vec.impl_1__as_slice before.f_facts <: t_Slice t_Fact) fact
 
-let plan_validate (_: t_Limits) (before: t_Replica) (fact: t_Fact)
+let plan_validate (_: Prims.unit) (before: t_Replica) (fact: t_Fact)
     : Core_models.Result.t_Result Prims.unit t_Error =
-  impl_Replica__validate_new (Alloc.Vec.impl_1__as_slice before.f_facts <: t_Slice t_Fact)
-    before.f_limits
-    fact
+  impl_Replica__validate_new (Alloc.Vec.impl_1__as_slice before.f_facts <: t_Slice t_Fact) fact
 
-let plan_prepare (_: t_Limits) (next: t_Replica) (fact: t_Fact)
+let plan_prepare (_: Prims.unit) (next: t_Replica) (fact: t_Fact)
     : Core_models.Result.t_Result t_Replica t_Error =
   let
   (tmp0: Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global),
@@ -4088,50 +3944,30 @@ let plan_prepare (_: t_Limits) (next: t_Replica) (fact: t_Fact)
         <:
         Core_models.Result.t_Result (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global) t_Error
       with
-      | Core_models.Result.Result_Ok hoist65 ->
-        let next:t_Replica = { next with f_facts = hoist65 } <: t_Replica in
+      | Core_models.Result.Result_Ok hoist58 ->
+        let next:t_Replica = { next with f_facts = hoist58 } <: t_Replica in
         Core_models.Result.Result_Ok next <: Core_models.Result.t_Result t_Replica t_Error
       | Core_models.Result.Result_Err err ->
         Core_models.Result.Result_Err err <: Core_models.Result.t_Result t_Replica t_Error)
   | Core_models.Result.Result_Err err ->
     Core_models.Result.Result_Err err <: Core_models.Result.t_Result t_Replica t_Error
 
-let plan_execute (limits: t_Limits) (next: t_Replica)
-    : Core_models.Result.t_Result t_Replica t_Error =
+let plan_execute (_: Prims.unit) (next: t_Replica) : Core_models.Result.t_Result t_Replica t_Error =
   match
     interpret (Alloc.Vec.impl_1__as_slice next.f_facts <: t_Slice t_Fact)
     <:
     Core_models.Result.t_Result t_Tree t_Error
   with
   | Core_models.Result.Result_Ok tree ->
-    if
-      (Alloc.Vec.impl_1__len #t_Node #Alloc.Alloc.t_Global tree.f_nodes <: usize) >.
-      (Core_models.Num.impl_usize__MAX /! mk_usize 3 <: usize)
-    then
-      Core_models.Result.Result_Err (Error_Internal <: t_Error)
-      <:
-      Core_models.Result.t_Result t_Replica t_Error
-    else
-      if
-        ((Alloc.Vec.impl_1__len #t_Node #Alloc.Alloc.t_Global tree.f_nodes <: usize) *! mk_usize 3
-          <:
-          usize) >.
-        limits.f_ordering_links
-      then
-        Core_models.Result.Result_Err
-        (Error_Capacity (Capacity_OrderingLinks <: t_Capacity) <: t_Error)
-        <:
-        Core_models.Result.t_Result t_Replica t_Error
-      else
-        Core_models.Result.Result_Ok (impl_Replica__with_tree next tree)
-        <:
-        Core_models.Result.t_Result t_Replica t_Error
+    Core_models.Result.Result_Ok (impl_Replica__with_tree next tree)
+    <:
+    Core_models.Result.t_Result t_Replica t_Error
   | Core_models.Result.Result_Err err ->
     Core_models.Result.Result_Err err <: Core_models.Result.t_Result t_Replica t_Error
 
 let impl_Replica__plan (self: t_Replica) (fact: t_Fact)
     : Core_models.Result.t_Result (Core_models.Option.t_Option t_Replica) t_Error =
-  Nickel_crdt.Event_shell.plan #t_Replica #t_Fact #t_Limits #t_Error self fact self.f_limits
+  Nickel_crdt.Event_shell.plan #t_Replica #t_Fact #Prims.unit #t_Error self fact (() <: Prims.unit)
     plan_duplicate plan_validate plan_prepare plan_execute
 
 /// One call is one primary edit. Gap is in the pre-edit author's view,

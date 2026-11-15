@@ -37,29 +37,27 @@ let event_ops
             ((Prims.unit -> v_E) & (Prims.unit -> v_E))))
       (predecessor: (v_I -> Core_models.Option.t_Option v_I))
       (forbidden: (v_I -> v_I -> bool))
-      (event_capacity dep_capacity duplicate_error predecessor_error: (Prims.unit -> v_E))
+      (duplicate_error predecessor_error: (Prims.unit -> v_E))
     : ((((v_F -> v_I) & (v_F -> t_Slice v_I) & (v_I -> v_I -> bool) & (v_I -> v_I -> bool) &
           (v_F -> v_F) &
           (v_F -> v_F -> bool)) &
         ((Prims.unit -> v_E) & (Prims.unit -> v_E))) &
       ((v_I -> Core_models.Option.t_Option v_I) & (v_I -> v_I -> bool) &
-        ((Prims.unit -> v_E) & (Prims.unit -> v_E) & (Prims.unit -> v_E) & (Prims.unit -> v_E)))) =
+        ((Prims.unit -> v_E) & (Prims.unit -> v_E)))) =
   graph,
   (predecessor,
     forbidden,
-    (event_capacity, dep_capacity, duplicate_error, predecessor_error
-      <:
-      ((Prims.unit -> v_E) & (Prims.unit -> v_E) & (Prims.unit -> v_E) & (Prims.unit -> v_E)))
+    (duplicate_error, predecessor_error <: ((Prims.unit -> v_E) & (Prims.unit -> v_E)))
     <:
     ((v_I -> Core_models.Option.t_Option v_I) & (v_I -> v_I -> bool) &
-      ((Prims.unit -> v_E) & (Prims.unit -> v_E) & (Prims.unit -> v_E) & (Prims.unit -> v_E))))
+      ((Prims.unit -> v_E) & (Prims.unit -> v_E))))
   <:
   ((((v_F -> v_I) & (v_F -> t_Slice v_I) & (v_I -> v_I -> bool) & (v_I -> v_I -> bool) &
         (v_F -> v_F) &
         (v_F -> v_F -> bool)) &
       ((Prims.unit -> v_E) & (Prims.unit -> v_E))) &
     ((v_I -> Core_models.Option.t_Option v_I) & (v_I -> v_I -> bool) &
-      ((Prims.unit -> v_E) & (Prims.unit -> v_E) & (Prims.unit -> v_E) & (Prims.unit -> v_E))))
+      ((Prims.unit -> v_E) & (Prims.unit -> v_E))))
 
 /// Classify the first stored identity match, preserving storage-order behavior.
 /// None is a new identity; Some(true) is exact duplicate; Some(false) conflict.
@@ -519,8 +517,8 @@ let past_pass
             <:
             Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E
           with
-          | Core_models.Result.Result_Ok hoist76 ->
-            Core_models.Ops.Control_flow.ControlFlow_Continue hoist76
+          | Core_models.Result.Result_Ok hoist67 ->
+            Core_models.Ops.Control_flow.ControlFlow_Continue hoist67
             <:
             Core_models.Ops.Control_flow.t_ControlFlow
               (Core_models.Ops.Control_flow.t_ControlFlow
@@ -586,8 +584,8 @@ let past
                 <:
                 Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E
               with
-              | Core_models.Result.Result_Ok hoist77 ->
-                Core_models.Ops.Control_flow.ControlFlow_Continue hoist77
+              | Core_models.Result.Result_Ok hoist68 ->
+                Core_models.Ops.Control_flow.ControlFlow_Continue hoist68
                 <:
                 Core_models.Ops.Control_flow.t_ControlFlow
                   (Core_models.Ops.Control_flow.t_ControlFlow
@@ -822,8 +820,8 @@ let canonical
             <:
             Core_models.Result.t_Result (Alloc.Vec.t_Vec v_F Alloc.Alloc.t_Global) v_E
           with
-          | Core_models.Result.Result_Ok hoist81 ->
-            Core_models.Ops.Control_flow.ControlFlow_Continue hoist81
+          | Core_models.Result.Result_Ok hoist72 ->
+            Core_models.Ops.Control_flow.ControlFlow_Continue hoist72
             <:
             Core_models.Ops.Control_flow.t_ControlFlow
               (Core_models.Ops.Control_flow.t_ControlFlow
@@ -962,6 +960,47 @@ let choose_ready
   | Core_models.Ops.Control_flow.ControlFlow_Continue _ ->
     Core_models.Option.Option_None <: Core_models.Option.t_Option usize
 
+let referenced_by_any
+      (#v_F #v_I #v_E: Type0)
+      (facts: t_Slice v_F)
+      (fact: v_F)
+      (ops:
+          (((v_F -> v_I) & (v_F -> t_Slice v_I) & (v_I -> v_I -> bool) & (v_I -> v_I -> bool) &
+              (v_F -> v_F) &
+              (v_F -> v_F -> bool)) &
+            ((Prims.unit -> v_E) & (Prims.unit -> v_E))))
+    : bool =
+  let
+  ((id: (v_F -> v_I)),
+    (after: (v_F -> t_Slice v_I)),
+    (_: (v_I -> v_I -> bool)),
+    (_: (v_I -> v_I -> bool)),
+    (_: (v_F -> v_F)),
+    (_: (v_F -> v_F -> bool))),
+  (_: ((Prims.unit -> v_E) & (Prims.unit -> v_E))) =
+    ops
+  in
+  let child:bool = false in
+  let child:bool =
+    Rust_primitives.Hax.Folds.fold_range (mk_usize 0)
+      (Core_models.Slice.impl__len #v_F facts <: usize)
+      (fun child temp_1_ ->
+          let child:bool = child in
+          let _:usize = temp_1_ in
+          true)
+      child
+      (fun child j ->
+          let child:bool = child in
+          let j:usize = j in
+          let e:v_F = facts.[ j ] in
+          if has_id #v_F #v_I #v_E (after e) (id fact) ops
+          then
+            let child:bool = true in
+            child
+          else child)
+  in
+  child
+
 let frontier
       (#v_F #v_I #v_E: Type0)
       (facts: t_Slice v_F)
@@ -973,7 +1012,7 @@ let frontier
     : Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E =
   let
   ((id: (v_F -> v_I)),
-    (after: (v_F -> t_Slice v_I)),
+    (_: (v_F -> t_Slice v_I)),
     (_: (v_I -> v_I -> bool)),
     (_: (v_I -> v_I -> bool)),
     (_: (v_F -> v_F)),
@@ -983,34 +1022,18 @@ let frontier
   in
   let out:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = Alloc.Vec.impl__new #v_I () in
   match
-    Rust_primitives.Hax.Folds.fold_return (Core_models.Iter.Traits.Collect.f_into_iter #(t_Slice v_F
-          )
-          #FStar.Tactics.Typeclasses.solve
-          facts
-        <:
-        Core_models.Slice.Iter.t_Iter v_F)
-      out
-      (fun out f ->
+    Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
+      (Core_models.Slice.impl__len #v_F facts <: usize)
+      (fun out temp_1_ ->
           let out:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = out in
-          let f:v_F = f in
-          let child:bool = false in
-          let child:bool =
-            Core_models.Iter.Traits.Iterator.f_fold (Core_models.Iter.Traits.Collect.f_into_iter #(t_Slice
-                    v_F)
-                  #FStar.Tactics.Typeclasses.solve
-                  facts
-                <:
-                Core_models.Slice.Iter.t_Iter v_F)
-              child
-              (fun child e ->
-                  let child:bool = child in
-                  let e:v_F = e in
-                  if has_id #v_F #v_I #v_E (after e) (id f) ops <: bool
-                  then
-                    let child:bool = true in
-                    child
-                  else child)
-          in
+          let _:usize = temp_1_ in
+          true)
+      out
+      (fun out i ->
+          let out:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = out in
+          let i:usize = i in
+          let f:v_F = facts.[ i ] in
+          let child:bool = referenced_by_any #v_F #v_I #v_E facts f ops in
           if ~.child
           then
             let
@@ -1207,22 +1230,20 @@ let validate_event
       (#[FStar.Tactics.Typeclasses.tcresolve ()] i0: Core_models.Clone.t_Clone v_I)
       (facts: t_Slice v_F)
       (fact: v_F)
-      (events_limit dependencies_limit: usize)
       (ops:
           ((((v_F -> v_I) & (v_F -> t_Slice v_I) & (v_I -> v_I -> bool) & (v_I -> v_I -> bool) &
                 (v_F -> v_F) &
                 (v_F -> v_F -> bool)) &
               ((Prims.unit -> v_E) & (Prims.unit -> v_E))) &
             ((v_I -> Core_models.Option.t_Option v_I) & (v_I -> v_I -> bool) &
-              ((Prims.unit -> v_E) & (Prims.unit -> v_E) & (Prims.unit -> v_E) & (Prims.unit -> v_E)
-              ))))
+              ((Prims.unit -> v_E) & (Prims.unit -> v_E)))))
     : Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E =
   let event_ops:((((v_F -> v_I) & (v_F -> t_Slice v_I) & (v_I -> v_I -> bool) & (v_I -> v_I -> bool) &
         (v_F -> v_F) &
         (v_F -> v_F -> bool)) &
       ((Prims.unit -> v_E) & (Prims.unit -> v_E))) &
     ((v_I -> Core_models.Option.t_Option v_I) & (v_I -> v_I -> bool) &
-      ((Prims.unit -> v_E) & (Prims.unit -> v_E) & (Prims.unit -> v_E) & (Prims.unit -> v_E)))) =
+      ((Prims.unit -> v_E) & (Prims.unit -> v_E)))) =
     ops
   in
   let ops:(((v_F -> v_I) & (v_F -> t_Slice v_I) & (v_I -> v_I -> bool) & (v_I -> v_I -> bool) &
@@ -1234,10 +1255,7 @@ let validate_event
   let
   (predecessor: (v_I -> Core_models.Option.t_Option v_I)),
   (forbidden: (v_I -> v_I -> bool)),
-  ((event_capacity: (Prims.unit -> v_E)),
-    (dep_capacity: (Prims.unit -> v_E)),
-    (duplicate_error: (Prims.unit -> v_E)),
-    (predecessor_error: (Prims.unit -> v_E))) =
+  ((duplicate_error: (Prims.unit -> v_E)), (predecessor_error: (Prims.unit -> v_E))) =
     event_ops._2
   in
   let
@@ -1250,104 +1268,35 @@ let validate_event
   ((_: (Prims.unit -> v_E)), (_: (Prims.unit -> v_E))) =
     ops
   in
-  if (Core_models.Slice.impl__len #v_F facts <: usize) >=. events_limit
+  if duplicate_ids #v_F #v_I #v_E (after fact) ops
   then
-    Core_models.Result.Result_Err (event_capacity ())
+    Core_models.Result.Result_Err (duplicate_error ())
     <:
     Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E
   else
-    if (Core_models.Slice.impl__len #v_I (after fact) <: usize) >. dependencies_limit
-    then
-      Core_models.Result.Result_Err (dep_capacity ())
+    match
+      past #v_F #v_I #v_E facts (after fact) ops
       <:
       Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E
-    else
-      if duplicate_ids #v_F #v_I #v_E (after fact) ops
-      then
-        Core_models.Result.Result_Err (duplicate_error ())
-        <:
-        Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E
-      else
-        match
-          past #v_F #v_I #v_E facts (after fact) ops
-          <:
-          Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E
-        with
-        | Core_models.Result.Result_Ok selected ->
-          (match predecessor (id fact) <: Core_models.Option.t_Option v_I with
-            | Core_models.Option.Option_Some previous ->
-              if
-                ~.(has_id #v_F
-                    #v_I
-                    #v_E
-                    (Alloc.Vec.impl_1__as_slice selected <: t_Slice v_I)
-                    previous
-                    ops
-                  <:
-                  bool)
-              then
-                Core_models.Result.Result_Err (predecessor_error ())
-                <:
-                Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E
-              else
-                (match
-                    Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
-                      (Core_models.Slice.impl__len #v_F facts <: usize)
-                      (fun temp_0_ temp_1_ ->
-                          let _:Prims.unit = temp_0_ in
-                          let _:usize = temp_1_ in
-                          true)
-                      ()
-                      (fun temp_0_ i ->
-                          let _:Prims.unit = temp_0_ in
-                          let i:usize = i in
-                          let e:v_F = facts.[ i ] in
-                          if
-                            has_id #v_F
-                              #v_I
-                              #v_E
-                              (Alloc.Vec.impl_1__as_slice selected <: t_Slice v_I)
-                              (id e)
-                              ops &&
-                            forbidden (id e) (id fact)
-                          then
-                            Core_models.Ops.Control_flow.ControlFlow_Break
-                            (Core_models.Ops.Control_flow.ControlFlow_Break
-                              (Core_models.Result.Result_Err (predecessor_error ())
-                                <:
-                                Core_models.Result.t_Result
-                                  (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
-                              <:
-                              Core_models.Ops.Control_flow.t_ControlFlow
-                                (Core_models.Result.t_Result
-                                    (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
-                                (Prims.unit & Prims.unit))
-                            <:
-                            Core_models.Ops.Control_flow.t_ControlFlow
-                              (Core_models.Ops.Control_flow.t_ControlFlow
-                                  (Core_models.Result.t_Result
-                                      (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
-                                  (Prims.unit & Prims.unit)) Prims.unit
-                          else
-                            Core_models.Ops.Control_flow.ControlFlow_Continue ()
-                            <:
-                            Core_models.Ops.Control_flow.t_ControlFlow
-                              (Core_models.Ops.Control_flow.t_ControlFlow
-                                  (Core_models.Result.t_Result
-                                      (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
-                                  (Prims.unit & Prims.unit)) Prims.unit)
-                    <:
-                    Core_models.Ops.Control_flow.t_ControlFlow
-                      (Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
-                      Prims.unit
-                  with
-                  | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
-                  | Core_models.Ops.Control_flow.ControlFlow_Continue _ ->
-                    Core_models.Result.Result_Ok selected
-                    <:
-                    Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
-            | Core_models.Option.Option_None  ->
-              match
+    with
+    | Core_models.Result.Result_Ok selected ->
+      (match predecessor (id fact) <: Core_models.Option.t_Option v_I with
+        | Core_models.Option.Option_Some previous ->
+          if
+            ~.(has_id #v_F
+                #v_I
+                #v_E
+                (Alloc.Vec.impl_1__as_slice selected <: t_Slice v_I)
+                previous
+                ops
+              <:
+              bool)
+          then
+            Core_models.Result.Result_Err (predecessor_error ())
+            <:
+            Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E
+          else
+            (match
                 Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
                   (Core_models.Slice.impl__len #v_F facts <: usize)
                   (fun temp_0_ temp_1_ ->
@@ -1402,7 +1351,60 @@ let validate_event
                 Core_models.Result.Result_Ok selected
                 <:
                 Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
-        | Core_models.Result.Result_Err err ->
-          Core_models.Result.Result_Err err
-          <:
-          Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E
+        | Core_models.Option.Option_None  ->
+          match
+            Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
+              (Core_models.Slice.impl__len #v_F facts <: usize)
+              (fun temp_0_ temp_1_ ->
+                  let _:Prims.unit = temp_0_ in
+                  let _:usize = temp_1_ in
+                  true)
+              ()
+              (fun temp_0_ i ->
+                  let _:Prims.unit = temp_0_ in
+                  let i:usize = i in
+                  let e:v_F = facts.[ i ] in
+                  if
+                    has_id #v_F
+                      #v_I
+                      #v_E
+                      (Alloc.Vec.impl_1__as_slice selected <: t_Slice v_I)
+                      (id e)
+                      ops &&
+                    forbidden (id e) (id fact)
+                  then
+                    Core_models.Ops.Control_flow.ControlFlow_Break
+                    (Core_models.Ops.Control_flow.ControlFlow_Break
+                      (Core_models.Result.Result_Err (predecessor_error ())
+                        <:
+                        Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
+                      <:
+                      Core_models.Ops.Control_flow.t_ControlFlow
+                        (Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
+                        (Prims.unit & Prims.unit))
+                    <:
+                    Core_models.Ops.Control_flow.t_ControlFlow
+                      (Core_models.Ops.Control_flow.t_ControlFlow
+                          (Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global)
+                              v_E) (Prims.unit & Prims.unit)) Prims.unit
+                  else
+                    Core_models.Ops.Control_flow.ControlFlow_Continue ()
+                    <:
+                    Core_models.Ops.Control_flow.t_ControlFlow
+                      (Core_models.Ops.Control_flow.t_ControlFlow
+                          (Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global)
+                              v_E) (Prims.unit & Prims.unit)) Prims.unit)
+            <:
+            Core_models.Ops.Control_flow.t_ControlFlow
+              (Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
+              Prims.unit
+          with
+          | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
+          | Core_models.Ops.Control_flow.ControlFlow_Continue _ ->
+            Core_models.Result.Result_Ok selected
+            <:
+            Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E)
+    | Core_models.Result.Result_Err err ->
+      Core_models.Result.Result_Err err
+      <:
+      Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E

@@ -47,5 +47,17 @@
     "build-proof-models.mjs",
     "check-proof-timeouts.mjs",
     "proof-cache.mjs"
+  ],
+  "registerNative": [
+    "check-register-native.mjs",
+    "mutation-scope.mjs",
+    "proof-cache.mjs"
+  ],
+  "register": [
+    "check-register-proofs.mjs",
+    "mutation-scope.mjs",
+    "negative-proof-evidence.mjs",
+    "proof-cache.mjs",
+    "proof-reform.mjs"
   ]
 }

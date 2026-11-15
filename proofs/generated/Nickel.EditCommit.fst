@@ -18,7 +18,7 @@ module Native = Nickel_crdt.Edit
 module Result = Core_models.Result
 
 let same_commit (before: Native.t_Replica) (outcome: Native.t_Replica & Result.t_Result Native.t_Local Native.t_Error) : Type0 =
-  match outcome with | (next, Result.Result_Ok (Native.Local_Authored fact)) -> begin match Native.impl_Replica__receive before fact with | (admitted, Result.Result_Ok Native.Admission_Added) -> begin Prims.l_and (Prims.l_and (Prims.l_and (Prims.l_and (next.f_facts == admitted.f_facts) (next.f_tree == admitted.f_tree)) (next.f_writer == admitted.f_writer)) (next.f_limits == admitted.f_limits)) (v next.f_next_counter == v before.f_next_counter + 1) end | _ -> begin Prims.l_False end end | _ -> begin Prims.l_True end
+  match outcome with | (next, Result.Result_Ok (Native.Local_Authored fact)) -> begin match Native.impl_Replica__receive before fact with | (admitted, Result.Result_Ok Native.Admission_Added) -> begin Prims.l_and (Prims.l_and (Prims.l_and (next.f_facts == admitted.f_facts) (next.f_tree == admitted.f_tree)) (next.f_writer == admitted.f_writer)) (v next.f_next_counter == v before.f_next_counter + 1) end | _ -> begin Prims.l_False end end | _ -> begin Prims.l_True end
 
 let requested_gap (gap: usize) (insert: Alloc.Vec.t_Vec u32 Alloc.Alloc.t_Global) : Core_models.Option.t_Option usize =
   if Alloc.Vec.impl_1__is_empty insert then
@@ -72,7 +72,7 @@ let authored_fact_replays_same_commit (before: Native.t_Replica) (gap: usize) (i
   ) end | _ -> begin () end
 
 let same_private (before: Native.t_Replica) (next: Native.t_Replica) : Type0 =
-  Prims.l_and (Prims.l_and (next.f_writer == before.f_writer) (next.f_next_counter == before.f_next_counter)) (next.f_limits == before.f_limits)
+  Prims.l_and (next.f_writer == before.f_writer) (next.f_next_counter == before.f_next_counter)
 
 let tree_publication_keeps_private (state: Native.t_Replica) (tree: Native.t_Tree) : Lemma (ensures same_private state (Native.impl_Replica__with_tree state tree)) [SMTPat (Native.impl_Replica__with_tree state tree)] =
   ()
@@ -102,7 +102,7 @@ let receive_preserves_private_state (before: Native.t_Replica) (fact: Native.t_F
   )
 
 let same_shared (left: Native.t_Replica) (right: Native.t_Replica) : Type0 =
-  Prims.l_and (Prims.l_and (left.f_facts == right.f_facts) (left.f_tree == right.f_tree)) (left.f_limits == right.f_limits)
+  Prims.l_and (left.f_facts == right.f_facts) (left.f_tree == right.f_tree)
 
 let tree_publication_respects_shared (left: Native.t_Replica) (right: Native.t_Replica) (tree: Native.t_Tree) : Lemma (requires same_shared left right) (ensures same_shared (Native.impl_Replica__with_tree left tree) (Native.impl_Replica__with_tree right tree)) [SMTPat (Native.impl_Replica__with_tree left tree); SMTPat (Native.impl_Replica__with_tree right tree)] =
   ()

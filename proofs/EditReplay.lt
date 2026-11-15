@@ -98,7 +98,7 @@ function! author_prefix(operations: t_Slice(event_operations), selected: t_Slice
   decreases finish
 {
   if finish ==? 0 {
-    outcome == Result.Result_Ok(Core_models.Default.f_default<#Native.t_Tree, #Native.impl_5>(()))
+    outcome == Result.Result_Ok(Core_models.Default.f_default<#Native.t_Tree, #Native.impl_4>(()))
   } else {
     exists(previous: tree_result) . author_prefix(operations, selected, finish - 1, previous) and
       group_follows(selected, Seq.index(operations, finish - 1), previous, outcome)

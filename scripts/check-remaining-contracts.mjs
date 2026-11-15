@@ -36,8 +36,10 @@ for(const owner of ['new_establishes_scalar_validity','new_establishes_causal_cl
   calls('EditWellFormed',owner,['Nickel.EditAtomic.new_has_empty_facts']);
 // Migration: the old unit-state pre-scalar loop moved into validate_event's
 // Result<Vec<EventId>, Error> phase. Its redundant unit proof call was retired;
-// keep the actual usize births-loop rule and the scalar-validation callee.
-calls('EditWellFormed','successful_validation_has_valid_scalars',['Nickel.LoopUtil.early_return_preserve_any','scalar_validation_is_sound']);
+// The remaining usize birth-count loop was then deleted with policy ceilings.
+// Its early-return rule is no longer consumed here; retain scalar-contract
+// dependence and the actual wrong-body/wrong-argument scalar controls.
+calls('EditWellFormed','successful_validation_has_valid_scalars',['scalar_validation_is_sound']);
 for(const owner of ['dependency_validation_is_sound','present_dependencies_pass_guard'])
   calls('EditWellFormed',owner,['Nickel.LoopUtil.result_preserve_any']);
 calls('EditWellFormed','membership_result_is_exact',['event_membership_is_presence']);

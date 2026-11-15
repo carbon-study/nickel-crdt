@@ -1,7 +1,7 @@
 //! Run with `cargo run --locked --example shared-causal`.
 //! Actual text and batch clients share the graph/planning/publication code.
 use nickel_crdt::{
-    atomic_map::{BatchReplica, Op, Value, Limits},
+    atomic_map::{BatchReplica, Op, Value},
     edit::{Local, Writer, Replica},
 };
 
@@ -14,19 +14,9 @@ fn value(text: &str) -> Value {
 }
 fn main() {
     let mut laptop = BatchReplica::new(
-        100,
-        Limits {
-            events: 16,
-            dependencies: 8,
-        },
-    );
+        100);
     let mut phone = BatchReplica::new(
-        u64::MAX,
-        Limits {
-            events: 16,
-            dependencies: 8,
-        },
-    );
+        u64::MAX);
     let created = laptop
         .author(vec![
             Op::CreateRecord {
@@ -66,12 +56,12 @@ fn main() {
     println!("batch: two fields relayed; invalid final operation left state, history and counter unchanged");
     assert_eq!(laptop.events().len(), 1);
 
-    let text = Replica::new(Some(Writer::Alice), Default::default()).unwrap();
+    let text = Replica::new(Some(Writer::Alice)).unwrap();
     let (text, authored) = text.edit(0, "hello".chars().map(|c| c as u32).collect(), vec![]);
     let Local::Authored(fact) = authored.unwrap() else {
         panic!("missing text fact")
     };
-    let (reader, result) = Replica::new(None, Default::default()).unwrap().receive(&fact);
+    let (reader, result) = Replica::new(None).unwrap().receive(&fact);
     result.unwrap();
     assert_eq!(text.observe(), reader.observe());
     let visible: String = reader

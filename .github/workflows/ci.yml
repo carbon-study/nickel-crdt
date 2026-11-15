@@ -59,7 +59,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [native, shared-native, shared-proofs, proofs-core-a, proofs-core-b, proofs-shard-0, proofs-shard-1, proofs-shard-2]
+        target: [native, shared-native, shared-proofs, register-native, register-proofs, proofs-core-a, proofs-core-b, proofs-shard-0, proofs-shard-1, proofs-shard-2]
     # Each run saves its own cache generation and restores the newest one for
     # the same Nix files (else the newest for this OS/arch), so builds finished
     # after a failed or partial run are kept by the next save. A fixed key could

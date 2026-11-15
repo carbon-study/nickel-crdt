@@ -450,6 +450,10 @@ let successful_execution_orders_its_exact_past_cut (facts: facts_vec) (roots: t_
     ) in
   FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 combine);
   assert (interpreted_cut facts roots tree) by (
+    Tactics.prune "Nickel.EditSchedule.interpreted_cut";
+    Tactics.prune "Nickel.EditPast.exact_past_result";
+    Tactics.prune "Nickel.EditPastTotal.stored_selection";
+    Tactics.prune "Nickel.EditSchedule.complete_causal_trace";
     Tactics.prune "Nickel_crdt.Edit.past";
     Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.prune "Nickel_crdt.Edit.interpret";
@@ -472,7 +476,7 @@ let prefix_step_valid (facts: t_Slice Native.t_Fact) (done: ids_vec) (operations
 
 let rec event_work_prefix (facts: t_Slice Native.t_Fact) (count: nat) (done: ids_vec) (operations: operations_vec) (tree: Native.t_Tree) : Tot Type0 (decreases count) =
   if count ==? 0 then
-    begin Prims.l_and (Prims.l_and (Alloc.Vec.impl_1__as_slice done == Seq.empty) (Alloc.Vec.impl_1__as_slice operations == Seq.empty)) (tree == Core_models.Default.f_default #Native.t_Tree #Native.impl_5 ()) end
+    begin Prims.l_and (Prims.l_and (Alloc.Vec.impl_1__as_slice done == Seq.empty) (Alloc.Vec.impl_1__as_slice operations == Seq.empty)) (tree == Core_models.Default.f_default #Native.t_Tree #Native.impl_4 ()) end
   else
     begin exists(step: event_work_step). Prims.l_and (match step with | (previous_done, previous_operations, previous_tree, _, _) -> begin event_work_prefix facts (count - 1) previous_done previous_operations previous_tree end) (prefix_step_valid facts done operations tree step) end
 
@@ -492,7 +496,7 @@ let prefix_extension_is_actual_work (facts: t_Slice Native.t_Fact) (count: nat) 
     ) in
   FStar.Classical.forall_intro_4 (FStar.Classical.move_requires_4 next)
 
-let prefix_starts_at_actual_empty (facts: t_Slice Native.t_Fact) : Lemma (ensures event_work_prefix facts 0 (Alloc.Vec.impl__new #Native.t_EventId ()) (Alloc.Vec.impl__new #operation_pair ()) (Core_models.Default.f_default #Native.t_Tree #Native.impl_5 ())) =
+let prefix_starts_at_actual_empty (facts: t_Slice Native.t_Fact) : Lemma (ensures event_work_prefix facts 0 (Alloc.Vec.impl__new #Native.t_EventId ()) (Alloc.Vec.impl__new #operation_pair ()) (Core_models.Default.f_default #Native.t_Tree #Native.impl_4 ())) =
   ()
 
 let tree_work_failed (facts: facts_vec) (error: Native.t_Error) : Type0 =

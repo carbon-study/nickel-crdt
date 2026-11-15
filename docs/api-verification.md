@@ -22,12 +22,12 @@ The first profile has one plain-text sequence per document. No public representa
 
 ## 2. proposed operation shapes
 
-The following is typed pseudocode, **not a compilable or implemented Rust module**. All fallible mutations return `Result`; errors have the neutrality contract in §3. Names replace the overview's earlier illustrative list if this proposal is accepted.
+The following is typed pseudocode, **not a compilable or implemented Rust module**. All fallible mutations return `Result`; errors have the neutrality contract in §3. Names replace the overview's earlier illustrative list if this proposal is accepted. Earlier versions supplied Limits to construction/loading; that policy is superseded by [caller budgets](policy-budgets.md), not an adopted engine configuration.
 
 ```text
-Replica.create(DocumentId, fresh WriterId, Limits) -> Replica
-Replica.load(Snapshot, fresh WriterId, Limits) -> Result<Replica, LoadError>
-Replica.resume(Checkpoint, Limits) -> Result<Replica, LoadError>
+Replica.create(DocumentId, fresh WriterId) -> Replica
+Replica.load(Snapshot, fresh WriterId) -> Result<Replica, LoadError>
+Replica.resume(Checkpoint) -> Result<Replica, LoadError>
 
 view(&Replica) -> View { revision: ViewRevision, text: Scalars }
 version(&Replica) -> Version
@@ -72,14 +72,14 @@ For a live replica, let `S` include the complete logical document, allocator, lo
 | call | admitted precondition | successful postcondition | ordinary error |
 | --- | --- | --- | --- |
 | queries/preparation | well-formed S; supplied basis/domain/ranges checked | no published state change; returned identity/coordinate has its declared meaning | S unchanged |
-| apply | prepared basis still current; grouping admission and limits valid | one atomic semantic transition with exact prepared targets/membership; corresponding stack and receipt transition | S unchanged, no counter/token consumption or update publication |
+| apply | prepared basis still current; grouping admission valid | one atomic semantic transition with exact prepared targets/membership; corresponding stack and receipt transition | S unchanged, no counter/token consumption or update publication |
 | undo/redo | valid local session and a selectable top item, or empty stack | exactly one selected item toggled under the eventual agreed semantics; no skipping invisible items | S unchanged; Empty also leaves S unchanged |
-| import | compatible, bounded, causally complete operations; consistent identities and activity authority | all valid new operations admitted atomically; duplicate facts idempotent; no foreign stack entry or redo clearing | entire call rejected; no prefix publication |
+| import | compatible, causally complete operations; consistent identities and activity authority | all valid new operations admitted atomically; duplicate facts idempotent; no foreign stack entry or redo clearing | entire call rejected; no prefix publication |
 | encode/decode | representable compatible profile and budget | faithful encoded state / validated reconstructed state | no partial live document or session returned |
 
 These are intended postconditions for normal return. They do not cover process death, abort/OOM, arbitrary unsafe memory corruption or a Rust/Wasm trap. A caller cannot infer persistence or delivery from an in-memory success. The design must return notification data after commit rather than execute arbitrary callbacks inside mutation.
 
-Resource limits are inputs to admission. Tests must compare rejection against *the entire logical S*, including allocator/stacks/tokens, not just the visible text. Whether the implementation uses staging, rollback or persistent data structures must be justified by proofs of its actual return paths.
+Optional workload budgets are caller policy, checked before invoking engine admission; caller refusal is distinct from an engine admission error. The engine does not take the former event, dependency or value-byte ceilings as admission inputs. Real identity/counter/clock representability and semantic validity checks remain. A caller budget refusal must leave S unchanged, just as an ordinary engine error must. Tests must compare rejection against *the entire logical S*, including allocator/stacks/tokens, not just the visible text. Whether the implementation uses staging, rollback or persistent data structures must be justified by proofs of its actual return paths.
 
 ## 4. prospective verifier obligations
 

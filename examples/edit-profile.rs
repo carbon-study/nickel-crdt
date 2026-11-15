@@ -9,8 +9,8 @@ fn main() {
         .nth(1)
         .expect("append | prepend | frontloaded-delete");
     assert!(["append", "prepend", "frontloaded-delete"].contains(&shape.as_str()));
-    let mut author = Replica::new(Some(Writer::Alice), Limits::default()).unwrap();
-    let mut receiver = Replica::new(None, Limits::default()).unwrap();
+    let mut author = Replica::new(Some(Writer::Alice)).unwrap();
+    let mut receiver = Replica::new(None).unwrap();
     let mut expected: Vec<(BirthId, u32)> = Vec::new();
     let mut retained = Vec::new();
     let mut author_total = 0u128;
@@ -91,10 +91,6 @@ fn main() {
         println!("{{\"shape\":\"{shape}\",\"events\":{step},\"births\":{},\"visible\":{},\"author_us\":{author_us},\"receive_us\":{receive_us}}}", retained.len(), expected.len());
         io::stdout().flush().unwrap();
     }
-    // At the profile edge, another nonempty event must reject atomically.
-    let before = author.clone();
-    let (next, result) = author.edit(0, vec![u32::from('!')], vec![]);
-    assert_eq!(result, Err(Error::Capacity(Capacity::Events)));
-    assert_eq!(next, before);
+    // Workload size is the caller benchmark budget, not an engine refusal.
     println!("{{\"complete\":true,\"shape\":\"{shape}\",\"author_total_us\":{author_total},\"receive_total_us\":{receive_total}}}");
 }

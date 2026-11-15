@@ -5,7 +5,7 @@ under `scripts/`. A change to the separately run Latte capture helper therefore
 changed both proof derivations even though neither gate reads that helper.
 
 `nix/gate-scripts.json` now supplies their script filesets, plus the existing
-model-builder and shared-native script inventories. Each list is the exact
+model-builder, shared-native, register-native and register-proof script inventories. Each list is the exact
 transitive module-import closure of its entry points. The Rust, tests, authored
 proofs, retained views and receipts in each gate's source set are unchanged.
 Text cores/shards still share one script closure: this does not partition
@@ -41,11 +41,13 @@ directory must be new. It checks these invalidation boundaries:
 | text contract checker | all text proof cores/shards/full gate |
 | causal-envelope checker | shared proofs |
 | shared-native checker | shared native |
-| mutation scope helper | text proofs, shared proofs and shared native |
+| register-native checker | register native |
+| register-proof checker / authored Register or Canonical proof | register proofs |
+| mutation scope helper | text proofs, shared proofs, shared native and both register gates |
 | proof runtime/cache helper | model cache and every consuming gate |
 | model builder / model budget checker | model cache and consuming proof gates |
 | authored text proof | text proofs |
-| text Rust implementation | native, edit reference, shared native and text proofs |
+| text Rust implementation | native, edit reference, shared native, text proofs and both register gates |
 
 All script edits also invalidate the cheap `gate-inputs` check. These are
 **derivation dependencies**, not measured end-to-end CI speedups. Workflow jobs
@@ -62,5 +64,5 @@ source/packaging review; an import closure alone cannot infer those dependencies
 The existing non-script source sets remain conservative.
 
 New independent gates need their own reviewed entry points, manifest list and
-actual packaged-directory argument in the check. The current inventory does not
-claim to integrate the still-draft register gate.
+actual packaged-directory argument in the check. Both register inventories are included even while the register checkpoint remains
+a draft; packaging coverage is not semantic checkpoint acceptance.

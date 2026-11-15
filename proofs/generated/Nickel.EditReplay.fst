@@ -73,7 +73,7 @@ let group_follows (selected: t_Slice Native.t_EventId) (group: event_operations)
 
 let rec author_prefix (operations: t_Slice event_operations) (selected: t_Slice Native.t_EventId) (finish: nat{finish <= Seq.length operations}) (outcome: tree_result) : Tot Type0 (decreases finish) =
   if finish ==? 0 then
-    begin outcome == Result.Result_Ok (Core_models.Default.f_default #Native.t_Tree #Native.impl_5 ()) end
+    begin outcome == Result.Result_Ok (Core_models.Default.f_default #Native.t_Tree #Native.impl_4 ()) end
   else
     begin exists(previous: tree_result). Prims.l_and (author_prefix operations selected (finish - 1) previous) (group_follows selected (Seq.index operations (finish - 1)) previous outcome) end
 

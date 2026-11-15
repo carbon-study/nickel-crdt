@@ -184,7 +184,7 @@ fn placements(
 }
 #[test]
 fn receiver_extras_preserve_exact_author_placements_through_public_admission() {
-    let new = |w| Replica::new(w, Limits::default()).unwrap();
+    let new = |w| Replica::new(w).unwrap();
     let (a, root) = author(new(Some(Writer::Alice)), 0, "ab", vec![]);
     let b = receive_added(new(Some(Writer::Bo)), &root);
     let a_victim = a.observe().unwrap()[0].0;
@@ -423,8 +423,8 @@ fn authored_delete_and_multi_scalar_histories_preserve_full_interpretation() {
     for seed in 0u64..24 {
         let mut state = seed + 1;
         let mut replicas = [
-            Replica::new(Some(Writer::Alice), Limits::default()).unwrap(),
-            Replica::new(Some(Writer::Bo), Limits::default()).unwrap(),
+            Replica::new(Some(Writer::Alice)).unwrap(),
+            Replica::new(Some(Writer::Bo)).unwrap(),
         ];
         let mut facts = Vec::new();
         for step in 0..12 {
@@ -465,7 +465,7 @@ fn authored_delete_and_multi_scalar_histories_preserve_full_interpretation() {
                 }
             }
         }
-        let mut union = Replica::new(None, Limits::default()).unwrap();
+        let mut union = Replica::new(None).unwrap();
         for fact in &facts {
             union = receive_added(union, fact);
         }
@@ -543,7 +543,7 @@ fn actual_past_cut_retains_the_actual_execution_order() {
 // Selected IDs only; interpreted placements are the test above.
 #[test]
 fn two_receivers_with_different_extras_select_the_same_past() {
-    let new = |w| Replica::new(w, Limits::default()).unwrap();
+    let new = |w| Replica::new(w).unwrap();
     let (a, root) = author(new(Some(Writer::Alice)), 0, "ab", vec![]);
     let b = receive_added(new(Some(Writer::Bo)), &root);
     let (b, x) = author(b, 0, "x", vec![]);

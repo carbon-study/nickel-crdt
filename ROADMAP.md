@@ -99,6 +99,7 @@ earlier delivery does not quietly remove anchors, children or recovery from it.
 
 | available now | what it does not establish |
 | --- | --- |
+| native single-write keyed-register candidate with an external caller and bounded equality/read/no-edit/publication proofs | valid-history/clock preservation and full client refinement remain open; the checkpoint is not accepted, and atomic multi-write registers are still next |
 | actual shared native graph/shell used by text and a batch example, with constructed policies, generic foundations and checked concrete text bridges | generic past/canonical/semantic convergence and second-client refinement remain obligations; wrapper retirement is incomplete |
 | experimental Rust edit/admit and source-linked return, identity, exact publication, canonical storage and partial WF laws | independent semantic refinement, full WF, valid-fitting admission progress and whole-CRDT convergence remain open |
 | locked Rust → hax → F* scaffold, authored Latte proofs and semantic mutation controls | hax translation/models remain trusted; no Rust/F* equivalence theorem |
@@ -120,23 +121,23 @@ they are not an implemented interface. All V1–V9 are still unfulfilled.
 Ren has approved retaining skipped own actions in the directed continuation.
 The running reference and its continuation assertions now default to retain;
 explicit consume and its earlier failed retain control remain historical evidence.
-Frozen observed masks are also approved for the first cut. New-work redo and
-exact public IDs remain first-cut choices;
+Frozen observed masks, explicit caller keep/clear for new-work redo and
+exact original IDs across returns are also approved for the first cut;
 the ordered construction is Lynn’s parallel research responsibility.
 The source of each expected result must be a stated decision or argument, not
 whatever today's implementation happens to return.
 
 [Four concrete decision scenarios](docs/first-cut-decisions.md) collect the
-answers, remaining proposals and their costs. Retain and frozen observed masks
-are approved; new-work redo and exact public IDs remain pending.
+answers and their costs. All four choices are approved within the stated
+scope; the general sequence-history algorithm is not supplied by those answers.
 
 Close these dependencies before committing the corresponding engine behavior:
 
 1. **History continuation.** Compare consume/retain when a suppressed deletion
    becomes active again, including its interaction with redo and new work.
-   Keep-redo stacking is provisional. Distinguish an empty Undo, an invisible
-   applied Undo, a blocked Redo and a rejected call. No automatic selective redo
-   follows from retaining skipped items.
+   Carry the approved keep/clear stack continuation. Distinguish an empty Undo,
+   an invisible applied Undo, a blocked Redo and a rejected call. No automatic
+   selective redo follows from retaining skipped items.
 2. **Restoration effects.** Carry forward the approved frozen observed masks,
    including the different outcomes when a concurrent deletion arrives
    before/after the press. An unseen concurrent deletion can hide the text
@@ -149,9 +150,9 @@ Close these dependencies before committing the corresponding engine behavior:
    still open. Retaining gap information does not force the old placement rule.
    q32's edge affinity and Ren's additional per-insertion span-membership choice
    need separate contracts; an insertion flag, endpoint replacement and explicit
-   range adjustment remain alternatives. q34 also needs a decision: same logical
-   element, or an implementation whose every future anchor/edit observation is
-   equivalent. The identity-set model's reused IDs do not prove anchor behavior.
+   range adjustment remain alternatives. q34 now requires the same original
+   occurrence IDs across returns. That identity contract and the identity-set
+   reference do not supply general anchor behavior.
 4. **Atomic membership.** Specify primary continuation, derived children,
    closure, inactive-trigger rejection and cancellation/redo of outstanding
    derived work. The engine has no clock or job scheduler. Do not silently drop
@@ -173,9 +174,9 @@ they do not select product semantics by vote.
 | own Undo / explicit Restore | approved; restricted experiment runs | Lynn extends the argument to the ordered cut | yes |
 | skipped own items | retain approved and default in the reference; explicit consume preserved as history | Lynn carries that selection into the joint Rust transition and proofs | yes |
 | observed/unseen restoration masks | frozen observed masks approved for this cut, including later-arriving unseen deletion | Lynn carries the approved effects into the joint transition and proofs | yes |
-| new work with redo | explicit keep/clear runs; stacking provisional | Ren approves continuation outcomes; Lynn gives their construction | yes |
+| new work with redo | explicit caller keep/clear and stack continuation approved; clear-first/keep-unsupported fallback permitted if needed | Lynn supplies construction and native refinement; no measured proof-cost comparison yet | yes |
 | hidden placement | Xab/Xab settled only for q30/q31; longer runs and Friday/Monday open | Lynn supplies minimal distinguishing histories and candidate rule; Ren approves outcomes | the cut's placement domain must close |
-| q34 identity after return | reference reuses IDs; general anchor/edit equivalence unresolved | Ren approves observable contract; Lynn proves the representation realizes it | exact-ID reuse is proposed for the cut; approval still needed |
+| q34 identity after return | same original IDs approved; general anchor behavior remains outside the cut | Lynn proves the representation realizes the exact-ID contract | yes |
 | q32 boundary membership | caller choice motivated; mechanism open | Lynn separates gap affinity from per-insertion span membership; Ren confirms intended behavior | span membership is absent from the cut |
 | grouping / derived children | required eventual scope; lifecycle incomplete | Lynn specifies membership and outstanding-job cases; Ren resolves behavior conflicts | no; one call is one primary item in the cut |
 | budgets and q37 | numeric targets and limit response open; no GC selected | Ren supplies intended workloads/acceptable limit response; Lynn proposes measured bounds and admission behavior | cut-specific bounds/response must close |
@@ -213,10 +214,12 @@ and structured causal updates that another instance can admit, with duplicate
 and rejection behavior specified. It can run many histories within declared
 budgets, not only a canned example.
 
-For this cut, propose preserving exact element IDs across Undo/Redo/Restore,
-using the running experiment as the candidate effect semantics; this is still
-a decision gate, not adoption by naming it here. New-work redo remains pending;
-retain for skipped items is approved. No arbitrary selective redo is added.
+For this cut, Ren approved exact original element IDs across Undo/Redo/Restore,
+retaining skipped items and explicit caller keep/clear for new work with pending
+redo. Keep remains stack-based, with a blocked top entry blocking lower entries.
+The clear-first/keep-unsupported fallback does not remove the explicit API
+choice. These decisions do not prove the running experiment or adopt a general
+sequence-history algorithm. No arbitrary selective redo is added.
 
 Excluded at this stage: primary coalescing and children, general annotation/
 selection-anchor resolution or span membership, portable byte encoding,

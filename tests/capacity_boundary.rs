@@ -1,8 +1,10 @@
-//! Retained negative boundary witness, not a convergence acceptance test.
+//! Retained negative policy witness in the caller harness, not the Rust engine.
 //! Same offered facts can leave different accepted subsets at an aggregate cap.
 //! Policy changes must explicitly replace this limitation/contract, not present
 //! these passing witness assertions as proof that general convergence is fixed.
 use nickel_crdt::edit::*;
+mod support;
+use support::{Limits, Capacity, HarnessError};
 
 fn text(replica: &Replica) -> String {
     replica
@@ -24,10 +26,10 @@ fn admit(replica: Replica, fact: &Fact) -> Replica {
     assert_eq!(result, Ok(Admission::Added));
     next
 }
-fn facts(limits: Limits) -> [Fact; 3] {
-    let a = Replica::new(Some(Writer::Alice), limits).unwrap();
+fn facts() -> [Fact; 3] {
+    let a = Replica::new(Some(Writer::Alice)).unwrap();
     let (a, root) = author(a, 0, 'x');
-    let b = admit(Replica::new(Some(Writer::Bo), limits).unwrap(), &root);
+    let b = admit(Replica::new(Some(Writer::Bo)).unwrap(), &root);
     let (_, y) = author(a, 1, 'y');
     let (_, z) = author(b, 1, 'z');
     assert_eq!(y.after, vec![root.id]);
@@ -35,24 +37,24 @@ fn facts(limits: Limits) -> [Fact; 3] {
     [root, y, z]
 }
 fn limited_branch(limits: Limits, order: [&Fact; 3], error: Capacity) -> Replica {
-    let receiver = admit(Replica::new(None, limits).unwrap(), order[0]);
+    let receiver = admit(Replica::new(None).unwrap(), order[0]);
     let receiver = admit(receiver, order[1]);
     let before = receiver.clone();
-    let (receiver, result) = receiver.receive(order[2]);
-    assert_eq!(result, Err(Error::Capacity(error)));
+    let (receiver, result) = support::receive(receiver, order[2], limits);
+    assert_eq!(result, Err(HarnessError::Budget(error)));
     assert_eq!(receiver, before, "capacity preserves the whole instance");
     // Retaining the immutable fact is necessary, but retry is not progress at
     // an unchanged full aggregate limit. This borrowed fact is never dropped.
-    let (receiver, result) = receiver.receive(order[2]);
-    assert_eq!(result, Err(Error::Capacity(error)));
+    let (receiver, result) = support::receive(receiver, order[2], limits);
+    assert_eq!(result, Err(HarnessError::Budget(error)));
     assert_eq!(receiver, before);
     let (receiver, result) = receiver.receive(order[1]);
     assert_eq!(result, Ok(Admission::Duplicate));
     assert_eq!(receiver, before, "full-state duplicate is still neutral");
     receiver
 }
-fn witness(small: Limits, larger: Limits, error: Capacity) {
-    let [root, y, z] = facts(small);
+fn witness(small: Limits, error: Capacity) {
+    let [root, y, z] = facts();
     let left = limited_branch(small, [&root, &y, &z], error);
     let right = limited_branch(small, [&root, &z, &y], error);
     assert_eq!(text(&left), "xy");
@@ -63,14 +65,14 @@ fn witness(small: Limits, larger: Limits, error: Capacity) {
         "offered set is equal, accepted sets differ"
     );
     assert_ne!(left.observe(), right.observe());
-    println!("{error:?}: same three offered facts -> accepted texts xy / xz; unchanged-limit retry remains Capacity");
+    println!("{error:?}: same three offered facts -> accepted texts xy / xz; unchanged caller-budget retry remains refused");
 
     // A separate, fitting-history control: reconstruct read-only observers
-    // under a larger experimental profile from ALL caller-retained offers.
+    // without a harness budget from ALL caller-retained offers.
     // This is not allocator recovery, an implemented promotion API, or a
-    // general capacity policy. Accepted facts alone would miss the other branch.
-    let mut a = Replica::new(None, larger).unwrap();
-    let mut b = Replica::new(None, larger).unwrap();
+    // general synchronization policy. Accepted facts alone would miss the other branch.
+    let mut a = Replica::new(None).unwrap();
+    let mut b = Replica::new(None).unwrap();
     for fact in [&root, &y, &z] {
         a = admit(a, fact);
     }
@@ -91,10 +93,6 @@ fn event_capacity_negative_witness_and_fitting_history_control() {
             events: 2,
             ..Limits::default()
         },
-        Limits {
-            events: 3,
-            ..Limits::default()
-        },
         Capacity::Events,
     );
 }
@@ -103,10 +101,6 @@ fn retained_birth_capacity_negative_witness_and_fitting_history_control() {
     witness(
         Limits {
             births: 2,
-            ..Limits::default()
-        },
-        Limits {
-            births: 3,
             ..Limits::default()
         },
         Capacity::Births,
@@ -119,10 +113,23 @@ fn ordering_link_capacity_negative_witness_and_fitting_history_control() {
             ordering_links: 6,
             ..Limits::default()
         },
-        Limits {
-            ordering_links: 9,
-            ..Limits::default()
-        },
         Capacity::OrderingLinks,
     );
+}
+
+#[test]
+fn harness_budget_precedes_missing_but_engine_admission_is_unchanged() {
+    let r = Replica::new(None).unwrap();
+    let before = r.clone();
+    let fact = Fact {
+        id: EventId { writer: Writer::Alice, counter: 1 },
+        after: vec![EventId { writer: Writer::Bo, counter: 1 }],
+        insert: vec![u32::from('x'); 65], delete: vec![], gap: Some(0),
+    };
+    let (r, result) = support::receive(r, &fact, Limits::default());
+    assert_eq!(result, Err(HarnessError::Budget(Capacity::Scalars)));
+    assert_eq!(r, before);
+    let (r, result) = r.receive(&fact);
+    assert_eq!(result, Err(Error::Missing));
+    assert_eq!(r, before);
 }

@@ -32,12 +32,12 @@ fn example() -> (Vec<Fact>, Fact) {
 }
 // The placement witness is authored through the public API on two receivers.
 fn public_example() -> (Vec<Fact>, Fact) {
-    let alice = Replica::new(Some(Writer::Alice), Limits::default()).unwrap();
+    let alice = Replica::new(Some(Writer::Alice)).unwrap();
     let (alice, first) = alice.edit(0, vec!['a' as u32, 'c' as u32], vec![]);
     let Local::Authored(a) = first.expect("public initial insertion") else {
         panic!("nonempty edit")
     };
-    let bo = Replica::new(Some(Writer::Bo), Limits::default()).unwrap();
+    let bo = Replica::new(Some(Writer::Bo)).unwrap();
     let (bo, admitted) = bo.receive(&a);
     assert_eq!(admitted, Ok(Admission::Added));
     let (_, deleting) = bo.edit(

@@ -11,20 +11,13 @@
 use crate::causal::{Event, Id};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// Inclusive event and per-event dependency bounds; duplicates bypass both.
-/// Zero events forbids additions; zero dependencies permits only root events.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Limits {
-    pub events: usize,
-    pub dependencies: usize,
-}
+
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Error<E> {
     Invalid,
     Conflict,
     Missing,
-    Capacity,
     Client(E),
 }
 
@@ -34,9 +27,6 @@ pub enum Admission {
     Duplicate,
 }
 
-pub const MAX_BATCH_OPS: usize = 64;
-pub const MAX_NAME_BYTES: usize = 128;
-pub const MAX_VALUE_BYTES: usize = 4096;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Value {
@@ -64,17 +54,16 @@ pub type State = BTreeMap<String, BTreeMap<String, Value>>;
 pub enum BatchError {
     InvalidBatch,
     InvalidName,
-    ValueTooLarge,
     MissingRecord,
     CounterExhausted,
 }
 
 fn name_ok(name: &str) -> bool {
-    !name.is_empty() && name.len() <= MAX_NAME_BYTES
+    !name.is_empty()
 }
 
 fn apply(state: &mut State, batch: &Batch) -> Result<(), BatchError> {
-    if batch.is_empty() || batch.len() > MAX_BATCH_OPS {
+    if batch.is_empty() {
         return Err(BatchError::InvalidBatch);
     }
     for op in batch {
@@ -93,9 +82,7 @@ fn apply(state: &mut State, batch: &Batch) -> Result<(), BatchError> {
                 if !name_ok(record) || !name_ok(field) || !name_ok(&value.family) {
                     return Err(BatchError::InvalidName);
                 }
-                if value.bytes.len() > MAX_VALUE_BYTES {
-                    return Err(BatchError::ValueTooLarge);
-                }
+
                 state
                     .get_mut(record)
                     .ok_or(BatchError::MissingRecord)?
@@ -249,7 +236,6 @@ fn lift<E>(error: Error<()>) -> Error<E> {
         Error::Invalid => Error::Invalid,
         Error::Conflict => Error::Conflict,
         Error::Missing => Error::Missing,
-        Error::Capacity => Error::Capacity,
         Error::Client(()) => Error::Invalid,
     }
 }
@@ -263,17 +249,15 @@ pub struct BatchReplica {
     next_counter: u64,
     events: Vec<Event<Batch>>,
     state: State,
-    limits: Limits,
 }
 
 impl BatchReplica {
-    pub fn new(peer: u64, limits: Limits) -> Self {
+    pub fn new(peer: u64) -> Self {
         Self {
             peer,
             next_counter: 1,
             events: Vec::new(),
             state: State::new(),
-            limits,
         }
     }
 
@@ -346,10 +330,7 @@ fn validate_incoming(
     before: &BatchReplica,
     event: &Event<Batch>,
 ) -> Result<(), Error<BatchError>> {
-    if before.events.len() >= before.limits.events || event.after.len() > before.limits.dependencies
-    {
-        return Err(Error::Capacity);
-    }
+
     let mut candidate = before.events.clone();
     crate::event_layer::push(&mut candidate, event.clone(), invalid)?;
     graph_valid(&candidate).map_err(lift)?;
@@ -392,12 +373,7 @@ fn plan_incoming(
 mod tests {
     use super::*;
 
-    fn limits() -> Limits {
-        Limits {
-            events: 64,
-            dependencies: 64,
-        }
-    }
+
     fn value(bytes: &[u8]) -> Value {
         Value {
             family: "unknown.application/future".into(),
@@ -438,7 +414,7 @@ mod tests {
 
     #[test]
     fn multi_field_creation_and_same_key_order_are_atomic() {
-        let mut replica = BatchReplica::new(u64::MAX - 1, limits());
+        let mut replica = BatchReplica::new(u64::MAX - 1);
         replica
             .author(vec![
                 create("card"),
@@ -467,9 +443,9 @@ mod tests {
 
     #[test]
     fn causal_and_concurrent_batches_converge_in_two_delivery_orders() {
-        let mut a = BatchReplica::new(1 << 40, limits());
-        let mut b = BatchReplica::new((1 << 40) + 9, limits());
-        let mut c = BatchReplica::new(u64::MAX - 7, limits());
+        let mut a = BatchReplica::new(1 << 40);
+        let mut b = BatchReplica::new((1 << 40) + 9);
+        let mut c = BatchReplica::new(u64::MAX - 7);
         let root = a
             .author(vec![
                 create("card"),
@@ -481,8 +457,8 @@ mod tests {
         c.receive(root.clone()).unwrap();
         let left = b.author(vec![put("card", "answer", b"left")]).unwrap();
         let right = c.author(vec![put("card", "answer", b"right")]).unwrap();
-        let mut first = BatchReplica::new(3, limits());
-        let mut second = BatchReplica::new(4, limits());
+        let mut first = BatchReplica::new(3);
+        let mut second = BatchReplica::new(4);
         for event in [root.clone(), left.clone(), right.clone()] {
             first.receive(event).unwrap();
         }
@@ -502,14 +478,9 @@ mod tests {
     }
 
     #[test]
-    fn duplicates_conflicts_and_capacity_leave_everything_unchanged() {
+    fn duplicates_and_conflicts_leave_everything_unchanged() {
         let mut replica = BatchReplica::new(
-            777,
-            Limits {
-                events: 1,
-                dependencies: 8,
-            },
-        );
+            777);
         let event = replica
             .author(vec![create("card"), put("card", "prompt", b"kept")])
             .unwrap();
@@ -522,18 +493,13 @@ mod tests {
             .push(put("card", "answer", b"different"));
         assert_eq!(replica.receive(conflicting), Err(Error::Conflict));
         assert_eq!(snapshot(&replica), before);
-        assert_eq!(
-            replica
-                .author(vec![put("card", "prompt", b"overflow")])
-                .unwrap_err(),
-            Error::Capacity
-        );
-        assert_eq!(snapshot(&replica), before);
+        replica.author(vec![put("card", "prompt", b"beyond old event budget")]).unwrap();
+        assert_eq!(replica.state()["card"]["prompt"], value(b"beyond old event budget"));
     }
 
     #[test]
     fn validation_uses_authors_basis_not_receivers_extra_records() {
-        let mut replica = BatchReplica::new(91, limits());
+        let mut replica = BatchReplica::new(91);
         replica.author(vec![create("local-only")]).unwrap();
         let before = snapshot(&replica);
         let invalid = Event {
@@ -553,7 +519,7 @@ mod tests {
 
     #[test]
     fn received_final_failure_and_payload_bounds_are_transactional() {
-        let mut replica = BatchReplica::new(101, limits());
+        let mut replica = BatchReplica::new(101);
         let root = replica.author(vec![create("card")]).unwrap();
         let before = snapshot(&replica);
         let invalid = Event {
@@ -572,27 +538,9 @@ mod tests {
             Err(Error::Client(BatchError::MissingRecord))
         );
         assert_eq!(snapshot(&replica), before);
-        let mut oversized_value = value(b"");
-        oversized_value.bytes = vec![0; MAX_VALUE_BYTES + 1];
         let invalid_batches = vec![
             (vec![], BatchError::InvalidBatch),
-            (
-                vec![create("card"); MAX_BATCH_OPS + 1],
-                BatchError::InvalidBatch,
-            ),
             (vec![create("")], BatchError::InvalidName),
-            (
-                vec![create(&"x".repeat(MAX_NAME_BYTES + 1))],
-                BatchError::InvalidName,
-            ),
-            (
-                vec![Op::Put {
-                    record: "card".into(),
-                    field: "field".into(),
-                    value: oversized_value,
-                }],
-                BatchError::ValueTooLarge,
-            ),
         ];
         for (batch, error) in invalid_batches {
             assert_eq!(replica.author(batch).unwrap_err(), Error::Client(error));
@@ -650,7 +598,7 @@ mod tests {
 
     #[test]
     fn graph_errors_are_neutral_and_predecessor_is_transitive() {
-        let mut s = BatchReplica::new(100, limits());
+        let mut s = BatchReplica::new(100);
         for f in [
             event(4, 1, vec![], 0),
             event(9, 1, vec![id(4, 1)], 1),
@@ -683,7 +631,7 @@ mod tests {
             basis.iter().map(|f| f.id).collect::<Vec<_>>(),
             vec![id(8, 1), id(3, 1)]
         );
-        let mut causal_write = BatchReplica::new(901, limits());
+        let mut causal_write = BatchReplica::new(901);
         let root = causal_write.author(vec![create("causal-record")]).unwrap();
         let write = Event {
             id: id(902, 1),
@@ -691,7 +639,7 @@ mod tests {
             payload: vec![put("causal-record", "field", b"requires author basis")],
         };
         assert_eq!(causal_write.receive(write), Ok(Admission::Added));
-        let mut replica = BatchReplica::new(100, limits());
+        let mut replica = BatchReplica::new(100);
         for fact in facts {
             replica.receive(fact).unwrap();
         }
@@ -702,38 +650,26 @@ mod tests {
     }
 
     #[test]
-    fn hard_zero_and_inclusive_limits() {
-        let mut s = BatchReplica::new(
-            0,
-            Limits {
-                events: 0,
-                dependencies: 0,
-            },
-        );
-        let before = snapshot(&s);
-        assert_eq!(s.receive(event(0, 1, vec![], 0)), Err(Error::Capacity));
-        assert_eq!(snapshot(&s), before);
-        s.limits.events = 2;
+    fn former_policy_bounds_do_not_refuse_operations() {
+        let mut s = BatchReplica::new(100);
         let root = event(0, 1, vec![], 0);
         s.receive(root.clone()).unwrap();
-        let before = snapshot(&s);
-        assert_eq!(
-            s.receive(event(0, 2, vec![id(0, 1)], 1)),
-            Err(Error::Capacity)
-        );
-        assert_eq!(snapshot(&s), before);
-        s.limits.dependencies = 1;
         s.receive(event(0, 2, vec![id(0, 1)], 1)).unwrap();
         let before = snapshot(&s);
         assert_eq!(s.receive(root), Ok(Admission::Duplicate));
         assert_eq!(snapshot(&s), before);
-        assert_eq!(s.receive(event(1, 1, vec![], 2)), Err(Error::Capacity));
-        assert_eq!(snapshot(&s), before);
+        s.receive(event(1, 1, vec![], 2)).unwrap();
+        let long = "x".repeat(129);
+        let mut large = value(b"");
+        large.bytes = vec![7; 4097];
+        s.author(vec![create(&long); 65]).unwrap();
+        s.author(vec![put(&long, "field", &large.bytes)]).unwrap();
+        assert_eq!(s.state()[&long]["field"].bytes.len(), 4097);
     }
 
     #[test]
     fn ordered_dependencies_are_part_of_duplicate_identity() {
-        let mut replica = BatchReplica::new(100, limits());
+        let mut replica = BatchReplica::new(100);
         replica.receive(event(1, 1, vec![], 0)).unwrap();
         replica.receive(event(2, 1, vec![], 1)).unwrap();
         let child = event(1, 2, vec![id(1, 1), id(2, 1)], 2);
