@@ -346,6 +346,7 @@ let basis_freezes_id_read (before: Native.t_Replica) (offered: Nickel.Register.f
   Nickel.Register.read_history_selects_maximum b (Alloc.Vec.impl_1__as_slice before.f_initial) offered.f_payload.f_key;
   assert (Nickel.Register.selected_value b offered.f_payload.f_key (Alloc.Vec.impl_1__as_slice before.f_initial) (Alloc.Vec.impl_1__as_slice (Native.read_history b (Alloc.Vec.impl_1__as_slice before.f_initial) offered.f_payload.f_key))) by (
     Tactics.prune "Nickel.Register.selected_value";
+    Tactics.prune "Nickel_crdt.Register.read_history";
     Tactics.prune "Nickel_crdt.Register.winner";
     Tactics.prune "Nickel.Register.basis_payload_checks";
     Tactics.prune "Nickel.RegisterHistory.holds_selected";
