@@ -841,8 +841,8 @@ proof write_counted_meaning(before: Native.t_Replica, key: u64, value: Alloc.Vec
 }
 
 // ---------------------------------------------------------------- public callers: no-edit converse
-// A no-edit write (Ok None) happened only because the value fits and equals the pre-write read; the
-// whole replica is unchanged.
+// A no-edit write (Ok None) happened only because the value equals the pre-write read; the
+// whole replica is unchanged. There is no engine value-byte policy bound.
 proof noedit_write_is_equal_value(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
   gives forall(next: Native.t_Replica) . Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_None)) ==>
     (next == before and
