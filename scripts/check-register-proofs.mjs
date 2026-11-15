@@ -22,8 +22,8 @@ let shard=null,coverageOnly=null;
 if(shardArgs.length){
  const s=shardArgs[0],m=/^shard:(\d+)\/(\d+)$/.exec(s),c=/^shard-coverage:(\d+)$/.exec(s);
  assert(m||c,'malformed shard selector '+s);
- if(m){const i=Number(m[1]),n=Number(m[2]);assert(n>0&&i<n,'shard index out of range '+s);shard={i,n};}
- else{coverageOnly=Number(c[1]);assert(coverageOnly>0,'shard count out of range '+s);assert.equal(selected.length,1,'shard-coverage is exclusive');}
+ if(m){const i=Number(m[1]),n=Number(m[2]);assert(Number.isSafeInteger(i)&&Number.isSafeInteger(n)&&n>0&&i<n,'shard index out of range '+s);shard={i,n};}
+ else{coverageOnly=Number(c[1]);assert(Number.isSafeInteger(coverageOnly)&&coverageOnly>0,'shard count out of range '+s);assert.equal(selected.length,1,'shard-coverage is exclusive');}
 }
 const named=selected.filter(a=>!a.startsWith('shard'));
 const wanted=(name,k)=>name==='positive'||!selected.length||named.includes(name)||(shard!==null&&k%shard.n===shard.i);
@@ -36,6 +36,16 @@ function shardPartition(names,n){
  return parts;
 }
 let ranNegatives=0;
+// The CI matrix must list exactly register-proofs-shard-0..n-1, each once.
+function checkCiShards(workflow,n){
+ const line=workflow.split('\n').find(l=>/^\s*target:\s*\[/.test(l));assert(line,'ci matrix target list');
+ const targets=line.slice(line.indexOf('[')+1,line.lastIndexOf(']')).split(',').map(s=>s.trim());
+ const shards=targets.filter(t=>/^register-proofs-shard-/.test(t));
+ for(const t of shards)assert(/^register-proofs-shard-(0|[1-9]\d*)$/.test(t),'malformed ci register shard '+t);
+ assert.equal(new Set(shards).size,shards.length,'ci lists a register shard twice');
+ assert.deepEqual([...shards].sort(),Array.from({length:n},(_,i)=>'register-proofs-shard-'+i).sort(),'ci must list exactly register-proofs-shard-0..'+(n-1));
+ assert(!targets.includes('register-proofs'),'ci must not also run the unsharded register gate');
+}
 await fs.mkdir(output,{recursive:true});
 assert(holdLock(path.join(output,'register-proofs.lock')),'register proof output is owned by another invocation');
 const env=process.env;
@@ -193,31 +203,6 @@ async function check(dir,roots,log){
 // Register no longer imports RegisterPast; RegisterHistory imports both. Verify the owner's module
 // (positive: everything) so a RegisterPast or RegisterHistory owner is actually checked.
 const rootsFor=owner=>!owner?['Nickel.Register.fst','Nickel.RegisterPublic.fst','Nickel.RegisterFrontier.fst']:owner.startsWith('RegisterFrontier.')?['Nickel.RegisterFrontier.fst']:owner.startsWith('RegisterPublic.')?['Nickel.RegisterPublic.fst']:owner.startsWith('RegisterValid.')?['Nickel.RegisterValid.fst']:owner.startsWith('RegisterHistory.')?['Nickel.RegisterHistory.fst']:owner.startsWith('RegisterPast.')?['Nickel.RegisterPast.fst']:['Nickel.Register.fst'];
-const results=[];
-for(const [name,header,anchor,replacement,owner] of [['positive',null,null,null,null],...bodyModes]){
- if(coverageOnly)break;
- if(!wanted(name,bodyModes.findIndex(m=>m[0]===name)))continue;
- if(name!=='positive')ranNegatives++;
- const mode=path.join(output,name),crate=path.join(mode,'crate'),extract=path.join(mode,'extract'),dir=path.join(mode,'proof');
- await fs.mkdir(crate,{recursive:true});await fs.cp(path.join(root,'src'),path.join(crate,'src'),{recursive:true,force:true});
- for(const f of ['Cargo.toml','Cargo.lock'])await fs.copyFile(path.join(root,f),path.join(crate,f));
- await fs.cp(path.join(root,'proof-smoke'),path.join(crate,'proof-smoke'),{recursive:true,force:true});
- const sourceFile=graphModes.has(name)?'src/event_layer.rs':'src/register.rs',original=graphModes.has(name)?graphSource:source;
- let changed=original;if(header){const at=header==='const OPS:'?registerPolicyAnchor(original,anchor):scopedAnchor(original,header,anchor,name);changed=original.slice(0,at)+replacement+original.slice(at+anchor.length);await fs.writeFile(path.join(crate,sourceFile),changed);}
- await fs.rm(extract,{recursive:true,force:true});await fs.mkdir(extract,{recursive:true});
- const r=await runAsync(name+' extraction',env.NICKEL_HAX_BIN,haxArgs(extract),crate,{env:{...env,CARGO_TARGET_DIR:path.join(mode,'target')}});
- await fs.writeFile(path.join(mode,'extraction.log'),r.log);assert.equal(r.status,0,name+': extraction failed');
- assert.deepEqual((await fs.readdir(extract)).filter(f=>/\.fsti?$/.test(f)).sort(),inventory);
- await support(dir);
- for(const f of inventory){const b=await fs.readFile(path.join(extract,f));assert(!/assume\s+val/.test(b.toString()),name+': assumed native body');if(!header)assert(b.equals(await fs.readFile(path.join(views,f))),'fresh production native identity: '+f);await put(path.join(dir,f),b);}
- const native=await check(dir,['Nickel_crdt.Register.fst'],path.join(mode,'native-typecheck.log'));assert.equal(native.status,0,name+': native type error is not owner rejection');
- const file=path.join(dir,'Nickel.Register.fst');await put(file,view);await put(path.join(dir,'Nickel.RegisterHistory.fst'),historyView);await put(path.join(dir,'Nickel.RegisterValid.fst'),validView);await put(path.join(dir,'Nickel.RegisterPublic.fst'),publicView);
- const checked=await check(dir,rootsFor(owner),path.join(mode,'proof.log'));
- const ordinary=owner?hasOrdinaryTheoremRejection({status:checked.status,log:checked.log,theorem:/^(Canonical|RegisterPast|RegisterHistory|RegisterValid|RegisterPublic|RegisterFrontier)\./.test(owner)?'Nickel.'+owner:'Nickel.Register.'+owner,view:owner.startsWith('Canonical.')?canonicalView:owner.startsWith('RegisterPast.')?pastView:owner.startsWith('RegisterHistory.')?historyView:owner.startsWith('RegisterValid.')?validView:owner.startsWith('RegisterPublic.')?publicView:owner.startsWith('RegisterFrontier.')?frontierView:view}):null;
- if(owner)assert(ordinary,name+': ordinary named owner rejection required');else assert.equal(checked.status,0,'checkpoint positive failed');
- results.push({name,owner,status:checked.status,ordinary,sourceFile,source:digest(changed),log:digest(checked.log)});
- console.log('PASS '+name);
-}
 const positive=path.join(output,'positive/proof'),file=path.join(positive,'Nickel.Register.fst');
 function replaceInDeclaration(name,needle,replacement,sourceView=view){
  const plain=sourceView.indexOf('let '+name+' '),recursive=sourceView.indexOf('let rec '+name+' ');assert(plain<0||recursive<0,'unambiguous declaration');const start=plain>=0?plain:recursive;assert(start>=0);
@@ -464,10 +449,41 @@ const depModes=[
  ['without-publication-contract',replaceInDeclaration('receive_publication_is_exact','  Nickel.EventShell.borrowed_publication_is_exact before offered () Native.planned Native.Admission_Added Native.Admission_Duplicate;','  ();'),'receive_publication_is_exact'],
  ['without-noedit-byte-contract',replaceInDeclaration('equal_value_write_is_neutral','    Tactics.prune "Nickel_crdt.Register.bytes_equal";','    Tactics.prune "Nickel_crdt.Register.bytes_equal";\n    Tactics.prune "Nickel.Register.bytes_equal_exact";',replaceInDeclaration('equal_value_write_is_neutral','  bytes_equal_exact (Alloc.Vec.impl_1__as_slice value) (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read before key));','  ();')),'equal_value_write_is_neutral'],
 ];
-{
- const names=[...bodyModes.map(m=>m[0]),...depModes.map(m=>m[0])];
- if(coverageOnly){const parts=shardPartition(names,coverageOnly);console.log('shard coverage: '+names.length+' negatives over '+coverageOnly+' shards: '+parts.map(p=>p.length).join('/'));process.exit(0);}
- if(shard){const parts=shardPartition(names,shard.n);console.log('shard '+shard.i+'/'+shard.n+': '+parts[shard.i].length+' of '+names.length+' negatives');}
+// Plan and validate the complete partition (and, for coverage, the CI matrix) before any
+// extraction or proof runs.
+const negativeNames=[...bodyModes.map(m=>m[0]),...depModes.map(m=>m[0])];
+if(coverageOnly){
+ const parts=shardPartition(negativeNames,coverageOnly);
+ if(env.NICKEL_CI_WORKFLOW)checkCiShards(await fs.readFile(env.NICKEL_CI_WORKFLOW,'utf8'),coverageOnly);
+ console.log('shard coverage: '+negativeNames.length+' negatives over '+coverageOnly+' shards: '+parts.map(p=>p.length).join('/'));
+ process.exit(0);
+}
+// A shard may be combined with named modes: it runs the union, each negative once.
+const planned=new Set(negativeNames.filter((n,k)=>wanted(n,k)));
+if(shard){const parts=shardPartition(negativeNames,shard.n);console.log('shard '+shard.i+'/'+shard.n+': '+parts[shard.i].length+' of '+negativeNames.length+' negatives'+(named.length?' plus '+named.filter(n=>n!=='positive').length+' named':''));}
+const results=[];
+for(const [name,header,anchor,replacement,owner] of [['positive',null,null,null,null],...bodyModes]){
+ if(!wanted(name,bodyModes.findIndex(m=>m[0]===name)))continue;
+ if(name!=='positive')ranNegatives++;
+ const mode=path.join(output,name),crate=path.join(mode,'crate'),extract=path.join(mode,'extract'),dir=path.join(mode,'proof');
+ await fs.mkdir(crate,{recursive:true});await fs.cp(path.join(root,'src'),path.join(crate,'src'),{recursive:true,force:true});
+ for(const f of ['Cargo.toml','Cargo.lock'])await fs.copyFile(path.join(root,f),path.join(crate,f));
+ await fs.cp(path.join(root,'proof-smoke'),path.join(crate,'proof-smoke'),{recursive:true,force:true});
+ const sourceFile=graphModes.has(name)?'src/event_layer.rs':'src/register.rs',original=graphModes.has(name)?graphSource:source;
+ let changed=original;if(header){const at=header==='const OPS:'?registerPolicyAnchor(original,anchor):scopedAnchor(original,header,anchor,name);changed=original.slice(0,at)+replacement+original.slice(at+anchor.length);await fs.writeFile(path.join(crate,sourceFile),changed);}
+ await fs.rm(extract,{recursive:true,force:true});await fs.mkdir(extract,{recursive:true});
+ const r=await runAsync(name+' extraction',env.NICKEL_HAX_BIN,haxArgs(extract),crate,{env:{...env,CARGO_TARGET_DIR:path.join(mode,'target')}});
+ await fs.writeFile(path.join(mode,'extraction.log'),r.log);assert.equal(r.status,0,name+': extraction failed');
+ assert.deepEqual((await fs.readdir(extract)).filter(f=>/\.fsti?$/.test(f)).sort(),inventory);
+ await support(dir);
+ for(const f of inventory){const b=await fs.readFile(path.join(extract,f));assert(!/assume\s+val/.test(b.toString()),name+': assumed native body');if(!header)assert(b.equals(await fs.readFile(path.join(views,f))),'fresh production native identity: '+f);await put(path.join(dir,f),b);}
+ const native=await check(dir,['Nickel_crdt.Register.fst'],path.join(mode,'native-typecheck.log'));assert.equal(native.status,0,name+': native type error is not owner rejection');
+ const file=path.join(dir,'Nickel.Register.fst');await put(file,view);await put(path.join(dir,'Nickel.RegisterHistory.fst'),historyView);await put(path.join(dir,'Nickel.RegisterValid.fst'),validView);await put(path.join(dir,'Nickel.RegisterPublic.fst'),publicView);
+ const checked=await check(dir,rootsFor(owner),path.join(mode,'proof.log'));
+ const ordinary=owner?hasOrdinaryTheoremRejection({status:checked.status,log:checked.log,theorem:/^(Canonical|RegisterPast|RegisterHistory|RegisterValid|RegisterPublic|RegisterFrontier)\./.test(owner)?'Nickel.'+owner:'Nickel.Register.'+owner,view:owner.startsWith('Canonical.')?canonicalView:owner.startsWith('RegisterPast.')?pastView:owner.startsWith('RegisterHistory.')?historyView:owner.startsWith('RegisterValid.')?validView:owner.startsWith('RegisterPublic.')?publicView:owner.startsWith('RegisterFrontier.')?frontierView:view}):null;
+ if(owner)assert(ordinary,name+': ordinary named owner rejection required');else assert.equal(checked.status,0,'checkpoint positive failed');
+ results.push({name,owner,status:checked.status,ordinary,sourceFile,source:digest(changed),log:digest(checked.log)});
+ console.log('PASS '+name);
 }
 for(const [name,changed,owner]of depModes){
  if(!wanted(name,bodyModes.length+depModes.findIndex(m=>m[0]===name)))continue;
@@ -477,6 +493,6 @@ for(const [name,changed,owner]of depModes){
  try{await put(ownerFile,changed);const r=await check(positive,rootsFor(owner),path.join(output,name+'.log'));const ordinary=hasOrdinaryTheoremRejection({status:r.status,log:r.log,theorem:generic?'Nickel.'+owner:'Nickel.Register.'+owner,view:changed});assert(ordinary,name+': checked callee dependence required');results.push({name,owner,status:r.status,ordinary,view:digest(changed),log:digest(r.log)});console.log('PASS '+name);}
  finally{await put(ownerFile,baseView);}
 }
-if(shard&&!named.length){const names=[...bodyModes.map(m=>m[0]),...depModes.map(m=>m[0])];assert.equal(ranNegatives,shardPartition(names,shard.n)[shard.i].length,'shard ran exactly its planned negatives');}
+if(shard)assert.equal(ranNegatives,planned.size,'shard ran exactly its planned negatives');
 await fs.writeFile(path.join(output,'results.json'),JSON.stringify(results,null,2)+'\n');
 console.log('checkpoint claims only; full register refinement/validity and SEC remain open');

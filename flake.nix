@@ -151,7 +151,7 @@
       # One register proof derivation per argument list. The full gate (no arguments) stays the
       # local `nix flake check`; CI builds the mode shards in parallel, each after its own positive.
       registerShards = 4;
-      mkRegisterProof = name: args: pkgs.runCommand "nickel-register-proofs${name}" {
+      mkRegisterProof = name: extra: args: pkgs.runCommand "nickel-register-proofs${name}" {
         nativeBuildInputs = tools;
       } ''
         export HOME="$TMPDIR/home"
@@ -162,14 +162,15 @@
         ${modelEnv}
         export NICKEL_HAX_BIN="${haxBin}/bin/cargo-hax"
         export NICKEL_FSTAR_MODEL_CACHE="${models}"
-        node scripts/check-register-proofs.mjs "$out"${pkgs.lib.optionalString (args != [ ]) " ${pkgs.lib.escapeShellArgs args}"}
+${extra}        node scripts/check-register-proofs.mjs "$out"${pkgs.lib.optionalString (args != [ ]) " ${pkgs.lib.escapeShellArgs args}"}
       '';
-      registerProof = mkRegisterProof "" [ ];
+      registerProof = mkRegisterProof "" "" [ ];
       registerShardChecks = builtins.listToAttrs (builtins.genList (i: {
         name = "register-proofs-shard-${toString i}";
-        value = mkRegisterProof "-shard-${toString i}" [ "shard:${toString i}/${toString registerShards}" ];
+        value = mkRegisterProof "-shard-${toString i}" "" [ "shard:${toString i}/${toString registerShards}" ];
       }) registerShards);
-      registerShardCoverage = mkRegisterProof "-shard-coverage" [ "shard-coverage:${toString registerShards}" ];
+      # Checks the gate's partition and that ci.yml lists exactly register-proofs-shard-0..n-1.
+      registerShardCoverage = mkRegisterProof "-shard-coverage" "        export NICKEL_CI_WORKFLOW=${./.github/workflows/ci.yml}\n" [ "shard-coverage:${toString registerShards}" ];
       editReferenceSource = pkgs.lib.fileset.toSource {
         root = ./.;
         fileset = pkgs.lib.fileset.unions [
