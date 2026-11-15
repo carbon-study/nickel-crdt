@@ -839,3 +839,129 @@ proof write_counted_meaning(before: Native.t_Replica, key: u64, value: Alloc.Vec
     Tactics.smt_sync'(1, 1)
   }
 }
+
+// ---------------------------------------------------------------- public callers: no-edit converse
+// A no-edit write (Ok None) happened only because the value fits and equals the pre-write read; the
+// whole replica is unchanged.
+proof noedit_write_is_equal_value(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  gives forall(next: Native.t_Replica) . Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_None)) ==>
+    (next == before and Seq.length(Alloc.Vec.impl_1__as_slice(value)) <= v(before.f_limits.f_value_bytes) and
+     Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key))))
+{
+  Nickel.Register.bytes_equal_exact(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key)));
+  match Core_models.Num.impl_u64__checked_add(before.f_next_counter, mk_u64(1)) {
+    Option.Option_None => {
+      assert(forall(next: Native.t_Replica) . Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_None)) ==>
+    (next == before and Seq.length(Alloc.Vec.impl_1__as_slice(value)) <= v(before.f_limits.f_value_bytes) and
+     Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key))))) by {
+        Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+        Tactics.prune("Nickel_crdt.Event_layer.frontier");
+        Tactics.prune("Nickel_crdt.Register.next_lamport");
+        Tactics.prune("Nickel_crdt.Register.bytes_equal");
+        Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+        Tactics.prune("Nickel.Register.bytes_same");
+        Tactics.prune("Nickel.Register.bytes_equal_exact");
+        Tactics.smt_sync'(1, 1)
+      }
+    },
+    Option.Option_Some(next) => match Nickel_crdt.Event_layer.frontier(Alloc.Vec.impl_1__as_slice(before.f_facts), Native.v_OPS._1) {
+      Result.Result_Err(_) => {
+        assert(forall(next: Native.t_Replica) . Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_None)) ==>
+    (next == before and Seq.length(Alloc.Vec.impl_1__as_slice(value)) <= v(before.f_limits.f_value_bytes) and
+     Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key))))) by {
+          Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+          Tactics.prune("Nickel_crdt.Event_layer.frontier");
+          Tactics.prune("Nickel_crdt.Register.next_lamport");
+          Tactics.prune("Nickel_crdt.Register.bytes_equal");
+          Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+          Tactics.prune("Nickel.Register.bytes_same");
+          Tactics.prune("Nickel.Register.bytes_equal_exact");
+          Tactics.smt_sync'(1, 1)
+        }
+      },
+      Result.Result_Ok(parents) => match Native.next_lamport(Alloc.Vec.impl_1__as_slice(before.f_facts)) {
+        Result.Result_Err(_) => {
+          assert(forall(next: Native.t_Replica) . Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_None)) ==>
+    (next == before and Seq.length(Alloc.Vec.impl_1__as_slice(value)) <= v(before.f_limits.f_value_bytes) and
+     Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key))))) by {
+            Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+            Tactics.prune("Nickel_crdt.Event_layer.frontier");
+            Tactics.prune("Nickel_crdt.Register.next_lamport");
+            Tactics.prune("Nickel_crdt.Register.bytes_equal");
+            Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+            Tactics.prune("Nickel.Register.bytes_same");
+            Tactics.prune("Nickel.Register.bytes_equal_exact");
+            Tactics.smt_sync'(1, 1)
+          }
+        },
+        Result.Result_Ok(clock) => {
+          assert(forall(next: Native.t_Replica) . Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_None)) ==>
+    (next == before and Seq.length(Alloc.Vec.impl_1__as_slice(value)) <= v(before.f_limits.f_value_bytes) and
+     Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key))))) by {
+            Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+            Tactics.prune("Nickel_crdt.Event_layer.frontier");
+            Tactics.prune("Nickel_crdt.Register.next_lamport");
+            Tactics.prune("Nickel_crdt.Register.bytes_equal");
+            Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+            Tactics.prune("Nickel.Register.bytes_same");
+            Tactics.prune("Nickel.Register.bytes_equal_exact");
+            Tactics.smt_sync'(1, 1)
+          }
+        }
+      }
+    }
+  }
+}
+proof bytes_same_trans(a: t_Slice(u8), b: t_Slice(u8), c: t_Slice(u8)): unit
+  takes Nickel.Register.bytes_same(a, b) and Nickel.Register.bytes_same(b, c)
+  gives Nickel.Register.bytes_same(a, c)
+{ () }
+// The no-edit converse for a public replica: a no-edit write leaves the replica unchanged, and its
+// value has the same bytes as every causal read of the key (so it is THE visible value).
+proof write_noedit_meaning(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  takes public_history(before)
+  gives forall(next: Native.t_Replica, x: t_Slice(u8)) .
+    (Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_None)) and
+     causal_read(Alloc.Vec.impl_1__as_slice(before.f_facts), key, Alloc.Vec.impl_1__as_slice(before.f_initial), x)) ==>
+    (next == before and Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), x))
+{
+  noedit_write_is_equal_value(before, key, value);
+  proof each(next: Native.t_Replica, x: t_Slice(u8)): unit
+    takes Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_None))
+    takes causal_read(Alloc.Vec.impl_1__as_slice(before.f_facts), key, Alloc.Vec.impl_1__as_slice(before.f_initial), x)
+    gives next == before and Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), x)
+  {
+    public_read_is_the_causal_read(before, key, x);
+    assert(Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key))) and
+      Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key)), x)) by {
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+      Tactics.prune("Nickel_crdt.Register.read_history");
+      Tactics.prune("Nickel_crdt.Register.winner");
+      Tactics.prune("Nickel.Register.bytes_same");
+      Tactics.prune("Nickel.RegisterHistory.causal_read");
+      Tactics.prune("Nickel.RegisterPublic.public_history");
+      Tactics.smt_sync'(1, 1)
+    };
+    bytes_same_trans(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key)), x);
+    assert(next == before and Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), x)) by {
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+      Tactics.prune("Nickel.Register.bytes_same");
+      Tactics.prune("Nickel.RegisterHistory.causal_read");
+      Tactics.prune("Nickel.RegisterPublic.public_history");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each));
+  assert(forall(next: Native.t_Replica, x: t_Slice(u8)) .
+    (Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_None)) and
+     causal_read(Alloc.Vec.impl_1__as_slice(before.f_facts), key, Alloc.Vec.impl_1__as_slice(before.f_initial), x)) ==>
+    (next == before and Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), x))) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+    Tactics.prune("Nickel.Register.bytes_same");
+    Tactics.prune("Nickel.RegisterHistory.causal_read");
+    Tactics.prune("Nickel.RegisterPublic.public_history");
+    Tactics.smt_sync'(1, 1)
+  }
+}
