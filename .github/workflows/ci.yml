@@ -56,7 +56,7 @@ jobs:
   # see check-register-proofs.mjs): each shard runs its own positive and every
   # negative mode index k with k mod n == i, so the shards together run every
   # negative exactly once. The list must match registerShards in flake.nix; the
-  # register-proofs-shard-0 job builds register-proofs-shard-coverage, which checks
+  # proofs-core-a job builds register-proofs-shard-coverage, which checks
   # the gate's partition and this file's exact shard list.
   scaffold:
     name: ${{ matrix.target }}
@@ -100,7 +100,8 @@ jobs:
           shards=$(nix eval --json .#packages.aarch64-linux --apply 'p: builtins.length (builtins.filter (n: builtins.match "proofs-shard-[0-9]+" n != null) (builtins.attrNames p))')
           test "$shards" = 3 || { echo "flake exposes $shards proof shards; ci.yml lists 3"; exit 1; }
       - name: register shard coverage
-        if: matrix.target == 'register-proofs-shard-0'
+        # Runs on an independent job, so omitting any register shard cannot skip this check.
+        if: matrix.target == 'proofs-core-a'
         run: |
           # The coverage derivation checks the gate's partition for registerShards and that this
           # file's matrix lists exactly register-proofs-shard-0..registerShards-1, each once.
