@@ -58,6 +58,7 @@
     "mutation-scope.mjs",
     "negative-proof-evidence.mjs",
     "proof-cache.mjs",
-    "proof-reform.mjs"
+    "proof-reform.mjs",
+    "register-control-plans.mjs"
   ]
 }
