@@ -5,6 +5,7 @@ import Nickel.EventGraph
 import Nickel.LoopUtil
 import Nickel.Vector
 import Native = Nickel_crdt.Event_layer
+import Flow = Core_models.Ops.Control_flow
 import Seq = FStar.Seq
 import Option = Core_models.Option
 import Result = Core_models.Result
@@ -846,3 +847,231 @@ proof empty_frontier_is_empty<f: Type0, i: Type0, e: Type0>(facts: t_Slice(f), o
   takes Seq.length(facts) == 0
   gives Native.frontier(facts, ops) == Result.Result_Ok(Alloc.Vec.impl__new(()))
 { () }
+
+// An id is mentioned by some parent list in the retained input prefix.
+// This is the supplied comparison relation, not a native scan or an equality axiom.
+function mentioned_before<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), wanted: i,
+  ops: Nickel.EventGraph.graph_ops(f, i, e), at: nat): Type0 {
+  exists(j: nat) . j < at and j < Seq.length(input) and
+    Nickel.EventGraph.member(ops._1._2(Seq.index(input, j)), wanted, ops._1._3)
+}
+proof mentioned_next<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), wanted: i,
+  ops: Nickel.EventGraph.graph_ops(f, i, e), at: nat where at < Seq.length(input)): unit
+  gives (mentioned_before(input, wanted, ops, at + 1) <==>
+    (mentioned_before(input, wanted, ops, at) or Nickel.EventGraph.member(ops._1._2(Seq.index(input, at)), wanted, ops._1._3)))
+{ () }
+function parent_scan_state<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), wanted: i,
+  ops: Nickel.EventGraph.graph_ops(f, i, e), at: nat, found: bool): Type0 {
+  (found == true <==> mentioned_before(input, wanted, ops, at))
+}
+// Exact interpretation of the anonymous inner callback. Its equation is tied to the
+// actual has_id call, while the result names only the independent membership relation.
+proof parent_scan_is_exact<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), wanted: i,
+  ops: Nickel.EventGraph.graph_ops(f, i, e),
+  inv: Nickel.LoopUtil.total_invariant(bool, mk_usize(0), Core_models.Slice.impl__len(input)),
+  step: Nickel.LoopUtil.plain_callback(bool, mk_usize(0), Core_models.Slice.impl__len(input))): unit
+  takes forall(found: bool, at: Nickel.LoopUtil.position(mk_usize(0), Core_models.Slice.impl__len(input))) . v(at) < Seq.length(input) ==>
+    step(found, at) == (if Native.has_id(ops._1._2(Rust_primitives.Slice.slice_index(input, at)), wanted, ops) { true } else { found })
+  gives parent_scan_state(input, wanted, ops, Seq.length(input),
+    Rust_primitives.Hax.Folds.fold_range(mk_usize(0), Core_models.Slice.impl__len(input), inv, false, step))
+{
+  proof each(found: bool, at: Nickel.LoopUtil.position(mk_usize(0), Core_models.Slice.impl__len(input))): unit
+    takes v(at) < Seq.length(input) and parent_scan_state(input, wanted, ops, v(at), found)
+    gives parent_scan_state(input, wanted, ops, v(at) + 1, step(found, at))
+  {
+    Nickel.EventGraph.membership_is_exact(ops._1._2(Rust_primitives.Slice.slice_index(input, at)), wanted, ops);
+    mentioned_next(input, wanted, ops, v(at));
+    assert(parent_scan_state(input, wanted, ops, v(at) + 1, step(found, at))) by {
+      Tactics.prune("Nickel_crdt.Event_layer.has_id");
+      Tactics.prune("Nickel.EventGraph.membership_is_exact");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each));
+  Nickel.LoopUtil.plain_preserve(mk_usize(0), Core_models.Slice.impl__len(input), inv, false, step,
+    ((at: nat, found: bool) => parent_scan_state(input, wanted, ops, at, found)),
+    ((found: bool) => parent_scan_state(input, wanted, ops, Seq.length(input), found)));
+  assert(parent_scan_state(input, wanted, ops, Seq.length(input),
+    Rust_primitives.Hax.Folds.fold_range(mk_usize(0), Core_models.Slice.impl__len(input), inv, false, step))) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// Exact ordered filtering, including repeated ids: append the id at this position iff
+// no retained parent list mentions it. No uniqueness or comparator coherence is needed.
+function! frontier_prefix<f: Type0, i: Type0, e: Type0>(input: t_Slice(f),
+  ops: Nickel.EventGraph.graph_ops(f, i, e), at: nat where at <= Seq.length(input), out: Seq.seq(i)): Type0
+  decreases at
+{
+  if at ==? 0 { out == Seq.empty } else {
+    const wanted = ops._1._1(Seq.index(input, at - 1));
+    (mentioned_before(input, wanted, ops, Seq.length(input)) and frontier_prefix(input, ops, at - 1, out)) or
+    (not mentioned_before(input, wanted, ops, Seq.length(input)) and
+      (exists(previous: Seq.seq(i)) . frontier_prefix(input, ops, at - 1, previous) and
+        out == Seq.append(previous, Seq.create(1, wanted))))
+  }
+}
+function frontier_state<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e), at: nat, out: vector(i)): Type0 {
+  at <= Seq.length(input) and Seq.length(Alloc.Vec.impl_1__as_slice(out)) <= at and
+    frontier_prefix(input, ops, at, Alloc.Vec.impl_1__as_slice(out))
+}
+proof frontier_push<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e),
+  at: nat where at < Seq.length(input), out: vector(i)): unit
+  takes frontier_state(input, ops, at, out)
+  takes not mentioned_before(input, ops._1._1(Seq.index(input, at)), ops, Seq.length(input))
+  gives forall(next: vector(i)) . Native.push(out, ops._1._1(Seq.index(input, at)), ops._2._1) == (next, Result.Result_Ok(())) ==>
+    frontier_state(input, ops, at + 1, next)
+  gives exists(next: vector(i)) . Native.push(out, ops._1._1(Seq.index(input, at)), ops._2._1) == (next, Result.Result_Ok(()))
+{
+  push_is_exact(out, ops._1._1(Seq.index(input, at)), ops._2._1);
+  assert(v(Alloc.Vec.impl_1__len(out)) < max_usize);
+  assert((forall(next: vector(i)) . Native.push(out, ops._1._1(Seq.index(input, at)), ops._2._1) == (next, Result.Result_Ok(())) ==>
+    frontier_state(input, ops, at + 1, next)) and
+    (exists(next: vector(i)) . Native.push(out, ops._1._1(Seq.index(input, at)), ops._2._1) == (next, Result.Result_Ok(())))) by {
+    Tactics.prune("Nickel_crdt.Event_layer.push");
+    Tactics.prune("Nickel.Canonical.push_is_exact");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// The outer iteration consumes the inner scan result and the checked push contract.
+proof frontier_iteration_is_safe<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e),
+  at: nat where at < Seq.length(input), out: vector(i), found: bool): unit
+  takes frontier_state(input, ops, at, out)
+  takes parent_scan_state(input, ops._1._1(Seq.index(input, at)), ops, Seq.length(input), found)
+  gives Nickel.LoopUtil.result_step(((n: nat, state: vector(i)) => frontier_state(input, ops, n, state)),
+    ((state: vector(i)) => state), ((state: vector(i)) => frontier_state(input, ops, Seq.length(input), state)), ((_: e) => Prims.l_False), at,
+    (if Rust_primitives.Integers.op_Tilde_Dot(found) {
+      match Native.push(out, ops._1._1(Seq.index(input, at)), ops._2._1) {
+        (next, Result.Result_Ok(_)) => Flow.ControlFlow_Continue(next),
+        (_, Result.Result_Err(error)) => Flow.ControlFlow_Break(Flow.ControlFlow_Break(Result.Result_Err(error))),
+      }
+    } else { Flow.ControlFlow_Continue(out) }))
+{
+  if found {
+    assert(Nickel.LoopUtil.result_step(((n: nat, state: vector(i)) => frontier_state(input, ops, n, state)),
+      ((state: vector(i)) => state), ((state: vector(i)) => frontier_state(input, ops, Seq.length(input), state)), ((_: e) => Prims.l_False), at,
+      (if Rust_primitives.Integers.op_Tilde_Dot(found) {
+        match Native.push(out, ops._1._1(Seq.index(input, at)), ops._2._1) {
+          (next, Result.Result_Ok(_)) => Flow.ControlFlow_Continue(next),
+          (_, Result.Result_Err(error)) => Flow.ControlFlow_Break(Flow.ControlFlow_Break(Result.Result_Err(error))),
+        }
+      } else { Flow.ControlFlow_Continue(out) }))) by {
+      Tactics.prune("Nickel_crdt.Event_layer.push");
+      Tactics.prune("Nickel.Canonical.push_is_exact");
+      Tactics.smt_sync'(1, 1)
+    }
+  } else {
+    frontier_push(input, ops, at, out);
+    assert(Nickel.LoopUtil.result_step(((n: nat, state: vector(i)) => frontier_state(input, ops, n, state)),
+      ((state: vector(i)) => state), ((state: vector(i)) => frontier_state(input, ops, Seq.length(input), state)), ((_: e) => Prims.l_False), at,
+      (if Rust_primitives.Integers.op_Tilde_Dot(found) {
+        match Native.push(out, ops._1._1(Seq.index(input, at)), ops._2._1) {
+          (next, Result.Result_Ok(_)) => Flow.ControlFlow_Continue(next),
+          (_, Result.Result_Err(error)) => Flow.ControlFlow_Break(Flow.ControlFlow_Break(Result.Result_Err(error))),
+        }
+      } else { Flow.ControlFlow_Continue(out) }))) by {
+      Tactics.prune("Nickel_crdt.Event_layer.push");
+      Tactics.prune("Nickel.Canonical.push_is_exact");
+      Tactics.smt_sync'(1, 1)
+    }
+  }
+}
+// The actual private native scan, not a separately executed reference scan.
+proof referenced_by_any_is_exact<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), fact: f,
+  ops: Nickel.EventGraph.graph_ops(f, i, e)): unit
+  gives parent_scan_state(input, ops._1._1(fact), ops, Seq.length(input), Native.referenced_by_any(input, fact, ops))
+{
+  proof scan(inv: Nickel.LoopUtil.total_invariant(bool, mk_usize(0), Core_models.Slice.impl__len(input)),
+    step: Nickel.LoopUtil.plain_callback(bool, mk_usize(0), Core_models.Slice.impl__len(input))): unit
+    takes forall(found: bool, at: Nickel.LoopUtil.position(mk_usize(0), Core_models.Slice.impl__len(input))) . v(at) < Seq.length(input) ==>
+      step(found, at) == (if Native.has_id(ops._1._2(Rust_primitives.Slice.slice_index(input, at)), ops._1._1(fact), ops) { true } else { found })
+    gives parent_scan_state(input, ops._1._1(fact), ops, Seq.length(input),
+      Rust_primitives.Hax.Folds.fold_range(mk_usize(0), Core_models.Slice.impl__len(input), inv, false, step))
+  { parent_scan_is_exact(input, ops._1._1(fact), ops, inv, step) };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(scan));
+  proof membership_shape(item: f, wanted: i): unit
+    gives Native.has_id(ops._1._2(item), wanted, ops) == true or Native.has_id(ops._1._2(item), wanted, ops) == false
+  { () };
+  FStar.Classical.forall_intro_2(membership_shape);
+  assert(parent_scan_state(input, ops._1._1(fact), ops, Seq.length(input), Native.referenced_by_any(input, fact, ops))) by {
+    Tactics.prune("Nickel_crdt.Event_layer.has_id");
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range");
+    Tactics.prune("Nickel.Canonical.parent_scan_state");
+    Tactics.prune("Nickel.Canonical.parent_scan_is_exact");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// The outer callback consumes the checked scan and append laws at the actual arguments.
+proof frontier_scanned_iteration<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e),
+  out: vector(i), at: Nickel.LoopUtil.position(mk_usize(0), Core_models.Slice.impl__len(input))): unit
+  takes frontier_state(input, ops, v(at), out)
+  gives Nickel.LoopUtil.result_step(((n: nat, state: vector(i)) => frontier_state(input, ops, n, state)),
+    ((state: vector(i)) => state), ((state: vector(i)) => frontier_state(input, ops, Seq.length(input), state)), ((_: e) => Prims.l_False), v(at),
+    (if Rust_primitives.Integers.op_Tilde_Dot(Native.referenced_by_any(input, Rust_primitives.Notations.op_String_Access(input, (at : usize)), ops)) {
+      match Native.push(out, ops._1._1(Rust_primitives.Notations.op_String_Access(input, (at : usize))), ops._2._1) {
+        (next, Result.Result_Ok(_)) => Flow.ControlFlow_Continue(next),
+        (_, Result.Result_Err(error)) => Flow.ControlFlow_Break(Flow.ControlFlow_Break(Result.Result_Err(error))),
+      }
+    } else { Flow.ControlFlow_Continue(out) }))
+{
+  const fact = Rust_primitives.Notations.op_String_Access(input, (at : usize));
+  Nickel.Vector.slice_index(input, at);
+  assert(fact == Seq.index(input, v(at)));
+  referenced_by_any_is_exact(input, fact, ops);
+  assert(parent_scan_state(input, ops._1._1(fact), ops, Seq.length(input), Native.referenced_by_any(input, fact, ops))) by {
+    Tactics.prune("Nickel_crdt.Event_layer.referenced_by_any");
+    Tactics.prune("Nickel.Canonical.referenced_by_any_is_exact");
+    Tactics.prune("Nickel.Canonical.parent_scan_state");
+    Tactics.smt_sync'(1, 1)
+  };
+  frontier_iteration_is_safe(input, ops, v(at), out, Native.referenced_by_any(input, fact, ops));
+  assert(Nickel.LoopUtil.result_step(((n: nat, state: vector(i)) => frontier_state(input, ops, n, state)),
+    ((state: vector(i)) => state), ((state: vector(i)) => frontier_state(input, ops, Seq.length(input), state)), ((_: e) => Prims.l_False), v(at),
+    (if Rust_primitives.Integers.op_Tilde_Dot(Native.referenced_by_any(input, Rust_primitives.Notations.op_String_Access(input, (at : usize)), ops)) {
+      match Native.push(out, ops._1._1(Rust_primitives.Notations.op_String_Access(input, (at : usize))), ops._2._1) {
+        (next, Result.Result_Ok(_)) => Flow.ControlFlow_Continue(next),
+        (_, Result.Result_Err(error)) => Flow.ControlFlow_Break(Flow.ControlFlow_Break(Result.Result_Err(error))),
+      }
+    } else { Flow.ControlFlow_Continue(out) }))) by {
+    Tactics.prune("Nickel_crdt.Event_layer.referenced_by_any");
+    Tactics.prune("Nickel_crdt.Event_layer.push");
+    Tactics.prune("Nickel.Canonical.frontier_iteration_is_safe");
+    Tactics.prune("Nickel.Canonical.push_is_exact");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof frontier_is_nonparent_filter<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e)): unit
+  gives exists(out: vector(i)) . Native.frontier(input, ops) == Result.Result_Ok(out) and
+    frontier_state(input, ops, Seq.length(input), out)
+{
+  proof scan_shape(fact: f): unit
+    gives Native.referenced_by_any(input, fact, ops) == true or Native.referenced_by_any(input, fact, ops) == false
+  { () };
+  FStar.Classical.forall_intro(scan_shape);
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(frontier_scanned_iteration(input, ops)));
+  Nickel.Vector.empty_vector_contents<#i>();
+  assert(frontier_state(input, ops, 0, Alloc.Vec.impl__new(())));
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(input),
+    ((at: nat, out: vector(i)) => frontier_state(input, ops, at, out)),
+    ((out: vector(i)) => out), ((out: vector(i)) => frontier_state(input, ops, Seq.length(input), out)), ((_: e) => Prims.l_False));
+  assert(Nickel.LoopUtil.result_safe(((out: vector(i)) => frontier_state(input, ops, Seq.length(input), out)), ((_: e) => Prims.l_False), Native.frontier(input, ops))) by {
+    Tactics.prune("Nickel_crdt.Event_layer.referenced_by_any");
+    Tactics.prune("Nickel_crdt.Event_layer.push");
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.smt_sync'(1, 1)
+  };
+  match Native.frontier(input, ops) {
+    Result.Result_Ok(out) => {
+      assert(frontier_state(input, ops, Seq.length(input), out)) by {
+        Tactics.prune("Nickel_crdt.Event_layer.frontier");
+        Tactics.smt_sync'(1, 1)
+      }
+    },
+    Result.Result_Err(_) => {
+      assert(Prims.l_False) by {
+        Tactics.prune("Nickel_crdt.Event_layer.frontier");
+        Tactics.smt_sync'(1, 1)
+      }
+    },
+  }
+}

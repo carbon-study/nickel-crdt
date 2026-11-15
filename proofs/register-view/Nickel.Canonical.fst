@@ -17,6 +17,8 @@ open Nickel.Vector
 
 module Native = Nickel_crdt.Event_layer
 
+module Flow = Core_models.Ops.Control_flow
+
 module Seq = FStar.Seq
 
 module Option = Core_models.Option
@@ -565,3 +567,137 @@ let canonical_succeeds_for_unique_ids (#f: Type0) (#i: Type0) (#e: Type0) (input
 
 let empty_frontier_is_empty (#f: Type0) (#i: Type0) (#e: Type0) (facts: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (requires Seq.length facts == 0) (ensures Native.frontier facts ops == Result.Result_Ok (Alloc.Vec.impl__new ())) =
   ()
+
+let mentioned_before (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (wanted: i) (ops: Nickel.EventGraph.graph_ops f i e) (at: nat) : Type0 =
+  exists(j: nat). Prims.l_and (Prims.l_and (j < at) (j < Seq.length input)) (Nickel.EventGraph.member (ops._1._2 (Seq.index input j)) wanted ops._1._3)
+
+let mentioned_next (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (wanted: i) (ops: Nickel.EventGraph.graph_ops f i e) (at: nat{at < Seq.length input}) : Lemma (ensures mentioned_before input wanted ops (at + 1) <==> Prims.l_or (mentioned_before input wanted ops at) (Nickel.EventGraph.member (ops._1._2 (Seq.index input at)) wanted ops._1._3)) =
+  ()
+
+let parent_scan_state (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (wanted: i) (ops: Nickel.EventGraph.graph_ops f i e) (at: nat) (found: bool) : Type0 =
+  found == true <==> mentioned_before input wanted ops at
+
+let parent_scan_is_exact (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (wanted: i) (ops: Nickel.EventGraph.graph_ops f i e) (inv: Nickel.LoopUtil.total_invariant bool (mk_usize 0) (Core_models.Slice.impl__len input)) (step: Nickel.LoopUtil.plain_callback bool (mk_usize 0) (Core_models.Slice.impl__len input)) : Lemma (requires forall(found: bool) (at: Nickel.LoopUtil.position (mk_usize 0) (Core_models.Slice.impl__len input)). v at < Seq.length input ==> step found at == (if Native.has_id (ops._1._2 (Rust_primitives.Slice.slice_index input at)) wanted ops then
+  begin true end
+else
+  begin found end)) (ensures parent_scan_state input wanted ops (Seq.length input) (Rust_primitives.Hax.Folds.fold_range (mk_usize 0) (Core_models.Slice.impl__len input) inv false step)) =
+  let each (found: bool) (at: Nickel.LoopUtil.position (mk_usize 0) (Core_models.Slice.impl__len input)) : Lemma (requires Prims.l_and (v at < Seq.length input) (parent_scan_state input wanted ops (v at) found)) (ensures parent_scan_state input wanted ops (v at + 1) (step found at)) =
+    Nickel.EventGraph.membership_is_exact (ops._1._2 (Rust_primitives.Slice.slice_index input at)) wanted ops;
+    mentioned_next input wanted ops (v at);
+    assert (parent_scan_state input wanted ops (v at + 1) (step found at)) by (
+      Tactics.prune "Nickel_crdt.Event_layer.has_id";
+      Tactics.prune "Nickel.EventGraph.membership_is_exact";
+      Tactics.smt_sync' 1 1
+    ) in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each);
+  Nickel.LoopUtil.plain_preserve (mk_usize 0) (Core_models.Slice.impl__len input) inv false step (fun (at: nat) (found: bool) -> parent_scan_state input wanted ops at found) (fun (found: bool) -> parent_scan_state input wanted ops (Seq.length input) found);
+  assert (parent_scan_state input wanted ops (Seq.length input) (Rust_primitives.Hax.Folds.fold_range (mk_usize 0) (Core_models.Slice.impl__len input) inv false step)) by (
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range";
+    Tactics.smt_sync' 1 1
+  )
+
+let rec frontier_prefix (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) (at: nat{at <= Seq.length input}) (out: Seq.seq i) : Tot Type0 (decreases at) =
+  if at ==? 0 then
+    begin out == Seq.empty end
+  else
+    begin let wanted = ops._1._1 (Seq.index input (at - 1)) in
+    Prims.l_or (Prims.l_and (mentioned_before input wanted ops (Seq.length input)) (frontier_prefix input ops (at - 1) out)) (Prims.l_and (Prims.l_not (mentioned_before input wanted ops (Seq.length input))) (exists(previous: Seq.seq i). Prims.l_and (frontier_prefix input ops (at - 1) previous) (out == Seq.append previous (Seq.create 1 wanted)))) end
+
+let frontier_state (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) (at: nat) (out: vector i) : Type0 =
+  Prims.l_and (Prims.l_and (at <= Seq.length input) (Seq.length (Alloc.Vec.impl_1__as_slice out) <= at)) (frontier_prefix input ops at (Alloc.Vec.impl_1__as_slice out))
+
+let frontier_push (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) (at: nat{at < Seq.length input}) (out: vector i) : Lemma (requires (frontier_state input ops at out /\ Prims.l_not (mentioned_before input (ops._1._1 (Seq.index input at)) ops (Seq.length input)))) (ensures ((forall(next: vector i). Native.push out (ops._1._1 (Seq.index input at)) ops._2._1 == (next, Result.Result_Ok ()) ==> frontier_state input ops (at + 1) next) /\ (exists(next: vector i). Native.push out (ops._1._1 (Seq.index input at)) ops._2._1 == (next, Result.Result_Ok ())))) =
+  push_is_exact out (ops._1._1 (Seq.index input at)) ops._2._1;
+  assert (v (Alloc.Vec.impl_1__len out) < max_usize);
+  assert (Prims.l_and (forall(next: vector i). Native.push out (ops._1._1 (Seq.index input at)) ops._2._1 == (next, Result.Result_Ok ()) ==> frontier_state input ops (at + 1) next) (exists(next: vector i). Native.push out (ops._1._1 (Seq.index input at)) ops._2._1 == (next, Result.Result_Ok ()))) by (
+    Tactics.prune "Nickel_crdt.Event_layer.push";
+    Tactics.prune "Nickel.Canonical.push_is_exact";
+    Tactics.smt_sync' 1 1
+  )
+
+let frontier_iteration_is_safe (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) (at: nat{at < Seq.length input}) (out: vector i) (found: bool) : Lemma (requires (frontier_state input ops at out /\ parent_scan_state input (ops._1._1 (Seq.index input at)) ops (Seq.length input) found)) (ensures Nickel.LoopUtil.result_step (fun (n: nat) (state: vector i) -> frontier_state input ops n state) (fun (state: vector i) -> state) (fun (state: vector i) -> frontier_state input ops (Seq.length input) state) (fun (_: e) -> Prims.l_False) at (if Rust_primitives.Integers.op_Tilde_Dot found then
+  begin match Native.push out (ops._1._1 (Seq.index input at)) ops._2._1 with | (next, Result.Result_Ok _) -> begin Flow.ControlFlow_Continue next end | (_, Result.Result_Err error) -> begin Flow.ControlFlow_Break (Flow.ControlFlow_Break (Result.Result_Err error)) end end
+else
+  begin Flow.ControlFlow_Continue out end)) =
+  if found then
+    begin assert (Nickel.LoopUtil.result_step (fun (n: nat) (state: vector i) -> frontier_state input ops n state) (fun (state: vector i) -> state) (fun (state: vector i) -> frontier_state input ops (Seq.length input) state) (fun (_: e) -> Prims.l_False) at (if Rust_primitives.Integers.op_Tilde_Dot found then
+      begin match Native.push out (ops._1._1 (Seq.index input at)) ops._2._1 with | (next, Result.Result_Ok _) -> begin Flow.ControlFlow_Continue next end | (_, Result.Result_Err error) -> begin Flow.ControlFlow_Break (Flow.ControlFlow_Break (Result.Result_Err error)) end end
+    else
+      begin Flow.ControlFlow_Continue out end)) by (
+      Tactics.prune "Nickel_crdt.Event_layer.push";
+      Tactics.prune "Nickel.Canonical.push_is_exact";
+      Tactics.smt_sync' 1 1
+    ) end
+  else
+    begin frontier_push input ops at out;
+    assert (Nickel.LoopUtil.result_step (fun (n: nat) (state: vector i) -> frontier_state input ops n state) (fun (state: vector i) -> state) (fun (state: vector i) -> frontier_state input ops (Seq.length input) state) (fun (_: e) -> Prims.l_False) at (if Rust_primitives.Integers.op_Tilde_Dot found then
+      begin match Native.push out (ops._1._1 (Seq.index input at)) ops._2._1 with | (next, Result.Result_Ok _) -> begin Flow.ControlFlow_Continue next end | (_, Result.Result_Err error) -> begin Flow.ControlFlow_Break (Flow.ControlFlow_Break (Result.Result_Err error)) end end
+    else
+      begin Flow.ControlFlow_Continue out end)) by (
+      Tactics.prune "Nickel_crdt.Event_layer.push";
+      Tactics.prune "Nickel.Canonical.push_is_exact";
+      Tactics.smt_sync' 1 1
+    ) end
+
+let referenced_by_any_is_exact (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (fact: f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (ensures parent_scan_state input (ops._1._1 fact) ops (Seq.length input) (Native.referenced_by_any input fact ops)) =
+  let scan (inv: Nickel.LoopUtil.total_invariant bool (mk_usize 0) (Core_models.Slice.impl__len input)) (step: Nickel.LoopUtil.plain_callback bool (mk_usize 0) (Core_models.Slice.impl__len input)) : Lemma (requires forall(found: bool) (at: Nickel.LoopUtil.position (mk_usize 0) (Core_models.Slice.impl__len input)). v at < Seq.length input ==> step found at == (if Native.has_id (ops._1._2 (Rust_primitives.Slice.slice_index input at)) (ops._1._1 fact) ops then
+    begin true end
+  else
+    begin found end)) (ensures parent_scan_state input (ops._1._1 fact) ops (Seq.length input) (Rust_primitives.Hax.Folds.fold_range (mk_usize 0) (Core_models.Slice.impl__len input) inv false step)) = parent_scan_is_exact input (ops._1._1 fact) ops inv step in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 scan);
+  let membership_shape (item: f) (wanted: i) : Lemma (ensures Prims.l_or (Native.has_id (ops._1._2 item) wanted ops == true) (Native.has_id (ops._1._2 item) wanted ops == false)) = () in
+  FStar.Classical.forall_intro_2 membership_shape;
+  assert (parent_scan_state input (ops._1._1 fact) ops (Seq.length input) (Native.referenced_by_any input fact ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.has_id";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range";
+    Tactics.prune "Nickel.Canonical.parent_scan_state";
+    Tactics.prune "Nickel.Canonical.parent_scan_is_exact";
+    Tactics.smt_sync' 1 1
+  )
+
+let frontier_scanned_iteration (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) (out: vector i) (at: Nickel.LoopUtil.position (mk_usize 0) (Core_models.Slice.impl__len input)) : Lemma (requires frontier_state input ops (v at) out) (ensures Nickel.LoopUtil.result_step (fun (n: nat) (state: vector i) -> frontier_state input ops n state) (fun (state: vector i) -> state) (fun (state: vector i) -> frontier_state input ops (Seq.length input) state) (fun (_: e) -> Prims.l_False) (v at) (if Rust_primitives.Integers.op_Tilde_Dot (Native.referenced_by_any input (Rust_primitives.Notations.op_String_Access input ((at <: usize))) ops) then
+  begin match Native.push out (ops._1._1 (Rust_primitives.Notations.op_String_Access input ((at <: usize)))) ops._2._1 with | (next, Result.Result_Ok _) -> begin Flow.ControlFlow_Continue next end | (_, Result.Result_Err error) -> begin Flow.ControlFlow_Break (Flow.ControlFlow_Break (Result.Result_Err error)) end end
+else
+  begin Flow.ControlFlow_Continue out end)) =
+  let fact = Rust_primitives.Notations.op_String_Access input ((at <: usize)) in
+  Nickel.Vector.slice_index input at;
+  assert (fact == Seq.index input (v at));
+  referenced_by_any_is_exact input fact ops;
+  assert (parent_scan_state input (ops._1._1 fact) ops (Seq.length input) (Native.referenced_by_any input fact ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.referenced_by_any";
+    Tactics.prune "Nickel.Canonical.referenced_by_any_is_exact";
+    Tactics.prune "Nickel.Canonical.parent_scan_state";
+    Tactics.smt_sync' 1 1
+  );
+  frontier_iteration_is_safe input ops (v at) out (Native.referenced_by_any input fact ops);
+  assert (Nickel.LoopUtil.result_step (fun (n: nat) (state: vector i) -> frontier_state input ops n state) (fun (state: vector i) -> state) (fun (state: vector i) -> frontier_state input ops (Seq.length input) state) (fun (_: e) -> Prims.l_False) (v at) (if Rust_primitives.Integers.op_Tilde_Dot (Native.referenced_by_any input (Rust_primitives.Notations.op_String_Access input ((at <: usize))) ops) then
+    begin match Native.push out (ops._1._1 (Rust_primitives.Notations.op_String_Access input ((at <: usize)))) ops._2._1 with | (next, Result.Result_Ok _) -> begin Flow.ControlFlow_Continue next end | (_, Result.Result_Err error) -> begin Flow.ControlFlow_Break (Flow.ControlFlow_Break (Result.Result_Err error)) end end
+  else
+    begin Flow.ControlFlow_Continue out end)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.referenced_by_any";
+    Tactics.prune "Nickel_crdt.Event_layer.push";
+    Tactics.prune "Nickel.Canonical.frontier_iteration_is_safe";
+    Tactics.prune "Nickel.Canonical.push_is_exact";
+    Tactics.smt_sync' 1 1
+  )
+
+let frontier_is_nonparent_filter (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (ensures exists(out: vector i). Prims.l_and (Native.frontier input ops == Result.Result_Ok out) (frontier_state input ops (Seq.length input) out)) =
+  let scan_shape (fact: f) : Lemma (ensures Prims.l_or (Native.referenced_by_any input fact ops == true) (Native.referenced_by_any input fact ops == false)) = () in
+  FStar.Classical.forall_intro scan_shape;
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 (frontier_scanned_iteration input ops));
+  Nickel.Vector.empty_vector_contents #i ();
+  assert (frontier_state input ops 0 (Alloc.Vec.impl__new ()));
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len input) (fun (at: nat) (out: vector i) -> frontier_state input ops at out) (fun (out: vector i) -> out) (fun (out: vector i) -> frontier_state input ops (Seq.length input) out) (fun (_: e) -> Prims.l_False);
+  assert (Nickel.LoopUtil.result_safe (fun (out: vector i) -> frontier_state input ops (Seq.length input) out) (fun (_: e) -> Prims.l_False) (Native.frontier input ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.referenced_by_any";
+    Tactics.prune "Nickel_crdt.Event_layer.push";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.smt_sync' 1 1
+  );
+  match Native.frontier input ops with | Result.Result_Ok out -> begin assert (frontier_state input ops (Seq.length input) out) by (
+    Tactics.prune "Nickel_crdt.Event_layer.frontier";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Err _ -> begin assert (Prims.l_False) by (
+    Tactics.prune "Nickel_crdt.Event_layer.frontier";
+    Tactics.smt_sync' 1 1
+  ) end

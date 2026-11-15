@@ -198,18 +198,25 @@ pub fn choose_ready<F, I, E>(facts: &[F], done: &[I], ops: &GraphOps<F, I, E>) -
     None
 }
 
+// Keep the complete scan and callback order; frontier consumes its boolean result.
+fn referenced_by_any<F, I, E>(facts: &[F], fact: &F, ops: &GraphOps<F, I, E>) -> bool {
+    let ((id, after, _, _, _, _), _) = *ops;
+    let mut child = false;
+    for j in 0..facts.len() {
+        let e = &facts[j];
+        if has_id(after(e), &id(fact), ops) {
+            child = true;
+        }
+    }
+    child
+}
+
 pub fn frontier<F, I, E>(facts: &[F], ops: &GraphOps<F, I, E>) -> Result<Vec<I>, E> {
-    let ((id, after, _, _, _, _), (internal, _)) = *ops;
+    let ((id, _, _, _, _, _), (internal, _)) = *ops;
     let mut out = Vec::new();
     for i in 0..facts.len() {
         let f = &facts[i];
-        let mut child = false;
-        for j in 0..facts.len() {
-            let e = &facts[j];
-            if has_id(after(e), &id(f), ops) {
-                child = true;
-            }
-        }
+        let child = referenced_by_any(facts, f, ops);
         if !child {
             push(&mut out, id(f), internal)?;
         }
