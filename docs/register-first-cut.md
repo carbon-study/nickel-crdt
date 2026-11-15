@@ -126,8 +126,23 @@ registers or another client adds a third proof chain, consolidate this boundary:
   packaged roots. Delete the duplicated chain only after the old concrete claims
   recheck through the common argument with the owning bodies withheld.
 
-This is the next reuse boundary, not an added single-write checkpoint gate or
-an implemented generic proof. It does not authorize a wholesale wrapper reform.
-The shared writer-validation loop is a further candidate; sharing it must keep
-its client policy/projection premises visible. A writer-stream predecessor rule
-is not an author-only Undo authorization rule, nor a device/owner mapping.
+The shared exact-past module also includes the writer-sequence slice: `validated_stream_checks`
+over the shared validation loop, and `streams_ok` and its preservation over an
+ID → (writer, counter) projection. Keep the actual client policy/projection
+premises visible and discharge the concrete instance bridges. A writer-stream
+predecessor rule is not an author-only Undo authorization rule, nor a
+device/owner mapping.
+
+The [follow-up assessment](https://discord.com/channels/1423457371052834828/1423457371954483214/1571564396528799784)
+and [coordinated scope](https://discord.com/channels/1423457371052834828/1423457371954483214/1571579109430001855)
+also require:
+
+- Report removed versus touched proof lines separately for text and register.
+  Moving a chain without retiring the second instance is not net deduplication.
+- Record each actual forward retirement and what was checked in
+  [shared-wrapper-retirement.md](shared-wrapper-retirement.md), as it happens.
+  A staged generic module alone does not retire the text forwards.
+
+Do this after single-write checkpoint acceptance and before multi-write registers
+or another client. It is not an added single-write checkpoint gate, an
+implemented generic proof or authorization for a wholesale wrapper reform.

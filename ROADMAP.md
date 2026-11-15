@@ -136,9 +136,8 @@ Close these dependencies before committing the corresponding engine behavior:
 1. **History continuation.** Compare consume/retain when a suppressed deletion
    becomes active again, including its interaction with redo and new work.
    Carry the approved keep/clear stack continuation. Distinguish an empty Undo,
-   an invisible
-   applied Undo, a blocked Redo and a rejected call. No automatic selective redo
-   follows from retaining skipped items.
+   an invisible applied Undo, a blocked Redo and a rejected call. No automatic
+   selective redo follows from retaining skipped items.
 2. **Restoration effects.** Carry forward the approved frozen observed masks,
    including the different outcomes when a concurrent deletion arrives
    before/after the press. An unseen concurrent deletion can hide the text
