@@ -323,6 +323,7 @@ let history_from_parts (before: Native.t_Replica) (offered: Nickel.Register.fact
     Tactics.prune "Nickel.RegisterValid.clocks_exact";
     Tactics.prune "Nickel.RegisterValid.values_changed";
     Tactics.prune "Nickel.RegisterValid.clock_exact_in";
+    Tactics.prune "Nickel.RegisterHistory.observations_ok";
     Tactics.smt_sync' 1 1
   )
 
