@@ -36,6 +36,16 @@ No register-budget harness is delivered by this candidate. The retained capacity
 tests use a text-only caller guard, not register engine Capacity outcomes.
 No automatic GC, winner-only compaction or buffering policy is selected.
 
+Each counted write deep-clones the current replica; its successful receive stages
+another replica clone and canonicalizes all retained facts. Facts retain both the
+new value and the observed value, as well as their parent IDs. Copy work per
+counted write therefore grows with retained history. For N accumulating counted
+writes whose value and observed byte strings are bounded by S bytes, the
+cumulative payload-byte copying component is O(N² · S), in addition to parent-ID
+copying and canonicalization work. This is a source-level cost description, not
+a measured runtime bound or a new workload ceiling. Equal-value no-edit returns
+before constructing these candidates.
+
 ## retained meaning and admission
 
 A fact carries its ID, direct causal parents, key, new value, frozen observed
