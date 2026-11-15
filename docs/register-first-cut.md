@@ -13,8 +13,8 @@ its history requirements. The reference experiments are not the native implement
 A separately compiled native caller creates two real replicas, writes independently
 keyed values, exchanges the resulting events and reads their values. It exercises
 concurrent writes, a later causal overwrite, an equal-to-observed no-edit,
-duplicate/conflicting events and invalid/capacity rejection. It can compose these
-operations within the supported bounds, rather than call a hardcoded replay.
+duplicate/conflicting events and invalid rejection. It can compose these
+operations within the declared representation domain, rather than call a hardcoded replay.
 
 Keys are caller data and are independent of writer IDs. Values can retain tagged
 opaque bytes. Carbon owns format interpretation and incompatible-editor locks;
@@ -29,13 +29,24 @@ For writes/reads, carry the applicable register contract:
 - retain every counted write, including concurrent losers. A deterministic winner
   is not permission for winner-only storage/compaction or a new GC scheme;
 - validate and compute privately, then publish once. Specify duplicate, conflict,
-  invalid and capacity returns and preserve the promised state/counter neutrality.
+  invalid and real numeric-exhaustion returns and preserve the promised
+  state/counter neutrality.
 
 Initial-value configuration, concrete writer representation/fencing assumptions,
-encoding of the retained value and numeric supported limits must be explicit at
-construction. The shared arbitrary-ID boundary does not require changing the
+encoding of the retained value and real numeric representation boundaries must
+be explicit. Initial values and writer identity are supplied at construction. The shared arbitrary-ID boundary does not require changing the
 text Alice/Bo representation at the same time. An example's u64 IDs do not supply
 a public allocation/recovery protocol or prove random identifiers unique.
+
+Under the approved [policy-ceiling migration](policy-budgets.md), register event,
+parent and value-byte budgets belong to callers, not engine admission. The native
+register constructor takes no budget configuration and returns no policy Capacity
+error. This checkpoint does not require or deliver a register-budget harness.
+The retained capacity witnesses in `tests/capacity_boundary.rs` use the text-only
+guard in `tests/support`; they are not register-capacity coverage. Caller-selected
+budgets may refuse before engine admission and need their own neutrality/error
+contract. Removing these ceilings does not remove clock/counter exhaustion or
+prove allocation success, admission progress or termination.
 
 ## proof work belongs to this client
 
@@ -83,8 +94,9 @@ semantic claims; no weakening to obtain a shared label.
 
 Strong eventual consistency additionally needs eventual delivery/admission and
 termination/progress in a declared domain. Transport is external to the crate;
-missing dependencies, finite capacity and retry conditions must be explicit.
-Equal limits do not guarantee equal admitted subsets under different deliveries.
+missing dependencies, any caller-imposed budgets and retry conditions must be
+explicit. Equal caller budgets do not guarantee equal admitted subsets under
+different deliveries.
 Do not turn equal-history convergence into an unconditional liveness claim or
 compare device-local private stacks/counters as replicated document meaning.
 No whole-CRDT strong eventual consistency theorem is delivered by this plan.
