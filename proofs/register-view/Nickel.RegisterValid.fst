@@ -147,6 +147,15 @@ let stream_ok_in (h: Seq.seq Nickel.Register.fact) (sel: Envelope.t_Id -> Type0)
 let streams_ok (h: Seq.seq Nickel.Register.fact) : Type0 =
   forall(f: Nickel.Register.fact). stored h f ==> stream_ok_in h (anc_of h f) f
 
+let register_streams_are_shared_streams (h: t_Slice Nickel.Register.fact) : Lemma (ensures streams_ok h <==> Nickel.PastExact.writer_streams_ok Native.v_OPS._1 (fun (id: Envelope.t_Id) -> id.f_peer) (fun (id: Envelope.t_Id) -> v id.f_counter) h) =
+  Nickel.PastExact.writer_streams_ok_iff Native.v_OPS._1 (fun (id: Envelope.t_Id) -> id.f_peer) (fun (id: Envelope.t_Id) -> v id.f_counter) h;
+  let each (f: Nickel.Register.fact) : Lemma (ensures stream_ok_in h (anc_of h f) f <==> Nickel.PastExact.writer_stream_ok_at Native.v_OPS._1._1._1 (fun (id: Envelope.t_Id) -> id.f_peer) (fun (id: Envelope.t_Id) -> v id.f_counter) h (fun (id: Envelope.t_Id) -> Nickel.PastExact.ancestor Native.v_OPS._1 h (Native.v_OPS._1._1._2 f) id) f) =
+    Nickel.PastExact.writer_stream_ok_at_iff Native.v_OPS._1._1._1 (fun (id: Envelope.t_Id) -> id.f_peer) (fun (id: Envelope.t_Id) -> v id.f_counter) h (fun (id: Envelope.t_Id) -> Nickel.PastExact.ancestor Native.v_OPS._1 h (Native.v_OPS._1._1._2 f) id) f;
+    FStar.Classical.forall_intro (register_ancestor_is_id_ancestor h (Alloc.Vec.impl_1__as_slice f.f_after));
+    let same_store (g: Nickel.Register.fact) : Lemma (ensures stored h g <==> Nickel.PastExact.fact_stored h g) = () in
+    FStar.Classical.forall_intro same_store in
+  FStar.Classical.forall_intro each
+
 let stream_respects_sel (h: Seq.seq Nickel.Register.fact) (s1: Envelope.t_Id -> Type0) (s2: Envelope.t_Id -> Type0) (f: Nickel.Register.fact) : Lemma (requires forall(id: Envelope.t_Id). s1 id <==> s2 id) (ensures stream_ok_in h s1 f <==> stream_ok_in h s2 f) =
   ()
 

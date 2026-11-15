@@ -983,3 +983,41 @@ proof validated_stream_checks<ft: Type0, it: eqtype, et: Type0>(facts: t_Slice(f
     }
   }
 }
+
+// ---------------------------------------------------------------- writer-sequence meaning
+// A client's writer streams, through an id -> (writer, counter) projection: counter >= 1; a
+// non-first write has its stored predecessor among its ancestors; no same-writer ancestor has an
+// equal or later counter. `sel` is the set of ancestors the statement is taken over.
+function fact_stored<ft: Type0>(xs: Seq.seq(ft), f: ft): Type0 {
+  exists(i: nat) . i < Seq.length(xs) and Seq.index(xs, i) == f
+}
+function writer_stream_ok_at<ft: Type0, it: eqtype, w: eqtype>(ident: ft => it, writer: it => w, counter: it => nat,
+  h: Seq.seq(ft), sel: it => Type0, f: ft): Type0 {
+  counter(ident(f)) >= 1 and
+  (counter(ident(f)) > 1 ==> (exists(g: ft) . fact_stored(h, g) and sel(ident(g)) and
+    writer(ident(g)) == writer(ident(f)) and counter(ident(g)) + 1 == counter(ident(f)))) and
+  (forall(g: ft) . (fact_stored(h, g) and sel(ident(g)) and writer(ident(g)) == writer(ident(f))) ==>
+    counter(ident(g)) < counter(ident(f)))
+}
+// Every stored fact's stream is sound with respect to its exact ancestors.
+function writer_streams_ok<ft: Type0, it: eqtype, et: Type0, w: eqtype>(ops: Nickel.EventGraph.graph_ops(ft, it, et),
+  writer: it => w, counter: it => nat, h: t_Slice(ft)): Type0 {
+  forall(f: ft) . fact_stored(h, f) ==>
+    writer_stream_ok_at(ops._1._1, writer, counter, h, ((id: it) => ancestor(ops, h, ops._1._2(f), id)), f)
+}
+// Introduction/elimination forms, for clients stating their own streams at a concrete instance.
+proof writer_streams_ok_iff<ft: Type0, it: eqtype, et: Type0, w: eqtype>(ops: Nickel.EventGraph.graph_ops(ft, it, et),
+  writer: it => w, counter: it => nat, h: t_Slice(ft)): unit
+  gives writer_streams_ok(ops, writer, counter, h) <==>
+    (forall(f: ft) . fact_stored(h, f) ==>
+      writer_stream_ok_at(ops._1._1, writer, counter, h, ((id: it) => ancestor(ops, h, ops._1._2(f), id)), f))
+{ () }
+proof writer_stream_ok_at_iff<ft: Type0, it: eqtype, w: eqtype>(ident: ft => it, writer: it => w, counter: it => nat,
+  h: Seq.seq(ft), sel: it => Type0, f: ft): unit
+  gives writer_stream_ok_at(ident, writer, counter, h, sel, f) <==>
+    (counter(ident(f)) >= 1 and
+     (counter(ident(f)) > 1 ==> (exists(g: ft) . fact_stored(h, g) and sel(ident(g)) and
+       writer(ident(g)) == writer(ident(f)) and counter(ident(g)) + 1 == counter(ident(f)))) and
+     (forall(g: ft) . (fact_stored(h, g) and sel(ident(g)) and writer(ident(g)) == writer(ident(f))) ==>
+       counter(ident(g)) < counter(ident(f))))
+{ () }

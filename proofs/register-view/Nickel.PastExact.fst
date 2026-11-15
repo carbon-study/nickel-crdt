@@ -561,3 +561,18 @@ let validated_stream_checks (#ft: Type0) (#it: eqtype) (#et: Type0) (facts: t_Sl
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.smt_sync' 1 1
   ) end
+
+let fact_stored (#ft: Type0) (xs: Seq.seq ft) (f: ft) : Type0 =
+  exists(i: nat). Prims.l_and (i < Seq.length xs) (Seq.index xs i == f)
+
+let writer_stream_ok_at (#ft: Type0) (#it: eqtype) (#w: eqtype) (ident: ft -> it) (writer: it -> w) (counter: it -> nat) (h: Seq.seq ft) (sel: it -> Type0) (f: ft) : Type0 =
+  Prims.l_and (Prims.l_and (counter (ident f) >= 1) (counter (ident f) > 1 ==> (exists(g: ft). Prims.l_and (Prims.l_and (Prims.l_and (fact_stored h g) (sel (ident g))) (writer (ident g) == writer (ident f))) (counter (ident g) + 1 == counter (ident f))))) (forall(g: ft). Prims.l_and (Prims.l_and (fact_stored h g) (sel (ident g))) (writer (ident g) == writer (ident f)) ==> counter (ident g) < counter (ident f))
+
+let writer_streams_ok (#ft: Type0) (#it: eqtype) (#et: Type0) (#w: eqtype) (ops: Nickel.EventGraph.graph_ops ft it et) (writer: it -> w) (counter: it -> nat) (h: t_Slice ft) : Type0 =
+  forall(f: ft). fact_stored h f ==> writer_stream_ok_at ops._1._1 writer counter h (fun (id: it) -> ancestor ops h (ops._1._2 f) id) f
+
+let writer_streams_ok_iff (#ft: Type0) (#it: eqtype) (#et: Type0) (#w: eqtype) (ops: Nickel.EventGraph.graph_ops ft it et) (writer: it -> w) (counter: it -> nat) (h: t_Slice ft) : Lemma (ensures writer_streams_ok ops writer counter h <==> (forall(f: ft). fact_stored h f ==> writer_stream_ok_at ops._1._1 writer counter h (fun (id: it) -> ancestor ops h (ops._1._2 f) id) f)) =
+  ()
+
+let writer_stream_ok_at_iff (#ft: Type0) (#it: eqtype) (#w: eqtype) (ident: ft -> it) (writer: it -> w) (counter: it -> nat) (h: Seq.seq ft) (sel: it -> Type0) (f: ft) : Lemma (ensures writer_stream_ok_at ident writer counter h sel f <==> Prims.l_and (Prims.l_and (counter (ident f) >= 1) (counter (ident f) > 1 ==> (exists(g: ft). Prims.l_and (Prims.l_and (Prims.l_and (fact_stored h g) (sel (ident g))) (writer (ident g) == writer (ident f))) (counter (ident g) + 1 == counter (ident f))))) (forall(g: ft). Prims.l_and (Prims.l_and (fact_stored h g) (sel (ident g))) (writer (ident g) == writer (ident f)) ==> counter (ident g) < counter (ident f))) =
+  ()
