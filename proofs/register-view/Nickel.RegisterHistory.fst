@@ -336,9 +336,22 @@ let basis_freezes_id_read (before: Native.t_Replica) (offered: Nickel.Register.f
   let b = Alloc.Vec.impl_1__as_slice basis in
   register_ops_are_exact ();
   filter_has_selected_facts Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected) (Seq.length facts) b;
-  assert (holds_selected b facts (sel_of selected));
+  assert (holds_selected b facts (sel_of selected)) by (
+    Tactics.prune "Nickel.RegisterPast.selected_prefix";
+    Tactics.prune "Nickel.Register.basis_payload_checks";
+    Tactics.prune "Nickel_crdt.Register.winner";
+    Tactics.smt_sync' 1 1
+  );
   FStar.Classical.forall_intro (FStar.Classical.move_requires (freeze_from_maximum before offered selected basis));
   Nickel.Register.read_history_selects_maximum b (Alloc.Vec.impl_1__as_slice before.f_initial) offered.f_payload.f_key;
+  assert (Nickel.Register.selected_value b offered.f_payload.f_key (Alloc.Vec.impl_1__as_slice before.f_initial) (Alloc.Vec.impl_1__as_slice (Native.read_history b (Alloc.Vec.impl_1__as_slice before.f_initial) offered.f_payload.f_key))) by (
+    Tactics.prune "Nickel.Register.selected_value";
+    Tactics.prune "Nickel_crdt.Register.winner";
+    Tactics.prune "Nickel.Register.basis_payload_checks";
+    Tactics.prune "Nickel.RegisterHistory.holds_selected";
+    Tactics.prune "Nickel.RegisterHistory.frozen_id_read";
+    Tactics.smt_sync' 1 1
+  );
   assert (frozen_id_read before offered selected) by (
     Tactics.prune "Nickel_crdt.Register.read_history";
     Tactics.prune "Nickel_crdt.Register.winner";
