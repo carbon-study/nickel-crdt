@@ -12,11 +12,13 @@ import Result = Core_models.Result
 import Seq = FStar.Seq
 import Tactics = FStar.Tactics.V2
 
-// Exact past for the register's shared admission (#97 obligation 1).
+// Exact past for the shared event layer, generic over <fact, id, error> (#97 obligation 1).
+// One proof for every client: the register instantiates it at its ops (RegisterPast.lt names
+// the types); text can re-point EditPast here (docs/shared-wrapper-retirement.md).
 // Success-only: a successful `past` selects exactly the ancestors of its roots.
 // Totality (a valid offer succeeds) is a separate, unclaimed direction.
-// Ancestry is stated through the ops' own id/parent callbacks; the register
-// instance discharges those applications in Register.lt.
+// Ancestry is stated through the ops' own id/parent callbacks; each client discharges
+// those applications at its instance.
 
 function ids_exact<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et)): Type0 {
   forall(a: it, b: it) . (ops._1._3(a, b) == true <==> a == b)

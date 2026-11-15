@@ -24,6 +24,40 @@ not evidence that public runtime execution calls that bridge.
 this table is not permission to remove executed callbacks merely to reduce line
 count. it also does not promote proof-only names into permanent native APIs.
 
+## shared exact past (`PastExact`)
+
+The causal-past proof was written twice: register's `RegisterPast.lt` and text's
+`EditPast.lt`, 53 declarations shared by name. Step 1 of the lift (register side)
+moves the register's chain into `proofs/PastExact.lt`, generic over
+`<fact, id: eqtype, error>`:
+
+- exact past (`successful_past_is_exact_closure`, soundness/completeness of
+  `extend_past`/`past_pass`/`past`);
+- the positional basis filter (`selected_prefix`, `actual_basis_is_exact_filter`)
+  and the admission bridges `validated_selection_is_past`/`_is_exact`;
+- the writer-sequence checks (`validated_stream_checks`).
+
+It also states the writer-sequence meaning `writer_streams_ok` over an
+`id -> (writer, counter)` projection. `RegisterPast.lt` keeps only the register
+type aliases. `RegisterValid.register_streams_are_shared_streams` proves the
+register's `streams_ok` is that meaning at `(peer, counter)`. No statement
+changes beyond the type parameters.
+
+The text forwards `extend_past`, `past_pass` and `past` (graph-forward row above)
+can now be retired by re-stating `EditPast`'s predicates as `PastExact`
+instances at the text ops, following deletion-sequence step 1. Keep every old
+text statement, domain and control, and delete the `EditPast` chain only after
+the old text claims re-verify through `PastExact`.
+
+**Constraint found while lifting.** SMT does not reopen a *generic recursive*
+definition inside a recursive proof, or at a concrete instance. A generic
+non-recursive definition carrying the graph-ops type (for example `ids_exact`)
+can also fail to open at a concrete instance. `PastExact` therefore exports
+constructor equations (`causal_path_equations`, `reachable_within_equations`,
+`selected_prefix_step`/`_zero`) and elimination forms (`ids_exact_elim`,
+`writer_streams_ok_iff`, `writer_stream_ok_at_iff`). Clients call these
+explicitly; `Canonical.frontier_prefix_step` follows the same pattern.
+
 ## deletion sequence
 
 1. first retire the proof-only graph forwards at their owning `EditWellFormed`,
