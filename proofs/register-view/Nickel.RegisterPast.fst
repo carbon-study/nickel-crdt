@@ -506,3 +506,25 @@ let validated_selection_is_exact (facts: t_Slice fact) (offered: fact) (events: 
     Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.smt_sync' 1 1
   )
+
+let rec all_selected_prefix_is_input_induct (ops: rops) (facts: t_Slice fact) (selected: t_Slice Envelope.t_Id) (finish: nat{finish <= Seq.length facts}) (output: Seq.seq fact) : Lemma (requires (selected_prefix ops facts selected finish output /\ (forall(j: nat{j < finish}). member selected (ops._1._1 (Seq.index facts j))))) (ensures output == Seq.slice facts 0 finish) (decreases finish) =
+  if finish ==? 0 then
+    begin () end
+  else
+    begin let f = Seq.index facts (finish - 1) in
+    assert (member selected (ops._1._1 f));
+    let previous (before: Seq.seq fact) : Lemma (requires (selected_prefix ops facts selected (finish - 1) before /\ output == Seq.append before (Seq.create 1 f))) (ensures output == Seq.slice facts 0 finish) =
+      all_selected_prefix_is_input_induct ops facts selected (finish - 1) before;
+      let lhs = Seq.slice facts 0 finish in
+      let rhs = Seq.append (Seq.slice facts 0 (finish - 1)) (Seq.create 1 f) in
+      let each (j: nat{j < finish}) : Lemma (ensures Seq.index lhs j == Seq.index rhs j) = if j < finish - 1 then
+        begin () end
+      else
+        begin assert (j == finish - 1) end in
+      FStar.Classical.forall_intro each;
+      Seq.lemma_eq_intro lhs rhs;
+      Seq.lemma_eq_elim lhs rhs in
+    FStar.Classical.forall_intro (FStar.Classical.move_requires previous) end
+
+let all_selected_prefix_is_input (ops: rops) (facts: t_Slice fact) (selected: t_Slice Envelope.t_Id) (finish: nat{finish <= Seq.length facts}) (output: Seq.seq fact) : Lemma (requires (selected_prefix ops facts selected finish output /\ (forall(j: nat{j < finish}). member selected (ops._1._1 (Seq.index facts j))))) (ensures output == Seq.slice facts 0 finish) =
+  all_selected_prefix_is_input_induct ops facts selected finish output

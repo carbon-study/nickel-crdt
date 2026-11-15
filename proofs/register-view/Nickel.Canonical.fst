@@ -701,3 +701,6 @@ let frontier_is_nonparent_filter (#f: Type0) (#i: Type0) (#e: Type0) (input: t_S
     Tactics.prune "Nickel_crdt.Event_layer.frontier";
     Tactics.smt_sync' 1 1
   ) end
+
+let frontier_prefix_step (#f: Type0) (#i: Type0) (#e: Type0) (input: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) (at: nat{Prims.l_and (at > 0) (at <= Seq.length input)}) (out: Seq.seq i) : Lemma (requires frontier_prefix input ops at out) (ensures Prims.l_or (Prims.l_and (mentioned_before input (ops._1._1 (Seq.index input (at - 1))) ops (Seq.length input)) (frontier_prefix input ops (at - 1) out)) (Prims.l_and (Prims.l_not (mentioned_before input (ops._1._1 (Seq.index input (at - 1))) ops (Seq.length input))) (exists(previous: Seq.seq i). Prims.l_and (frontier_prefix input ops (at - 1) previous) (out == Seq.append previous (Seq.create 1 (ops._1._1 (Seq.index input (at - 1)))))))) =
+  ()

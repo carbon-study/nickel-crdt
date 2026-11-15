@@ -1,0 +1,366 @@
+import Rust_primitives
+import Core_models
+import FStar.Pervasives
+import Nickel.LoopUtil
+import Native = Nickel_crdt.Register
+import Graph = Nickel_crdt.Event_layer
+import Envelope = Nickel_crdt.Causal
+import Seq = FStar.Seq
+import List = FStar.List.Tot.Base
+import Tactics = FStar.Tactics.V2
+import Nickel.Register
+import Nickel.RegisterPast
+import Nickel.RegisterHistory
+import Nickel.RegisterValid
+import Nickel.RegisterPublic
+import Nickel.Canonical
+
+// A terminal retained fact is not named by any retained parent list.
+function terminal(h: Seq.seq(Nickel.Register.fact), f: Nickel.Register.fact): Type0 {
+  not (exists(child: Nickel.Register.fact) . stored(h, child) and
+    Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(child.f_after), f.f_id))
+}
+function terminal_cover(h: Seq.seq(Nickel.Register.fact), f: Nickel.Register.fact): Type0 {
+  exists(root: Nickel.Register.fact, steps: Prims.list(Envelope.t_Id)) .
+    stored(h, root) and terminal(h, root) and id_path(h, root.f_id, steps, f.f_id)
+}
+proof! append_id_edge(h: Seq.seq(Nickel.Register.fact), root: Envelope.t_Id, steps: Prims.list(Envelope.t_Id),
+  parent: Envelope.t_Id, child: Envelope.t_Id): unit
+  decreases steps
+  takes id_path(h, root, steps, parent) and id_edge(h, parent, child)
+  gives id_path(h, root, List.append(steps, Prims.Cons(child, Prims.Nil)), child)
+{
+  match steps {
+    Prims.Nil => (),
+    Prims.Cons(next, rest) => append_id_edge(h, next, rest, parent, child)
+  }
+}
+// Clock descent is a ghost well-founded measure, not an ID order or an executable scan.
+proof! terminal_above(h: Seq.seq(Nickel.Register.fact), f: Nickel.Register.fact, fuel: nat): unit
+  decreases fuel
+  takes stored(h, f) and id_clocks_increase(h)
+  takes v(f.f_payload.f_lamport) + fuel >= Rust_primitives.Integers.maxint(Rust_primitives.Integers.U64)
+  gives terminal_cover(h, f)
+{
+  proof via(child: Nickel.Register.fact): unit
+    takes stored(h, child) and Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(child.f_after), f.f_id)
+    gives terminal_cover(h, f)
+  {
+    assert(v(f.f_payload.f_lamport) < v(child.f_payload.f_lamport));
+    assert(fuel > 0);
+    terminal_above(h, child, fuel - 1);
+    assert(id_edge(h, child.f_id, f.f_id));
+    proof extend(root: Nickel.Register.fact, steps: Prims.list(Envelope.t_Id)): unit
+      takes stored(h, root) and terminal(h, root) and id_path(h, root.f_id, steps, child.f_id)
+      gives terminal_cover(h, f)
+    {
+      append_id_edge(h, root.f_id, steps, child.f_id, f.f_id);
+      assert(terminal_cover(h, f))
+    };
+    FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(extend))
+  };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(via));
+  assert(id_path(h, f.f_id, Prims.Nil, f.f_id));
+  assert(terminal(h, f) ==> terminal_cover(h, f));
+  assert(terminal_cover(h, f))
+}
+proof every_stored_fact_has_a_terminal_ancestor_root(h: Seq.seq(Nickel.Register.fact), f: Nickel.Register.fact): unit
+  takes stored(h, f) and id_clocks_increase(h)
+  gives terminal_cover(h, f)
+{
+  terminal_above(h, f, Rust_primitives.Integers.maxint(Rust_primitives.Integers.U64) - v(f.f_payload.f_lamport))
+}
+// This is positional membership in the checked ordered filter, independent of comparator laws.
+proof! nonparent_position_is_kept_induct<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e),
+  at: nat where at <= Seq.length(input), out: Seq.seq(i), j: nat where j < at): unit
+  decreases at
+  takes Nickel.Canonical.frontier_prefix(input, ops, at, out)
+  takes not Nickel.Canonical.mentioned_before(input, ops._1._1(Seq.index(input, j)), ops, Seq.length(input))
+  gives exists(k: nat) . k < Seq.length(out) and Seq.index(out, k) == ops._1._1(Seq.index(input, j))
+{
+  const wanted = ops._1._1(Seq.index(input, j));
+  const last = ops._1._1(Seq.index(input, at - 1));
+  Nickel.Canonical.frontier_prefix_step(input, ops, at, out);
+  assert((Nickel.Canonical.mentioned_before(input, last, ops, Seq.length(input)) and Nickel.Canonical.frontier_prefix(input, ops, at - 1, out)) or
+    (not Nickel.Canonical.mentioned_before(input, last, ops, Seq.length(input)) and
+      (exists(previous: Seq.seq(i)) . Nickel.Canonical.frontier_prefix(input, ops, at - 1, previous) and out == Seq.append(previous, Seq.create(1, last)))));
+
+  if j ==? at - 1 {
+    proof last_position(previous: Seq.seq(i)): unit
+      takes out == Seq.append(previous, Seq.create(1, last))
+      gives exists(k: nat) . k < Seq.length(out) and Seq.index(out, k) == wanted
+    { assert(Seq.index(out, Seq.length(previous)) == wanted) };
+    FStar.Classical.forall_intro(FStar.Classical.move_requires(last_position))
+  } else {
+    proof previous_position(previous: Seq.seq(i)): unit
+      takes Nickel.Canonical.frontier_prefix(input, ops, at - 1, previous)
+      takes out == previous or out == Seq.append(previous, Seq.create(1, last))
+      gives exists(k: nat) . k < Seq.length(out) and Seq.index(out, k) == wanted
+    {
+      nonparent_position_is_kept_induct(input, ops, at - 1, previous, j);
+      proof carry(k: nat): unit
+        takes k < Seq.length(previous) and Seq.index(previous, k) == wanted
+        gives exists(k: nat) . k < Seq.length(out) and Seq.index(out, k) == wanted
+      { assert(Seq.index(out, k) == wanted) };
+      FStar.Classical.forall_intro(FStar.Classical.move_requires(carry))
+    };
+    FStar.Classical.forall_intro(FStar.Classical.move_requires(previous_position))
+  }
+}
+proof nonparent_position_is_kept<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e),
+  at: nat where at <= Seq.length(input), out: Seq.seq(i), j: nat where j < at): unit
+  takes Nickel.Canonical.frontier_prefix(input, ops, at, out)
+  takes not Nickel.Canonical.mentioned_before(input, ops._1._1(Seq.index(input, j)), ops, Seq.length(input))
+  gives exists(k: nat) . k < Seq.length(out) and Seq.index(out, k) == ops._1._1(Seq.index(input, j))
+{ nonparent_position_is_kept_induct(input, ops, at, out, j) }
+proof exact_comparison_membership(ids: t_Slice(Envelope.t_Id), id: Envelope.t_Id, ops: Nickel.RegisterPast.rops): unit
+  takes Nickel.RegisterPast.ids_exact(ops)
+  gives Nickel.EventGraph.member(ids, id, ops._1._3) <==> Nickel.RegisterPast.member(ids, id)
+{
+  proof each(at: usize where v(at) < Seq.length(ids)): unit
+    gives (ops._1._3(Seq.index(ids, v(at)), id) == false <==> Seq.index(ids, v(at)) =!= id)
+  { () };
+  FStar.Classical.forall_intro(each)
+}
+proof register_member_matches_generic(ids: t_Slice(Envelope.t_Id), id: Envelope.t_Id): unit
+  gives Nickel.EventGraph.member(ids, id, Native.v_OPS._1._1._3) <==> Nickel.RegisterPast.member(ids, id)
+{
+  register_ops_are_exact();
+  assert(Nickel.RegisterPast.ids_exact(Native.v_OPS._1)) by {
+    Tactics.prune("Nickel_crdt.Register.v_OPS");
+    Tactics.prune("Nickel_crdt.Register.same_id");
+    Tactics.prune("Nickel.RegisterHistory.register_ops_are_exact");
+    Tactics.smt_sync'(1, 1)
+  };
+  exact_comparison_membership(ids, id, Native.v_OPS._1)
+}
+proof terminal_is_not_mentioned(h: t_Slice(Nickel.Register.fact), f: Nickel.Register.fact): unit
+  takes terminal(h, f)
+  gives not Nickel.Canonical.mentioned_before(h, f.f_id, Native.v_OPS._1, Seq.length(h))
+{
+  register_ops_are_exact();
+  proof each(j: nat where j < Seq.length(h)): unit
+    gives not Nickel.EventGraph.member(Native.v_OPS._1._1._2(Seq.index(h, j)), f.f_id, Native.v_OPS._1._1._3)
+  {
+    const child = Seq.index(h, j);
+    assert(stored(h, child));
+    assert(Native.v_OPS._1._1._2(child) == Alloc.Vec.impl_1__as_slice(child.f_after)) by {
+      Tactics.prune("Nickel_crdt.Register.v_OPS");
+      Tactics.prune("Nickel_crdt.Register.parents");
+      Tactics.prune("Nickel.RegisterHistory.register_ops_are_exact");
+      Tactics.smt_sync'(1, 1)
+    };
+    register_member_matches_generic(Alloc.Vec.impl_1__as_slice(child.f_after), f.f_id)
+  };
+  FStar.Classical.forall_intro(each)
+}
+proof terminal_occurs_in_filter(h: t_Slice(Nickel.Register.fact), out: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global),
+  f: Nickel.Register.fact): unit
+  takes stored(h, f) and terminal(h, f)
+  takes Nickel.Canonical.frontier_state(h, Native.v_OPS._1, Seq.length(h), out)
+  gives Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(out), f.f_id)
+{
+  register_ops_are_exact();
+  terminal_is_not_mentioned(h, f);
+  proof at(j: nat): unit
+    takes j < Seq.length(h) and Seq.index(h, j) == f
+    gives Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(out), f.f_id)
+  {
+    assert(Native.v_OPS._1._1._1(Seq.index(h, j)) == f.f_id) by {
+      Tactics.prune("Nickel_crdt.Register.v_OPS");
+      Tactics.prune("Nickel_crdt.Register.identity");
+      Tactics.prune("Nickel.RegisterHistory.register_ops_are_exact");
+      Tactics.smt_sync'(1, 1)
+    };
+    nonparent_position_is_kept(h, Native.v_OPS._1, Seq.length(h), Alloc.Vec.impl_1__as_slice(out), j);
+    proof found(k: nat where k < Seq.length(Alloc.Vec.impl_1__as_slice(out))): unit
+      takes Seq.index(Alloc.Vec.impl_1__as_slice(out), k) == f.f_id
+      gives Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(out), f.f_id)
+    {
+      const index = mk_usize(k);
+      assert(v(index) == k);
+      assert(not Nickel.RegisterPast.absent_prefix(Alloc.Vec.impl_1__as_slice(out), f.f_id, Seq.length(Alloc.Vec.impl_1__as_slice(out))))
+    };
+    FStar.Classical.forall_intro(FStar.Classical.move_requires(found))
+  };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(at))
+}
+function roots_cover(h: t_Slice(Nickel.Register.fact), roots: t_Slice(Envelope.t_Id)): Type0 {
+  forall(f: Nickel.Register.fact) . stored(h, f) ==>
+    Nickel.RegisterPast.ancestor(Native.v_OPS._1, h, roots, f.f_id)
+}
+proof filter_covers_history(h: t_Slice(Nickel.Register.fact), out: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global)): unit
+  takes id_clocks_increase(h)
+  takes Nickel.Canonical.frontier_state(h, Native.v_OPS._1, Seq.length(h), out)
+  gives roots_cover(h, Alloc.Vec.impl_1__as_slice(out))
+{
+  proof each(f: Nickel.Register.fact): unit
+    takes stored(h, f)
+    gives Nickel.RegisterPast.ancestor(Native.v_OPS._1, h, Alloc.Vec.impl_1__as_slice(out), f.f_id)
+  {
+    every_stored_fact_has_a_terminal_ancestor_root(h, f);
+    proof root_at(root: Nickel.Register.fact, steps: Prims.list(Envelope.t_Id)): unit
+      takes stored(h, root) and terminal(h, root) and id_path(h, root.f_id, steps, f.f_id)
+      gives Nickel.RegisterPast.ancestor(Native.v_OPS._1, h, Alloc.Vec.impl_1__as_slice(out), f.f_id)
+    {
+      terminal_occurs_in_filter(h, out, root);
+      register_path_is_id_path(h, root.f_id, steps, f.f_id)
+    };
+    FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(root_at))
+  };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(each))
+}
+proof actual_frontier_covers_history(h: t_Slice(Nickel.Register.fact)): unit
+  takes id_clocks_increase(h)
+  gives exists(out: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global)) .
+    Graph.frontier(h, Native.v_OPS._1) == Core_models.Result.Result_Ok(out) and roots_cover(h, Alloc.Vec.impl_1__as_slice(out))
+{
+  Nickel.Canonical.frontier_is_nonparent_filter(h, Native.v_OPS._1);
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(filter_covers_history(h)));
+  assert(exists(out: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global)) .
+    Graph.frontier(h, Native.v_OPS._1) == Core_models.Result.Result_Ok(out) and roots_cover(h, Alloc.Vec.impl_1__as_slice(out))) by {
+    Tactics.prune("Nickel_crdt.Event_layer.frontier");
+    Tactics.prune("Nickel.Canonical.frontier_is_nonparent_filter");
+    Tactics.prune("Nickel.Canonical.frontier_state");
+    Tactics.prune("Nickel.RegisterFrontier.roots_cover");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof counted_installation_frontier(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global), next: Native.t_Replica, authored: Nickel.Register.fact): unit
+  takes Nickel.Register.write_installation(before, key, value, (next, Core_models.Result.Result_Ok(Core_models.Option.Option_Some(authored))))
+  gives Graph.frontier(Alloc.Vec.impl_1__as_slice(before.f_facts), Native.v_OPS._1) == Core_models.Result.Result_Ok(authored.f_after)
+{ () }
+proof counted_write_roots_cover_at(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global),
+  next: Native.t_Replica, authored: Nickel.Register.fact): unit
+  takes public_history(before)
+  takes Native.impl_Replica__write(before, key, value) == (next, Core_models.Result.Result_Ok(Core_models.Option.Option_Some(authored)))
+  gives roots_cover(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(authored.f_after))
+{
+  actual_frontier_covers_history(Alloc.Vec.impl_1__as_slice(before.f_facts));
+  Nickel.Register.write_installs_successful_candidate(before, key, value);
+  assert(Nickel.Register.write_installation(before, key, value, (next, Core_models.Result.Result_Ok(Core_models.Option.Option_Some(authored))))) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+    Tactics.prune("Nickel.Register.write_installs_successful_candidate");
+    Tactics.prune("Nickel.Register.write_installation");
+    Tactics.smt_sync'(1, 1)
+  };
+  counted_installation_frontier(before, key, value, next, authored);
+  assert(roots_cover(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(authored.f_after))) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+    Tactics.prune("Nickel_crdt.Event_layer.frontier");
+    Tactics.prune("Nickel.RegisterFrontier.roots_cover");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof counted_write_roots_cover_history(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  takes public_history(before)
+  gives forall(next: Native.t_Replica, authored: Nickel.Register.fact) .
+    Native.impl_Replica__write(before, key, value) == (next, Core_models.Result.Result_Ok(Core_models.Option.Option_Some(authored))) ==>
+      roots_cover(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(authored.f_after))
+{
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(counted_write_roots_cover_at(before, key, value)))
+}
+proof covered_basis_is_whole_history(h: t_Slice(Nickel.Register.fact), roots: t_Slice(Envelope.t_Id), selected: t_Slice(Envelope.t_Id), basis: Seq.seq(Nickel.Register.fact)): unit
+  takes roots_cover(h, roots)
+  takes forall(id: Envelope.t_Id) . Nickel.RegisterPast.member(selected, id) <==> Nickel.RegisterPast.ancestor(Native.v_OPS._1, h, roots, id)
+  takes Nickel.RegisterPast.selected_prefix(Native.v_OPS._1, h, selected, Seq.length(h), basis)
+  gives basis == h
+{
+  register_ops_are_exact();
+  proof each(j: nat where j < Seq.length(h)): unit
+    gives Nickel.RegisterPast.member(selected, Native.v_OPS._1._1._1(Seq.index(h, j)))
+  {
+    assert(stored(h, Seq.index(h, j)));
+    assert(Native.v_OPS._1._1._1(Seq.index(h, j)) == Seq.index(h, j).f_id) by {
+      Tactics.prune("Nickel_crdt.Register.v_OPS");
+      Tactics.prune("Nickel_crdt.Register.identity");
+      Tactics.prune("Nickel.RegisterHistory.register_ops_are_exact");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro(each);
+  Nickel.RegisterPast.all_selected_prefix_is_input(Native.v_OPS._1, h, selected, Seq.length(h), basis)
+}
+function whole_basis(before: Native.t_Replica, authored: Nickel.Register.fact): Type0 {
+  exists(selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(Nickel.Register.fact, Alloc.Alloc.t_Global)) .
+    Graph.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), authored, before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Core_models.Result.Result_Ok(selected) and
+    Graph.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Core_models.Result.Result_Ok(basis) and
+    Alloc.Vec.impl_1__as_slice(basis) == Alloc.Vec.impl_1__as_slice(before.f_facts)
+}
+proof exact_basis_is_whole(before: Native.t_Replica, authored: Nickel.Register.fact): unit
+  takes roots_cover(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(authored.f_after)) and exact_selected_basis(before, authored)
+  gives whole_basis(before, authored)
+{
+  proof exact(selected: Alloc.Vec.t_Vec(Envelope.t_Id, Alloc.Alloc.t_Global), basis: Alloc.Vec.t_Vec(Nickel.Register.fact, Alloc.Alloc.t_Global)): unit
+    takes Graph.validate_event(Alloc.Vec.impl_1__as_slice(before.f_facts), authored, before.f_limits.f_events, before.f_limits.f_dependencies, Native.v_OPS) == Core_models.Result.Result_Ok(selected)
+    takes Graph.select_basis(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Native.v_OPS._1) == Core_models.Result.Result_Ok(basis)
+    takes forall(id: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(selected), id) <==> Nickel.RegisterPast.ancestor(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(authored.f_after), id)
+    takes Nickel.RegisterPast.selected_prefix(Native.v_OPS._1, Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(selected), Seq.length(Alloc.Vec.impl_1__as_slice(before.f_facts)), Alloc.Vec.impl_1__as_slice(basis))
+    gives Alloc.Vec.impl_1__as_slice(basis) == Alloc.Vec.impl_1__as_slice(before.f_facts)
+  { covered_basis_is_whole_history(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(authored.f_after), Alloc.Vec.impl_1__as_slice(selected), Alloc.Vec.impl_1__as_slice(basis)) };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(exact));
+  assert(whole_basis(before, authored)) by {
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel_crdt.Event_layer.select_basis");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof added_basis_at(before: Native.t_Replica, authored: Nickel.Register.fact, received: Native.t_Replica): unit
+  takes Native.impl_Replica__receive(before, authored) == (received, Core_models.Result.Result_Ok(Native.Admission_Added))
+  gives exact_selected_basis(before, authored)
+{
+  receive_added_basis_is_exact_ancestry(before, authored);
+  assert(exact_selected_basis(before, authored)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel.RegisterHistory.receive_added_basis_is_exact_ancestry");
+    Tactics.prune("Nickel.RegisterHistory.exact_selected_basis");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof counted_write_basis_is_whole_history_at(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global),
+  next: Native.t_Replica, authored: Nickel.Register.fact): unit
+  takes public_history(before)
+  takes Native.impl_Replica__write(before, key, value) == (next, Core_models.Result.Result_Ok(Core_models.Option.Option_Some(authored)))
+  gives whole_basis(before, authored)
+{
+  counted_write_roots_cover_at(before, key, value, next, authored);
+  assert(roots_cover(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(authored.f_after))) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+    Tactics.prune("Nickel_crdt.Event_layer.frontier");
+    Tactics.prune("Nickel.RegisterFrontier.counted_write_roots_cover_at");
+    Tactics.prune("Nickel.RegisterFrontier.roots_cover");
+    Tactics.smt_sync'(1, 1)
+  };
+  write_counted_is_added_receive(before, key, value, next, authored);
+  assert(Native.impl_Replica__receive(before, authored) == ((Native.impl_Replica__receive(before, authored))._1, Core_models.Result.Result_Ok(Native.Admission_Added))) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel.RegisterPublic.write_counted_is_added_receive");
+    Tactics.prune("Nickel.Register.write_installs_successful_candidate");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+    Tactics.smt_sync'(1, 1)
+  };
+  added_basis_at(before, authored, (Native.impl_Replica__receive(before, authored))._1);
+  assert(exact_selected_basis(before, authored)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel.RegisterHistory.exact_selected_basis");
+    Tactics.prune("Nickel.RegisterFrontier.added_basis_at");
+    Tactics.smt_sync'(1, 1)
+  };
+  exact_basis_is_whole(before, authored);
+  assert(whole_basis(before, authored)) by {
+    Tactics.prune("Nickel.RegisterFrontier.whole_basis");
+    Tactics.prune("Nickel.RegisterFrontier.exact_basis_is_whole");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof counted_write_basis_is_whole_history(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  takes public_history(before)
+  gives forall(next: Native.t_Replica, authored: Nickel.Register.fact) .
+    Native.impl_Replica__write(before, key, value) == (next, Core_models.Result.Result_Ok(Core_models.Option.Option_Some(authored))) ==> whole_basis(before, authored)
+{
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(counted_write_basis_is_whole_history_at(before, key, value)))
+}

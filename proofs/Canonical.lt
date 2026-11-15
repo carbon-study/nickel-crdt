@@ -1075,3 +1075,12 @@ proof frontier_is_nonparent_filter<f: Type0, i: Type0, e: Type0>(input: t_Slice(
     },
   }
 }
+// One constructor equation, exported so clients do not reopen the recursive filter body.
+proof frontier_prefix_step<f: Type0, i: Type0, e: Type0>(input: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e),
+  at: nat where at > 0 and at <= Seq.length(input), out: Seq.seq(i)): unit
+  takes frontier_prefix(input, ops, at, out)
+  gives (mentioned_before(input, ops._1._1(Seq.index(input, at - 1)), ops, Seq.length(input)) and frontier_prefix(input, ops, at - 1, out)) or
+    (not mentioned_before(input, ops._1._1(Seq.index(input, at - 1)), ops, Seq.length(input)) and
+      (exists(previous: Seq.seq(i)) . frontier_prefix(input, ops, at - 1, previous) and
+        out == Seq.append(previous, Seq.create(1, ops._1._1(Seq.index(input, at - 1))))))
+{ () }

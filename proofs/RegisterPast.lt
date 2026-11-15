@@ -857,3 +857,38 @@ proof validated_selection_is_exact(facts: t_Slice(fact), offered: fact, events: 
     Tactics.smt_sync'(1, 1)
   }
 }
+// If every input position is selected, the whole-fact filter is the literal prefix.
+proof! all_selected_prefix_is_input_induct(ops: rops, facts: t_Slice(fact), selected: t_Slice(Envelope.t_Id),
+  finish: nat where finish <= Seq.length(facts), output: Seq.seq(fact)): unit
+  decreases finish
+  takes selected_prefix(ops, facts, selected, finish, output)
+  takes forall(j: nat where j < finish) . member(selected, ops._1._1(Seq.index(facts, j)))
+  gives output == Seq.slice(facts, 0, finish)
+{
+  if finish ==? 0 { () } else {
+    const f = Seq.index(facts, finish - 1);
+    assert(member(selected, ops._1._1(f)));
+    proof previous(before: Seq.seq(fact)): unit
+      takes selected_prefix(ops, facts, selected, finish - 1, before)
+      takes output == Seq.append(before, Seq.create(1, f))
+      gives output == Seq.slice(facts, 0, finish)
+    {
+      all_selected_prefix_is_input_induct(ops, facts, selected, finish - 1, before);
+      const lhs = Seq.slice(facts, 0, finish);
+      const rhs = Seq.append(Seq.slice(facts, 0, finish - 1), Seq.create(1, f));
+      proof each(j: nat where j < finish): unit
+        gives Seq.index(lhs, j) == Seq.index(rhs, j)
+      { if j < finish - 1 { () } else { assert(j == finish - 1) } };
+      FStar.Classical.forall_intro(each);
+      Seq.lemma_eq_intro(lhs, rhs);
+      Seq.lemma_eq_elim(lhs, rhs)
+    };
+    FStar.Classical.forall_intro(FStar.Classical.move_requires(previous))
+  }
+}
+proof all_selected_prefix_is_input(ops: rops, facts: t_Slice(fact), selected: t_Slice(Envelope.t_Id),
+  finish: nat where finish <= Seq.length(facts), output: Seq.seq(fact)): unit
+  takes selected_prefix(ops, facts, selected, finish, output)
+  takes forall(j: nat where j < finish) . member(selected, ops._1._1(Seq.index(facts, j)))
+  gives output == Seq.slice(facts, 0, finish)
+{ all_selected_prefix_is_input_induct(ops, facts, selected, finish, output) }

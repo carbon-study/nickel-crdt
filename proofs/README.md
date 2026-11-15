@@ -84,6 +84,30 @@ causal maxima and showing that its ancestors cover a closed register history
 are separate obligations. It does not establish admission progress, client
 refinement, checkpoint acceptance or convergence.
 
+## counted register writes use the whole retained history
+
+For a replica satisfying `RegisterPublic.public_history`, a counted write's
+actual validation and basis-selection calls succeed with a basis whose complete
+fact sequence equals the pre-write retained fact sequence. This includes losing
+writes, parents, observations and clocks, in storage order. The statement is
+`RegisterFrontier.counted_write_basis_is_whole_history`; it is conditional on
+an actual `Ok(Some(authored))` write, not a guarantee that a requested write
+is admitted.
+
+The proof first follows stored child edges to a fact nobody names as a parent.
+Strictly increasing stored-parent clocks and the existing u64 clock bound give
+a ghost well-founded measure; no numeric ID rank is assumed. The checked native
+frontier keeps that terminal fact, so its ancestor closure covers every retained
+fact. Checked write-installation and exact-ancestry contracts carry this to the
+actual authored parents and validation selection. Selecting every position in
+the checked whole-fact filter gives literal sequence equality, not just equal IDs
+or equal reads.
+
+This is a candidate proof cut, subject to scoped review and exact-head acceptance.
+It adds no native code, policy, model, pin or resource-limit change. Error/no-edit
+neutrality remains separately checked; admission progress, allocation/recovery,
+checkpoint acceptance and convergence do not follow from this success-only law.
+
 ## running the edit gate
 
 With no arguments, `scripts/check-edit-proofs.mjs` (and therefore `.#proofs` and
