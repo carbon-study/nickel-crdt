@@ -34,9 +34,9 @@
     "proofs/register-view/Nickel.RegisterHistory.fst": "76f61176427c2b871f12db1f2e2bc282f616cc2ffcacccaea83195b2f4001bb6",
     "proofs/generated/Nickel.EventClassifier.fst": "c3f31194d0096d9320504be3428d4bdb4b7eeb27f04e71a6efa39fac7a0d89c7",
     "proofs/EventClassifier.lt": "f0074997190bc56b80a7fe658ccd42a4c6da0edcf7310a5ce5b845f69c62042e",
-    "proofs/RegisterValid.lt": "f1058e45de5b9899798c3042dccbbf7d360e8d5075f53147bdfec1d6f6c70f17",
+    "proofs/RegisterValid.lt": "523b410013a564ac380d275d86295c4e12b5b5cb160420da3050df8de0678bf0",
     "proofs/RegisterPublic.lt": "8990bfe75e6fad7db2c87b55c7a1e6a5446bbdc229e2a7aea7caeb3dedbf9f87",
-    "proofs/register-view/Nickel.RegisterValid.fst": "3862858949563e51d06a7015652355e789b3816e8ca932c5c14325fbe20ecbe3",
+    "proofs/register-view/Nickel.RegisterValid.fst": "b2096943be909e716c1021afdaf420ba9153b8e5775b7961748cae8f08658da0",
     "proofs/register-view/Nickel.RegisterPublic.fst": "698bb765f47216815efb0231104accca30a6cca1267c510dffaed05fc4fd7564",
     "proofs/RegisterFrontier.lt": "b46e8d6761a682a61ba348045ccb44a145f4ce280d222d42e8f570e873e9b430",
     "proofs/register-view/Nickel.RegisterFrontier.fst": "42c7c5a51de435d0ea624582764fa768ae37cfd095ffac0fabf4412f577a33c8"
