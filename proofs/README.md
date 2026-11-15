@@ -63,6 +63,27 @@ sensitivity. An arbitrary earlier failure, exhaustion or type failure is never
 accepted instead. See [scope and trust](../docs/shared-layer-experiment.md) and
 [exact extraction](generated/hax/README.md).
 
+## generic non-parent frontier
+
+`Canonical.frontier_is_nonparent_filter` specifies the actual shared
+`event_layer::frontier`: it succeeds on every typed input slice and returns,
+in input order, each position's ID exactly when no input fact's parent list
+mentions that ID under the supplied comparison. Repeated unmentioned positions
+remain repeated. No uniqueness, acyclicity or closure premise is added.
+
+The native implementation factors its complete inner scan into private
+`referenced_by_any`. Callback arguments and evaluation order are preserved,
+including evaluating the current fact's ID inside every inner iteration;
+there is no early exit. The proof composes checked membership, plain-loop,
+push and Result-loop contracts at the actual calls. Native body and argument
+faults and separate contract-removal controls own those connections.
+
+This is a computational filter/success contract under the existing translation
+and model trust, not a physical allocation guarantee. Relating the filter to
+causal maxima and showing that its ancestors cover a closed register history
+are separate obligations. It does not establish admission progress, client
+refinement, checkpoint acceptance or convergence.
+
 ## running the edit gate
 
 With no arguments, `scripts/check-edit-proofs.mjs` (and therefore `.#proofs` and
