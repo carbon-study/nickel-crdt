@@ -106,3 +106,28 @@ key shape and coupling require their own contracts. Atomic multi-write register
 events need explicit within-batch observation/counting semantics and whole-batch
 rejection/publication. They do not decide the open multi-text BirthId question. Runs, incrementality, codecs, persistence, arbitrary
 writer allocation and Carbon integration remain separate work.
+
+## share the exact-past proof before extending the client set
+
+Ren identified the duplicated past proof in
+[Discord message 1571563087587319994](https://discord.com/channels/1423457371052834828/1423457371954483214/1571563087587319994).
+The text `past`, `past_pass` and `extend_past` forwards call the same native
+shared implementation that RegisterPast proves against. Before multi-write
+registers or another client adds a third proof chain, consolidate this boundary:
+
+- Parameterize the shared exact-past argument over fact, ID and error types,
+  retaining its explicit callback/equality/copy premises. Discharge those premises
+  for the actual native text and register policy values.
+- Keep concrete client laws as thin compositions. Preserve every existing text
+  statement, domain and pattern, including its distinct success, totality and
+  two-receiver agreement obligations. Matching declaration names alone does not
+  establish equal domains or justify deleting a proof.
+- Migrate the owning native body/argument and contract-dependence controls and
+  packaged roots. Delete the duplicated chain only after the old concrete claims
+  recheck through the common argument with the owning bodies withheld.
+
+This is the next reuse boundary, not an added single-write checkpoint gate or
+an implemented generic proof. It does not authorize a wholesale wrapper reform.
+The shared writer-validation loop is a further candidate; sharing it must keep
+its client policy/projection premises visible. A writer-stream predecessor rule
+is not an author-only Undo authorization rule, nor a device/owner mapping.
