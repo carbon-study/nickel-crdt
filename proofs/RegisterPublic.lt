@@ -280,7 +280,7 @@ proof new_public_producer(writer: u64, initial: Alloc.Vec.t_Vec(u8, Alloc.Alloc.
   }
 }
 // Every receive return keeps public_history, the writer and the private counter (and the
-// initial value and limits).
+// initial value).
 proof receive_public_producer(before: Native.t_Replica, offered: Nickel.Register.fact): unit
   takes public_history(before)
   gives public_history((Native.impl_Replica__receive(before, offered))._1) and

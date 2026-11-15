@@ -466,18 +466,18 @@ let actual_basis_is_exact_filter (ops: rops) (facts: t_Slice fact) (selected: t_
 
 unfold type reops = Nickel.EventGraph.event_ops fact Envelope.t_Id Native.t_Error
 
-let validated_selection_is_past (facts: t_Slice fact) (offered: fact) (events: usize) (dependencies: usize) (eops: reops) : Lemma (ensures forall(selected: ids_vec). Shared.validate_event facts offered events dependencies eops == Result.Result_Ok selected ==> Shared.past facts (eops._1._1._2 offered) eops._1 == Result.Result_Ok selected) =
-  assert (eops == (eops._1, (eops._2._1, eops._2._2, (eops._2._3._1, eops._2._3._2, eops._2._3._3, eops._2._3._4))));
+let validated_selection_is_past (facts: t_Slice fact) (offered: fact) (eops: reops) : Lemma (ensures forall(selected: ids_vec). Shared.validate_event facts offered eops == Result.Result_Ok selected ==> Shared.past facts (eops._1._1._2 offered) eops._1 == Result.Result_Ok selected) =
+  assert (eops == (eops._1, (eops._2._1, eops._2._2, (eops._2._3._1, eops._2._3._2))));
   ops_shape eops._1;
   let membership_boolean (ids: t_Slice Envelope.t_Id) (id: Envelope.t_Id) : Lemma (ensures Prims.l_or (Shared.has_id ids id eops._1 == true) (Shared.has_id ids id eops._1 == false)) [SMTPat (Shared.has_id ids id eops._1)] = () in
   match Shared.past facts (eops._1._1._2 offered) eops._1 with | Result.Result_Ok past_ids -> begin Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len facts) (fun (_: nat) (_: unit) -> Prims.l_True) (fun (_: unit) -> past_ids) (fun (x: ids_vec) -> x == past_ids) (fun (_: Native.t_Error) -> Prims.l_True);
-  assert (forall(selected: ids_vec). Shared.validate_event facts offered events dependencies eops == Result.Result_Ok selected ==> Shared.past facts (eops._1._1._2 offered) eops._1 == Result.Result_Ok selected) by (
+  assert (forall(selected: ids_vec). Shared.validate_event facts offered eops == Result.Result_Ok selected ==> Shared.past facts (eops._1._1._2 offered) eops._1 == Result.Result_Ok selected) by (
     Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.prune "Nickel_crdt.Event_layer.has_id";
     Tactics.prune "Nickel_crdt.Event_layer.duplicate_ids";
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.smt_sync' 1 1
-  ) end | Result.Result_Err _ -> begin assert (forall(selected: ids_vec). Shared.validate_event facts offered events dependencies eops == Result.Result_Ok selected ==> Shared.past facts (eops._1._1._2 offered) eops._1 == Result.Result_Ok selected) by (
+  ) end | Result.Result_Err _ -> begin assert (forall(selected: ids_vec). Shared.validate_event facts offered eops == Result.Result_Ok selected ==> Shared.past facts (eops._1._1._2 offered) eops._1 == Result.Result_Ok selected) by (
     Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.prune "Nickel_crdt.Event_layer.has_id";
     Tactics.prune "Nickel_crdt.Event_layer.duplicate_ids";
@@ -491,8 +491,8 @@ let exact_selection_members (ops: rops) (facts: t_Slice fact) (roots: t_Slice En
 let exact_filter_output (ops: rops) (facts: t_Slice fact) (selected: t_Slice Envelope.t_Id) (basis: facts_vec) : Lemma (requires Nickel.LoopUtil.result_safe (fun (out: facts_vec) -> selected_prefix ops facts selected (Seq.length facts) (Alloc.Vec.impl_1__as_slice out)) (fun (_: Native.t_Error) -> Prims.l_False) (Result.Result_Ok basis)) (ensures selected_prefix ops facts selected (Seq.length facts) (Alloc.Vec.impl_1__as_slice basis)) =
   ()
 
-let validated_selection_is_exact (facts: t_Slice fact) (offered: fact) (events: usize) (dependencies: usize) (eops: reops) : Lemma (requires ids_exact eops._1) (ensures forall(selected: ids_vec). Shared.validate_event facts offered events dependencies eops == Result.Result_Ok selected ==> (forall(id: Envelope.t_Id). member (Alloc.Vec.impl_1__as_slice selected) id <==> ancestor eops._1 facts (eops._1._1._2 offered) id)) =
-  validated_selection_is_past facts offered events dependencies eops;
+let validated_selection_is_exact (facts: t_Slice fact) (offered: fact) (eops: reops) : Lemma (requires ids_exact eops._1) (ensures forall(selected: ids_vec). Shared.validate_event facts offered eops == Result.Result_Ok selected ==> (forall(id: Envelope.t_Id). member (Alloc.Vec.impl_1__as_slice selected) id <==> ancestor eops._1 facts (eops._1._1._2 offered) id)) =
+  validated_selection_is_past facts offered eops;
   successful_past_is_exact_closure eops._1 facts (eops._1._1._2 offered);
   let each (selected: ids_vec) : Lemma (requires Shared.past facts (eops._1._1._2 offered) eops._1 == Result.Result_Ok selected) (ensures forall(id: Envelope.t_Id). member (Alloc.Vec.impl_1__as_slice selected) id <==> ancestor eops._1 facts (eops._1._1._2 offered) id) =
     assert (exact_past_result eops._1 facts (eops._1._1._2 offered) (Result.Result_Ok selected)) by (
@@ -501,7 +501,7 @@ let validated_selection_is_exact (facts: t_Slice fact) (offered: fact) (events: 
     );
     exact_selection_members eops._1 facts (eops._1._1._2 offered) selected in
   FStar.Classical.forall_intro (FStar.Classical.move_requires each);
-  assert (forall(selected: ids_vec). Shared.validate_event facts offered events dependencies eops == Result.Result_Ok selected ==> (forall(id: Envelope.t_Id). member (Alloc.Vec.impl_1__as_slice selected) id <==> ancestor eops._1 facts (eops._1._1._2 offered) id)) by (
+  assert (forall(selected: ids_vec). Shared.validate_event facts offered eops == Result.Result_Ok selected ==> (forall(id: Envelope.t_Id). member (Alloc.Vec.impl_1__as_slice selected) id <==> ancestor eops._1 facts (eops._1._1._2 offered) id)) by (
     Tactics.prune "Nickel_crdt.Event_layer.validate_event";
     Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.smt_sync' 1 1

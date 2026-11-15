@@ -74,10 +74,10 @@ let write_preserves_public_history (before: Native.t_Replica) (key: u64) (value:
     Tactics.smt_sync' 1 1
   )
 
-let new_establishes_public_history (writer: u64) (initial: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) (limits: Native.t_Limits) : Lemma (ensures forall(r: Native.t_Replica). Native.impl_Replica__new writer initial limits == Result.Result_Ok r ==> public_history r) =
-  new_establishes_history writer initial limits;
-  Nickel.Register.new_has_unique_ids writer initial limits;
-  assert (forall(r: Native.t_Replica). Native.impl_Replica__new writer initial limits == Result.Result_Ok r ==> public_history r) by (
+let new_establishes_public_history (writer: u64) (initial: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (ensures forall(r: Native.t_Replica). Native.impl_Replica__new writer initial == Result.Result_Ok r ==> public_history r) =
+  new_establishes_history writer initial;
+  Nickel.Register.new_has_unique_ids writer initial;
+  assert (forall(r: Native.t_Replica). Native.impl_Replica__new writer initial == Result.Result_Ok r ==> public_history r) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__new";
     Tactics.prune "Nickel.RegisterValid.history_invariant";
     Tactics.prune "Nickel.Register.fact_ids_unique";
@@ -210,11 +210,11 @@ let public_read_is_the_causal_read (r: Native.t_Replica) (key: u64) (x: t_Slice 
     Tactics.smt_sync' 1 1
   )
 
-let new_public_producer (writer: u64) (initial: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) (limits: Native.t_Limits) : Lemma (ensures forall(r: Native.t_Replica). Native.impl_Replica__new writer initial limits == Result.Result_Ok r ==> Prims.l_and (Prims.l_and (public_history r) (r.f_writer == writer)) (v r.f_next_counter == 1)) =
-  new_establishes_public_history writer initial limits;
-  let each (r: Native.t_Replica) : Lemma (requires Native.impl_Replica__new writer initial limits == Result.Result_Ok r) (ensures Prims.l_and (r.f_writer == writer) (v r.f_next_counter == 1)) = () in
+let new_public_producer (writer: u64) (initial: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (ensures forall(r: Native.t_Replica). Native.impl_Replica__new writer initial == Result.Result_Ok r ==> Prims.l_and (Prims.l_and (public_history r) (r.f_writer == writer)) (v r.f_next_counter == 1)) =
+  new_establishes_public_history writer initial;
+  let each (r: Native.t_Replica) : Lemma (requires Native.impl_Replica__new writer initial == Result.Result_Ok r) (ensures Prims.l_and (r.f_writer == writer) (v r.f_next_counter == 1)) = () in
   FStar.Classical.forall_intro (FStar.Classical.move_requires each);
-  assert (forall(r: Native.t_Replica). Native.impl_Replica__new writer initial limits == Result.Result_Ok r ==> Prims.l_and (Prims.l_and (public_history r) (r.f_writer == writer)) (v r.f_next_counter == 1)) by (
+  assert (forall(r: Native.t_Replica). Native.impl_Replica__new writer initial == Result.Result_Ok r ==> Prims.l_and (Prims.l_and (public_history r) (r.f_writer == writer)) (v r.f_next_counter == 1)) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__new";
     Tactics.prune "Nickel.RegisterPublic.public_history";
     Tactics.smt_sync' 1 1
@@ -599,9 +599,9 @@ let write_counted_meaning (before: Native.t_Replica) (key: u64) (value: Alloc.Ve
     Tactics.smt_sync' 1 1
   )
 
-let noedit_write_is_equal_value (before: Native.t_Replica) (key: u64) (value: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (ensures forall(next: Native.t_Replica). Native.impl_Replica__write before key value == (next, Result.Result_Ok Option.Option_None) ==> Prims.l_and (Prims.l_and (next == before) (Seq.length (Alloc.Vec.impl_1__as_slice value) <= v before.f_limits.f_value_bytes)) (Nickel.Register.bytes_same (Alloc.Vec.impl_1__as_slice value) (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read before key)))) =
+let noedit_write_is_equal_value (before: Native.t_Replica) (key: u64) (value: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (ensures forall(next: Native.t_Replica). Native.impl_Replica__write before key value == (next, Result.Result_Ok Option.Option_None) ==> Prims.l_and (next == before) (Nickel.Register.bytes_same (Alloc.Vec.impl_1__as_slice value) (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read before key)))) =
   Nickel.Register.bytes_equal_exact (Alloc.Vec.impl_1__as_slice value) (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read before key));
-  match Core_models.Num.impl_u64__checked_add before.f_next_counter (mk_u64 1) with | Option.Option_None -> begin assert (forall(next: Native.t_Replica). Native.impl_Replica__write before key value == (next, Result.Result_Ok Option.Option_None) ==> Prims.l_and (Prims.l_and (next == before) (Seq.length (Alloc.Vec.impl_1__as_slice value) <= v before.f_limits.f_value_bytes)) (Nickel.Register.bytes_same (Alloc.Vec.impl_1__as_slice value) (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read before key)))) by (
+  match Core_models.Num.impl_u64__checked_add before.f_next_counter (mk_u64 1) with | Option.Option_None -> begin assert (forall(next: Native.t_Replica). Native.impl_Replica__write before key value == (next, Result.Result_Ok Option.Option_None) ==> Prims.l_and (next == before) (Nickel.Register.bytes_same (Alloc.Vec.impl_1__as_slice value) (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read before key)))) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
     Tactics.prune "Nickel_crdt.Event_layer.frontier";
     Tactics.prune "Nickel_crdt.Register.next_lamport";
@@ -610,7 +610,7 @@ let noedit_write_is_equal_value (before: Native.t_Replica) (key: u64) (value: Al
     Tactics.prune "Nickel.Register.bytes_same";
     Tactics.prune "Nickel.Register.bytes_equal_exact";
     Tactics.smt_sync' 1 1
-  ) end | Option.Option_Some next -> begin match Nickel_crdt.Event_layer.frontier (Alloc.Vec.impl_1__as_slice before.f_facts) Native.v_OPS._1 with | Result.Result_Err _ -> begin assert (forall(next: Native.t_Replica). Native.impl_Replica__write before key value == (next, Result.Result_Ok Option.Option_None) ==> Prims.l_and (Prims.l_and (next == before) (Seq.length (Alloc.Vec.impl_1__as_slice value) <= v before.f_limits.f_value_bytes)) (Nickel.Register.bytes_same (Alloc.Vec.impl_1__as_slice value) (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read before key)))) by (
+  ) end | Option.Option_Some next -> begin match Nickel_crdt.Event_layer.frontier (Alloc.Vec.impl_1__as_slice before.f_facts) Native.v_OPS._1 with | Result.Result_Err _ -> begin assert (forall(next: Native.t_Replica). Native.impl_Replica__write before key value == (next, Result.Result_Ok Option.Option_None) ==> Prims.l_and (next == before) (Nickel.Register.bytes_same (Alloc.Vec.impl_1__as_slice value) (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read before key)))) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
     Tactics.prune "Nickel_crdt.Event_layer.frontier";
     Tactics.prune "Nickel_crdt.Register.next_lamport";
@@ -619,7 +619,7 @@ let noedit_write_is_equal_value (before: Native.t_Replica) (key: u64) (value: Al
     Tactics.prune "Nickel.Register.bytes_same";
     Tactics.prune "Nickel.Register.bytes_equal_exact";
     Tactics.smt_sync' 1 1
-  ) end | Result.Result_Ok parents -> begin match Native.next_lamport (Alloc.Vec.impl_1__as_slice before.f_facts) with | Result.Result_Err _ -> begin assert (forall(next: Native.t_Replica). Native.impl_Replica__write before key value == (next, Result.Result_Ok Option.Option_None) ==> Prims.l_and (Prims.l_and (next == before) (Seq.length (Alloc.Vec.impl_1__as_slice value) <= v before.f_limits.f_value_bytes)) (Nickel.Register.bytes_same (Alloc.Vec.impl_1__as_slice value) (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read before key)))) by (
+  ) end | Result.Result_Ok parents -> begin match Native.next_lamport (Alloc.Vec.impl_1__as_slice before.f_facts) with | Result.Result_Err _ -> begin assert (forall(next: Native.t_Replica). Native.impl_Replica__write before key value == (next, Result.Result_Ok Option.Option_None) ==> Prims.l_and (next == before) (Nickel.Register.bytes_same (Alloc.Vec.impl_1__as_slice value) (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read before key)))) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
     Tactics.prune "Nickel_crdt.Event_layer.frontier";
     Tactics.prune "Nickel_crdt.Register.next_lamport";
@@ -628,7 +628,7 @@ let noedit_write_is_equal_value (before: Native.t_Replica) (key: u64) (value: Al
     Tactics.prune "Nickel.Register.bytes_same";
     Tactics.prune "Nickel.Register.bytes_equal_exact";
     Tactics.smt_sync' 1 1
-  ) end | Result.Result_Ok clock -> begin assert (forall(next: Native.t_Replica). Native.impl_Replica__write before key value == (next, Result.Result_Ok Option.Option_None) ==> Prims.l_and (Prims.l_and (next == before) (Seq.length (Alloc.Vec.impl_1__as_slice value) <= v before.f_limits.f_value_bytes)) (Nickel.Register.bytes_same (Alloc.Vec.impl_1__as_slice value) (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read before key)))) by (
+  ) end | Result.Result_Ok clock -> begin assert (forall(next: Native.t_Replica). Native.impl_Replica__write before key value == (next, Result.Result_Ok Option.Option_None) ==> Prims.l_and (next == before) (Nickel.Register.bytes_same (Alloc.Vec.impl_1__as_slice value) (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read before key)))) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
     Tactics.prune "Nickel_crdt.Event_layer.frontier";
     Tactics.prune "Nickel_crdt.Register.next_lamport";

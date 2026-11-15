@@ -352,6 +352,10 @@ proof counted_write_basis_is_whole_history_at(before: Native.t_Replica, key: u64
   };
   exact_basis_is_whole(before, authored);
   assert(whole_basis(before, authored)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel_crdt.Event_layer.select_basis");
     Tactics.prune("Nickel.RegisterFrontier.whole_basis");
     Tactics.prune("Nickel.RegisterFrontier.exact_basis_is_whole");
     Tactics.smt_sync'(1, 1)

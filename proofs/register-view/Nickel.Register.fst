@@ -488,7 +488,7 @@ let less_policy_is_native_call (less: Envelope.t_Id -> Envelope.t_Id -> bool) (a
 let register_order_policy_is_exact () : Lemma (ensures Prims.l_and (Prims.l_and (Prims.l_and (Native.v_OPS._1._1._1 == Native.identity) (Native.v_OPS._1._1._4 == Native.less_id)) (forall(item: fact). Native.v_OPS._1._1._1 item == item.f_id)) (Nickel.Canonical.strict_order Native.v_OPS._1._1._4)) =
   let graph = Nickel_crdt.Event_layer.graph_ops Native.identity Native.parents Native.same_id Native.less_id Native.copy_fact Native.fact_equal Native.invalid Native.missing in
   Nickel.EventGraph.graph_ops_preserve_callbacks Native.identity Native.parents Native.same_id Native.less_id Native.copy_fact Native.fact_equal Native.invalid Native.missing;
-  Nickel.EventGraph.event_ops_preserve_callbacks graph Native.previous Native.forbidden Native.capacity Native.capacity Native.invalid Native.invalid;
+  Nickel.EventGraph.event_ops_preserve_callbacks graph Native.previous Native.forbidden Native.invalid Native.invalid;
   assert (Prims.l_and (Prims.l_and (Native.v_OPS._1 == graph) (graph._1._1 == Native.identity)) (graph._1._4 == Native.less_id)) by (
     Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
     Tactics.prune "Nickel_crdt.Event_layer.event_ops";
@@ -828,7 +828,7 @@ let write_preserves_unique_ids (before: Native.t_Replica) (key: u64) (value: All
     Tactics.smt_sync' 1 1
   ) end end end
 
-let new_has_unique_ids (writer: u64) (initial: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) (limits: Native.t_Limits) : Lemma (ensures forall(replica: Native.t_Replica). Native.impl_Replica__new writer initial limits == Result.Result_Ok replica ==> fact_ids_unique replica.f_facts) =
+let new_has_unique_ids (writer: u64) (initial: Alloc.Vec.t_Vec u8 Alloc.Alloc.t_Global) : Lemma (ensures forall(replica: Native.t_Replica). Native.impl_Replica__new writer initial == Result.Result_Ok replica ==> fact_ids_unique replica.f_facts) =
   ()
 
 let receive_result_can_execute (before: Native.t_Replica) (offered: fact) : Lemma (requires fact_ids_unique before.f_facts) (ensures exists(next: Native.t_Replica). Native.execute () (Native.impl_Replica__receive before offered)._1 == Result.Result_Ok next) =
