@@ -23,8 +23,13 @@ and conflicting births reject before publication.
 
 A nonempty edit appends one own item. With pending redo, new work requires an
 explicit `keep` or `clear` choice. Restore has the same requirement when it
-actually creates an action. No q04 default is selected; keep-redo branch
-stacking remains provisional. Groups, child edits and positions are not modeled.
+actually creates an action. Ren approved the explicit choice and blocked-top
+stack continuation in [choice 3](first-cut-decisions.md#3-keepclear-is-explicit-keeping-redo-is-a-stack-not-a-branch-browser);
+there is no silent default. Clear-first with keep explicitly unsupported is an
+approved delivery fallback if the native proof cost warrants it, not current
+reference behavior. Returning occurrences retain their original IDs, as approved
+in [choice 4](first-cut-decisions.md#4-a-returning-occurrence-keeps-its-id).
+Groups, child edits and positions are not modeled.
 
 ## 2. ordinary Undo
 
