@@ -31,7 +31,9 @@ Compared replicas of a document must agree on this configuration. No plugin
 ownership is encoded into keys or writer identities.
 
 There is no engine event-count, parent-count or value-byte policy ceiling.
-Workload budgets belong to callers/harnesses; see [the migration](policy-budgets.md).
+Optional workload budgets belong to callers; see [the migration](policy-budgets.md).
+No register-budget harness is delivered by this candidate. The retained capacity
+tests use a text-only caller guard, not register engine Capacity outcomes.
 No automatic GC, winner-only compaction or buffering policy is selected.
 
 ## retained meaning and admission
@@ -112,11 +114,16 @@ with the candidate; none of these alone establishes full register refinement,
 valid-history preservation, shared canonical convergence or the multi-write
 contract. The existing text theorem statements and implementation are unchanged.
 
+Equal-value no-edit has no engine value-byte-budget premise in this API. The
+older bounded no-edit evidence at `52f597a` required value fitness and did not
+let equality bypass that policy check; that is a historical claim about the
+pre-migration engine, not a condition or guarantee of the ceiling-free API.
+
 ### added-receive payload boundary
 
 `validation_is_exact_basis_checks` characterizes the actual validator in both
 directions: the actual shared admission and basis-selection calls succeed, the
-counter is nonzero and byte bounds hold, the observed bytes equal the read of
+counter is nonzero, the observed bytes equal the read of
 that selected basis, the new bytes differ, and its clock equals the actual
 `next_lamport` result on that basis. `planned_checks_payload` and
 `receive_added_checks_payload` transport those checks to the actual public

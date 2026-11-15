@@ -92,8 +92,9 @@ for offers that the old engine rejected as Capacity. Those ceilings now belong
 to caller harnesses. Real integer overflow checks remain.
 
 The separately compiled composed-register caller keeps its independent oracle
-unchanged. Capacity boundary tests exercise caller policy, not an engine Capacity
-outcome. Its actual clock and observation guard faults must compile before their
+unchanged. Capacity boundary tests exercise text caller policy, not an engine Capacity
+outcome. No register-budget guard is implemented in `tests/support`; optional
+register workload budgets remain the caller's responsibility. Its actual clock and observation guard faults must compile before their
 assertion failures count as native sensitivity evidence.
 
 The final whole-basis consuming assertion now withholds native write, receive,
