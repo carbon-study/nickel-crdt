@@ -1305,11 +1305,18 @@ let stored_id_classifies (h: t_Slice Nickel.Register.fact) (offered: Nickel.Regi
 let duplicate_classification_is_stored (h: t_Slice Nickel.Register.fact) (offered: Nickel.Register.fact) : Lemma (requires Nickel_crdt.Event_layer.classify h offered Native.v_OPS._1 == Option.Option_Some true) (ensures stored h offered) =
   register_ops_are_exact ();
   Nickel.EventClassifier.classification_is_exact h offered Native.v_OPS._1;
+  assert (Nickel.EventClassifier.lookup h offered Native.v_OPS._1._1._1 Native.v_OPS._1._1._3 Native.v_OPS._1._1._6 (mk_usize 0) == Option.Option_Some true) by (
+    Tactics.prune "Nickel_crdt.Event_layer.classify";
+    Tactics.prune "Nickel.EventClassifier.lookup";
+    Tactics.prune "Nickel.EventClassifier.classification_is_exact";
+    Tactics.smt_sync' 1 1
+  );
   lookup_some_hits h offered Native.v_OPS._1._1._1 Native.v_OPS._1._1._3 Native.v_OPS._1._1._6 (mk_usize 0) true;
   FStar.Classical.forall_intro_2 Nickel.Register.fact_equal_is_whole_value;
   assert (stored h offered) by (
     Tactics.prune "Nickel_crdt.Event_layer.classify";
     Tactics.prune "Nickel.EventClassifier.lookup";
+    Tactics.prune "Nickel.EventClassifier.classification_is_exact";
     Tactics.smt_sync' 1 1
   )
 
@@ -1322,6 +1329,7 @@ let receive_by_plan (before: Native.t_Replica) (offered: Nickel.Register.fact) :
     Tactics.prune "Nickel.Register.planned_preserves_private";
     Tactics.prune "Nickel.Register.planned_checks_payload";
     Tactics.prune "Nickel.Register.planned_adds_exact_fact";
+    Tactics.prune "Nickel.Register.receive_publication_is_exact";
     Tactics.smt_sync' 1 1
   ) end | Result.Result_Ok option -> begin match option with | Option.Option_None -> begin assert (Prims.l_and (Prims.l_and (Prims.l_and (Native.planned () before offered == Result.Result_Ok Option.Option_None ==> Native.impl_Replica__receive before offered == (before, Result.Result_Ok Native.Admission_Duplicate)) (forall(e: Native.t_Error). Native.planned () before offered == Result.Result_Err e ==> Native.impl_Replica__receive before offered == (before, Result.Result_Err e))) (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Duplicate) ==> Prims.l_and (next == before) (Native.planned () before offered == Result.Result_Ok Option.Option_None))) (forall(next: Native.t_Replica) (e: Native.t_Error). Native.impl_Replica__receive before offered == (next, Result.Result_Err e) ==> next == before)) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
@@ -1330,6 +1338,7 @@ let receive_by_plan (before: Native.t_Replica) (offered: Nickel.Register.fact) :
     Tactics.prune "Nickel.Register.planned_preserves_private";
     Tactics.prune "Nickel.Register.planned_checks_payload";
     Tactics.prune "Nickel.Register.planned_adds_exact_fact";
+    Tactics.prune "Nickel.Register.receive_publication_is_exact";
     Tactics.smt_sync' 1 1
   ) end | Option.Option_Some _ -> begin assert (Prims.l_and (Prims.l_and (Prims.l_and (Native.planned () before offered == Result.Result_Ok Option.Option_None ==> Native.impl_Replica__receive before offered == (before, Result.Result_Ok Native.Admission_Duplicate)) (forall(e: Native.t_Error). Native.planned () before offered == Result.Result_Err e ==> Native.impl_Replica__receive before offered == (before, Result.Result_Err e))) (forall(next: Native.t_Replica). Native.impl_Replica__receive before offered == (next, Result.Result_Ok Native.Admission_Duplicate) ==> Prims.l_and (next == before) (Native.planned () before offered == Result.Result_Ok Option.Option_None))) (forall(next: Native.t_Replica) (e: Native.t_Error). Native.impl_Replica__receive before offered == (next, Result.Result_Err e) ==> next == before)) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
@@ -1338,6 +1347,7 @@ let receive_by_plan (before: Native.t_Replica) (offered: Nickel.Register.fact) :
     Tactics.prune "Nickel.Register.planned_preserves_private";
     Tactics.prune "Nickel.Register.planned_checks_payload";
     Tactics.prune "Nickel.Register.planned_adds_exact_fact";
+    Tactics.prune "Nickel.Register.receive_publication_is_exact";
     Tactics.smt_sync' 1 1
   ) end end
 
@@ -1353,6 +1363,7 @@ let plan_by_duplicate (before: Native.t_Replica) (offered: Nickel.Register.fact)
     Tactics.prune "Nickel.Register.planned_preserves_private";
     Tactics.prune "Nickel.Register.planned_checks_payload";
     Tactics.prune "Nickel.Register.planned_adds_exact_fact";
+    Tactics.prune "Nickel.EventShell.planning_is_exact";
     Tactics.smt_sync' 1 1
   )
 
