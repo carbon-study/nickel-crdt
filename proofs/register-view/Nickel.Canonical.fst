@@ -562,3 +562,6 @@ let canonical_succeeds_for_unique_ids (#f: Type0) (#i: Type0) (#e: Type0) (input
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.smt_sync' 1 1
   )
+
+let empty_frontier_is_empty (#f: Type0) (#i: Type0) (#e: Type0) (facts: t_Slice f) (ops: Nickel.EventGraph.graph_ops f i e) : Lemma (requires Seq.length facts == 0) (ensures Native.frontier facts ops == Result.Result_Ok (Alloc.Vec.impl__new ())) =
+  ()

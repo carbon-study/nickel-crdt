@@ -840,3 +840,9 @@ proof canonical_succeeds_for_unique_ids<f: Type0, i: Type0, e: Type0>(input: t_S
     Tactics.smt_sync'(1, 1)
   }
 }
+
+// Actual empty frontier, independent of policy callbacks: neither loop runs.
+proof empty_frontier_is_empty<f: Type0, i: Type0, e: Type0>(facts: t_Slice(f), ops: Nickel.EventGraph.graph_ops(f, i, e)): unit
+  takes Seq.length(facts) == 0
+  gives Native.frontier(facts, ops) == Result.Result_Ok(Alloc.Vec.impl__new(()))
+{ () }

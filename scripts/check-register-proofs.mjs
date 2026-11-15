@@ -62,8 +62,9 @@ if(env.NICKEL_LATTE_BIN){
 }
 const source=await fs.readFile(path.join(root,'src/register.rs'),'utf8');
 const graphSource=await fs.readFile(path.join(root,'src/event_layer.rs'),'utf8');
-const graphModes=new Set(['past-skips-parent-check','past-extend-never-pushes','past-extend-unselected','canonical-push-drops-value','canonical-copies-wrong-fact','canonical-discards-output','canonical-chooses-largest','canonical-choice-always-errors']);
+const graphModes=new Set(['frontier-empty-errors','past-skips-parent-check','past-extend-never-pushes','past-extend-unselected','canonical-push-drops-value','canonical-copies-wrong-fact','canonical-discards-output','canonical-chooses-largest','canonical-choice-always-errors']);
 const bodyModes=[
+ ['frontier-empty-errors','pub fn frontier<','    Ok(out)','    Err(internal())','Canonical.empty_frontier_is_empty'],
  ['new-repeats-fact','pub fn new(',"facts: Vec::new()","facts: { let f = Fact { id: Id { peer: writer, counter: 1 }, after: Vec::new(), payload: Write { key: 0, value: Vec::new(), observed: Vec::new(), lamport: 1 } }; let mut facts = Vec::new(); facts.push(f.clone()); facts.push(f); facts }",'new_has_unique_ids'],
  ['canonical-choice-always-errors','fn choose_unseen<','Ok(chosen)','Err(internal())','Canonical.choose_finishes_scan'],
  ['execute-always-errors','fn execute(','Ok(next)','Err(invalid())','execute_succeeds_for_unique_ids'],

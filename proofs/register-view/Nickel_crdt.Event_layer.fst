@@ -983,29 +983,31 @@ let frontier
   in
   let out:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = Alloc.Vec.impl__new #v_I () in
   match
-    Rust_primitives.Hax.Folds.fold_return (Core_models.Iter.Traits.Collect.f_into_iter #(t_Slice v_F
-          )
-          #FStar.Tactics.Typeclasses.solve
-          facts
-        <:
-        Core_models.Slice.Iter.t_Iter v_F)
-      out
-      (fun out f ->
+    Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
+      (Core_models.Slice.impl__len #v_F facts <: usize)
+      (fun out temp_1_ ->
           let out:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = out in
-          let f:v_F = f in
+          let _:usize = temp_1_ in
+          true)
+      out
+      (fun out i ->
+          let out:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = out in
+          let i:usize = i in
+          let f:v_F = facts.[ i ] in
           let child:bool = false in
           let child:bool =
-            Core_models.Iter.Traits.Iterator.f_fold (Core_models.Iter.Traits.Collect.f_into_iter #(t_Slice
-                    v_F)
-                  #FStar.Tactics.Typeclasses.solve
-                  facts
-                <:
-                Core_models.Slice.Iter.t_Iter v_F)
-              child
-              (fun child e ->
+            Rust_primitives.Hax.Folds.fold_range (mk_usize 0)
+              (Core_models.Slice.impl__len #v_F facts <: usize)
+              (fun child temp_1_ ->
                   let child:bool = child in
-                  let e:v_F = e in
-                  if has_id #v_F #v_I #v_E (after e) (id f) ops <: bool
+                  let _:usize = temp_1_ in
+                  true)
+              child
+              (fun child j ->
+                  let child:bool = child in
+                  let j:usize = j in
+                  let e:v_F = facts.[ j ] in
+                  if has_id #v_F #v_I #v_E (after e) (id f) ops
                   then
                     let child:bool = true in
                     child

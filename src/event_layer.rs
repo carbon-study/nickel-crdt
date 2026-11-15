@@ -201,9 +201,11 @@ pub fn choose_ready<F, I, E>(facts: &[F], done: &[I], ops: &GraphOps<F, I, E>) -
 pub fn frontier<F, I, E>(facts: &[F], ops: &GraphOps<F, I, E>) -> Result<Vec<I>, E> {
     let ((id, after, _, _, _, _), (internal, _)) = *ops;
     let mut out = Vec::new();
-    for f in facts {
+    for i in 0..facts.len() {
+        let f = &facts[i];
         let mut child = false;
-        for e in facts {
+        for j in 0..facts.len() {
+            let e = &facts[j];
             if has_id(after(e), &id(f), ops) {
                 child = true;
             }
