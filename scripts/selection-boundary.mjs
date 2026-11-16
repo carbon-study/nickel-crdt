@@ -29,7 +29,7 @@ const run=(label,cmd,args,opts={})=>{const r=spawnSync(cmd,args,{encoding:'utf8'
 
 // A relative path input reports the parent flake's revision as its own, so the sentinel's rev is not a base.
 if(fs.existsSync(path.join(base,'nickel-selection-base-none'))){identity.base=null;finish('full','no base revision supplied (default selection-base)');}
-if(!rev.test(headRev))finish('full','head has no exact revision (dirty or unpinned tree)');
+if(!rev.test(headRev))finish('full','head has no exact revision (no selection-head override whose tree is this tree)');
 if(!rev.test(baseRev))finish('full','base has no exact revision');
 const t=identity.toolchain;
 if(!t.headFlakeLock||t.headFlakeLock!==t.baseFlakeLock||t.headFlake!==t.baseFlake)finish('full','toolchain differs between base and head (flake.lock or flake.nix)');
