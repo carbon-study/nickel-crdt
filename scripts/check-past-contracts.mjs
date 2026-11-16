@@ -6,6 +6,10 @@ import {put,verify} from './proof-cache.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
 export async function checkPastContracts({proof,output,fstar,models,modelCache,select=()=>true}) {
   const controls=[
+    ['text-past-without-reach-bridge', /  shared_reachable_is_text[^\n]+;\n/, 'Nickel.EditPast.past_covers_bounded_predecessor_paths', '', 'past_covers_bounded_predecessor_paths'],
+    ['text-past-without-shared-extend-completeness', /  Nickel\.PastExact\.extend_past_covers_predecessors[^\n]+;\n/, 'Nickel.EditPast.extend_past_covers_predecessors', '', 'extend_past_covers_predecessors'],
+    ['text-past-without-shared-pass-completeness', /  Nickel\.PastExact\.past_pass_covers_edges[^\n]+;\n/, 'Nickel.EditPast.past_pass_covers_edges', '', 'past_pass_covers_edges'],
+    ['text-past-without-shared-depth-completeness', /  Nickel\.PastExact\.past_covers_bounded_predecessor_paths[^\n]+;\n/, 'Nickel.EditPast.past_covers_bounded_predecessor_paths', '', 'past_covers_bounded_predecessor_paths'],
     ['text-past-without-shared-extend', /  Nickel\.PastExact\.extend_past_preserves[^\n]+;\n/, 'Nickel.EditPast.extend_past_preserves', '', 'extend_past_preserves'],
     ['text-past-without-shared-pass', /  Nickel\.PastExact\.past_pass_preserves[^\n]+;\n/, 'Nickel.EditPast.past_pass_preserves', '', 'past_pass_preserves'],
     ['text-past-without-shared-closed', /  Nickel\.PastExact\.past_stays_in_closed_set[^\n]+;\n/, 'Nickel.EditPast.past_stays_in_closed_set', '', 'past_stays_in_closed_set'],
@@ -31,7 +35,7 @@ export async function checkPastContracts({proof,output,fstar,models,modelCache,s
       'Nickel.EditPast.past_has_only_ancestors_and_keeps_roots'],
     ['past-depth-without-pass-contract',
       /    past_pass_covers_edges[^\n]+;\n/,
-      'Nickel.EditPast.past_covers_bounded_predecessor_paths'],
+      'Nickel.PastExact.past_covers_bounded_predecessor_paths'],
     ['past-paths-without-depth-contract',
       /  past_covers_bounded_predecessor_paths[^\n]+;\n/,
       'Nickel.EditPast.past_contains_short_paths'],

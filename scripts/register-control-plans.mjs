@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {scopedAnchor,codeMask} from './mutation-scope.mjs';
 
 export function registerControlPlans({source,graphSource,view,loopView,canonicalView,pastView,historyView,validView,publicView,frontierView}){
- const graphModes=new Set(['frontier-pushes-first-id','frontier-inverts-child','frontier-reference-always-false','frontier-reference-empty-input','frontier-reference-wrong-fact','frontier-empty-errors','past-skips-parent-check','past-extend-never-pushes','past-extend-unselected','canonical-push-drops-value','canonical-copies-wrong-fact','canonical-discards-output','canonical-chooses-largest','canonical-choice-always-errors']);
+ const graphModes=new Set(['past-pass-skips-input','frontier-pushes-first-id','frontier-inverts-child','frontier-reference-always-false','frontier-reference-empty-input','frontier-reference-wrong-fact','frontier-empty-errors','past-skips-parent-check','past-extend-never-pushes','past-extend-unselected','canonical-push-drops-value','canonical-copies-wrong-fact','canonical-discards-output','canonical-chooses-largest','canonical-choice-always-errors']);
  const bodyModes=[
   ["frontier-pushes-first-id","pub fn frontier<","push(&mut out, id(f), internal)?","push(&mut out, id(&facts[0]), internal)?","Canonical.frontier_is_nonparent_filter"],
   ["frontier-inverts-child","pub fn frontier<","if !child {","if child {","Canonical.frontier_is_nonparent_filter"],
@@ -32,7 +32,8 @@ export function registerControlPlans({source,graphSource,view,loopView,canonical
   // History invariant (receive half): an Added offer's parents are stored only because past checks them.
   ['past-skips-parent-check','fn past<','    validate_after(facts, after_ids, ops)?;\n','','RegisterHistory.past_checked_parents'],
   // Exact past directions (#97 obligation 1): each native fault breaks only its own direction.
-  ['past-extend-never-pushes','fn extend_past<','if !has_id(&selected, &predecessor, ops) {','if false && !has_id(&selected, &predecessor, ops) {','RegisterPast.extend_past_covers_predecessors'],
+  ['past-pass-skips-input','fn past_pass<','for i in 0..facts.len() {','for i in 0..0usize {','PastExact.past_pass_covers_edges'],
+  ['past-extend-never-pushes','fn extend_past<','if !has_id(&selected, &predecessor, ops) {','if false && !has_id(&selected, &predecessor, ops) {','PastExact.extend_past_covers_predecessors'],
   ['past-extend-unselected','fn extend_past<','if has_id(&selected, &id(fact), ops) {','if true {','PastExact.extend_past_preserves'],
   ['canonical-chooses-largest','fn choose_unseen<','id_lt(&id(&facts[j]), &id(&facts[k]))','id_lt(&id(&facts[k]), &id(&facts[j]))','Canonical.choose_is_least'],
   ['register-wrong-order-policy','const OPS:','graph::graph_ops(identity, parents, same_id, less_id,','graph::graph_ops(identity, parents, same_id, same_id,','register_order_policy_is_exact'],
@@ -134,6 +135,10 @@ export function registerControlPlans({source,graphSource,view,loopView,canonical
  const presenceLoop=historyView.split('\n').find(l=>l.startsWith('  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len after)'));
  assert(presenceLoop,'actual validate_after loop contract');
  const depModes=[
+  ['without-shared-past-reach-bridge',replaceInDeclaration('past_covers_bounded_predecessor_paths','  shared_reachable_is_register ops facts roots (Seq.length facts);','  ();',pastView),'RegisterPast.past_covers_bounded_predecessor_paths'],
+  ['without-shared-past-extend-completeness',replaceInDeclaration('extend_past_covers_predecessors','  Nickel.PastExact.extend_past_covers_predecessors ops fact before;','  ();',pastView),'RegisterPast.extend_past_covers_predecessors'],
+  ['without-shared-past-pass-completeness',replaceInDeclaration('past_pass_covers_edges','  Nickel.PastExact.past_pass_covers_edges ops facts before;','  ();',pastView),'RegisterPast.past_pass_covers_edges'],
+  ['without-shared-past-depth-completeness',replaceInDeclaration('past_covers_bounded_predecessor_paths','  Nickel.PastExact.past_covers_bounded_predecessor_paths ops facts roots;','  ();',pastView),'RegisterPast.past_covers_bounded_predecessor_paths'],
   ['without-shared-past-extend',replaceInDeclaration('extend_past_preserves','  Nickel.PastExact.extend_past_preserves ops roots p fact before;','  ();',pastView),'RegisterPast.extend_past_preserves'],
   ['without-shared-past-pass',replaceInDeclaration('past_pass_preserves','  Nickel.PastExact.past_pass_preserves ops roots p facts before;','  ();',pastView),'RegisterPast.past_pass_preserves'],
   ['without-shared-past-closed',replaceInDeclaration('past_stays_in_closed_set','  Nickel.PastExact.past_stays_in_closed_set ops facts roots p;','  ();',pastView),'RegisterPast.past_stays_in_closed_set'],

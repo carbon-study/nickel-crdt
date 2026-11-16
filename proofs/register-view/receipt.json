@@ -28,9 +28,9 @@
     "proofs/register-view/Nickel_crdt.Causal.fst": "f687dc18bc368c9c06035ca27297e766a0f5d88e8d321c10eefa5a321d014bce",
     "proofs/register-view/Nickel_crdt.Event_layer.fst": "cde2b73aa3198c7370de5588b57ab614cb1f895bb8abe74dc355c8ba585e0f9b",
     "proofs/register-view/Nickel_crdt.Event_shell.fst": "4eb7b1f6ef8de126cdb799864c2073b6086e5af4d91fa4ade2b6ce38d8f37d8c",
-    "proofs/RegisterPast.lt": "687f852eba2506819383752b24d303a9f9a8e0a44933f849e7061dc7e03019ce",
+    "proofs/RegisterPast.lt": "c43d7184a741fed30c9e9df3252bfe448cab823078a1593b4f3f4f28bbda485e",
     "proofs/RegisterHistory.lt": "c4b6672bb6e2c15772f9a43c75188b890f99cb438f83196f43a59ecea8394cb6",
-    "proofs/register-view/Nickel.RegisterPast.fst": "4696a7ec513e3ed0c7a7d599dfcbb0ded6752856bb556863fe041102bd7131d5",
+    "proofs/register-view/Nickel.RegisterPast.fst": "e95dd2a12cafc979cf8b78a5f1f2884c7440b0fd1b88f1dec3d5a60761dd4bab",
     "proofs/register-view/Nickel.RegisterHistory.fst": "74bcbc6145ed2adc69e2c2313804e21486d1f5ad3089fd8ddee597f00341ba16",
     "proofs/generated/Nickel.EventClassifier.fst": "c3f31194d0096d9320504be3428d4bdb4b7eeb27f04e71a6efa39fac7a0d89c7",
     "proofs/EventClassifier.lt": "f0074997190bc56b80a7fe658ccd42a4c6da0edcf7310a5ce5b845f69c62042e",
@@ -40,7 +40,7 @@
     "proofs/register-view/Nickel.RegisterPublic.fst": "a7735ba20a1e803f198dae89d9e11ba3f4efdd10f02401a0f49be62f68bda0c5",
     "proofs/RegisterFrontier.lt": "4c97d9b7e596d89abc2ac1dbf6cc88957cf3f1e5f22352704744d75d7f57df78",
     "proofs/register-view/Nickel.RegisterFrontier.fst": "e8a49186f54e9ab238d271d8f2d4e8901c0f2a62795c6df0afbfede5bc33fd47",
-    "proofs/PastExact.lt": "facbaf31d788c8771e3ecb49d1e9e9dff2e479fff3c9188271b60bfabc72a62f",
-    "proofs/generated/Nickel.PastExact.fst": "40e476d225219b5f62ba07953f15c71a7e37f1aa743756f490d9896d1d3d0b30"
+    "proofs/PastExact.lt": "96fafbea963621b603fc183aa2ff07afde95509a9912011de8fc4c2a1a538185",
+    "proofs/generated/Nickel.PastExact.fst": "24f033ed4274ffcb0a432b7a1c3d56f44803c6e65488cf587495c1ebe6aeba83"
   }
 }

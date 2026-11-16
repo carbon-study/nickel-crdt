@@ -252,64 +252,15 @@ function expansion_result(fact: Native.t_Fact, before: ids_vec, result: Result.t
 proof extend_past_covers_predecessors(fact: Native.t_Fact, before: ids_vec): unit
   gives expansion_result(fact, before, Native.extend_past(fact, before))
 {
-  Nickel.EventGraphText.text_graph_policy_is_exact();
+  text_past_ids_are_exact();
   Nickel.EventGraphText.text_graph_callbacks_are_exact();
-  proof membership_boolean(ids: t_Slice(Native.t_EventId), id: Native.t_EventId): unit
-    gives Native.has_event(ids, id) == true or Native.has_event(ids, id) == false
-    hint Native.has_event(ids, id)
-  { () };
-  extend_past_preserves(Alloc.Vec.impl_1__as_slice(before), ((_: Native.t_EventId) => Prims.l_True), fact, before);
-  proof each_push(at: usize where v(at) < Seq.length(Alloc.Vec.impl_1__as_slice(fact.f_after)), selected: ids_vec): unit
-    takes expanded_prefix(fact, v(at), selected)
-    gives (match Native.push(selected, Seq.index(Alloc.Vec.impl_1__as_slice(fact.f_after), v(at))) {
-      (next, Result.Result_Ok(_)) => expanded_prefix(fact, v(at) + 1, next),
-      _ => Prims.l_True
-    } : Type0)
-  {
-    push_result_is_exact(selected, Seq.index(Alloc.Vec.impl_1__as_slice(fact.f_after), v(at)));
-    assert((match Native.push(selected, Seq.index(Alloc.Vec.impl_1__as_slice(fact.f_after), v(at))) {
-      (next, Result.Result_Ok(_)) => expanded_prefix(fact, v(at) + 1, next),
-      _ => Prims.l_True
-    } : Type0)) by {
-    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
-    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
-    Tactics.prune("Nickel_crdt.Event_layer.event_ops"); Tactics.prune("Nickel_crdt.Edit.push");
- Tactics.prune("Nickel_crdt.Event_layer.push"); Tactics.smt_sync'(1, 1) }
-  };
-  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_push));
-  proof skip_existing(at: usize where v(at) < Seq.length(Alloc.Vec.impl_1__as_slice(fact.f_after)), selected: ids_vec): unit
-    takes expanded_prefix(fact, v(at), selected)
-    takes Native.has_event(Alloc.Vec.impl_1__as_slice(selected), Seq.index(Alloc.Vec.impl_1__as_slice(fact.f_after), v(at))) == true
-    gives expanded_prefix(fact, v(at) + 1, selected)
-  {
-    event_membership_is_exact(Alloc.Vec.impl_1__as_slice(selected), Seq.index(Alloc.Vec.impl_1__as_slice(fact.f_after), v(at)));
-    ()
-  };
-
-  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(skip_existing));
-  if Native.has_event(Alloc.Vec.impl_1__as_slice(before), fact.f_id) {
-    Nickel.LoopUtil.result_preserve_any(mk_usize(0), Alloc.Vec.impl_1__len(fact.f_after),
-      ((at: nat, selected: ids_vec) => expanded_prefix(fact, at, selected)),
-      ((selected: ids_vec) => selected), ((selected: ids_vec) => expanded_prefix(fact, Seq.length(Alloc.Vec.impl_1__as_slice(fact.f_after)), selected)), ((_: Native.t_Error) => Prims.l_True));
-    assert(expansion_result(fact, before, Native.extend_past(fact, before))) by {
-    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
-    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
-    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
-      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return"); Tactics.prune("Nickel_crdt.Edit.has_event");
- Tactics.prune("Nickel_crdt.Event_layer.has_id");
-      Tactics.prune("Nickel_crdt.Edit.push");
-      Tactics.prune("Nickel_crdt.Event_layer.push"); Tactics.smt_sync'(1, 1)
-    }
-  } else {
-    assert(expansion_result(fact, before, Native.extend_past(fact, before))) by {
-    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
-    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
-    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
-      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return"); Tactics.prune("Nickel_crdt.Edit.has_event");
- Tactics.prune("Nickel_crdt.Event_layer.has_id");
-      Tactics.prune("Nickel_crdt.Edit.push");
-      Tactics.prune("Nickel_crdt.Event_layer.push"); Tactics.smt_sync'(1, 1)
-    }
+  Nickel.EventGraphText.extend_past_is_text_call(fact, before);
+  Nickel.PastExact.extend_past_covers_predecessors(Nickel.EventGraphText.text_graph_ops(), fact, before);
+  assert(expansion_result(fact, before, Native.extend_past(fact, before))) by {
+    Tactics.prune("Nickel_crdt.Edit.extend_past");
+    Tactics.prune("Nickel_crdt.Event_layer.extend_past");
+    Tactics.prune("Nickel.PastExact.extend_past_covers_predecessors");
+    Tactics.smt_sync'(1, 1)
   }
 }
 
@@ -345,37 +296,15 @@ proof expansion_composes(facts: t_Slice(Native.t_Fact), before: ids_vec, at: usi
 proof past_pass_covers_edges(facts: t_Slice(Native.t_Fact), before: ids_vec): unit
   gives pass_result(facts, before, Native.past_pass(facts, before))
 {
-  Nickel.EventGraphText.text_graph_policy_is_exact();
-  proof each_extend(selected: ids_vec, at: usize where v(at) < Seq.length(facts)): unit
-    takes pass_prefix(facts, before, v(at), selected)
-    gives (match Native.extend_past(Seq.index(facts, v(at)), selected) {
-      Result.Result_Ok(next) => pass_prefix(facts, before, v(at) + 1, next), _ => Prims.l_True
-    } : Type0)
-  {
-    extend_past_covers_predecessors(Seq.index(facts, v(at)), selected);
-    proof each_next(next: ids_vec): unit
-      takes expansion_ok(Seq.index(facts, v(at)), selected, next)
-      gives pass_prefix(facts, before, v(at) + 1, next)
-    { expansion_composes(facts, before, at, selected, next) };
-    FStar.Classical.forall_intro(FStar.Classical.move_requires(each_next));
-    assert((match Native.extend_past(Seq.index(facts, v(at)), selected) {
-      Result.Result_Ok(next) => pass_prefix(facts, before, v(at) + 1, next), _ => Prims.l_True
-    } : Type0)) by {
-    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
-    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
-    Tactics.prune("Nickel_crdt.Event_layer.event_ops"); Tactics.prune("Nickel_crdt.Edit.extend_past");
- Tactics.prune("Nickel_crdt.Event_layer.extend_past"); Tactics.smt_sync'(1, 1) }
-  };
-  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_extend));
-  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
-    pass_prefix(facts, before), ((selected: ids_vec) => selected),
-    ((next: ids_vec) => pass_prefix(facts, before, Seq.length(facts), next)), ((_: Native.t_Error) => Prims.l_True));
+  text_past_ids_are_exact();
+  Nickel.EventGraphText.text_graph_callbacks_are_exact();
+  Nickel.EventGraphText.past_pass_is_text_call(facts, before);
+  Nickel.PastExact.past_pass_covers_edges(Nickel.EventGraphText.text_graph_ops(), facts, before);
   assert(pass_result(facts, before, Native.past_pass(facts, before))) by {
-    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
-    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
-    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
-    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return"); Tactics.prune("Nickel_crdt.Edit.extend_past");
- Tactics.prune("Nickel_crdt.Event_layer.extend_past"); Tactics.smt_sync'(1, 1)
+    Tactics.prune("Nickel_crdt.Edit.past_pass");
+    Tactics.prune("Nickel_crdt.Event_layer.past_pass");
+    Tactics.prune("Nickel.PastExact.past_pass_covers_edges");
+    Tactics.smt_sync'(1, 1)
   }
 }
 
@@ -438,54 +367,36 @@ proof pass_covers_next_depth(facts: facts_vec, roots: t_Slice(Native.t_EventId),
 function depth_result(facts: facts_vec, roots: t_Slice(Native.t_EventId), depth: nat, result: Result.t_Result(ids_vec, Native.t_Error)): Type0 {
   match result { Result.Result_Ok(selected) => covers_depth(facts, roots, depth, selected), _ => Prims.l_True }
 }
+proof text_causal_edge_is_shared(facts: facts_vec): unit
+  gives forall(parent: Native.t_EventId, child: Native.t_EventId) . Nickel.PastExact.causal_edge(Nickel.EventGraphText.text_graph_ops(), Alloc.Vec.impl_1__as_slice(facts), parent, child) <==> Nickel.EditCausal.causal_edge(facts, parent, child)
+{
+  Nickel.EventGraphText.text_graph_callbacks_are_exact();
+  ()
+}
+proof! shared_reachable_is_text(facts: facts_vec, roots: t_Slice(Native.t_EventId), depth: nat): unit
+  decreases depth
+  gives forall(id: Native.t_EventId) . Nickel.PastExact.reachable_within(Nickel.EventGraphText.text_graph_ops(), Alloc.Vec.impl_1__as_slice(facts), roots, depth, id) <==> reachable_within(facts, roots, depth, id)
+{
+  text_causal_edge_is_shared(facts);
+  Nickel.PastExact.reachable_within_equations(Nickel.EventGraphText.text_graph_ops(), Alloc.Vec.impl_1__as_slice(facts), roots);
+  if depth ==? 0 { () } else {
+    shared_reachable_is_text(facts, roots, depth - 1)
+  }
+}
+
 proof past_covers_bounded_predecessor_paths(facts: facts_vec, roots: t_Slice(Native.t_EventId)): unit
   gives depth_result(facts, roots, Seq.length(Alloc.Vec.impl_1__as_slice(facts)), Native.past(Alloc.Vec.impl_1__as_slice(facts), roots))
 {
-  Nickel.EventGraphText.text_graph_policy_is_exact();
-  proof each_pass(selected: ids_vec, at: usize where v(at) < Seq.length(Alloc.Vec.impl_1__as_slice(facts))): unit
-    takes covers_depth(facts, roots, v(at), selected)
-    gives depth_result(facts, roots, v(at) + 1, Native.past_pass(Alloc.Vec.impl_1__as_slice(facts), selected))
-  {
-    past_pass_covers_edges(Alloc.Vec.impl_1__as_slice(facts), selected);
-    assert(pass_result(Alloc.Vec.impl_1__as_slice(facts), selected, Native.past_pass(Alloc.Vec.impl_1__as_slice(facts), selected))) by {
-    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
-    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
-    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
-      Tactics.prune("Nickel_crdt.Edit.past_pass");
-      Tactics.prune("Nickel_crdt.Event_layer.past_pass"); Tactics.smt_sync'(1, 1)
-    };
-    match Native.past_pass(Alloc.Vec.impl_1__as_slice(facts), selected) {
-      Result.Result_Ok(next) => {
-        pass_covers_next_depth(facts, roots, v(at), selected, next);
-        assert(depth_result(facts, roots, v(at) + 1, Native.past_pass(Alloc.Vec.impl_1__as_slice(facts), selected))) by {
-    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
-    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
-    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
-          Tactics.prune("Nickel_crdt.Edit.past_pass");
-          Tactics.prune("Nickel_crdt.Event_layer.past_pass"); Tactics.smt_sync'(1, 1)
-        }
-      },
-      Result.Result_Err(_) => {
-        assert(depth_result(facts, roots, v(at) + 1, Native.past_pass(Alloc.Vec.impl_1__as_slice(facts), selected))) by {
-    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
-    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
-    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
-          Tactics.prune("Nickel_crdt.Edit.past_pass");
-          Tactics.prune("Nickel_crdt.Event_layer.past_pass"); Tactics.smt_sync'(1, 1)
-        }
-      }
-    }
-  };
-  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_pass));
-  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Alloc.Vec.impl_1__len(facts),
-    covers_depth(facts, roots), ((selected: ids_vec) => selected),
-    covers_depth(facts, roots, Seq.length(Alloc.Vec.impl_1__as_slice(facts))), ((_: Native.t_Error) => Prims.l_True));
+  text_past_ids_are_exact();
+  Nickel.EventGraphText.text_graph_callbacks_are_exact();
+  Nickel.EventGraphText.past_is_text_call(Alloc.Vec.impl_1__as_slice(facts), roots);
+  shared_reachable_is_text(facts, roots, Seq.length(Alloc.Vec.impl_1__as_slice(facts)));
+  Nickel.PastExact.past_covers_bounded_predecessor_paths(Nickel.EventGraphText.text_graph_ops(), Alloc.Vec.impl_1__as_slice(facts), roots);
   assert(depth_result(facts, roots, Seq.length(Alloc.Vec.impl_1__as_slice(facts)), Native.past(Alloc.Vec.impl_1__as_slice(facts), roots))) by {
-    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
-    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
-    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
-    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return"); Tactics.prune("Nickel_crdt.Edit.past_pass");
- Tactics.prune("Nickel_crdt.Event_layer.past_pass"); Tactics.smt_sync'(1, 1)
+    Tactics.prune("Nickel_crdt.Edit.past");
+    Tactics.prune("Nickel_crdt.Event_layer.past");
+    Tactics.prune("Nickel.PastExact.past_covers_bounded_predecessor_paths");
+    Tactics.smt_sync'(1, 1)
   }
 }
 
