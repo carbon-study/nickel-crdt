@@ -29,8 +29,14 @@ if(shardArgs.length){
 // exits before any extraction or proof.
 const exportPlans=selected.includes('export-plans');
 assert(!exportPlans||selected.length===1,'export-plans is exclusive');
-const named=selected.filter(a=>!a.startsWith('shard')&&a!=='export-plans');
-const wanted=(name,k)=>name==='positive'||!selected.length||named.includes(name)||(shard!==null&&k%shard.n===shard.i);
+// `selection:<file>` runs what a selector record (scripts/select-affected.mjs) chose, optionally split by a
+// shard. Before any extraction the record must match this tree's own plan export exactly; see below.
+const selectionArgs=selected.filter(a=>a.startsWith('selection:'));
+assert(selectionArgs.length<=1,'use at most one selection');
+const selectionFile=selectionArgs.length?selectionArgs[0].slice('selection:'.length):null;
+const named=selected.filter(a=>!a.startsWith('shard')&&!a.startsWith('selection:')&&a!=='export-plans');
+assert(!selectionFile||(selectionFile.length>0&&named.length===0&&!exportPlans&&coverageOnly===null),'selection combines only with a shard');
+let wanted=(name,k)=>name==='positive'||!selected.length||named.includes(name)||(shard!==null&&k%shard.n===shard.i);
 function shardPartition(names,n){
  assert.equal(new Set(names).size,names.length,'negative mode names are unique');
  const parts=Array.from({length:n},(_,i)=>names.filter((_,k)=>k%n===i));
@@ -139,7 +145,7 @@ const positive=path.join(output,'positive/proof'),file=path.join(positive,'Nicke
 // Plan and validate the complete partition (and, for coverage, the CI matrix) before any
 // extraction or proof runs.
 const negativeNames=[...bodyModes.map(p=>p.name),...depModes.map(p=>p.name)];
-if(exportPlans){
+async function exportText(){
  const describe=p=>({name:p.name,kind:p.kind,owner:p.owner,theorem:p.theorem,roots:p.roots,...(p.sourceFile?{sourceFile:p.sourceFile}:{}),...(p.module?{module:p.module}:{}),...(p.classifierModule?{classifierModule:p.classifierModule}:{}),mutated:p.mutated===null?null:digest(p.mutated)});
  // Source identity: the digest of every file the plans are built from, plus the code that builds and
  // exports them, so a selector can check an export against the commit it claims to describe.
@@ -147,7 +153,10 @@ if(exportPlans){
   'src/register.rs','src/event_layer.rs','proofs/generated/Nickel.LoopUtil.fst',
   ...['Canonical','Register','RegisterPast','RegisterHistory','RegisterValid','RegisterPublic','RegisterFrontier'].map(m=>'proofs/register-view/Nickel.'+m+'.fst')];
  const sources={};for(const f of planInputs)sources[f]=digest(await fs.readFile(path.join(root,f)));
- await fs.writeFile(path.join(output,'plans.json'),JSON.stringify({schema:1,gate:'register',sources,plans:[plans.positive,...bodyModes,...depModes].map(describe)},null,1)+'\n');
+ return JSON.stringify({schema:1,gate:'register',sources,plans:[plans.positive,...bodyModes,...depModes].map(describe)},null,1)+'\n';
+}
+if(exportPlans){
+ await fs.writeFile(path.join(output,'plans.json'),await exportText());
  console.log('exported '+(bodyModes.length+depModes.length)+' negative plans and the positive to '+path.join(output,'plans.json'));
  process.exit(0);
 }
@@ -157,8 +166,46 @@ if(coverageOnly){
  console.log('shard coverage: '+negativeNames.length+' negatives over '+coverageOnly+' shards: '+parts.map(p=>p.length).join('/'));
  process.exit(0);
 }
+// Selection consumer. The record is refused unless it was made from exactly this tree's plans (its
+// headPlans digest equals this runner's own export), is not diagnostic, and names only known modes
+// with a known run value. full runs as if unselected; none runs nothing; selected runs the named
+// negatives (split by shard index like unselected runs) and the positive in every shard that runs
+// one (dependency controls reuse the positive's workspace), or in shard 0 for a positive-only record.
+let selection=null;
+if(selectionFile){
+ let rec;try{rec=JSON.parse(await fs.readFile(selectionFile,'utf8'));}catch(e){assert.fail('selection record unreadable: '+e.message);}
+ const keys=['schema','base','head','diagnosticOnly','basePlans','headPlans','full','reasons','affected','register','text','shared'];
+ assert(rec&&typeof rec==='object'&&!Array.isArray(rec)&&Object.keys(rec).length===keys.length&&keys.every(k=>Object.hasOwn(rec,k)),'selection record has an unrecognised shape');
+ assert.equal(rec.schema,1,'selection record schema');
+ assert.equal(rec.diagnosticOnly,false,'a diagnostic selection record cannot be consumed');
+ assert.equal(rec.headPlans,digest(await exportText()),'selection record was not made for this tree (head plan export differs)');
+ const reg=rec.register;assert(reg&&typeof reg==='object'&&!Array.isArray(reg),'selection record register entry');
+ assert(rec.full===true||rec.full===false,'selection record full flag');
+ if(rec.full||reg.run==='full'){assert.deepEqual(Object.keys(reg),['run'],'a full register selection carries only run');assert.equal(reg.run,'full','a full record selects the full register gate');selection={run:'full'};}
+ else{
+  const rkeys=['run','positive','modes','why','removed','total'];
+  assert(Object.keys(reg).length===rkeys.length&&rkeys.every(k=>Object.hasOwn(reg,k)),'selection record register entry has an unrecognised shape');
+  assert(Array.isArray(reg.modes)&&reg.modes.every(m=>typeof m==='string'),'selection modes');
+  assert.equal(new Set(reg.modes).size,reg.modes.length,'selection names a mode twice');
+  for(const m of reg.modes)assert(planNames.has(m),'selection names unknown mode '+m);
+  assert.equal(reg.total,negativeNames.length,'selection record counts a different plan total');
+  if(reg.run==='none'){assert(reg.positive===null&&reg.modes.length===0,'a none selection runs nothing');selection={run:'none',modes:new Set()};}
+  else if(reg.run==='selected'){assert(typeof reg.positive==='string'&&reg.positive.length>0,'a selected record runs the positive');selection={run:'selected',modes:new Set(reg.modes)};}
+  else assert.fail('unknown selection run '+String(reg.run));
+ }
+ if(selection.run==='full')wanted=(name,k)=>name==='positive'||shard===null||k%shard.n===shard.i;
+ else{
+  const inShard=k=>shard===null||k%shard.n===shard.i;
+  const mine=new Set(negativeNames.filter((n,k)=>selection.modes.has(n)&&inShard(k)));
+  const runPositive=mine.size>0||(selection.run==='selected'&&selection.modes.size===0&&(shard===null||shard.i===0));
+  wanted=(name,k)=>name==='positive'?runPositive:mine.has(name);
+  console.log('selection '+selection.run+': '+mine.size+' of '+selection.modes.size+' selected negatives here'+(runPositive?' plus the positive':''));
+  if(!runPositive){await fs.writeFile(path.join(output,'results.json'),'[]\n');console.log('selection runs nothing in this job');process.exit(0);}
+ }
+}
 // A shard may be combined with named modes: it runs the union, each negative once.
 const planned=new Set(negativeNames.filter((n,k)=>wanted(n,k)));
+console.log('planned '+planned.size+' negatives'+(wanted('positive',-1)?' after the positive':''));
 if(shard){const parts=shardPartition(negativeNames,shard.n);console.log('shard '+shard.i+'/'+shard.n+': '+parts[shard.i].length+' of '+negativeNames.length+' negatives'+(named.length?' plus '+named.filter(n=>n!=='positive').length+' named':''));}
 const results=[];
 for(const plan of [plans.positive,...bodyModes]){
@@ -193,6 +240,6 @@ for(const plan of depModes){
  try{await put(ownerFile,changed);const r=await check(positive,plan.roots,path.join(output,name+'.log'));const ordinary=hasOrdinaryTheoremRejection({status:r.status,log:r.log,theorem:plan.theorem,view:changed});assert(ordinary,name+': checked callee dependence required');results.push({name,owner,status:r.status,ordinary,view:digest(changed),log:digest(r.log)});console.log('PASS '+name);}
  finally{await put(ownerFile,baseView);}
 }
-if(shard)assert.equal(ranNegatives,planned.size,'shard ran exactly its planned negatives');
+if(shard||selection)assert.equal(ranNegatives,planned.size,'job ran exactly its planned negatives');
 await fs.writeFile(path.join(output,'results.json'),JSON.stringify(results,null,2)+'\n');
 console.log('checkpoint claims only; full register refinement/validity and SEC remain open');
