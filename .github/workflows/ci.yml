@@ -52,6 +52,12 @@ jobs:
   # omits); and every mutation mode, partitioned by index modulo the
   # shard count (proofs-shard-<i>, see check-edit-proofs.mjs). The shard list
   # here must match proofShards in flake.nix; the core-a job checks that.
+  # The register proof gate is sharded the same way (register-proofs-shard-<i>,
+  # see check-register-proofs.mjs): each shard runs its own positive and every
+  # negative mode index k with k mod n == i, so the shards together run every
+  # negative exactly once. The list must match registerShards in flake.nix; the
+  # proofs-core-a job builds register-proofs-shard-coverage, which checks
+  # the gate's partition and this file's exact shard list.
   scaffold:
     name: ${{ matrix.target }}
     runs-on: ubuntu-24.04-arm
@@ -59,7 +65,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [native, shared-native, shared-proofs, register-native, register-proofs, proofs-core-a, proofs-core-b, proofs-shard-0, proofs-shard-1, proofs-shard-2]
+        target: [native, shared-native, shared-proofs, register-native, register-proofs-shard-0, register-proofs-shard-1, register-proofs-shard-2, register-proofs-shard-3, proofs-core-a, proofs-core-b, proofs-shard-0, proofs-shard-1, proofs-shard-2]
     # Each run saves its own cache generation and restores the newest one for
     # the same Nix files (else the newest for this OS/arch), so builds finished
     # after a failed or partial run are kept by the next save. A fixed key could
@@ -93,6 +99,13 @@ jobs:
         run: |
           shards=$(nix eval --json .#packages.aarch64-linux --apply 'p: builtins.length (builtins.filter (n: builtins.match "proofs-shard-[0-9]+" n != null) (builtins.attrNames p))')
           test "$shards" = 3 || { echo "flake exposes $shards proof shards; ci.yml lists 3"; exit 1; }
+      - name: register shard coverage
+        # Runs on an independent job, so omitting any register shard cannot skip this check.
+        if: matrix.target == 'proofs-core-a'
+        run: |
+          # The coverage derivation checks the gate's partition for registerShards and that this
+          # file's matrix lists exactly register-proofs-shard-0..registerShards-1, each once.
+          nix build -L --no-link .#packages.aarch64-linux.register-proofs-shard-coverage
       - name: build ${{ matrix.target }}
         run: |
           if [ "${{ matrix.target }}" = native ]; then

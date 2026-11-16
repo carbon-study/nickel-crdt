@@ -11,6 +11,65 @@ import {assertReformedSource} from './proof-reform.mjs';
 const root=fileURLToPath(new URL('..',import.meta.url));
 const output=path.resolve(process.argv[2]??path.join(root,'.cache/register-proofs'));
 const selected=process.argv.slice(3);
+// `shard:<i>/<n>` (the text gate's convention) selects every negative mode whose index k in the
+// combined list [...bodyModes, ...depModes] has k mod n == i; the positive always runs first, so
+// n shards together run every negative exactly once, each after its own positive. Named modes may
+// be added to a shard. `shard-coverage:<n>` builds both mode tables, checks that partition and
+// proves nothing.
+const shardArgs=selected.filter(a=>a.startsWith('shard'));
+assert(shardArgs.length<=1,'use at most one shard selector');
+let shard=null,coverageOnly=null;
+if(shardArgs.length){
+ const s=shardArgs[0],m=/^shard:(\d+)\/(\d+)$/.exec(s),c=/^shard-coverage:(\d+)$/.exec(s);
+ assert(m||c,'malformed shard selector '+s);
+ if(m){const i=Number(m[1]),n=Number(m[2]);assert(Number.isSafeInteger(i)&&Number.isSafeInteger(n)&&n>0&&i<n,'shard index out of range '+s);shard={i,n};}
+ else{coverageOnly=Number(c[1]);assert(Number.isSafeInteger(coverageOnly)&&coverageOnly>0,'shard count out of range '+s);assert.equal(selected.length,1,'shard-coverage is exclusive');}
+}
+const named=selected.filter(a=>!a.startsWith('shard'));
+const wanted=(name,k)=>name==='positive'||!selected.length||named.includes(name)||(shard!==null&&k%shard.n===shard.i);
+function shardPartition(names,n){
+ assert.equal(new Set(names).size,names.length,'negative mode names are unique');
+ const parts=Array.from({length:n},(_,i)=>names.filter((_,k)=>k%n===i));
+ for(const [i,p] of parts.entries())assert(p.length>0,'shard '+i+'/'+n+' selects no negative mode');
+ const union=parts.flat();assert.equal(union.length,names.length,'shards cover each negative exactly once');
+ assert.deepEqual([...union].sort(),[...names].sort(),'shards cover every negative');
+ return parts;
+}
+let ranNegatives=0;
+// The CI matrix must list exactly register-proofs-shard-0..n-1, each once.
+function checkCiShards(workflow,n){
+ // The list is read only from jobs.scaffold.strategy.matrix, in one supported shape: two-space block
+ // indentation, bare keys, and a matrix whose only entry is one inline `target: [...]` list that ends
+ // at its first `]` (a comment may follow). At each level, a second, quoted or flow-style key of the
+ // same name, or any other matrix entry (include, exclude, anchors, multi-line lists), refuses.
+ const all=workflow.split('\n');
+ assert(!all.some(l=>/^\s*\t/.test(l)),'ci workflow must not indent with tabs');
+ assert(!all.some(l=>/^\s*\?(\s|$)/.test(l)),'ci workflow must not use complex keys');
+ const content=l=>l.trim()!==''&&!/^\s*#/.test(l),indent=l=>/^ */.exec(l)[0].length;
+ const block=(from,to,depth)=>{const out=[];for(let i=from;i<to;i++){if(content(all[i])&&indent(all[i])<=depth)break;out.push(i);}return [from,from+out.length];};
+ const only=([from,to],depth,key)=>{
+  const hits=[];for(let i=from;i<to;i++){const l=all[i];if(!content(l)||indent(l)!==depth)continue;
+   if(new RegExp('^\\s*[\'"]?'+key+'[\'"]?\\s*:').test(l))hits.push(i);}
+  assert.equal(hits.length,1,'ci workflow must have exactly one '+key+' key at its level');
+  assert(new RegExp('^ {'+depth+'}'+key+':\\s*(?:#.*)?$').test(all[hits[0]]),'ci workflow '+key+' must be a bare block key');
+  return block(hits[0]+1,to,depth);};
+ const jobs=only([0,all.length],0,'jobs'),scaffold=only(jobs,2,'scaffold'),strategy=only(scaffold,4,'strategy'),matrix=only(strategy,6,'matrix');
+ const entries=[];for(let i=matrix[0];i<matrix[1];i++)if(content(all[i]))entries.push(all[i]);
+ assert.equal(entries.length,1,'ci scaffold matrix must contain only the target list');
+ const list=/^ {8}target:\s*\[([^\]]*)\]\s*(?:#.*)?$/.exec(entries[0]);assert(list,'ci scaffold matrix target must be one inline list');
+ // YAML inline-list entries may be bare or wrapped in one matching pair of quotes; any other
+ // quote character (unmatched or embedded) refuses, so quoting cannot hide an entry.
+ const targets=list[1].split(',').map(s=>s.trim().replace(/^(['"])(.*)\1$/,'$2'));
+ for(const t of targets)assert(!/['"]/.test(t),'unsupported quoting in ci matrix entry '+t);
+ // Entries must be literal job-target names: aliases (*x), anchors (&x), tags (!x), expressions and
+ // empty entries refuse, so the unsharded-gate prohibition sees the real name.
+ for(const t of targets)assert(/^[A-Za-z0-9_-]+$/.test(t),'ci matrix entry must be a literal target name: '+t);
+ const shards=targets.filter(t=>/^register-proofs-shard-/.test(t));
+ for(const t of shards)assert(/^register-proofs-shard-(0|[1-9]\d*)$/.test(t),'malformed ci register shard '+t);
+ assert.equal(new Set(shards).size,shards.length,'ci lists a register shard twice');
+ assert.deepEqual([...shards].sort(),Array.from({length:n},(_,i)=>'register-proofs-shard-'+i).sort(),'ci must list exactly register-proofs-shard-0..'+(n-1));
+ assert(!targets.includes('register-proofs'),'ci must not also run the unsharded register gate');
+}
 await fs.mkdir(output,{recursive:true});
 assert(holdLock(path.join(output,'register-proofs.lock')),'register proof output is owned by another invocation');
 const env=process.env;
@@ -138,7 +197,7 @@ const bodyModes=[
  ['read-wrong-key','pub fn read(','read_history(&self.facts, &self.initial, key)','read_history(&self.facts, &self.initial, 0)','public_read_is_history'],
  ['payload-ignores-observed','fn write_equal(','&& bytes_equal(&a.observed, &b.observed)','&& true','write_equal_is_exact'],
 ];
-assert(selected.every(n=>n==='positive'||["without-noedit-byte-law","without-noedit-native","without-noedit-read","without-noedit-transitivity","without-terminal-clock-order","without-terminal-induction","without-filter-position-contract","without-filter-id-comparison","without-filter-parent-callback","without-filter-identity-callback","without-basis-identity-callback","without-terminal-cover","without-terminal-filter-membership","without-actual-frontier-contract","without-filter-coverage-composition","without-write-frontier-installation","without-write-frontier-coverage","without-all-selected-contract","without-whole-basis-prefix","without-added-basis-contract","without-counted-basis-added","without-counted-basis-exact","without-counted-basis-roots","without-counted-whole-basis-core","without-frontier-append-transition","without-frontier-transition-contract","without-frontier-membership-contract","without-frontier-inner-loop","without-frontier-native-scan","without-frontier-scan-consumer","without-frontier-push-contract","without-frontier-outer-step","without-frontier-outer-loop","without-plan-publication-contract","without-duplicate-planning-contract","without-stored-classification-contract","without-added-publication-plan","without-write-added-installation","without-added-meaning-at","without-write-meaning-receive","without-write-meaning-read","without-write-meaning-added","without-meaning-single-hit","without-meaning-classifier-law","without-meaning-some-hit","without-meaning-publication","without-meaning-plan","without-meaning-classify","without-meaning-stored","without-added-meaning-fresh","without-added-meaning-parents","without-added-meaning-observation","without-added-meaning-clock","without-added-meaning-stream","without-added-meaning-extension","without-added-meaning-public","without-read-public-method","without-producer-new-history","without-producer-receive-history","without-producer-receive-frame","without-producer-write-history","without-producer-write-outcome","without-producer-write-installation","without-wrap-outcome","without-stream-step-path","without-public-clock-bridge","without-read-clock-premise","without-read-history-bridge","without-read-single-value-premises","without-read-steps-law","without-positional-premise","without-public-receive-history","without-public-receive-unique","without-public-write-history","without-public-write-unique","without-public-new-history","without-public-new-unique","without-stream-extension","without-stream-preservation","without-stream-native-checks","without-receive-stream-witness","without-read-filter","without-history-receive-publication","without-history-receive-added","without-history-write-installation","without-history-write-counted","without-added-clock-basis","without-clock-extension","without-plan-receive-history","without-write-plan-history","without-freeze-maximum-read","without-fresh-classification","without-dominator-clock","without-extension-walk","without-unreferenced-walk","without-fresh-lookup","without-presence-loop","without-basis-filter","without-read-maximum-contract","without-past-soundness-closure","without-past-completeness-paths","without-admission-exact-selection","without-admission-whole-basis","without-frozen-payload-checks","without-ancestor-clock-step","without-order-unique-premise","without-added-id-order","without-counted-id-order","without-receive-id-publication","without-receive-added-unique","without-write-id-neutrality","without-write-counted-unique","without-receive-execute-unique","without-write-execute-unique","without-receive-result-execute","without-write-result-execute"].includes(n)||bodyModes.some(m=>m[0]===n)||["without-execute-success-id-policy","without-choice-scan-contract","without-shorter-output-missing","without-step-membership-contract","without-step-success-contract","without-canonical-success-loop","without-execute-success-contract","without-agreement-order","without-agreement-contents","without-agreement-vector-equality","without-execute-agreement-contract","without-minimum-order-contract","without-canonical-order-contract","without-write-order-plan","without-receive-order-plan","without-generic-append-contract","without-canonical-selection-contract","without-canonical-coverage-contract","without-loop-unroll","without-loop-recursion","without-loop-empty","without-generic-step-equation","without-generic-push-contract","without-generic-membership-contract","without-generic-choice-loop","without-generic-canonical-loop","without-generic-choice-contract","without-generic-step-contract","without-register-canonical-policy","without-register-canonical-content","without-prepare-content","without-plan-prepared-content","without-receive-retention-plan","without-write-retention-installation","without-clock-loop-contract","without-added-clock-contract","without-added-clock-payload","without-validation-byte-contract","without-payload-validation-contract","without-payload-planning-contract","without-receive-payload-contract","without-added-publication-contract","without-write-receive-publication","without-write-receive-frame","without-winner-loop","without-read-winner","without-publication-contract","without-noedit-byte-contract","without-shared-planning-contract","without-prepare-frame","without-execute-frame","without-receive-publication-frame","without-plan-private-frame"].includes(n)),'unknown selected mode');
+assert(named.every(n=>n==='positive'||["without-noedit-byte-law","without-noedit-native","without-noedit-read","without-noedit-transitivity","without-terminal-clock-order","without-terminal-induction","without-filter-position-contract","without-filter-id-comparison","without-filter-parent-callback","without-filter-identity-callback","without-basis-identity-callback","without-terminal-cover","without-terminal-filter-membership","without-actual-frontier-contract","without-filter-coverage-composition","without-write-frontier-installation","without-write-frontier-coverage","without-all-selected-contract","without-whole-basis-prefix","without-added-basis-contract","without-counted-basis-added","without-counted-basis-exact","without-counted-basis-roots","without-counted-whole-basis-core","without-frontier-append-transition","without-frontier-transition-contract","without-frontier-membership-contract","without-frontier-inner-loop","without-frontier-native-scan","without-frontier-scan-consumer","without-frontier-push-contract","without-frontier-outer-step","without-frontier-outer-loop","without-plan-publication-contract","without-duplicate-planning-contract","without-stored-classification-contract","without-added-publication-plan","without-write-added-installation","without-added-meaning-at","without-write-meaning-receive","without-write-meaning-read","without-write-meaning-added","without-meaning-single-hit","without-meaning-classifier-law","without-meaning-some-hit","without-meaning-publication","without-meaning-plan","without-meaning-classify","without-meaning-stored","without-added-meaning-fresh","without-added-meaning-parents","without-added-meaning-observation","without-added-meaning-clock","without-added-meaning-stream","without-added-meaning-extension","without-added-meaning-public","without-read-public-method","without-producer-new-history","without-producer-receive-history","without-producer-receive-frame","without-producer-write-history","without-producer-write-outcome","without-producer-write-installation","without-wrap-outcome","without-stream-step-path","without-public-clock-bridge","without-read-clock-premise","without-read-history-bridge","without-read-single-value-premises","without-read-steps-law","without-positional-premise","without-public-receive-history","without-public-receive-unique","without-public-write-history","without-public-write-unique","without-public-new-history","without-public-new-unique","without-stream-extension","without-stream-preservation","without-stream-native-checks","without-receive-stream-witness","without-read-filter","without-history-receive-publication","without-history-receive-added","without-history-write-installation","without-history-write-counted","without-added-clock-basis","without-clock-extension","without-plan-receive-history","without-write-plan-history","without-freeze-maximum-read","without-fresh-classification","without-dominator-clock","without-extension-walk","without-unreferenced-walk","without-fresh-lookup","without-presence-loop","without-basis-filter","without-read-maximum-contract","without-past-soundness-closure","without-past-completeness-paths","without-admission-exact-selection","without-admission-whole-basis","without-frozen-payload-checks","without-ancestor-clock-step","without-order-unique-premise","without-added-id-order","without-counted-id-order","without-receive-id-publication","without-receive-added-unique","without-write-id-neutrality","without-write-counted-unique","without-receive-execute-unique","without-write-execute-unique","without-receive-result-execute","without-write-result-execute"].includes(n)||bodyModes.some(m=>m[0]===n)||["without-execute-success-id-policy","without-choice-scan-contract","without-shorter-output-missing","without-step-membership-contract","without-step-success-contract","without-canonical-success-loop","without-execute-success-contract","without-agreement-order","without-agreement-contents","without-agreement-vector-equality","without-execute-agreement-contract","without-minimum-order-contract","without-canonical-order-contract","without-write-order-plan","without-receive-order-plan","without-generic-append-contract","without-canonical-selection-contract","without-canonical-coverage-contract","without-loop-unroll","without-loop-recursion","without-loop-empty","without-generic-step-equation","without-generic-push-contract","without-generic-membership-contract","without-generic-choice-loop","without-generic-canonical-loop","without-generic-choice-contract","without-generic-step-contract","without-register-canonical-policy","without-register-canonical-content","without-prepare-content","without-plan-prepared-content","without-receive-retention-plan","without-write-retention-installation","without-clock-loop-contract","without-added-clock-contract","without-added-clock-payload","without-validation-byte-contract","without-payload-validation-contract","without-payload-planning-contract","without-receive-payload-contract","without-added-publication-contract","without-write-receive-publication","without-write-receive-frame","without-winner-loop","without-read-winner","without-publication-contract","without-noedit-byte-contract","without-shared-planning-contract","without-prepare-frame","without-execute-frame","without-receive-publication-frame","without-plan-private-frame"].includes(n)),'unknown selected mode');
 // The actual const policy has no brace body; bind this one construction-site
 // control to its complete exact code item, never a later function's body.
 function registerPolicyAnchor(source,anchor){
@@ -168,29 +227,6 @@ async function check(dir,roots,log){
 // Register no longer imports RegisterPast; RegisterHistory imports both. Verify the owner's module
 // (positive: everything) so a RegisterPast or RegisterHistory owner is actually checked.
 const rootsFor=owner=>!owner?['Nickel.Register.fst','Nickel.RegisterPublic.fst','Nickel.RegisterFrontier.fst']:owner.startsWith('RegisterFrontier.')?['Nickel.RegisterFrontier.fst']:owner.startsWith('RegisterPublic.')?['Nickel.RegisterPublic.fst']:owner.startsWith('RegisterValid.')?['Nickel.RegisterValid.fst']:owner.startsWith('RegisterHistory.')?['Nickel.RegisterHistory.fst']:owner.startsWith('RegisterPast.')?['Nickel.RegisterPast.fst']:['Nickel.Register.fst'];
-const results=[];
-for(const [name,header,anchor,replacement,owner] of [['positive',null,null,null,null],...bodyModes]){
- if(selected.length&&!selected.includes(name)&&name!=='positive')continue;
- const mode=path.join(output,name),crate=path.join(mode,'crate'),extract=path.join(mode,'extract'),dir=path.join(mode,'proof');
- await fs.mkdir(crate,{recursive:true});await fs.cp(path.join(root,'src'),path.join(crate,'src'),{recursive:true,force:true});
- for(const f of ['Cargo.toml','Cargo.lock'])await fs.copyFile(path.join(root,f),path.join(crate,f));
- await fs.cp(path.join(root,'proof-smoke'),path.join(crate,'proof-smoke'),{recursive:true,force:true});
- const sourceFile=graphModes.has(name)?'src/event_layer.rs':'src/register.rs',original=graphModes.has(name)?graphSource:source;
- let changed=original;if(header){const at=header==='const OPS:'?registerPolicyAnchor(original,anchor):scopedAnchor(original,header,anchor,name);changed=original.slice(0,at)+replacement+original.slice(at+anchor.length);await fs.writeFile(path.join(crate,sourceFile),changed);}
- await fs.rm(extract,{recursive:true,force:true});await fs.mkdir(extract,{recursive:true});
- const r=await runAsync(name+' extraction',env.NICKEL_HAX_BIN,haxArgs(extract),crate,{env:{...env,CARGO_TARGET_DIR:path.join(mode,'target')}});
- await fs.writeFile(path.join(mode,'extraction.log'),r.log);assert.equal(r.status,0,name+': extraction failed');
- assert.deepEqual((await fs.readdir(extract)).filter(f=>/\.fsti?$/.test(f)).sort(),inventory);
- await support(dir);
- for(const f of inventory){const b=await fs.readFile(path.join(extract,f));assert(!/assume\s+val/.test(b.toString()),name+': assumed native body');if(!header)assert(b.equals(await fs.readFile(path.join(views,f))),'fresh production native identity: '+f);await put(path.join(dir,f),b);}
- const native=await check(dir,['Nickel_crdt.Register.fst'],path.join(mode,'native-typecheck.log'));assert.equal(native.status,0,name+': native type error is not owner rejection');
- const file=path.join(dir,'Nickel.Register.fst');await put(file,view);await put(path.join(dir,'Nickel.RegisterHistory.fst'),historyView);await put(path.join(dir,'Nickel.RegisterValid.fst'),validView);await put(path.join(dir,'Nickel.RegisterPublic.fst'),publicView);
- const checked=await check(dir,rootsFor(owner),path.join(mode,'proof.log'));
- const ordinary=owner?hasOrdinaryTheoremRejection({status:checked.status,log:checked.log,theorem:/^(Canonical|RegisterPast|RegisterHistory|RegisterValid|RegisterPublic|RegisterFrontier)\./.test(owner)?'Nickel.'+owner:'Nickel.Register.'+owner,view:owner.startsWith('Canonical.')?canonicalView:owner.startsWith('RegisterPast.')?pastView:owner.startsWith('RegisterHistory.')?historyView:owner.startsWith('RegisterValid.')?validView:owner.startsWith('RegisterPublic.')?publicView:owner.startsWith('RegisterFrontier.')?frontierView:view}):null;
- if(owner)assert(ordinary,name+': ordinary named owner rejection required');else assert.equal(checked.status,0,'checkpoint positive failed');
- results.push({name,owner,status:checked.status,ordinary,sourceFile,source:digest(changed),log:digest(checked.log)});
- console.log('PASS '+name);
-}
 const positive=path.join(output,'positive/proof'),file=path.join(positive,'Nickel.Register.fst');
 function replaceInDeclaration(name,needle,replacement,sourceView=view){
  const plain=sourceView.indexOf('let '+name+' '),recursive=sourceView.indexOf('let rec '+name+' ');assert(plain<0||recursive<0,'unambiguous declaration');const start=plain>=0?plain:recursive;assert(start>=0);
@@ -437,12 +473,50 @@ const depModes=[
  ['without-publication-contract',replaceInDeclaration('receive_publication_is_exact','  Nickel.EventShell.borrowed_publication_is_exact before offered () Native.planned Native.Admission_Added Native.Admission_Duplicate;','  ();'),'receive_publication_is_exact'],
  ['without-noedit-byte-contract',replaceInDeclaration('equal_value_write_is_neutral','    Tactics.prune "Nickel_crdt.Register.bytes_equal";','    Tactics.prune "Nickel_crdt.Register.bytes_equal";\n    Tactics.prune "Nickel.Register.bytes_equal_exact";',replaceInDeclaration('equal_value_write_is_neutral','  bytes_equal_exact (Alloc.Vec.impl_1__as_slice value) (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read before key));','  ();')),'equal_value_write_is_neutral'],
 ];
+// Plan and validate the complete partition (and, for coverage, the CI matrix) before any
+// extraction or proof runs.
+const negativeNames=[...bodyModes.map(m=>m[0]),...depModes.map(m=>m[0])];
+if(coverageOnly){
+ const parts=shardPartition(negativeNames,coverageOnly);
+ if(env.NICKEL_CI_WORKFLOW)checkCiShards(await fs.readFile(env.NICKEL_CI_WORKFLOW,'utf8'),coverageOnly);
+ console.log('shard coverage: '+negativeNames.length+' negatives over '+coverageOnly+' shards: '+parts.map(p=>p.length).join('/'));
+ process.exit(0);
+}
+// A shard may be combined with named modes: it runs the union, each negative once.
+const planned=new Set(negativeNames.filter((n,k)=>wanted(n,k)));
+if(shard){const parts=shardPartition(negativeNames,shard.n);console.log('shard '+shard.i+'/'+shard.n+': '+parts[shard.i].length+' of '+negativeNames.length+' negatives'+(named.length?' plus '+named.filter(n=>n!=='positive').length+' named':''));}
+const results=[];
+for(const [name,header,anchor,replacement,owner] of [['positive',null,null,null,null],...bodyModes]){
+ if(!wanted(name,bodyModes.findIndex(m=>m[0]===name)))continue;
+ if(name!=='positive')ranNegatives++;
+ const mode=path.join(output,name),crate=path.join(mode,'crate'),extract=path.join(mode,'extract'),dir=path.join(mode,'proof');
+ await fs.mkdir(crate,{recursive:true});await fs.cp(path.join(root,'src'),path.join(crate,'src'),{recursive:true,force:true});
+ for(const f of ['Cargo.toml','Cargo.lock'])await fs.copyFile(path.join(root,f),path.join(crate,f));
+ await fs.cp(path.join(root,'proof-smoke'),path.join(crate,'proof-smoke'),{recursive:true,force:true});
+ const sourceFile=graphModes.has(name)?'src/event_layer.rs':'src/register.rs',original=graphModes.has(name)?graphSource:source;
+ let changed=original;if(header){const at=header==='const OPS:'?registerPolicyAnchor(original,anchor):scopedAnchor(original,header,anchor,name);changed=original.slice(0,at)+replacement+original.slice(at+anchor.length);await fs.writeFile(path.join(crate,sourceFile),changed);}
+ await fs.rm(extract,{recursive:true,force:true});await fs.mkdir(extract,{recursive:true});
+ const r=await runAsync(name+' extraction',env.NICKEL_HAX_BIN,haxArgs(extract),crate,{env:{...env,CARGO_TARGET_DIR:path.join(mode,'target')}});
+ await fs.writeFile(path.join(mode,'extraction.log'),r.log);assert.equal(r.status,0,name+': extraction failed');
+ assert.deepEqual((await fs.readdir(extract)).filter(f=>/\.fsti?$/.test(f)).sort(),inventory);
+ await support(dir);
+ for(const f of inventory){const b=await fs.readFile(path.join(extract,f));assert(!/assume\s+val/.test(b.toString()),name+': assumed native body');if(!header)assert(b.equals(await fs.readFile(path.join(views,f))),'fresh production native identity: '+f);await put(path.join(dir,f),b);}
+ const native=await check(dir,['Nickel_crdt.Register.fst'],path.join(mode,'native-typecheck.log'));assert.equal(native.status,0,name+': native type error is not owner rejection');
+ const file=path.join(dir,'Nickel.Register.fst');await put(file,view);await put(path.join(dir,'Nickel.RegisterHistory.fst'),historyView);await put(path.join(dir,'Nickel.RegisterValid.fst'),validView);await put(path.join(dir,'Nickel.RegisterPublic.fst'),publicView);
+ const checked=await check(dir,rootsFor(owner),path.join(mode,'proof.log'));
+ const ordinary=owner?hasOrdinaryTheoremRejection({status:checked.status,log:checked.log,theorem:/^(Canonical|RegisterPast|RegisterHistory|RegisterValid|RegisterPublic|RegisterFrontier)\./.test(owner)?'Nickel.'+owner:'Nickel.Register.'+owner,view:owner.startsWith('Canonical.')?canonicalView:owner.startsWith('RegisterPast.')?pastView:owner.startsWith('RegisterHistory.')?historyView:owner.startsWith('RegisterValid.')?validView:owner.startsWith('RegisterPublic.')?publicView:owner.startsWith('RegisterFrontier.')?frontierView:view}):null;
+ if(owner)assert(ordinary,name+': ordinary named owner rejection required');else assert.equal(checked.status,0,'checkpoint positive failed');
+ results.push({name,owner,status:checked.status,ordinary,sourceFile,source:digest(changed),log:digest(checked.log)});
+ console.log('PASS '+name);
+}
 for(const [name,changed,owner]of depModes){
- if(selected.length&&!selected.includes(name))continue;
+ if(!wanted(name,bodyModes.length+depModes.findIndex(m=>m[0]===name)))continue;
+ ranNegatives++;
  const generic=owner.startsWith('Canonical.')||owner.startsWith('LoopUtil.')||owner.startsWith('RegisterPast.')||owner.startsWith('RegisterHistory.')||owner.startsWith('RegisterValid.')||owner.startsWith('RegisterPublic.')||owner.startsWith('RegisterFrontier.'),baseView=owner.startsWith('LoopUtil.')?loopView:owner.startsWith('Canonical.')?canonicalView:owner.startsWith('RegisterPast.')?pastView:owner.startsWith('RegisterHistory.')?historyView:owner.startsWith('RegisterValid.')?validView:owner.startsWith('RegisterPublic.')?publicView:owner.startsWith('RegisterFrontier.')?frontierView:view,ownerFile=generic?path.join(positive,'Nickel.'+owner.split('.')[0]+'.fst'):file;
  await fs.writeFile(path.join(output,name+'.fst'),changed);
  try{await put(ownerFile,changed);const r=await check(positive,rootsFor(owner),path.join(output,name+'.log'));const ordinary=hasOrdinaryTheoremRejection({status:r.status,log:r.log,theorem:generic?'Nickel.'+owner:'Nickel.Register.'+owner,view:changed});assert(ordinary,name+': checked callee dependence required');results.push({name,owner,status:r.status,ordinary,view:digest(changed),log:digest(r.log)});console.log('PASS '+name);}
  finally{await put(ownerFile,baseView);}
 }
+if(shard)assert.equal(ranNegatives,planned.size,'shard ran exactly its planned negatives');
 await fs.writeFile(path.join(output,'results.json'),JSON.stringify(results,null,2)+'\n');
 console.log('checkpoint claims only; full register refinement/validity and SEC remain open');
