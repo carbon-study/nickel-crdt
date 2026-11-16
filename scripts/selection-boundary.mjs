@@ -26,7 +26,8 @@ const finish=(mode,why)=>{identity.mode=mode;if(why)identity.reasons.push(why);
 const run=(label,cmd,args,opts={})=>{const r=spawnSync(cmd,args,{encoding:'utf8',maxBuffer:1<<28,...opts});
   fs.writeFileSync(path.join(out,label+'.log'),(r.stdout??'')+(r.stderr??''));return r;};
 
-if(fs.existsSync(path.join(base,'nickel-selection-base-none')))finish('full','no base revision supplied (default selection-base)');
+// A relative path input reports the parent flake's revision as its own, so the sentinel's rev is not a base.
+if(fs.existsSync(path.join(base,'nickel-selection-base-none'))){identity.base=null;finish('full','no base revision supplied (default selection-base)');}
 if(!rev.test(headRev))finish('full','head has no exact revision (dirty or unpinned tree)');
 if(!rev.test(baseRev))finish('full','base has no exact revision');
 const t=identity.toolchain;
