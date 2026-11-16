@@ -368,3 +368,4 @@ proof counted_write_basis_is_whole_history(before: Native.t_Replica, key: u64, v
 {
   FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(counted_write_basis_is_whole_history_at(before, key, value)))
 }
+
