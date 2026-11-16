@@ -292,34 +292,42 @@ let shared_ancestry (into: facts_vec) (other: facts_vec) (roots: t_Slice Native.
   forall(id: Native.t_EventId). ancestor into roots id ==> same_parents into other id
 
 let rec shared_path_stays_shared (into: facts_vec) (other: facts_vec) (roots: t_Slice Native.t_EventId) (start: Native.t_EventId) (steps: Prims.list Native.t_EventId) (finish: Native.t_EventId) : Lemma (requires (shared_ancestry into other roots /\ ancestor into roots start /\ ancestor other roots start /\ Prims.l_or (Nickel.EditCausal.causal_path into start steps finish) (Nickel.EditCausal.causal_path other start steps finish))) (ensures Prims.l_and (ancestor into roots finish) (ancestor other roots finish)) (decreases steps) =
-  match steps with | Prims.Nil -> begin () end | Prims.Cons next rest -> begin assert (Prims.l_and (Nickel.EditCausal.causal_edge into start next) (Nickel.EditCausal.causal_edge other start next)) by (
-    Tactics.prune "Nickel.EditPast.ancestor";
-    Tactics.smt_sync' 1 1
-  );
-  ancestor_follows_edge into roots start next;
-  ancestor_follows_edge other roots start next;
-  assert (Prims.l_and (Prims.l_and (ancestor into roots next) (ancestor other roots next)) (Prims.l_or (Nickel.EditCausal.causal_path into next rest finish) (Nickel.EditCausal.causal_path other next rest finish))) by (
-    Tactics.prune "Nickel.EditPast.ancestor";
-    Tactics.prune "Nickel.EditPastTotal.shared_ancestry";
-    Tactics.smt_sync' 1 1
-  );
-  shared_path_stays_shared into other roots next rest finish;
+  all_shared_paths_are_text into;
+  all_shared_paths_are_text other;
+  text_causal_edge_is_shared into;
+  text_causal_edge_is_shared other;
+  assert (forall(id: Native.t_EventId). Nickel.PastExact.ancestor (Nickel.EventGraphText.text_graph_ops ()) (Alloc.Vec.impl_1__as_slice into) roots id <==> ancestor into roots id);
+  assert (forall(id: Native.t_EventId). Nickel.PastExact.ancestor (Nickel.EventGraphText.text_graph_ops ()) (Alloc.Vec.impl_1__as_slice other) roots id <==> ancestor other roots id);
+  Nickel.PastExact.shared_path_stays_shared (Nickel.EventGraphText.text_graph_ops ()) (Alloc.Vec.impl_1__as_slice into) (Alloc.Vec.impl_1__as_slice other) roots start steps finish;
   assert (Prims.l_and (ancestor into roots finish) (ancestor other roots finish)) by (
     Tactics.prune "Nickel.EditPast.ancestor";
+    Tactics.prune "Nickel.PastExact.ancestor";
+    Tactics.prune "Nickel.PastExact.shared_path_stays_shared";
     Tactics.prune "Nickel.EditPastTotal.shared_ancestry";
+    Tactics.prune "Nickel.PastExact.shared_ancestry";
+    Tactics.prune "Nickel.EditCausal.causal_path";
+    Tactics.prune "Nickel.PastExact.causal_path";
     Tactics.smt_sync' 1 1
-  ) end
+  )
 
 let shared_ancestry_agrees (into: facts_vec) (other: facts_vec) (roots: t_Slice Native.t_EventId) : Lemma (requires shared_ancestry into other roots) (ensures forall(id: Native.t_EventId). ancestor into roots id <==> ancestor other roots id) =
-  let each_path (root: Native.t_EventId) (steps: Prims.list Native.t_EventId) (id: Native.t_EventId) : Lemma (requires (member roots root /\ Prims.l_or (Nickel.EditCausal.causal_path into root steps id) (Nickel.EditCausal.causal_path other root steps id))) (ensures Prims.l_and (ancestor into roots id) (ancestor other roots id)) =
-    assert (Nickel.EditCausal.causal_path into root Prims.Nil root);
-    assert (Nickel.EditCausal.causal_path other root Prims.Nil root);
-    shared_path_stays_shared into other roots root steps id;
-    assert (Prims.l_and (ancestor into roots id) (ancestor other roots id)) by (
-      Tactics.prune "Nickel.EditPast.ancestor";
-      Tactics.smt_sync' 1 1
-    ) in
-  FStar.Classical.forall_intro_3 (FStar.Classical.move_requires_3 each_path)
+  all_shared_paths_are_text into;
+  all_shared_paths_are_text other;
+  text_causal_edge_is_shared into;
+  text_causal_edge_is_shared other;
+  assert (forall(id: Native.t_EventId). Nickel.PastExact.ancestor (Nickel.EventGraphText.text_graph_ops ()) (Alloc.Vec.impl_1__as_slice into) roots id <==> ancestor into roots id);
+  assert (forall(id: Native.t_EventId). Nickel.PastExact.ancestor (Nickel.EventGraphText.text_graph_ops ()) (Alloc.Vec.impl_1__as_slice other) roots id <==> ancestor other roots id);
+  Nickel.PastExact.shared_ancestry_agrees (Nickel.EventGraphText.text_graph_ops ()) (Alloc.Vec.impl_1__as_slice into) (Alloc.Vec.impl_1__as_slice other) roots;
+  assert (forall(id: Native.t_EventId). ancestor into roots id <==> ancestor other roots id) by (
+    Tactics.prune "Nickel.EditPast.ancestor";
+    Tactics.prune "Nickel.PastExact.ancestor";
+    Tactics.prune "Nickel.PastExact.shared_ancestry_agrees";
+    Tactics.prune "Nickel.EditPastTotal.shared_ancestry";
+    Tactics.prune "Nickel.PastExact.shared_ancestry";
+    Tactics.prune "Nickel.EditCausal.causal_path";
+    Tactics.prune "Nickel.PastExact.causal_path";
+    Tactics.smt_sync' 1 1
+  )
 
 let shared_past_facts (into: facts_vec) (other: facts_vec) (roots: t_Slice Native.t_EventId) : Type0 =
   forall(fact: Native.t_Fact). Prims.l_and (fact_present (Alloc.Vec.impl_1__as_slice into) fact) (ancestor into roots fact.f_id ==> fact_present (Alloc.Vec.impl_1__as_slice other) fact)

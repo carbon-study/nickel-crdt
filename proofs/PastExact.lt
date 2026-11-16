@@ -771,3 +771,66 @@ proof exact_selection_members<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.Even
   takes exact_past_result(ops, facts, roots, Result.Result_Ok(selected))
   gives forall(id: it) . member(Alloc.Vec.impl_1__as_slice(selected), id) <==> ancestor(ops, facts, roots, id)
 { () }
+
+// Shared ancestry agreement is independent of success/totality of either computation.
+function same_parents<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et), into: t_Slice(ft), other: t_Slice(ft), id: it): Type0 {
+  forall(older: it) . causal_edge(ops, into, id, older) <==> causal_edge(ops, other, id, older)
+}
+function shared_ancestry<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et), into: t_Slice(ft), other: t_Slice(ft), roots: t_Slice(it)): Type0 {
+  forall(id: it) . ancestor(ops, into, roots, id) ==> same_parents(ops, into, other, id)
+}
+proof! shared_path_stays_shared<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et), into: t_Slice(ft), other: t_Slice(ft), roots: t_Slice(it), start: it, steps: Prims.list(it), finish: it): unit
+  decreases steps
+  takes shared_ancestry(ops, into, other, roots)
+  takes ancestor(ops, into, roots, start)
+  takes ancestor(ops, other, roots, start)
+  takes causal_path(ops, into, start, steps, finish) or causal_path(ops, other, start, steps, finish)
+  gives ancestor(ops, into, roots, finish) and ancestor(ops, other, roots, finish)
+{
+  causal_path_equations(ops, into);
+  causal_path_equations(ops, other);
+  match steps {
+    Prims.Nil => (),
+    Prims.Cons(next, rest) => {
+      assert(causal_edge(ops, into, start, next) and causal_edge(ops, other, start, next)) by {
+        Tactics.prune("Nickel.PastExact.ancestor");
+        Tactics.smt_sync'(1, 1)
+      };
+      ancestor_follows_edge(ops, into, roots, start, next);
+      ancestor_follows_edge(ops, other, roots, start, next);
+      assert(ancestor(ops, into, roots, next) and ancestor(ops, other, roots, next) and
+        (causal_path(ops, into, next, rest, finish) or causal_path(ops, other, next, rest, finish))) by {
+        Tactics.prune("Nickel.PastExact.ancestor");
+        Tactics.prune("Nickel.PastExact.shared_ancestry");
+        Tactics.smt_sync'(1, 1)
+      };
+      shared_path_stays_shared(ops, into, other, roots, next, rest, finish);
+      assert(ancestor(ops, into, roots, finish) and ancestor(ops, other, roots, finish)) by {
+        Tactics.prune("Nickel.PastExact.ancestor");
+        Tactics.prune("Nickel.PastExact.shared_ancestry");
+        Tactics.smt_sync'(1, 1)
+      }
+    }
+  }
+}
+proof shared_ancestry_agrees<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et), into: t_Slice(ft), other: t_Slice(ft), roots: t_Slice(it)): unit
+  takes shared_ancestry(ops, into, other, roots)
+  gives forall(id: it) . ancestor(ops, into, roots, id) <==> ancestor(ops, other, roots, id)
+{
+  causal_path_equations(ops, into);
+  causal_path_equations(ops, other);
+  proof each_path(root: it, steps: Prims.list(it), id: it): unit
+    takes member(roots, root)
+    takes causal_path(ops, into, root, steps, id) or causal_path(ops, other, root, steps, id)
+    gives ancestor(ops, into, roots, id) and ancestor(ops, other, roots, id)
+  {
+    assert(causal_path(ops, into, root, Prims.Nil, root));
+    assert(causal_path(ops, other, root, Prims.Nil, root));
+    shared_path_stays_shared(ops, into, other, roots, root, steps, id);
+    assert(ancestor(ops, into, roots, id) and ancestor(ops, other, roots, id)) by {
+      Tactics.prune("Nickel.PastExact.ancestor");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(each_path))
+}

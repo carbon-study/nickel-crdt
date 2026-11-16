@@ -218,3 +218,30 @@ retired here. Generic client totality, text agreement transport and the approved
 writer-stream consolidation remain separate follow-through before multi-write
 or another client. No admission/progress, convergence, Undo or runtime API claim
 is added by this composition.
+
+## shared two-receiver ancestry agreement
+
+`PastExact.shared_path_stays_shared` and `shared_ancestry_agrees` now carry the
+path-induction argument over arbitrary fact and ID types and one supplied graph
+policy. The premise is deliberately asymmetric: the two histories have the same
+direct parents for each ancestor in the first history. Both path directions then
+stay in that shared region. This is independent of whether either native past
+computation succeeds; it neither adds a closed-history premise nor proves success.
+
+The existing text laws instantiate this argument through the checked equivalence
+between their independent causal paths and the generic callback paths. Their
+headers, including the recursive compatibility law's `decreases`, and every
+concrete mathematical definition remain literal. No declaration is retired here.
+The actual `shared_ancestry_selects_same_past` caller still composes both successful
+exactness laws, and `two_closed_receivers_select_same_past` still separately uses
+both text totality laws and the whole-fact/unique-ID bridge. All those statements
+are unchanged. The result is selected-ID membership agreement, not interpreted
+placement equality or convergence.
+
+The four historical path-step/recursion/transfer controls follow their argument
+to the shared owners. Separate controls remove each concrete shared contract and
+each receiver's path-meaning bridge; the existing exactness, agreement, whole-fact
+and two-receiver totality/composition controls remain. Against the preceding full
+ancestry cut, text removes36 and adds33 authored proof lines, while the common
+module adds63: **+60** net. There is no native-forward, API, model, budget or
+classifier change. Generic text totality and writer-stream consolidation remain.
