@@ -694,3 +694,31 @@ fn error_witness_uses_reachable_prefix_not_an_adversarial_tree() {
     assert_eq!(interpret_scheduled(&facts), Ok((tree.clone(), done)));
     assert_eq!(interpret(&facts), Ok(tree));
 }
+
+// These retained functions are proof-only forwards, not the public runtime path.
+// Literal outcomes catch changed arguments in each forward independently.
+#[test]
+fn retained_past_forwards_preserve_their_arguments() {
+    let leaf = Fact {
+        id: id(0),
+        after: vec![],
+        insert: vec![],
+        delete: vec![],
+        gap: None,
+    };
+    let child = Fact {
+        id: id(1),
+        after: vec![id(0)],
+        insert: vec![],
+        delete: vec![],
+        gap: None,
+    };
+    let selected = vec![id(1)];
+    let expected = vec![id(1), id(0)];
+    assert_eq!(extend_past(&child, selected.clone()), Ok(expected.clone()));
+    assert_eq!(
+        past_pass(&[child.clone()], selected.clone()),
+        Ok(expected.clone())
+    );
+    assert_eq!(past(&[leaf, child], &selected), Ok(expected));
+}

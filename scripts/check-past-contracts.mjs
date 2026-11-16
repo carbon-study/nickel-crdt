@@ -6,6 +6,9 @@ import {put,verify} from './proof-cache.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
 export async function checkPastContracts({proof,output,fstar,models,modelCache,select=()=>true}) {
   const controls=[
+    ['text-past-without-shared-extend', /  Nickel\.PastExact\.extend_past_preserves[^\n]+;\n/, 'Nickel.EditPast.extend_past_preserves', '', 'extend_past_preserves'],
+    ['text-past-without-shared-pass', /  Nickel\.PastExact\.past_pass_preserves[^\n]+;\n/, 'Nickel.EditPast.past_pass_preserves', '', 'past_pass_preserves'],
+    ['text-past-without-shared-closed', /  Nickel\.PastExact\.past_stays_in_closed_set[^\n]+;\n/, 'Nickel.EditPast.past_stays_in_closed_set', '', 'past_stays_in_closed_set'],
     ['past-membership-without-loop-rule',
       /  Nickel\.LoopUtil\.preserve_any[^\n]+;\n/,
       'Nickel.EventGraph.membership_is_exact','', 'membership_is_exact'],
@@ -18,9 +21,11 @@ export async function checkPastContracts({proof,output,fstar,models,modelCache,s
     ['past-membership-without-concrete-bridge',
       /  assert \(Shared\.has_id [^\n]+ by \(\n(?:    [^\n]+\n)+  \);\n/,
       'Nickel.EditPast.event_membership_is_exact','', 'event_membership_is_exact'],
+    // Owner migration: the shared extend proof now consumes the membership law explicitly,
+    // with both the native scan and Graph's automatic pattern route withheld at its query.
     ['past-membership-without-pattern',
-      /(?<=let event_membership_is_exact[^\n]*) \[SMTPat \(Native\.has_event ids id\)\]/,
-      'Nickel.EditPast.extend_past_preserves'],
+      /  id_membership_is_exact[^\n]+;\n/,
+      'Nickel.PastExact.extend_past_preserves','', 'extend_past_preserves'],
     ['past-ancestors-without-source-contract',
       /  past_stays_in_closed_set[^\n]+;\n/,
       'Nickel.EditPast.past_has_only_ancestors_and_keeps_roots'],

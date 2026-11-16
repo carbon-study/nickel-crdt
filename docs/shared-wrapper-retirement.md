@@ -69,3 +69,41 @@ implemented or adopted `u64` migration. a shared arbitrary-identity algorithm
 needs no such choice to serve both text and the non-text example. the example's
 concrete envelope and graph policy do not constitute generic client convergence,
 register semantics or a new public document API.
+
+## shared closed-set soundness cut
+
+`PastExact` now owns the checked loop argument that successful shared `past`
+retains its roots and stays inside any ID set containing those roots and closed
+under the supplied fact-ID/parent callbacks. Both `EditPast` and `RegisterPast`
+compose it for `extend_past_preserves`, `past_pass_preserves` and
+`past_stays_in_closed_set`. Their concrete statements, mathematical predicates,
+refinements and patterns are retained. The text instance uses the checked actual
+forwarding-call equations; the register instance explicitly transports its
+quantified ID-equality premise.
+
+The control owners follow the implementation knowledge:
+
+- `past-invents-id`, `past-drops-roots` and register `past-extend-unselected`
+  now reject in the shared owner. Their old concrete text/register laws remain.
+- The historical `past-membership-without-pattern` identifier now removes the
+  explicit shared membership call in `PastExact.extend_past_preserves`; both the
+  native scan and the alternative `EventGraph` automatic pattern route are
+  withheld at that consuming query. The old concrete text pattern is retained.
+- `past-skips-passes` keeps the zero-pass fault but fixes its Rust range to
+  `usize` and moves its owner to text's bounded-path completeness law. Zero
+  passes do not violate closed-set soundness. Its empty-fold case is checked
+  before the completeness owner, so an earlier unrelated failure is not credited.
+- Three new wrong-argument controls check the retained text forwards separately:
+  dropping the incoming selection, skipping the input facts and clearing roots.
+  A literal native fixture exercises those proof-only forwards; this is not
+  evidence that public runtime execution calls them.
+- Separate text/register removal controls require each shared callee contract
+  with the corresponding native bodies withheld at the consuming assertions.
+
+Proof-line accounting against the preceding main: text removes67 and adds31;
+register removes50 and adds17; the shared module adds185. The net is **+116**
+lines, not net retirement of the complete duplicate chain. No Rust forward is
+retired by this cut. The remaining exact-ancestry/completeness chain, concrete
+text totality/agreement obligations and approved writer-stream slice still need
+consolidation before multi-write or another client. No stronger convergence,
+admission, Undo or writer-ownership policy follows from this soundness argument.

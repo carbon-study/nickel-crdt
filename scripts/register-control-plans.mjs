@@ -33,7 +33,7 @@ export function registerControlPlans({source,graphSource,view,loopView,canonical
   ['past-skips-parent-check','fn past<','    validate_after(facts, after_ids, ops)?;\n','','RegisterHistory.past_checked_parents'],
   // Exact past directions (#97 obligation 1): each native fault breaks only its own direction.
   ['past-extend-never-pushes','fn extend_past<','if !has_id(&selected, &predecessor, ops) {','if false && !has_id(&selected, &predecessor, ops) {','RegisterPast.extend_past_covers_predecessors'],
-  ['past-extend-unselected','fn extend_past<','if has_id(&selected, &id(fact), ops) {','if true {','RegisterPast.extend_past_preserves'],
+  ['past-extend-unselected','fn extend_past<','if has_id(&selected, &id(fact), ops) {','if true {','PastExact.extend_past_preserves'],
   ['canonical-chooses-largest','fn choose_unseen<','id_lt(&id(&facts[j]), &id(&facts[k]))','id_lt(&id(&facts[k]), &id(&facts[j]))','Canonical.choose_is_least'],
   ['register-wrong-order-policy','const OPS:','graph::graph_ops(identity, parents, same_id, less_id,','graph::graph_ops(identity, parents, same_id, same_id,','register_order_policy_is_exact'],
   ['register-orders-counter-first','fn less_id(','a.peer < b.peer || (a.peer == b.peer && a.counter < b.counter)','a.counter < b.counter || (a.counter == b.counter && a.peer < b.peer)','less_id_is_lexicographic'],
@@ -85,7 +85,7 @@ export function registerControlPlans({source,graphSource,view,loopView,canonical
  assert.throws(()=>registerPolicyAnchor(source.replace('const OPS:','const OTHER_OPS:'),'graph::graph_ops(identity, parents, same_id, less_id,'),'missing const policy never borrows a later item');
  // Register no longer imports RegisterPast; RegisterHistory imports both. Verify the owner's module
  // (positive: everything) so a RegisterPast or RegisterHistory owner is actually checked.
- const rootsFor=owner=>!owner?['Nickel.Register.fst','Nickel.RegisterPublic.fst','Nickel.RegisterFrontier.fst']:owner.startsWith('RegisterFrontier.')?['Nickel.RegisterFrontier.fst']:owner.startsWith('RegisterPublic.')?['Nickel.RegisterPublic.fst']:owner.startsWith('RegisterValid.')?['Nickel.RegisterValid.fst']:owner.startsWith('RegisterHistory.')?['Nickel.RegisterHistory.fst']:owner.startsWith('RegisterPast.')?['Nickel.RegisterPast.fst']:['Nickel.Register.fst'];
+ const rootsFor=owner=>owner?.startsWith('PastExact.')?['Nickel.PastExact.fst']:!owner?['Nickel.Register.fst','Nickel.RegisterPublic.fst','Nickel.RegisterFrontier.fst']:owner.startsWith('RegisterFrontier.')?['Nickel.RegisterFrontier.fst']:owner.startsWith('RegisterPublic.')?['Nickel.RegisterPublic.fst']:owner.startsWith('RegisterValid.')?['Nickel.RegisterValid.fst']:owner.startsWith('RegisterHistory.')?['Nickel.RegisterHistory.fst']:owner.startsWith('RegisterPast.')?['Nickel.RegisterPast.fst']:['Nickel.Register.fst'];
  function replaceInDeclaration(name,needle,replacement,sourceView=view){
   const plain=sourceView.indexOf('let '+name+' '),recursive=sourceView.indexOf('let rec '+name+' ');assert(plain<0||recursive<0,'unambiguous declaration');const start=plain>=0?plain:recursive;assert(start>=0);
   const next=/\nlet (?:rec )?\w+ /.exec(sourceView.slice(start+4)),end=next?start+4+next.index:sourceView.length;
@@ -134,6 +134,9 @@ export function registerControlPlans({source,graphSource,view,loopView,canonical
  const presenceLoop=historyView.split('\n').find(l=>l.startsWith('  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len after)'));
  assert(presenceLoop,'actual validate_after loop contract');
  const depModes=[
+  ['without-shared-past-extend',replaceInDeclaration('extend_past_preserves','  Nickel.PastExact.extend_past_preserves ops roots p fact before;','  ();',pastView),'RegisterPast.extend_past_preserves'],
+  ['without-shared-past-pass',replaceInDeclaration('past_pass_preserves','  Nickel.PastExact.past_pass_preserves ops roots p facts before;','  ();',pastView),'RegisterPast.past_pass_preserves'],
+  ['without-shared-past-closed',replaceInDeclaration('past_stays_in_closed_set','  Nickel.PastExact.past_stays_in_closed_set ops facts roots p;','  ();',pastView),'RegisterPast.past_stays_in_closed_set'],
   ["without-terminal-clock-order",replaceInDeclaration("terminal_above","Prims.l_and (stored h f) (id_clocks_increase h)","stored h f",frontierView),"RegisterFrontier.terminal_above"],
   ["without-terminal-induction",replaceInDeclaration("terminal_above","terminal_above h child (fuel - 1);",'  ();',frontierView),"RegisterFrontier.terminal_above"],
   ["without-filter-position-contract",replaceInDeclaration("nonparent_position_is_kept","nonparent_position_is_kept_induct input ops at out j",'  ()',frontierView),"RegisterFrontier.nonparent_position_is_kept"],
@@ -331,9 +334,9 @@ export function registerControlPlans({source,graphSource,view,loopView,canonical
   ['without-publication-contract',replaceInDeclaration('receive_publication_is_exact','  Nickel.EventShell.borrowed_publication_is_exact before offered () Native.planned Native.Admission_Added Native.Admission_Duplicate;','  ();'),'receive_publication_is_exact'],
   ['without-noedit-byte-contract',replaceInDeclaration('equal_value_write_is_neutral','    Tactics.prune "Nickel_crdt.Register.bytes_equal";','    Tactics.prune "Nickel_crdt.Register.bytes_equal";\n    Tactics.prune "Nickel.Register.bytes_equal_exact";',replaceInDeclaration('equal_value_write_is_neutral','  bytes_equal_exact (Alloc.Vec.impl_1__as_slice value) (Alloc.Vec.impl_1__as_slice (Native.impl_Replica__read before key));','  ();')),'equal_value_write_is_neutral'],
  ];
- const bodyOwners=/^(Canonical|RegisterPast|RegisterHistory|RegisterValid|RegisterPublic|RegisterFrontier)\./;
- const viewModuleOf=owner=>{for(const m of ['Canonical','RegisterPast','RegisterHistory','RegisterValid','RegisterPublic','RegisterFrontier'])if(owner.startsWith(m+'.'))return 'Nickel.'+m;return 'Nickel.Register';};
- const depGeneric=owner=>['Canonical.','LoopUtil.','RegisterPast.','RegisterHistory.','RegisterValid.','RegisterPublic.','RegisterFrontier.'].some(p=>owner.startsWith(p));
+ const bodyOwners=/^(PastExact|Canonical|RegisterPast|RegisterHistory|RegisterValid|RegisterPublic|RegisterFrontier)\./;
+ const viewModuleOf=owner=>{for(const m of ['PastExact','Canonical','RegisterPast','RegisterHistory','RegisterValid','RegisterPublic','RegisterFrontier'])if(owner.startsWith(m+'.'))return 'Nickel.'+m;return 'Nickel.Register';};
+ const depGeneric=owner=>['PastExact.','Canonical.','LoopUtil.','RegisterPast.','RegisterHistory.','RegisterValid.','RegisterPublic.','RegisterFrontier.'].some(p=>owner.startsWith(p));
  const positive={name:'positive',kind:'positive',owner:null,theorem:null,roots:rootsFor(null),sourceFile:'src/register.rs',mutated:null};
  const body=bodyModes.map(([name,header,anchor,replacement,owner])=>{
   const sourceFile=graphModes.has(name)?'src/event_layer.rs':'src/register.rs',original=graphModes.has(name)?graphSource:source;

@@ -87,7 +87,7 @@ const env=process.env;
 for(const k of ['NICKEL_HAX_BIN','NICKEL_PROOF_FSTAR','NICKEL_HAX_SOURCE','NICKEL_FSTAR_MODEL_CACHE'])assert(env[k],k);
 const views=path.join(root,'proofs/register-view');
 const receipt=JSON.parse(await fs.readFile(path.join(views,'receipt.json'),'utf8'));
-const required=['Cargo.toml','Cargo.lock','src/lib.rs','src/register.rs','src/causal.rs','src/event_layer.rs','src/event_shell.rs','proofs/Register.lt','proofs/RegisterPast.lt','proofs/RegisterHistory.lt','proofs/RegisterValid.lt','proofs/RegisterPublic.lt','proofs/RegisterFrontier.lt','proofs/Canonical.lt','proofs/Vector.lt','proofs/EventGraph.lt','proofs/EventClassifier.lt',
+const required=['Cargo.toml','Cargo.lock','src/lib.rs','src/register.rs','src/causal.rs','src/event_layer.rs','src/event_shell.rs','proofs/PastExact.lt','proofs/generated/Nickel.PastExact.fst','proofs/Register.lt','proofs/RegisterPast.lt','proofs/RegisterHistory.lt','proofs/RegisterValid.lt','proofs/RegisterPublic.lt','proofs/RegisterFrontier.lt','proofs/Canonical.lt','proofs/Vector.lt','proofs/EventGraph.lt','proofs/EventClassifier.lt',
  'proofs/Prelude.lt','proofs/LoopUtil.lt','proofs/EventShell.lt','proofs/CausalEnvelope.lt',
  'proofs/generated/Nickel.Vector.fst','proofs/generated/Nickel.EventGraph.fst','proofs/generated/Nickel.EventClassifier.fst','proofs/generated/Nickel.Prelude.fst','proofs/generated/Nickel.LoopUtil.fst','proofs/generated/Nickel.EventShell.fst',
  'proofs/causal-envelope-view/Nickel.CausalEnvelope.fst',
@@ -98,6 +98,7 @@ for(const [f,h]of Object.entries(receipt.files))assert.equal(digest(await fs.rea
 assertReformedSource('LoopUtil',await fs.readFile(path.join(root,'proofs/LoopUtil.lt'),'utf8'));
 assertReformedSource('Canonical',await fs.readFile(path.join(root,'proofs/Canonical.lt'),'utf8'));
 assertReformedSource('Register',await fs.readFile(path.join(root,'proofs/Register.lt'),'utf8'));
+assertReformedSource('PastExact',await fs.readFile(path.join(root,'proofs/PastExact.lt'),'utf8'));
 assertReformedSource('RegisterPast',await fs.readFile(path.join(root,'proofs/RegisterPast.lt'),'utf8'));
 assert.throws(()=>assertReformedSource('RegisterPast','Tactics.prune("Nickel_crdt.Event_layer");'),'no broad shared namespace exception for exact past');
 assert.throws(()=>assertReformedSource('RegisterPast','Tactics.prune("Nickel_crdt.Register.v_OPS");'),'exact past stays generic over ops');
@@ -124,11 +125,12 @@ const loopView=await fs.readFile(path.join(root,'proofs/generated/Nickel.LoopUti
 const canonicalView=await fs.readFile(path.join(views,'Nickel.Canonical.fst'),'utf8');
 const view=await fs.readFile(path.join(views,'Nickel.Register.fst'),'utf8');
 const pastView=await fs.readFile(path.join(views,'Nickel.RegisterPast.fst'),'utf8');
+const sharedPastView=await fs.readFile(path.join(root,'proofs/generated/Nickel.PastExact.fst'),'utf8');
 const historyView=await fs.readFile(path.join(views,'Nickel.RegisterHistory.fst'),'utf8');
 const validView=await fs.readFile(path.join(views,'Nickel.RegisterValid.fst'),'utf8');
 const publicView=await fs.readFile(path.join(views,'Nickel.RegisterPublic.fst'),'utf8');
 const frontierView=await fs.readFile(path.join(views,'Nickel.RegisterFrontier.fst'),'utf8');
-for(const checkedView of [view,canonicalView,pastView,historyView,validView,publicView,frontierView])assert(!/\b(?:admit|assume|lax|admit_smt_queries)\b/.test(checkedView));
+for(const checkedView of [sharedPastView,view,canonicalView,pastView,historyView,validView,publicView,frontierView])assert(!/\b(?:admit|assume|lax|admit_smt_queries)\b/.test(checkedView));
 if(env.NICKEL_LATTE_BIN){
  const rf=await runAsync('frontier meaning producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/RegisterFrontier.lt')],root,{env});assert.equal(rf.status,0);assert.equal(rf.stdout,frontierView,'complete register frontier producer/view parity');
  const l=await runAsync('loop producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/LoopUtil.lt')],root,{env});assert.equal(l.status,0);assert.equal(l.stdout,loopView,'complete loop producer/view parity');
@@ -136,6 +138,7 @@ if(env.NICKEL_LATTE_BIN){
  const rh=await runAsync('history producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/RegisterHistory.lt')],root,{env});assert.equal(rh.status,0);assert.equal(rh.stdout,historyView,'complete history producer/view parity');
  const rv=await runAsync('valid-history producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/RegisterValid.lt')],root,{env});assert.equal(rv.status,0);assert.equal(rv.stdout,validView,'complete valid-history producer/view parity');
  const rpub=await runAsync('public producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/RegisterPublic.lt')],root,{env});assert.equal(rpub.status,0);assert.equal(rpub.stdout,publicView,'complete public producer/view parity');
+ const sp=await runAsync('shared past producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/PastExact.lt')],root,{env});assert.equal(sp.status,0);assert.equal(sp.stdout,sharedPastView,'complete shared past producer/view parity');
  const rp=await runAsync('exact past producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/RegisterPast.lt')],root,{env});assert.equal(rp.status,0);assert.equal(rp.stdout,pastView,'complete exact past producer/view parity');
  const p=await runAsync('checkpoint producer',env.NICKEL_LATTE_BIN,['emit-fstar',path.join(root,'proofs/Register.lt')],root,{env});
  await fs.writeFile(path.join(output,'producer.log'),p.log);assert.equal(p.status,0);assert.equal(p.stdout,view,'full producer/view parity');
@@ -144,13 +147,13 @@ const source=await fs.readFile(path.join(root,'src/register.rs'),'utf8');
 const graphSource=await fs.readFile(path.join(root,'src/event_layer.rs'),'utf8');
 const plans=registerControlPlans({source,graphSource,view,loopView,canonicalView,pastView,historyView,validView,publicView,frontierView});
 const bodyModes=plans.body,depModes=plans.dep;
-const viewByModule={'Nickel.Register':view,'Nickel.LoopUtil':loopView,'Nickel.Canonical':canonicalView,'Nickel.RegisterPast':pastView,'Nickel.RegisterHistory':historyView,'Nickel.RegisterValid':validView,'Nickel.RegisterPublic':publicView,'Nickel.RegisterFrontier':frontierView};
+const viewByModule={'Nickel.PastExact':sharedPastView,'Nickel.Register':view,'Nickel.LoopUtil':loopView,'Nickel.Canonical':canonicalView,'Nickel.RegisterPast':pastView,'Nickel.RegisterHistory':historyView,'Nickel.RegisterValid':validView,'Nickel.RegisterPublic':publicView,'Nickel.RegisterFrontier':frontierView};
 // Focused modes are validated against the constructed plans themselves, so a new plan is selectable.
 const planNames=new Set([...bodyModes,...depModes].map(p=>p.name));
 assert(named.every(n=>n==='positive'||planNames.has(n)),'unknown selected mode');
 const haxArgs=out=>['-C','--offline','--locked','-p','nickel-crdt',';','into','--output-dir',out,'-i','-** +nickel_crdt::register::**::new +nickel_crdt::register::**::write +nickel_crdt::register::**::receive +nickel_crdt::register::**::read +nickel_crdt::register::winner +nickel_crdt::register::later +nickel_crdt::register::bytes_equal +nickel_crdt::register::next_lamport +nickel_crdt::register::less_id +nickel_crdt::event_shell::receive +nickel_crdt::causal::classify +nickel_crdt::event_layer::**','fstar'];
 const inventory=['Nickel_crdt.Causal.fst','Nickel_crdt.Event_layer.fst','Nickel_crdt.Event_shell.fst','Nickel_crdt.Register.fst'];
-const proofFiles=['Nickel.Prelude.fst','Nickel.LoopUtil.fst','Nickel.EventShell.fst','Nickel.Vector.fst','Nickel.EventGraph.fst','Nickel.EventClassifier.fst'];
+const proofFiles=['Nickel.PastExact.fst','Nickel.Prelude.fst','Nickel.LoopUtil.fst','Nickel.EventShell.fst','Nickel.Vector.fst','Nickel.EventGraph.fst','Nickel.EventClassifier.fst'];
 async function support(dir){
  await fs.mkdir(dir,{recursive:true});
  for(const f of proofFiles)await put(path.join(dir,f),await fs.readFile(path.join(root,'proofs/generated',f)));
