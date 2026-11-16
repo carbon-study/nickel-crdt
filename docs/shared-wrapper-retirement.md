@@ -160,3 +160,61 @@ pass result in an explicit consuming assertion with the native pass and callee
 body withheld before matching on the result. Its removal control must fail
 ordinarily at that boundary, rather than spend its budget reopening the loop.
 These are proof-body changes, not limit increases or weaker negative evidence.
+
+## shared full-ancestry composition
+
+`PastExact` now contains the finite path-shortening argument and both directions
+of successful exactness. The argument maps each path parent to a position in the
+fact slice; a repeated position permits cutting a cycle. It uses neither a numeric
+ID rank nor a unique-ID or closed-history premise. Both concrete clients retain
+their independent path predicates. Structural induction proves each equivalent
+to the generic callback path, using the existing checked text-edge and bounded
+reachability bridges rather than changing those definitions.
+
+The concrete soundness, short-path coverage, arbitrary-path coverage and exact
+closure laws compose these generic contracts at their actual policies. The text
+instance also uses the checked equation for its actual native `past` forward.
+Native `past` and the generic callee are withheld at the consuming assertions.
+The successful constructor exposes the generic exact-result quantifier through
+`exact_selection_members`; this is a result projection, not another ancestry
+algorithm. A proposed extra ancestor-equivalence helper proved redundant under
+removal controls and was deleted without replacement.
+
+The following proof-only concrete internals are retired from both `EditPast`
+and `RegisterPast`, with their domains transported to the corresponding generic
+instances. They are changes of proof spelling, not deleted semantic obligations:
+
+| old concrete internal | shared replacement |
+| --- | --- |
+| `ancestor_roots_and_edges` | `PastExact.ancestor_roots_and_edges` |
+| `path_extends_reach`, `reach_allows_more_edges` | same names in `PastExact` |
+| `path_node`, `drop_edges`, `cut_path_loop` | the same generic list operations |
+| `dropped_edge_count`, `cut_path_is_shorter` | the same generic length laws |
+| `dropped_path_starts_at_node`, `cutting_repeated_node_preserves_path` | the same generic path-cut laws |
+| `path_parent_is_present`, `path_parent_position` | the same generic position witnesses |
+
+No external authored proof consumer names these retired concrete internals. The
+independent concrete `causal_path`/`ancestor` and `reachable_within` predicates,
+all remaining mathematical definitions and all remaining concrete proof headers
+are unchanged. In particular, `fact_id_present` and `parent_fact_position` stay
+available to text totality. The old concrete `every_path_has_short_path` claim
+also remains as a checked composition. The generic path/reach equivalences give
+the interpretation of the retired signatures; no new semantic premise is added.
+
+Historical soundness, bounded-depth, path-shortening and exactness removal
+controls follow the argument to its shared owners. Each concrete client adds
+separate removals of the shared soundness, short-path, arbitrary-path and exact
+contracts, its path-meaning bridge at arbitrary-path coverage, and the successful
+result projection. The old text totality and two-receiver agreement controls are
+retained. Native shared-loop and actual text-forward argument faults remain
+separate from these mathematical/contract controls.
+
+Against the preceding bounded-depth cut, text removes232 and adds100 authored
+proof lines; registers remove211 and add81; the shared module adds350 and removes1.
+The net is **+87** authored lines. The shared full-ancestry argument is now one
+implementation-linked chain, but compatibility predicates and wrappers still
+cost space. This is not a net-size-reduction claim. No native Rust forward is
+retired here. Generic client totality, text agreement transport and the approved
+writer-stream consolidation remain separate follow-through before multi-write
+or another client. No admission/progress, convergence, Undo or runtime API claim
+is added by this composition.

@@ -145,7 +145,7 @@ if(env.NICKEL_LATTE_BIN){
 }
 const source=await fs.readFile(path.join(root,'src/register.rs'),'utf8');
 const graphSource=await fs.readFile(path.join(root,'src/event_layer.rs'),'utf8');
-const plans=registerControlPlans({source,graphSource,view,loopView,canonicalView,pastView,historyView,validView,publicView,frontierView});
+const plans=registerControlPlans({source,graphSource,view,loopView,canonicalView,pastView,historyView,validView,publicView,frontierView,sharedPastView});
 const bodyModes=plans.body,depModes=plans.dep;
 const viewByModule={'Nickel.PastExact':sharedPastView,'Nickel.Register':view,'Nickel.LoopUtil':loopView,'Nickel.Canonical':canonicalView,'Nickel.RegisterPast':pastView,'Nickel.RegisterHistory':historyView,'Nickel.RegisterValid':validView,'Nickel.RegisterPublic':publicView,'Nickel.RegisterFrontier':frontierView};
 // Focused modes are validated against the constructed plans themselves, so a new plan is selectable.

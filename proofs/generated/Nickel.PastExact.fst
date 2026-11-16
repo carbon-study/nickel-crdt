@@ -266,3 +266,185 @@ let past_covers_bounded_predecessor_paths (#ft: Type0) (#it: eqtype) (#et: Type0
     Tactics.prune "Nickel_crdt.Event_layer.validate_after";
     Tactics.smt_sync' 1 1
   )
+
+let rec causal_path (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (start: it) (steps: Prims.list it) (finish: it) : Tot Type0 (decreases steps) =
+  match steps with | Prims.Nil -> begin start == finish end | Prims.Cons next rest -> begin Prims.l_and (causal_edge ops facts start next) (causal_path ops facts next rest finish) end
+
+let causal_path_equations (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) : Lemma (ensures Prims.l_and (forall(start: it) (finish: it). causal_path ops facts start Prims.Nil finish <==> start == finish) (forall(start: it) (next: it) (rest: Prims.list it) (finish: it). causal_path ops facts start (Prims.Cons next rest) finish <==> Prims.l_and (causal_edge ops facts start next) (causal_path ops facts next rest finish))) =
+  ()
+
+let ancestor (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (roots: t_Slice it) (id: it) : Type0 =
+  exists(root: it) (steps: Prims.list it). Prims.l_and (member roots root) (causal_path ops facts root steps id)
+
+let rec append_path_edge (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (root: it) (steps: Prims.list it) (parent: it) (child: it) : Lemma (requires (causal_path ops facts root steps parent /\ causal_edge ops facts parent child)) (ensures causal_path ops facts root (List.append steps (Prims.Cons child Prims.Nil)) child) (decreases steps) =
+  causal_path_equations ops facts;
+  match steps with | Prims.Nil -> begin () end | Prims.Cons next rest -> begin append_path_edge ops facts next rest parent child end
+
+let ancestor_follows_edge (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (roots: t_Slice it) (parent: it) (child: it) : Lemma (requires (ancestor ops facts roots parent /\ causal_edge ops facts parent child)) (ensures ancestor ops facts roots child) =
+  let each_path (root: it) (steps: Prims.list it) : Lemma (requires (member roots root /\ causal_path ops facts root steps parent)) (ensures ancestor ops facts roots child) =
+    append_path_edge ops facts root steps parent child;
+    assert (Prims.l_and (member roots root) (causal_path ops facts root (List.append steps (Prims.Cons child Prims.Nil)) child)) in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_path)
+
+let ancestor_roots_and_edges (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (roots: t_Slice it) : Lemma (ensures Prims.l_and (all_ids roots (ancestor ops facts roots)) (facts_closed ops facts (ancestor ops facts roots))) =
+  let each_root (i: usize{v i < Seq.length roots}) : Lemma (ensures ancestor ops facts roots (Seq.index roots (v i))) =
+    assert (member roots (Seq.index roots (v i)));
+    assert (causal_path ops facts (Seq.index roots (v i)) Prims.Nil (Seq.index roots (v i))) in
+  FStar.Classical.forall_intro each_root;
+  let each_fact (i: usize{v i < Seq.length facts}) : Lemma (ensures fact_closed ops (Seq.index facts (v i)) (ancestor ops facts roots)) =
+    let f = Seq.index facts (v i) in
+    let each_child (j: usize{v j < Seq.length (ops._1._2 f)}) : Lemma (requires ancestor ops facts roots (ops._1._1 f)) (ensures ancestor ops facts roots (Seq.index (ops._1._2 f) (v j))) =
+      assert (member (ops._1._2 f) (Seq.index (ops._1._2 f) (v j)));
+      assert (causal_edge ops facts (ops._1._1 f) (Seq.index (ops._1._2 f) (v j)));
+      ancestor_follows_edge ops facts roots (ops._1._1 f) (Seq.index (ops._1._2 f) (v j)) in
+    FStar.Classical.forall_intro (FStar.Classical.move_requires each_child) in
+  FStar.Classical.forall_intro each_fact
+
+let past_has_only_ancestors_and_keeps_roots (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (roots: t_Slice it) : Lemma (requires ids_exact ops) (ensures selection_result roots (ancestor ops facts roots) (Shared.past facts roots ops)) =
+  ancestor_roots_and_edges ops facts roots;
+  past_stays_in_closed_set ops facts roots (ancestor ops facts roots)
+
+let rec path_extends_reach (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (roots: t_Slice it) (depth: nat) (start: it) (steps: Prims.list it) (finish: it) : Lemma (requires (reachable_within ops facts roots depth start /\ causal_path ops facts start steps finish)) (ensures reachable_within ops facts roots (depth + List.length steps) finish) (decreases steps) =
+  causal_path_equations ops facts;
+  reachable_within_equations ops facts roots;
+  match steps with | Prims.Nil -> begin () end | Prims.Cons next rest -> begin assert (reachable_within ops facts roots (depth + 1) next);
+  path_extends_reach ops facts roots (depth + 1) next rest finish end
+
+let rec reach_allows_more_edges (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (roots: t_Slice it) (depth: nat) (extra: nat) (id: it) : Lemma (requires reachable_within ops facts roots depth id) (ensures reachable_within ops facts roots (depth + extra) id) (decreases depth) =
+  reachable_within_equations ops facts roots;
+  if depth ==? 0 then
+    begin () end
+  else
+    begin let each_parent (parent: it) : Lemma (requires (reachable_within ops facts roots (depth - 1) parent /\ causal_edge ops facts parent id)) (ensures reachable_within ops facts roots (depth + extra) id) = reach_allows_more_edges ops facts roots (depth - 1) extra parent in
+    FStar.Classical.forall_intro (FStar.Classical.move_requires each_parent) end
+
+let past_contains_short_paths (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (roots: t_Slice it) (root: it) (steps: Prims.list it) (id: it) : Lemma (requires (ids_exact ops /\ member roots root /\ causal_path ops facts root steps id /\ List.length steps <= Seq.length facts)) (ensures ((match Shared.past facts roots ops with | Result.Result_Ok selected -> begin member (Alloc.Vec.impl_1__as_slice selected) id end | _ -> begin Prims.l_True end) <: Type0)) =
+  path_extends_reach ops facts roots 0 root steps id;
+  reach_allows_more_edges ops facts roots (List.length steps) (Seq.length facts - List.length steps) id;
+  past_covers_bounded_predecessor_paths ops facts roots;
+  assert (((match Shared.past facts roots ops with | Result.Result_Ok selected -> begin member (Alloc.Vec.impl_1__as_slice selected) id end | _ -> begin Prims.l_True end) <: Type0)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.past";
+    Tactics.smt_sync' 1 1
+  )
+
+open FStar.Fin
+
+let rec path_node (#it: eqtype) (start: it) (steps: Prims.list it) (at: nat{at <= List.length steps}) : Tot it (decreases steps) =
+  match steps with | Prims.Nil -> begin start end | Prims.Cons next rest -> begin if at ==? 0 then
+    begin start end
+  else
+    begin path_node next rest (at - 1) end end
+
+let rec drop_edges (#it: eqtype) (steps: Prims.list it) (count: nat{count <= List.length steps}) : Tot (Prims.list it) (decreases steps) =
+  if count ==? 0 then
+    begin steps end
+  else
+    begin match steps with | Prims.Nil -> begin Prims.Nil end | Prims.Cons _ rest -> begin drop_edges rest (count - 1) end end
+
+let rec cut_path_loop (#it: eqtype) (steps: Prims.list it) (first: nat) (last: nat{Prims.l_and (first < last) (last <= List.length steps)}) : Tot (Prims.list it) (decreases steps) =
+  if first ==? 0 then
+    begin drop_edges steps last end
+  else
+    begin match steps with | Prims.Nil -> begin Prims.Nil end | Prims.Cons next rest -> begin Prims.Cons next (cut_path_loop rest (first - 1) (last - 1)) end end
+
+let rec dropped_edge_count (#it: eqtype) (steps: Prims.list it) (count: nat{count <= List.length steps}) : Lemma (ensures List.length (drop_edges steps count) == List.length steps - count) (decreases steps) =
+  if count ==? 0 then
+    begin () end
+  else
+    begin match steps with | Prims.Nil -> begin () end | Prims.Cons _ rest -> begin dropped_edge_count rest (count - 1) end end
+
+let rec cut_path_is_shorter (#it: eqtype) (steps: Prims.list it) (first: nat) (last: nat{Prims.l_and (first < last) (last <= List.length steps)}) : Lemma (ensures Prims.l_and (List.length (cut_path_loop steps first last) == List.length steps - last + first) (List.length (cut_path_loop steps first last) < List.length steps)) (decreases steps) =
+  if first ==? 0 then
+    begin dropped_edge_count steps last end
+  else
+    begin match steps with | Prims.Nil -> begin () end | Prims.Cons _ rest -> begin cut_path_is_shorter rest (first - 1) (last - 1) end end
+
+let rec dropped_path_starts_at_node (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (start: it) (steps: Prims.list it) (finish: it) (count: nat{count <= List.length steps}) : Lemma (requires causal_path ops facts start steps finish) (ensures causal_path ops facts (path_node start steps count) (drop_edges steps count) finish) (decreases steps) =
+  causal_path_equations ops facts;
+  if count ==? 0 then
+    begin () end
+  else
+    begin match steps with | Prims.Nil -> begin () end | Prims.Cons next rest -> begin dropped_path_starts_at_node ops facts next rest finish (count - 1) end end
+
+let rec cutting_repeated_node_preserves_path (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (start: it) (steps: Prims.list it) (finish: it) (first: nat) (last: nat{Prims.l_and (first < last) (last <= List.length steps)}) : Lemma (requires (causal_path ops facts start steps finish /\ path_node start steps first == path_node start steps last)) (ensures causal_path ops facts start (cut_path_loop steps first last) finish) (decreases steps) =
+  causal_path_equations ops facts;
+  if first ==? 0 then
+    begin dropped_path_starts_at_node ops facts start steps finish last end
+  else
+    begin match steps with | Prims.Nil -> begin () end | Prims.Cons next rest -> begin cutting_repeated_node_preserves_path ops facts next rest finish (first - 1) (last - 1) end end
+
+let fact_id_present (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (id: it) : Type0 =
+  exists(k: nat). Prims.l_and (k < Seq.length facts) (ops._1._1 (Seq.index facts k) == id)
+
+let rec path_parent_is_present (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (start: it) (steps: Prims.list it) (finish: it) (at: nat{at < List.length steps}) : Lemma (requires causal_path ops facts start steps finish) (ensures fact_id_present ops facts (path_node start steps at)) (decreases steps) =
+  causal_path_equations ops facts;
+  match steps with | Prims.Nil -> begin () end | Prims.Cons next rest -> begin if at ==? 0 then
+    begin () end
+  else
+    begin path_parent_is_present ops facts next rest finish (at - 1) end end
+
+let parent_fact_position (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (id: it{fact_id_present ops facts id}) : i: nat{Prims.l_and (i < Seq.length facts) (ops._1._1 (Seq.index facts i) == id)} =
+  match FStar.Fin.find facts (fun (f: ft) -> ops._1._1 f ==? id) 0 with | Some i -> begin i end | None -> begin 0 end
+
+let path_parent_position (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (start: it) (finish: it) (steps: Prims.list it{causal_path ops facts start steps finish}) (at: nat{at < List.length steps}) : position: FStar.Fin.under (Seq.length facts){ops._1._1 (Seq.index facts position) == path_node start steps at} =
+  path_parent_is_present ops facts start steps finish at;
+  parent_fact_position ops facts (path_node start steps at)
+
+let rec every_path_has_short_path (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (start: it) (steps: Prims.list it) (finish: it) : Lemma (requires causal_path ops facts start steps finish) (ensures exists(short: Prims.list it). Prims.l_and (List.length short <= Seq.length facts) (causal_path ops facts start short finish)) (decreases List.length steps) =
+  causal_path_equations ops facts;
+  let count = Seq.length facts in
+  if List.length steps <= count then
+    begin assert (Prims.l_and (List.length steps <= count) (causal_path ops facts start steps finish)) end
+  else
+    begin if count ==? 0 then
+      begin path_parent_is_present ops facts start steps finish 0;
+      let position = parent_fact_position ops facts start in
+      assert (position < count) end
+    else
+      begin let position = path_parent_position ops facts start finish steps in
+      let positions = Seq.init (count + 1) position in
+      Seq.lemma_init_len (count + 1) position;
+      Seq.init_index (count + 1) position;
+      match FStar.Fin.pigeonhole positions with | (i, j) -> begin assert (Prims.l_and (i < j) (j < count + 1));
+      assert (position i == position j);
+      assert (path_node start steps i == path_node start steps j);
+      cutting_repeated_node_preserves_path ops facts start steps finish i j;
+      cut_path_is_shorter steps i j;
+      let shorter = cut_path_loop steps i j in
+      every_path_has_short_path ops facts start shorter finish end end end
+
+let past_contains_every_causal_path (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (roots: t_Slice it) (root: it) (steps: Prims.list it) (id: it) : Lemma (requires (ids_exact ops /\ member roots root /\ causal_path ops facts root steps id)) (ensures ((match Shared.past facts roots ops with | Result.Result_Ok selected -> begin member (Alloc.Vec.impl_1__as_slice selected) id end | _ -> begin Prims.l_True end) <: Type0)) =
+  every_path_has_short_path ops facts root steps id;
+  let each_short (short: Prims.list it) : Lemma (requires (List.length short <= Seq.length facts /\ causal_path ops facts root short id)) (ensures ((match Shared.past facts roots ops with | Result.Result_Ok selected -> begin member (Alloc.Vec.impl_1__as_slice selected) id end | _ -> begin Prims.l_True end) <: Type0)) = past_contains_short_paths ops facts roots root short id in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires each_short);
+  assert (((match Shared.past facts roots ops with | Result.Result_Ok selected -> begin member (Alloc.Vec.impl_1__as_slice selected) id end | _ -> begin Prims.l_True end) <: Type0)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.past";
+    Tactics.smt_sync' 1 1
+  )
+
+let exact_past_result (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (roots: t_Slice it) (result: Result.t_Result (Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) et) : Type0 =
+  match result with | Result.Result_Ok selected -> begin forall(id: it). member (Alloc.Vec.impl_1__as_slice selected) id <==> ancestor ops facts roots id end | _ -> begin Prims.l_True end
+
+let successful_past_is_exact_closure (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (roots: t_Slice it) : Lemma (requires ids_exact ops) (ensures exact_past_result ops facts roots (Shared.past facts roots ops)) =
+  past_has_only_ancestors_and_keeps_roots ops facts roots;
+  match Shared.past facts roots ops with | Result.Result_Ok selected -> begin let each_id (id: it) : Lemma (ensures member (Alloc.Vec.impl_1__as_slice selected) id <==> ancestor ops facts roots id) =
+    let each_selected () : Lemma (requires member (Alloc.Vec.impl_1__as_slice selected) id) (ensures ancestor ops facts roots id) = member_satisfies (Alloc.Vec.impl_1__as_slice selected) (ancestor ops facts roots) id in
+    FStar.Classical.move_requires each_selected ();
+    let each_path (root: it) (steps: Prims.list it) : Lemma (requires (member roots root /\ causal_path ops facts root steps id)) (ensures member (Alloc.Vec.impl_1__as_slice selected) id) =
+      past_contains_every_causal_path ops facts roots root steps id;
+      assert (member (Alloc.Vec.impl_1__as_slice selected) id) by (
+        Tactics.prune "Nickel_crdt.Event_layer.past";
+        Tactics.smt_sync' 1 1
+      ) in
+    FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_path) in
+  FStar.Classical.forall_intro each_id;
+  assert (exact_past_result ops facts roots (Shared.past facts roots ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.past";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Err _ -> begin assert (exact_past_result ops facts roots (Shared.past facts roots ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.past";
+    Tactics.smt_sync' 1 1
+  ) end
+
+let exact_selection_members (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (roots: t_Slice it) (selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) : Lemma (requires exact_past_result ops facts roots (Result.Result_Ok selected)) (ensures forall(id: it). member (Alloc.Vec.impl_1__as_slice selected) id <==> ancestor ops facts roots id) =
+  ()
