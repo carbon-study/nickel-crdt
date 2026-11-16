@@ -57,7 +57,7 @@
         root = ./.;
         fileset = pkgs.lib.fileset.unions [
           ./Cargo.toml ./Cargo.lock ./src ./tests ./proof-smoke
-          ./proofs/generated ./proofs/EventGraph.lt ./proofs/EventGraphText.lt ./proofs/EventShell.lt ./proofs/EventClassifier.lt ./proofs/LoopEquality.lt ./proofs/Prelude.lt ./proofs/LoopUtil.lt ./proofs/Vector.lt ./proofs/Smoke.lt ./proofs/EditAtomic.lt ./proofs/EditCommit.lt ./proofs/EditIdentity.lt ./proofs/EditAccepted.lt ./proofs/EditWellFormed.lt ./proofs/Spec.lt ./proofs/EditCausal.lt ./proofs/EditPast.lt ./proofs/EditPastTotal.lt ./proofs/EditSchedule.lt ./proofs/EditBasis.lt ./proofs/EditReplay.lt
+          ./proofs/generated ./proofs/register-view/Nickel.Canonical.fst ./proofs/PastExact.lt ./proofs/Canonical.lt ./proofs/EventGraph.lt ./proofs/EventGraphText.lt ./proofs/EventShell.lt ./proofs/EventClassifier.lt ./proofs/LoopEquality.lt ./proofs/Prelude.lt ./proofs/LoopUtil.lt ./proofs/Vector.lt ./proofs/Smoke.lt ./proofs/EditAtomic.lt ./proofs/EditCommit.lt ./proofs/EditIdentity.lt ./proofs/EditAccepted.lt ./proofs/EditWellFormed.lt ./proofs/Spec.lt ./proofs/EditCausal.lt ./proofs/EditPast.lt ./proofs/EditPastTotal.lt ./proofs/EditSchedule.lt ./proofs/EditBasis.lt ./proofs/EditReplay.lt
           (scriptsFor "text")
         ];
       };
@@ -138,7 +138,7 @@
         root = ./.;
         fileset = pkgs.lib.fileset.unions [
           ./Cargo.toml ./Cargo.lock ./proof-smoke ./src ./tests/register_checkpoint.rs
-          ./proofs/Register.lt ./proofs/RegisterPast.lt ./proofs/RegisterHistory.lt ./proofs/RegisterValid.lt ./proofs/RegisterPublic.lt ./proofs/RegisterFrontier.lt ./proofs/Canonical.lt ./proofs/register-view
+          ./proofs/PastExact.lt ./proofs/generated/Nickel.PastExact.fst ./proofs/Register.lt ./proofs/RegisterPast.lt ./proofs/RegisterHistory.lt ./proofs/RegisterValid.lt ./proofs/RegisterPublic.lt ./proofs/RegisterFrontier.lt ./proofs/Canonical.lt ./proofs/register-view
           ./proofs/Prelude.lt ./proofs/LoopUtil.lt ./proofs/Vector.lt ./proofs/EventGraph.lt ./proofs/EventClassifier.lt ./proofs/EventShell.lt ./proofs/CausalEnvelope.lt
           ./proofs/generated/Nickel.Prelude.fst ./proofs/generated/Nickel.LoopUtil.fst
           ./proofs/generated/Nickel.Vector.fst ./proofs/generated/Nickel.EventGraph.fst ./proofs/generated/Nickel.EventClassifier.fst

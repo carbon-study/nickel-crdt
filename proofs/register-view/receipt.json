@@ -28,9 +28,9 @@
     "proofs/register-view/Nickel_crdt.Causal.fst": "f687dc18bc368c9c06035ca27297e766a0f5d88e8d321c10eefa5a321d014bce",
     "proofs/register-view/Nickel_crdt.Event_layer.fst": "cde2b73aa3198c7370de5588b57ab614cb1f895bb8abe74dc355c8ba585e0f9b",
     "proofs/register-view/Nickel_crdt.Event_shell.fst": "4eb7b1f6ef8de126cdb799864c2073b6086e5af4d91fa4ade2b6ce38d8f37d8c",
-    "proofs/RegisterPast.lt": "cc276a6ad1b613ff5865c0fe1bc4243a107b90b5e8f97719bb7473d60630d060",
+    "proofs/RegisterPast.lt": "687f852eba2506819383752b24d303a9f9a8e0a44933f849e7061dc7e03019ce",
     "proofs/RegisterHistory.lt": "c4b6672bb6e2c15772f9a43c75188b890f99cb438f83196f43a59ecea8394cb6",
-    "proofs/register-view/Nickel.RegisterPast.fst": "fbc11375c24cc172dd038e23ed55759524b2b88e0fe716f8f50efc6a2a78dfcc",
+    "proofs/register-view/Nickel.RegisterPast.fst": "4696a7ec513e3ed0c7a7d599dfcbb0ded6752856bb556863fe041102bd7131d5",
     "proofs/register-view/Nickel.RegisterHistory.fst": "74bcbc6145ed2adc69e2c2313804e21486d1f5ad3089fd8ddee597f00341ba16",
     "proofs/generated/Nickel.EventClassifier.fst": "c3f31194d0096d9320504be3428d4bdb4b7eeb27f04e71a6efa39fac7a0d89c7",
     "proofs/EventClassifier.lt": "f0074997190bc56b80a7fe658ccd42a4c6da0edcf7310a5ce5b845f69c62042e",
@@ -39,6 +39,8 @@
     "proofs/register-view/Nickel.RegisterValid.fst": "ef2aa478d94a168480cff32f5ddcee60493bd1fae75c611030f98b5fbdd1db7c",
     "proofs/register-view/Nickel.RegisterPublic.fst": "a7735ba20a1e803f198dae89d9e11ba3f4efdd10f02401a0f49be62f68bda0c5",
     "proofs/RegisterFrontier.lt": "4c97d9b7e596d89abc2ac1dbf6cc88957cf3f1e5f22352704744d75d7f57df78",
-    "proofs/register-view/Nickel.RegisterFrontier.fst": "e8a49186f54e9ab238d271d8f2d4e8901c0f2a62795c6df0afbfede5bc33fd47"
+    "proofs/register-view/Nickel.RegisterFrontier.fst": "e8a49186f54e9ab238d271d8f2d4e8901c0f2a62795c6df0afbfede5bc33fd47",
+    "proofs/PastExact.lt": "6bc97ef7c38b9f46db2a49cc932c07f37b881605ba230294f5b3a4419a34e5aa",
+    "proofs/generated/Nickel.PastExact.fst": "162b5865c17112138a0bc426dc3b8678758e4c19545d9203b3d539e6047ea6f4"
   }
 }
