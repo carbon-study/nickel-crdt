@@ -9,34 +9,6 @@ registers follow as a separate delivery after the approved shared exact-past
 consolidation, then the agreed implemented text semantic/refinement slice before
 collections. No Undo/Redo is implemented.
 
-## accepted composition and its domain
-
-`RegisterPublic.public_history` combines the retained-history invariant and
-positional ID uniqueness. The actual constructor establishes it; every
-`receive` and `write` return preserves it. Under that invariant and the same
-initial configuration, `public_read_is_the_causal_read` connects the actual
-public read to the independent causal-maxima meaning.
-
-`receive_added_meaning` and `write_counted_meaning` bind successful publication
-to a fresh valid whole fact and the exact retained-history extension, including
-losing writes. `RegisterFrontier.counted_write_basis_is_whole_history` identifies
-the successful local write's actual validation basis with the literal complete
-pre-write fact slice. `receive_duplicate_meaning` and `write_noedit_meaning`
-connect those outcomes to retained whole facts and the causal read. Public
-producer contracts compose all-return history preservation with exact private
-counter/identity, publication and neutrality laws. The equality/clone callbacks
-are checked on the complete fact payload.
-
-These safety and successful-result laws do not prove every valid offer is Added,
-every requested write succeeds, termination, or an independent iff classification
-of every error code. Complete full-register history/Undo, delivery/progress,
-recovery and convergence remain outside this checkpoint. Caller fencing and the
-translation/model/compiler/runtime trust boundaries below still apply.
-
-The component accounts below preserve each earlier theorem's individual scope.
-Where one component alone does not establish ancestry, retention or validity,
-that limitation does not remove the separate accepted composition above.
-
 ## manipulate a register
 
 `register::Replica::new(writer, initial)` creates an empty history.
@@ -108,6 +80,34 @@ validity and termination remain separate obligations. There is no unconditional
 eventual delivery/admission or SEC result.
 Rust allocation failure, the hax translation and its pinned models remain trust
 boundaries; finite tests are not universal validity or progress proofs.
+
+## accepted composition and its domain
+
+`RegisterPublic.public_history` combines the retained-history invariant and
+positional ID uniqueness. The actual constructor establishes it; every
+`receive` and `write` return preserves it. Under that invariant and the same
+initial configuration, `public_read_is_the_causal_read` connects the actual
+public read to the independent causal-maxima meaning.
+
+`receive_added_meaning` and `write_counted_meaning` bind successful publication
+to a fresh valid whole fact and the exact retained-history extension, including
+losing writes. `RegisterFrontier.counted_write_basis_is_whole_history` identifies
+the successful local write's actual validation basis with the literal complete
+pre-write fact slice. `receive_duplicate_meaning` and `write_noedit_meaning`
+connect those outcomes to retained whole facts and the causal read. Public
+producer contracts compose all-return history preservation with exact private
+counter/identity, publication and neutrality laws. The equality/clone callbacks
+are checked on the complete fact payload.
+
+These safety and successful-result laws do not prove every valid offer is Added,
+every requested write succeeds, termination, or an independent iff classification
+of every error code. Complete full-register history/Undo, delivery/progress,
+recovery and convergence remain outside this checkpoint. Caller fencing and the
+translation/model/compiler/runtime trust boundaries below still apply.
+
+The component accounts below preserve each earlier theorem's individual scope.
+Where one component alone does not establish ancestry, retention or validity,
+that limitation does not remove the separate accepted composition above.
 
 ## current evidence boundary
 
