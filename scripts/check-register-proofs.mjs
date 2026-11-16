@@ -38,10 +38,13 @@ function shardPartition(names,n){
 let ranNegatives=0;
 // The CI matrix must list exactly register-proofs-shard-0..n-1, each once.
 function checkCiShards(workflow,n){
- const line=workflow.split('\n').find(l=>/^\s*target:\s*\[/.test(l));assert(line,'ci matrix target list');
+ // Exactly one inline target list may exist (the scaffold matrix); a second one refuses rather than
+ // guessing which job it belongs to. The list ends at its first `]`; only a comment may follow.
+ const lines=workflow.split('\n').filter(l=>/^\s*target:/.test(l));assert.equal(lines.length,1,'ci workflow must have exactly one target list');
+ const list=/^\s*target:\s*\[([^\]]*)\]\s*(?:#.*)?$/.exec(lines[0]);assert(list,'ci matrix target list must be one inline list');
  // YAML inline-list entries may be bare or wrapped in one matching pair of quotes; any other
  // quote character (unmatched or embedded) refuses, so quoting cannot hide an entry.
- const targets=line.slice(line.indexOf('[')+1,line.lastIndexOf(']')).split(',').map(s=>s.trim().replace(/^(['"])(.*)\1$/,'$2'));
+ const targets=list[1].split(',').map(s=>s.trim().replace(/^(['"])(.*)\1$/,'$2'));
  for(const t of targets)assert(!/['"]/.test(t),'unsupported quoting in ci matrix entry '+t);
  const shards=targets.filter(t=>/^register-proofs-shard-/.test(t));
  for(const t of shards)assert(/^register-proofs-shard-(0|[1-9]\d*)$/.test(t),'malformed ci register shard '+t);
