@@ -38,10 +38,25 @@ function shardPartition(names,n){
 let ranNegatives=0;
 // The CI matrix must list exactly register-proofs-shard-0..n-1, each once.
 function checkCiShards(workflow,n){
- // Exactly one inline target list may exist (the scaffold matrix); a second one refuses rather than
- // guessing which job it belongs to. The list ends at its first `]`; only a comment may follow.
- const lines=workflow.split('\n').filter(l=>/^\s*target:/.test(l));assert.equal(lines.length,1,'ci workflow must have exactly one target list');
- const list=/^\s*target:\s*\[([^\]]*)\]\s*(?:#.*)?$/.exec(lines[0]);assert(list,'ci matrix target list must be one inline list');
+ // The list is read only from jobs.scaffold.strategy.matrix, in one supported shape: two-space block
+ // indentation, bare keys, and a matrix whose only entry is one inline `target: [...]` list that ends
+ // at its first `]` (a comment may follow). At each level, a second, quoted or flow-style key of the
+ // same name, or any other matrix entry (include, exclude, anchors, multi-line lists), refuses.
+ const all=workflow.split('\n');
+ assert(!all.some(l=>/^\s*\t/.test(l)),'ci workflow must not indent with tabs');
+ assert(!all.some(l=>/^\s*\?(\s|$)/.test(l)),'ci workflow must not use complex keys');
+ const content=l=>l.trim()!==''&&!/^\s*#/.test(l),indent=l=>/^ */.exec(l)[0].length;
+ const block=(from,to,depth)=>{const out=[];for(let i=from;i<to;i++){if(content(all[i])&&indent(all[i])<=depth)break;out.push(i);}return [from,from+out.length];};
+ const only=([from,to],depth,key)=>{
+  const hits=[];for(let i=from;i<to;i++){const l=all[i];if(!content(l)||indent(l)!==depth)continue;
+   if(new RegExp('^\\s*[\'"]?'+key+'[\'"]?\\s*:').test(l))hits.push(i);}
+  assert.equal(hits.length,1,'ci workflow must have exactly one '+key+' key at its level');
+  assert(new RegExp('^ {'+depth+'}'+key+':\\s*(?:#.*)?$').test(all[hits[0]]),'ci workflow '+key+' must be a bare block key');
+  return block(hits[0]+1,to,depth);};
+ const jobs=only([0,all.length],0,'jobs'),scaffold=only(jobs,2,'scaffold'),strategy=only(scaffold,4,'strategy'),matrix=only(strategy,6,'matrix');
+ const entries=[];for(let i=matrix[0];i<matrix[1];i++)if(content(all[i]))entries.push(all[i]);
+ assert.equal(entries.length,1,'ci scaffold matrix must contain only the target list');
+ const list=/^ {8}target:\s*\[([^\]]*)\]\s*(?:#.*)?$/.exec(entries[0]);assert(list,'ci scaffold matrix target must be one inline list');
  // YAML inline-list entries may be bare or wrapped in one matching pair of quotes; any other
  // quote character (unmatched or embedded) refuses, so quoting cannot hide an entry.
  const targets=list[1].split(',').map(s=>s.trim().replace(/^(['"])(.*)\1$/,'$2'));
