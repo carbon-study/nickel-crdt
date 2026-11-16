@@ -171,34 +171,13 @@ let expansion_result (ops: rops) (fact: fact) (before: ids_vec) (result: Result.
   match result with | Result.Result_Ok next -> begin expansion_ok ops fact before next end | _ -> begin Prims.l_True end
 
 let extend_past_covers_predecessors (ops: rops) (fact: fact) (before: ids_vec) : Lemma (requires ids_exact ops) (ensures expansion_result ops fact before (Shared.extend_past fact before ops)) =
-  ops_shape ops;
-  let membership_boolean (ids: t_Slice Envelope.t_Id) (id: Envelope.t_Id) : Lemma (ensures Prims.l_or (Shared.has_id ids id ops == true) (Shared.has_id ids id ops == false)) [SMTPat (Shared.has_id ids id ops)] = () in
-  extend_past_preserves ops (Alloc.Vec.impl_1__as_slice before) (fun (_: Envelope.t_Id) -> Prims.l_True) fact before;
-  let each_push (at: usize{v at < Seq.length (ops._1._2 fact)}) (selected: ids_vec) : Lemma (requires expanded_prefix ops fact (v at) selected) (ensures ((match Shared.push selected (Seq.index (ops._1._2 fact) (v at)) ops._2._1 with | (next, Result.Result_Ok _) -> begin expanded_prefix ops fact (v at + 1) next end | _ -> begin Prims.l_True end) <: Type0)) =
-    Nickel.Canonical.push_is_exact selected (Seq.index (ops._1._2 fact) (v at)) ops._2._1;
-    assert (((match Shared.push selected (Seq.index (ops._1._2 fact) (v at)) ops._2._1 with | (next, Result.Result_Ok _) -> begin expanded_prefix ops fact (v at + 1) next end | _ -> begin Prims.l_True end) <: Type0)) by (
-      Tactics.prune "Nickel_crdt.Event_layer.push";
-      Tactics.smt_sync' 1 1
-    ) in
-  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_push);
-  let skip_existing (at: usize{v at < Seq.length (ops._1._2 fact)}) (selected: ids_vec) : Lemma (requires (expanded_prefix ops fact (v at) selected /\ Shared.has_id (Alloc.Vec.impl_1__as_slice selected) (Seq.index (ops._1._2 fact) (v at)) ops == true)) (ensures expanded_prefix ops fact (v at + 1) selected) = id_membership_is_exact (Alloc.Vec.impl_1__as_slice selected) (Seq.index (ops._1._2 fact) (v at)) ops in
-  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 skip_existing);
-  id_membership_is_exact (Alloc.Vec.impl_1__as_slice before) (ops._1._1 fact) ops;
-  if Shared.has_id (Alloc.Vec.impl_1__as_slice before) (ops._1._1 fact) ops then
-    begin Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len (ops._1._2 fact)) (fun (at: nat) (selected: ids_vec) -> expanded_prefix ops fact at selected) (fun (selected: ids_vec) -> selected) (fun (selected: ids_vec) -> expanded_prefix ops fact (Seq.length (ops._1._2 fact)) selected) (fun (_: Native.t_Error) -> Prims.l_True);
-    assert (expansion_result ops fact before (Shared.extend_past fact before ops)) by (
-      Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
-      Tactics.prune "Nickel_crdt.Event_layer.has_id";
-      Tactics.prune "Nickel_crdt.Event_layer.push";
-      Tactics.smt_sync' 1 1
-    ) end
-  else
-    begin assert (expansion_result ops fact before (Shared.extend_past fact before ops)) by (
-      Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
-      Tactics.prune "Nickel_crdt.Event_layer.has_id";
-      Tactics.prune "Nickel_crdt.Event_layer.push";
-      Tactics.smt_sync' 1 1
-    ) end
+  Nickel.PastExact.ids_exact_intro ops;
+  Nickel.PastExact.extend_past_covers_predecessors ops fact before;
+  assert (expansion_result ops fact before (Shared.extend_past fact before ops)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.extend_past";
+    Tactics.prune "Nickel.PastExact.extend_past_covers_predecessors";
+    Tactics.smt_sync' 1 1
+  )
 
 let pass_prefix (ops: rops) (facts: t_Slice fact) (before: ids_vec) (finish: nat) (next: ids_vec) : Type0 =
   Prims.l_and (retains (Alloc.Vec.impl_1__as_slice before) next) (forall(i: usize{v i < Seq.length facts}). v i < finish ==> expansion_ok ops (Seq.index facts (v i)) before next)
@@ -210,25 +189,14 @@ let retains_member (before: ids_vec) (next: ids_vec) (id: Envelope.t_Id) : Lemma
   ()
 
 let expansion_composes (ops: rops) (facts: t_Slice fact) (before: ids_vec) (at: usize{v at < Seq.length facts}) (selected: ids_vec) (next: ids_vec) : Lemma (requires (pass_prefix ops facts before (v at) selected /\ expansion_ok ops (Seq.index facts (v at)) selected next)) (ensures pass_prefix ops facts before (v at + 1) next) =
-  let each_id (id: Envelope.t_Id) : Lemma (requires member (Alloc.Vec.impl_1__as_slice selected) id) (ensures member (Alloc.Vec.impl_1__as_slice next) id) = retains_member selected next id in
-  FStar.Classical.forall_intro (FStar.Classical.move_requires each_id);
-  let prior_member (id: Envelope.t_Id) : Lemma (requires member (Alloc.Vec.impl_1__as_slice before) id) (ensures member (Alloc.Vec.impl_1__as_slice selected) id) = retains_member before selected id in
-  FStar.Classical.forall_intro (FStar.Classical.move_requires prior_member)
+  ()
 
 let past_pass_covers_edges (ops: rops) (facts: t_Slice fact) (before: ids_vec) : Lemma (requires ids_exact ops) (ensures pass_result ops facts before (Shared.past_pass facts before ops)) =
-  let each_extend (selected: ids_vec) (at: usize{v at < Seq.length facts}) : Lemma (requires pass_prefix ops facts before (v at) selected) (ensures ((match Shared.extend_past (Seq.index facts (v at)) selected ops with | Result.Result_Ok next -> begin pass_prefix ops facts before (v at + 1) next end | _ -> begin Prims.l_True end) <: Type0)) =
-    extend_past_covers_predecessors ops (Seq.index facts (v at)) selected;
-    let each_next (next: ids_vec) : Lemma (requires expansion_ok ops (Seq.index facts (v at)) selected next) (ensures pass_prefix ops facts before (v at + 1) next) = expansion_composes ops facts before at selected next in
-    FStar.Classical.forall_intro (FStar.Classical.move_requires each_next);
-    assert (((match Shared.extend_past (Seq.index facts (v at)) selected ops with | Result.Result_Ok next -> begin pass_prefix ops facts before (v at + 1) next end | _ -> begin Prims.l_True end) <: Type0)) by (
-      Tactics.prune "Nickel_crdt.Event_layer.extend_past";
-      Tactics.smt_sync' 1 1
-    ) in
-  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_extend);
-  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len facts) (pass_prefix ops facts before) (fun (selected: ids_vec) -> selected) (fun (next: ids_vec) -> pass_prefix ops facts before (Seq.length facts) next) (fun (_: Native.t_Error) -> Prims.l_True);
+  Nickel.PastExact.ids_exact_intro ops;
+  Nickel.PastExact.past_pass_covers_edges ops facts before;
   assert (pass_result ops facts before (Shared.past_pass facts before ops)) by (
-    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
-    Tactics.prune "Nickel_crdt.Event_layer.extend_past";
+    Tactics.prune "Nickel_crdt.Event_layer.past_pass";
+    Tactics.prune "Nickel.PastExact.past_pass_covers_edges";
     Tactics.smt_sync' 1 1
   )
 
@@ -258,24 +226,20 @@ let pass_covers_next_depth (ops: rops) (facts: t_Slice fact) (roots: t_Slice Env
 let depth_result (ops: rops) (facts: t_Slice fact) (roots: t_Slice Envelope.t_Id) (depth: nat) (result: Result.t_Result ids_vec Native.t_Error) : Type0 =
   match result with | Result.Result_Ok selected -> begin covers_depth ops facts roots depth selected end | _ -> begin Prims.l_True end
 
+let rec shared_reachable_is_register (ops: rops) (facts: t_Slice fact) (roots: t_Slice Envelope.t_Id) (depth: nat) : Lemma (ensures forall(id: Envelope.t_Id). Nickel.PastExact.reachable_within ops facts roots depth id <==> reachable_within ops facts roots depth id) (decreases depth) =
+  Nickel.PastExact.reachable_within_equations ops facts roots;
+  if depth ==? 0 then
+    begin () end
+  else
+    begin shared_reachable_is_register ops facts roots (depth - 1) end
+
 let past_covers_bounded_predecessor_paths (ops: rops) (facts: t_Slice fact) (roots: t_Slice Envelope.t_Id) : Lemma (requires ids_exact ops) (ensures depth_result ops facts roots (Seq.length facts) (Shared.past facts roots ops)) =
-  ops_shape ops;
-  let each_pass (selected: ids_vec) (at: usize{v at < Seq.length facts}) : Lemma (requires covers_depth ops facts roots (v at) selected) (ensures depth_result ops facts roots (v at + 1) (Shared.past_pass facts selected ops)) =
-    past_pass_covers_edges ops facts selected;
-    match Shared.past_pass facts selected ops with | Result.Result_Ok next -> begin pass_covers_next_depth ops facts roots (v at) selected next;
-    assert (depth_result ops facts roots (v at + 1) (Shared.past_pass facts selected ops)) by (
-      Tactics.prune "Nickel_crdt.Event_layer.past_pass";
-      Tactics.smt_sync' 1 1
-    ) end | Result.Result_Err _ -> begin assert (depth_result ops facts roots (v at + 1) (Shared.past_pass facts selected ops)) by (
-      Tactics.prune "Nickel_crdt.Event_layer.past_pass";
-      Tactics.smt_sync' 1 1
-    ) end in
-  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_pass);
-  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len facts) (covers_depth ops facts roots) (fun (selected: ids_vec) -> selected) (covers_depth ops facts roots (Seq.length facts)) (fun (_: Native.t_Error) -> Prims.l_True);
+  Nickel.PastExact.ids_exact_intro ops;
+  shared_reachable_is_register ops facts roots (Seq.length facts);
+  Nickel.PastExact.past_covers_bounded_predecessor_paths ops facts roots;
   assert (depth_result ops facts roots (Seq.length facts) (Shared.past facts roots ops)) by (
-    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
-    Tactics.prune "Nickel_crdt.Event_layer.past_pass";
-    Tactics.prune "Nickel_crdt.Event_layer.validate_after";
+    Tactics.prune "Nickel_crdt.Event_layer.past";
+    Tactics.prune "Nickel.PastExact.past_covers_bounded_predecessor_paths";
     Tactics.smt_sync' 1 1
   )
 

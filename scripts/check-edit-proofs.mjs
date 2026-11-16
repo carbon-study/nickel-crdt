@@ -309,9 +309,10 @@ theorems['graph-policy-swaps-eq-lt']='EventGraph.graph_ops_preserve_callbacks';
 theorems['admission-policy-swaps-errors']='EventGraph.event_ops_preserve_callbacks';
 const priorOwners={...theorems};
 const ownerMigrations={
+  'past-skips-predecessors':['PastExact.extend_past_covers_predecessors','direct-predecessor coverage of the actual generic loop is shared; old concrete text statement remains'],
   'past-drops-roots':['PastExact.past_stays_in_closed_set','root-retention induction is shared; preserve the old concrete text law as a thin composition'],
   'past-invents-id':['PastExact.extend_past_preserves','the actual extend body is checked in the shared closed-set owner'],
-  'past-skips-passes':['EditPast.past_covers_bounded_predecessor_paths','zero passes preserve closed-set soundness but violate completeness; keep the Rust range usize and require ordinary rejection in the depth owner, not an earlier true soundness law'],
+  'past-skips-passes':['PastExact.past_covers_bounded_predecessor_paths','zero passes preserve closed-set soundness but violate completeness; keep the Rust range usize and require ordinary rejection in the depth owner, not an earlier true soundness law'],
   "plan-interprets-uncanonical-call":["EditAccepted.plan_publishes_canonical_facts","added wrong-prepare callback omits canonicalization; exact canonical fact publication owns this fault, while interpretation of the returned facts can still agree"],
   "plan-interprets-uncanonical":["EventShell.planning_is_exact","callback ordering moved from concrete plan to generic plan"],
   "past-membership-always-false": [

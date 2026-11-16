@@ -107,3 +107,56 @@ retired by this cut. The remaining exact-ancestry/completeness chain, concrete
 text totality/agreement obligations and approved writer-stream slice still need
 consolidation before multi-write or another client. No stronger convergence,
 admission, Undo or writer-ownership policy follows from this soundness argument.
+
+## shared bounded-path completeness cut
+
+The next composition shares the actual predecessor-expansion, full-pass and
+bounded-depth loop arguments in `PastExact`. `EditPast` and `RegisterPast` retain
+all their existing theorem statements, recursive reachability definitions and
+higher exact-past consumers. Each concrete expansion/pass/depth law now calls the
+corresponding generic contract with the native operation and generic callee
+withheld at its final query. The register discharges its ID-equality premise;
+the text instance also uses checked equations for the actual forwarding calls.
+
+The generic reachability predicate uses positions in the supplied fact slice,
+not numeric ID ranks. The concrete predicates are not silently replaced:
+`shared_reachable_is_register` and `shared_reachable_is_text` prove equivalence
+by depth induction. The text bridge also identifies the generic callback edge
+with the existing independent `EditCausal.causal_edge`. These bridges add no
+closed-history, uniqueness, root-presence or progress premise to the old laws.
+The result is still success-only: the selected IDs cover all predecessor paths
+of at most the input fact count. Path shortening, whole exact ancestry, text
+success/totality and two-receiver agreement remain in their existing concrete
+owners; the generic bounded argument does not replace those proofs.
+
+Control ownership follows the shared implementation argument:
+
+- register `past-extend-never-pushes` and text `past-skips-predecessors` now reject
+  in `PastExact.extend_past_covers_predecessors`;
+- text's typed zero-pass fault now rejects in the generic bounded-depth owner;
+- the historical `past-depth-without-pass-contract` removes the pass contract
+  inside that generic depth owner;
+- `past-pass-skips-input` is a new typed shared-loop body fault checked in the
+  register lane, owned by `PastExact.past_pass_covers_edges`. An empty pass still
+  preserves soundness; its empty-fold instance must verify before completeness
+  is tested. The earlier foundation failure is refused, not credited;
+- each concrete client has separate generic extension/pass/depth contract-removal
+  controls and a reachability-bridge removal control. Existing higher path/exact
+  contract controls and text forwarding-argument controls remain in place.
+
+Against the preceding soundness cut, text removes131 and adds42 authored proof
+lines; registers remove111 and add26; the shared module grows by239. This is **+65**
+net authored lines, not a net-size reduction. Concrete predicate compatibility
+copies and the remaining path-shortening chain are still visible follow-through.
+No native forward is retired. The approved writer-stream slice remains before
+multi-write or another client. No native behavior, API, toolchain, budget,
+classifier, client totality/agreement or general convergence claim changes.
+
+The bounded query-cost repair keeps these statements and control owners intact.
+The unused concrete register `expansion_composes` compatibility theorem needs no
+local quantified proof steps: deleting them verifies the same universal claim,
+without adding a replacement lemma. The generic depth loop records the checked
+pass result in an explicit consuming assertion with the native pass and callee
+body withheld before matching on the result. Its removal control must fail
+ordinarily at that boundary, rather than spend its budget reopening the loop.
+These are proof-body changes, not limit increases or weaker negative evidence.
