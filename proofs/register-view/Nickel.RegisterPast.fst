@@ -189,10 +189,7 @@ let retains_member (before: ids_vec) (next: ids_vec) (id: Envelope.t_Id) : Lemma
   ()
 
 let expansion_composes (ops: rops) (facts: t_Slice fact) (before: ids_vec) (at: usize{v at < Seq.length facts}) (selected: ids_vec) (next: ids_vec) : Lemma (requires (pass_prefix ops facts before (v at) selected /\ expansion_ok ops (Seq.index facts (v at)) selected next)) (ensures pass_prefix ops facts before (v at + 1) next) =
-  let each_id (id: Envelope.t_Id) : Lemma (requires member (Alloc.Vec.impl_1__as_slice selected) id) (ensures member (Alloc.Vec.impl_1__as_slice next) id) = retains_member selected next id in
-  FStar.Classical.forall_intro (FStar.Classical.move_requires each_id);
-  let prior_member (id: Envelope.t_Id) : Lemma (requires member (Alloc.Vec.impl_1__as_slice before) id) (ensures member (Alloc.Vec.impl_1__as_slice selected) id) = retains_member before selected id in
-  FStar.Classical.forall_intro (FStar.Classical.move_requires prior_member)
+  ()
 
 let past_pass_covers_edges (ops: rops) (facts: t_Slice fact) (before: ids_vec) : Lemma (requires ids_exact ops) (ensures pass_result ops facts before (Shared.past_pass facts before ops)) =
   Nickel.PastExact.ids_exact_intro ops;

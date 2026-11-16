@@ -211,6 +211,7 @@ proof extend_past_covers_predecessors<ft: Type0, it: eqtype, et: Type0>(ops: Nic
   gives expansion_result(ops, fact, before, Shared.extend_past(fact, before, ops))
 {
   ops_shape(ops);
+  // Supplies a boolean case split even when the native membership body is hidden.
   proof membership_boolean(ids: t_Slice(it), id: it): unit
     gives Shared.has_id(ids, id, ops) == true or Shared.has_id(ids, id, ops) == false
     hint Shared.has_id(ids, id, ops)
@@ -391,6 +392,11 @@ proof past_covers_bounded_predecessor_paths<ft: Type0, it: eqtype, et: Type0>(op
     gives depth_result(ops, facts, roots, v(at) + 1, Shared.past_pass(facts, selected, ops))
   {
     past_pass_covers_edges(ops, facts, selected);
+    assert(pass_result(ops, facts, selected, Shared.past_pass(facts, selected, ops))) by {
+      Tactics.prune("Nickel_crdt.Event_layer.past_pass");
+      Tactics.prune("Nickel.PastExact.past_pass_covers_edges");
+      Tactics.smt_sync'(1, 1)
+    };
     match Shared.past_pass(facts, selected, ops) {
       Result.Result_Ok(next) => {
         pass_covers_next_depth(ops, facts, roots, v(at), selected, next);

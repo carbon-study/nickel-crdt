@@ -262,18 +262,7 @@ proof expansion_composes(ops: rops, facts: t_Slice(fact), before: ids_vec, at: u
   takes pass_prefix(ops, facts, before, v(at), selected)
   takes expansion_ok(ops, Seq.index(facts, v(at)), selected, next)
   gives pass_prefix(ops, facts, before, v(at) + 1, next)
-{
-  proof each_id(id: Envelope.t_Id): unit
-    takes member(Alloc.Vec.impl_1__as_slice(selected), id)
-    gives member(Alloc.Vec.impl_1__as_slice(next), id)
-  { retains_member(selected, next, id) };
-  FStar.Classical.forall_intro(FStar.Classical.move_requires(each_id));
-  proof prior_member(id: Envelope.t_Id): unit
-    takes member(Alloc.Vec.impl_1__as_slice(before), id)
-    gives member(Alloc.Vec.impl_1__as_slice(selected), id)
-  { retains_member(before, selected, id) };
-  FStar.Classical.forall_intro(FStar.Classical.move_requires(prior_member))
-}
+{ () }
 proof past_pass_covers_edges(ops: rops, facts: t_Slice(fact), before: ids_vec): unit
   takes ids_exact(ops)
   gives pass_result(ops, facts, before, Shared.past_pass(facts, before, ops))

@@ -145,9 +145,18 @@ Control ownership follows the shared implementation argument:
   contract controls and text forwarding-argument controls remain in place.
 
 Against the preceding soundness cut, text removes131 and adds42 authored proof
-lines; registers remove99 and add25; the shared module adds233. This is **+70**
+lines; registers remove111 and add26; the shared module grows by239. This is **+65**
 net authored lines, not a net-size reduction. Concrete predicate compatibility
 copies and the remaining path-shortening chain are still visible follow-through.
 No native forward is retired. The approved writer-stream slice remains before
 multi-write or another client. No native behavior, API, toolchain, budget,
 classifier, client totality/agreement or general convergence claim changes.
+
+The bounded query-cost repair keeps these statements and control owners intact.
+The unused concrete register `expansion_composes` compatibility theorem needs no
+local quantified proof steps: deleting them verifies the same universal claim,
+without adding a replacement lemma. The generic depth loop records the checked
+pass result in an explicit consuming assertion with the native pass and callee
+body withheld before matching on the result. Its removal control must fail
+ordinarily at that boundary, rather than spend its budget reopening the loop.
+These are proof-body changes, not limit increases or weaker negative evidence.

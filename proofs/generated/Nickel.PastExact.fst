@@ -245,6 +245,11 @@ let past_covers_bounded_predecessor_paths (#ft: Type0) (#it: eqtype) (#et: Type0
   ops_shape ops;
   let each_pass (selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) (at: usize{v at < Seq.length facts}) : Lemma (requires covers_depth ops facts roots (v at) selected) (ensures depth_result ops facts roots (v at + 1) (Shared.past_pass facts selected ops)) =
     past_pass_covers_edges ops facts selected;
+    assert (pass_result ops facts selected (Shared.past_pass facts selected ops)) by (
+      Tactics.prune "Nickel_crdt.Event_layer.past_pass";
+      Tactics.prune "Nickel.PastExact.past_pass_covers_edges";
+      Tactics.smt_sync' 1 1
+    );
     match Shared.past_pass facts selected ops with | Result.Result_Ok next -> begin pass_covers_next_depth ops facts roots (v at) selected next;
     assert (depth_result ops facts roots (v at + 1) (Shared.past_pass facts selected ops)) by (
       Tactics.prune "Nickel_crdt.Event_layer.past_pass";
