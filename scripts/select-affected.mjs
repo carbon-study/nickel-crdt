@@ -24,6 +24,7 @@
 // full-forcing paths ignored; its record carries diagnosticOnly:true and a consumer must reject it.
 import {execFileSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 
 const args=process.argv.slice(2);
@@ -106,15 +107,27 @@ for(const path of changes){
 }
 const affected=new Set(seeds);const queue=[...seeds];
 while(queue.length){const x=queue.pop();for(const c of reverse.get(x)??[])if(!affected.has(c)){affected.add(c);queue.push(c);}}
-for(const mod of seeds)if(!known.has(mod)&&!/^Nickel\.[A-Za-z]+$/.test(mod))forceFull('seed module absent from both graphs',mod);
+// A changed module that neither graph defines is verified by no gate this selector knows: run everything.
+for(const mod of seeds)if(!known.has(mod))forceFull('seed module absent from both graphs',mod);
 
 // ---------------------------------------------------------------- register plans
 const HEX=/^[0-9a-f]{64}$/,NAME=/^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-function readPlans(file,label){
+// The files an export's plans are built from; every export must carry exactly these digests, and each
+// must equal the file at the ref the export claims to describe.
+const PLAN_INPUTS=['scripts/check-register-proofs.mjs','scripts/register-control-plans.mjs','scripts/mutation-scope.mjs',
+  'src/register.rs','src/event_layer.rs','proofs/generated/Nickel.LoopUtil.fst',
+  ...['Canonical','Register','RegisterPast','RegisterHistory','RegisterValid','RegisterPublic','RegisterFrontier'].map(m=>'proofs/register-view/Nickel.'+m+'.fst')];
+const sha=b=>createHash('sha256').update(b).digest('hex');
+const blob=(ref,path)=>{try{return execFileSync('git',['-C',repo,'show',ref+':'+path],{maxBuffer:1<<28});}catch{return null;}};
+function readPlans(file,label,ref){
   if(!file)return {error:label+' plan export not supplied'};
-  let j;try{j=JSON.parse(readFileSync(file,'utf8'));}catch(e){return {error:label+' plan export unreadable: '+e.message};}
+  let bytes,j;try{bytes=readFileSync(file);j=JSON.parse(bytes.toString('utf8'));}catch(e){return {error:label+' plan export unreadable: '+e.message};}
   const bad=why=>({error:label+' plan export '+why});
-  if(!j||j.schema!==1||j.gate!=='register'||!Array.isArray(j.plans))return bad('has an unrecognised shape');
+  if(!j||typeof j!=='object'||Object.keys(j).some(k=>!['schema','gate','sources','plans'].includes(k)))return bad('has unrecognised top-level fields');
+  if(j.schema!==1||j.gate!=='register'||!Array.isArray(j.plans))return bad('has an unrecognised shape');
+  if(!j.sources||typeof j.sources!=='object'||Object.keys(j.sources).sort().join()!==[...PLAN_INPUTS].sort().join())return bad('does not carry exactly the plan input digests');
+  for(const f of PLAN_INPUTS){const b=blob(ref,f);if(b===null)return bad('names '+f+', absent at '+ref.slice(0,12));
+    if(j.sources[f]!==sha(b))return bad('was not built from '+ref.slice(0,12)+' ('+f+' differs)');}
   const keys=new Set(['name','kind','owner','theorem','roots','sourceFile','module','classifierModule','mutated']);
   const byName=new Map();let positives=0;
   for(const p of j.plans){
@@ -130,9 +143,9 @@ function readPlans(file,label){
     byName.set(p.name,p);
   }
   if(positives!==1)return bad('must contain exactly one positive');
-  return {plans:j.plans,byName};
+  return {plans:j.plans,byName,digest:sha(bytes)};
 }
-const basePlans=readPlans(opt('--base-plans'),'base'),headPlans=readPlans(opt('--head-plans'),'head');
+const basePlans=readPlans(opt('--base-plans'),'base',base),headPlans=readPlans(opt('--head-plans'),'head',head);
 for(const r of [basePlans,headPlans])if(r.error){registerFull=true;reasons.push({registerFull:r.error});}
 const theoremModule=t=>t.split('.').slice(0,2).join('.');
 const rootModule=r=>r.replace(/\.fst$/,'');
@@ -161,7 +174,9 @@ if(!registerFull){
 const textGateModule=m=>textModules.has(m);
 const textAffected=[...affected].some(textGateModule);
 
-const record={schema:1,base,head,diagnosticOnly:ignoreFull,full,reasons,affected:[...affected].sort(),
+// basePlans/headPlans: digests of the export files used. A consumer must recompute its own head export
+// and refuse unless it matches headPlans exactly.
+const record={schema:1,base,head,diagnosticOnly:ignoreFull,basePlans:basePlans.digest??null,headPlans:headPlans.digest??null,full,reasons,affected:[...affected].sort(),
   register:full||registerFull?{run:'full'}:{run:registerSelected.length||positiveWhy?'selected':'none',positive:positiveWhy,
     modes:registerSelected.map(([n])=>n),why:Object.fromEntries(registerSelected),removed:registerRemoved,total:registerTotal},
   text:{run:full||textFull||textAffected?'full':'none'},

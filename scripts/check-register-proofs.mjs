@@ -139,7 +139,13 @@ const positive=path.join(output,'positive/proof'),file=path.join(positive,'Nicke
 const negativeNames=[...bodyModes.map(p=>p.name),...depModes.map(p=>p.name)];
 if(exportPlans){
  const describe=p=>({name:p.name,kind:p.kind,owner:p.owner,theorem:p.theorem,roots:p.roots,...(p.sourceFile?{sourceFile:p.sourceFile}:{}),...(p.module?{module:p.module}:{}),...(p.classifierModule?{classifierModule:p.classifierModule}:{}),mutated:p.mutated===null?null:digest(p.mutated)});
- await fs.writeFile(path.join(output,'plans.json'),JSON.stringify({schema:1,gate:'register',plans:[plans.positive,...bodyModes,...depModes].map(describe)},null,1)+'\n');
+ // Source identity: the digest of every file the plans are built from, plus the code that builds and
+ // exports them, so a selector can check an export against the commit it claims to describe.
+ const planInputs=['scripts/check-register-proofs.mjs','scripts/register-control-plans.mjs','scripts/mutation-scope.mjs',
+  'src/register.rs','src/event_layer.rs','proofs/generated/Nickel.LoopUtil.fst',
+  ...['Canonical','Register','RegisterPast','RegisterHistory','RegisterValid','RegisterPublic','RegisterFrontier'].map(m=>'proofs/register-view/Nickel.'+m+'.fst')];
+ const sources={};for(const f of planInputs)sources[f]=digest(await fs.readFile(path.join(root,f)));
+ await fs.writeFile(path.join(output,'plans.json'),JSON.stringify({schema:1,gate:'register',sources,plans:[plans.positive,...bodyModes,...depModes].map(describe)},null,1)+'\n');
  console.log('exported '+(bodyModes.length+depModes.length)+' negative plans and the positive to '+path.join(output,'plans.json'));
  process.exit(0);
 }
