@@ -228,12 +228,13 @@ if(selectionFile!==null){
   const runPositive=mine.size>0||(selection.run==='selected'&&selection.modes.size===0&&(shard===null||shard.i===0));
   wanted=(name,k)=>name==='positive'?runPositive:mine.has(name);
   console.log('selection '+selection.run+': '+mine.size+' of '+selection.modes.size+' selected negatives here'+(runPositive?' plus the positive':''));
-  if(!runPositive){await fs.writeFile(path.join(output,'results.json'),'[]\n');console.log('selection runs nothing in this job');process.exit(0);}
+  if(!runPositive){await fs.writeFile(path.join(output,'results.json'),'[]\n');await fs.writeFile(path.join(output,'planned.json'),JSON.stringify({positive:false,negatives:[]},null,1)+'\n');console.log('selection runs nothing in this job');process.exit(0);}
  }
 }
 // A shard may be combined with named modes: it runs the union, each negative once.
 const planned=new Set(negativeNames.filter((n,k)=>wanted(n,k)));
 console.log('planned '+planned.size+' negatives'+(wanted('positive',-1)?' after the positive':''));
+await fs.writeFile(path.join(output,'planned.json'),JSON.stringify({positive:wanted('positive',-1),negatives:[...planned]},null,1)+'\n');
 if(shard){const parts=shardPartition(negativeNames,shard.n);console.log('shard '+shard.i+'/'+shard.n+': '+parts[shard.i].length+' of '+negativeNames.length+' negatives'+(named.length?' plus '+named.filter(n=>n!=='positive').length+' named':''));}
 const results=[];
 for(const plan of [plans.positive,...bodyModes]){
