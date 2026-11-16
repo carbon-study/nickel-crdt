@@ -61,6 +61,9 @@ function checkCiShards(workflow,n){
  // quote character (unmatched or embedded) refuses, so quoting cannot hide an entry.
  const targets=list[1].split(',').map(s=>s.trim().replace(/^(['"])(.*)\1$/,'$2'));
  for(const t of targets)assert(!/['"]/.test(t),'unsupported quoting in ci matrix entry '+t);
+ // Entries must be literal job-target names: aliases (*x), anchors (&x), tags (!x), expressions and
+ // empty entries refuse, so the unsharded-gate prohibition sees the real name.
+ for(const t of targets)assert(/^[A-Za-z0-9_-]+$/.test(t),'ci matrix entry must be a literal target name: '+t);
  const shards=targets.filter(t=>/^register-proofs-shard-/.test(t));
  for(const t of shards)assert(/^register-proofs-shard-(0|[1-9]\d*)$/.test(t),'malformed ci register shard '+t);
  assert.equal(new Set(shards).size,shards.length,'ci lists a register shard twice');
