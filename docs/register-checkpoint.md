@@ -1,10 +1,13 @@
-# native single-write register checkpoint — candidate
+# native single-write register checkpoint
 
-This branch contains a runnable candidate, not an accepted verified delivery.
-The [approved cut](register-first-cut.md) still requires full client refinement,
-clock/valid-history preservation, focused proof controls, review and exact-head CI.
-Atomic multi-write registers follow this checkpoint, then the agreed implemented
-text semantic/refinement slice, before collections. No Undo/Redo is implemented.
+**The [single-write safety checkpoint](https://github.com/carbon-study/nickel-crdt/issues/105#issuecomment-6905714405) is accepted** on main
+`58b7e61`, with the exact reviewed `591c23a` source tree and complete green
+[main workflow](https://github.com/carbon-study/nickel-crdt/actions/runs/43773921327).
+The later sharding merge changes no native/proof/pin bytes. This is not a stable
+verified release, universal admission/progress or SEC. Atomic multi-write
+registers follow as a separate delivery after the approved shared exact-past
+consolidation, then the agreed implemented text semantic/refinement slice before
+collections. No Undo/Redo is implemented.
 
 ## manipulate a register
 
@@ -56,9 +59,9 @@ basis, including other keys. Receiving does not advance the private author count
 
 Read chooses the highest (Lamport, writer) at that key, or the initial value if
 none exists. The intended causal-maxima meaning agrees with this scan when valid
-clocks strictly increase along ancestry; preserving that invariant through actual
-admission is an outstanding proof obligation. Equal priority values cannot be
-assumed unique on arbitrary malformed arrays. All counted losing writes remain
+clocks strictly increase along ancestry; the accepted public-history composition
+preserves that invariant through the actual constructor and returns. Equal
+priority values cannot be assumed unique on arbitrary malformed arrays. All counted losing writes remain
 stored. Storage canonicalization is writer-first and is not read priority.
 
 Whole-fact duplicate classification comes first, before payload validation.
@@ -72,11 +75,41 @@ successful candidate. Clock/counter exhaustion returns an explicit error.
 Missing dependencies require the external caller to retry after delivering them.
 The former dependency-cap/frontier refusal has been removed, rather than
 replaced by a larger configured cap or a different causal context. Counted writes
-still cite the whole current frontier. Counter/clock exhaustion, writer fencing,
-validity and termination remain separate obligations. There is no unconditional
-eventual delivery/admission or SEC result.
+still cite the whole current frontier. Clock/counter exhaustion and caller
+writer-fencing requirements still apply. The public-history preservation law is
+a safety result, not an unconditional eventual delivery/admission, termination
+or SEC result.
 Rust allocation failure, the hax translation and its pinned models remain trust
 boundaries; finite tests are not universal validity or progress proofs.
+
+## accepted composition and its domain
+
+`RegisterPublic.public_history` combines the retained-history invariant and
+positional ID uniqueness. The actual constructor establishes it; every
+`receive` and `write` return preserves it. Under that invariant,
+`public_read_is_the_causal_read` connects the actual public read to the
+independent causal-maxima meaning for that replica's configured initial bytes.
+
+`receive_added_meaning` and `write_counted_meaning` bind successful publication
+to a fresh valid whole fact and the exact retained-history extension, including
+losing writes. `RegisterFrontier.counted_write_basis_is_whole_history` identifies
+the successful local write's actual validation basis with the literal complete
+pre-write fact slice. `receive_duplicate_meaning` and `write_noedit_meaning`
+connect those outcomes to retained whole facts and the causal read. Public
+producer contracts compose all-return history preservation with exact private
+counter/identity, publication and neutrality laws. The equality/clone callbacks
+are checked on the complete fact payload.
+
+These safety and successful-result laws do not prove every valid offer is Added,
+every requested write succeeds, termination, or an independent iff classification
+of every error code. Complete full-register history/Undo, delivery/progress,
+writer-allocation/recovery guarantees, persistence, Carbon integration and
+convergence remain outside this checkpoint. Caller fencing and the documented
+translation/model/compiler/runtime trust boundaries still apply.
+
+The component accounts below preserve each earlier theorem's individual scope.
+Where one component alone does not establish ancestry, retention or validity,
+that limitation does not remove the separate accepted composition above.
 
 ## current evidence boundary
 
@@ -114,15 +147,15 @@ does not establish which facts canonicalization retains.
 The current theorem name, `write_publication_on_every_return`, does not mean
 successful candidate installation follows from that law alone. The new
 installation law is separate: the counter-bump-without-installation fault that
-satisfied the old counter law is its dedicated actual-source control. A full
-independent retained-history meaning law remains required.
+satisfied the old counter law is its dedicated actual-source control. These frame/installation laws alone do not supply independent retained-history
+meaning; that separate link is supplied by the accepted public composition above.
 Native and proof controls cover premature counter publication; additional proof
 controls corrupt the successful counter and returned identity.
 
-Its checked statements and remaining control/integration frontier are tracked
-with the candidate; none of these alone establishes full register refinement,
-valid-history preservation, shared canonical convergence or the multi-write
-contract. The existing text theorem statements and implementation are unchanged.
+None of these component statements alone establishes valid-history preservation
+or full client refinement; the accepted single-write composition above supplies
+its separate safety links. Shared convergence, admission/progress, the multi-write
+contract and full register history/Undo are not established by this checkpoint. The existing text theorem statements and implementation are unchanged.
 
 Equal-value no-edit has no engine value-byte-budget premise in this API. The
 older bounded no-edit evidence at `52f597a` required value fitness and did not
@@ -234,8 +267,9 @@ supersedes the earlier failed `LoopUtil.preserve` run; it does not claim a new
 corrected-producer check of every subsequent candidate. The
 [retained comparison evidence](https://gist.github.com/lynn-in-residence/690c8d6e8dc2744f87e989afb48e34e2)
 includes the two complete-closure logs and source/view identities.
-The remaining text audit and checkpoint obligations stay open; exact-head CI
-and scoped repair review are required before accepting this cut.
+The remaining text audit stays open. The bounded register closure has closed
+scoped review and exact-head CI as part of the accepted checkpoint; this does not
+activate the compiler repair or extend the corrected-producer comparison.
 
 ### strict storage order through actual publication
 
@@ -287,10 +321,11 @@ theorems and their callers are unchanged. Only the last name is new to the
 Register fence. The plan-order removal keeps its original semantic owner,
 actual call and query boundary.
 
-Independent exact ancestry, valid-history preservation, full client refinement
-and fitting admission/progress remain checkpoint obligations. Canonical success
-on unique-ID inputs is addressed separately below.
-No SEC or accepted checkpoint follows from this cut.
+This ordering cut alone does not establish independent exact ancestry or
+valid-history/client refinement; those single-write safety links are supplied by
+the accepted composition above. Fitting admission/progress remains open beyond
+this checkpoint. Canonical success on unique-ID inputs is addressed separately
+below. No SEC result follows from this cut.
 
 ### successful canonical agreement on equal whole-fact contents
 

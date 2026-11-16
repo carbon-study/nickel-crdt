@@ -24,6 +24,8 @@ the batch example's semantics. The whole-codebase contract/loop reform is closed
    native caller. Undo/Redo is outside this first subset. **Approved staging:**
    a single-write checkpoint followed by atomic multi-write register events,
    including Carbon's multi-field creation, before keyed collections.
+   The [single-write safety checkpoint](https://github.com/carbon-study/nickel-crdt/issues/105#issuecomment-6905714405) is accepted; atomic multi-write
+   events remain a separate delivery after the shared exact-past consolidation.
    This subset does not close the full register/history contract.
 3. **Return to text at register-slice acceptance.** Before starting another CRDT
    kind's implementation, review the shared convergence result against the actual
@@ -49,8 +51,10 @@ been established yet.
 The board's M1–M4 sequence requirements and sections 1–4 below retain the proposed
 text-release track; their numbering no longer imposes a text-first delivery
 order on registers. Reviews test artifacts; Ren selects intended behavior and
-scope. The next task is the register slice, not another prose pass or a wholesale
-wrapper-cleanup prerequisite.
+scope. The single-write safety checkpoint is accepted. The next register extension
+is the approved atomic multi-write cut, after the bounded shared exact-past
+consolidation; the return to text above still applies. A wholesale wrapper-cleanup
+sprint is not an added prerequisite.
 
 ## the first usable release
 

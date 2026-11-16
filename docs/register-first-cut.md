@@ -1,6 +1,7 @@
 # native keyed registers before the complete text profile
 
-**Status: scope approved; a [native checkpoint candidate](register-checkpoint.md) exists, but is not accepted.** The first subset
+**Status: the [single-write native safety checkpoint](register-checkpoint.md)
+is [accepted](https://github.com/carbon-study/nickel-crdt/issues/105#issuecomment-6905714405).** The first subset
 supports writing, reading and replicating keyed register values through the
 actual shared causal layer. It excludes Undo/Redo. Ren approved a single-write
 checkpoint followed by atomic multi-write register events, including Carbon's
