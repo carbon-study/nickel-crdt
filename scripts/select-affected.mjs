@@ -54,13 +54,13 @@ function depsOf(text){
   return [...deps].filter(projectModule);
 }
 // Modules verified by the text gate: everything defined under proofs/generated at base or head.
-const textModules=new Set();
+const textModules=new Set(),causalModules=new Set(),registerViewModules=new Set();
 function graphAt(ref){
   const files=git('ls-tree','-r','--name-only',ref,'--',...PROOF_DIRS).split('\n').filter(f=>/\.fsti?$/.test(f));
   const graph=new Map();
   // Several files can define one module (for example the text and register extractions of
   // Nickel_crdt.Event_shell); their dependencies are united.
-  for(const f of files){const mod=moduleOfFile(f);if(!mod)continue;if(/^proofs\/generated\//.test(f))textModules.add(mod);const text=show(ref,f);if(text===null)continue;
+  for(const f of files){const mod=moduleOfFile(f);if(!mod)continue;if(/^proofs\/generated\//.test(f))textModules.add(mod);if(/^proofs\/causal-envelope-view\//.test(f))causalModules.add(mod);if(/^proofs\/register-view\//.test(f))registerViewModules.add(mod);const text=show(ref,f);if(text===null)continue;
     const d=graph.get(mod)??new Set();for(const x of depsOf(text))if(x!==mod)d.add(x);graph.set(mod,d);}
   return graph;
 }
@@ -149,6 +149,14 @@ const basePlans=readPlans(opt('--base-plans'),'base',base),headPlans=readPlans(o
 for(const r of [basePlans,headPlans])if(r.error){registerFull=true;reasons.push({registerFull:r.error});}
 const theoremModule=t=>t.split('.').slice(0,2).join('.');
 const rootModule=r=>r.replace(/\.fst$/,'');
+// Every changed module must be verified by some gate: a text module, a causal-envelope module, or a
+// module the register positive's roots reach at base or head (any register-view module when the
+// register gate runs in full anyway). A changed module no gate reaches selects everything.
+{const reach=new Set(),stack=[];
+ for(const r of [basePlans,headPlans])if(!r.error)for(const root of r.plans.find(p=>p.kind==='positive').roots)stack.push(root.replace(/\.fst$/,''));
+ while(stack.length){const m=stack.pop();if(reach.has(m))continue;reach.add(m);for(const g of graphs)for(const d of g.get(m)??[])stack.push(d);}
+ for(const mod of seeds)if(!textModules.has(mod)&&!causalModules.has(mod)&&!reach.has(mod)&&!(registerFull&&registerViewModules.has(mod)))
+  forceFull('changed module reached by no gate root',mod);}
 let registerSelected=[],registerRemoved=[],registerTotal=null,positiveWhy=null;
 if(!registerFull){
   for(const p of headPlans.plans){if(p.kind==='positive')continue;
