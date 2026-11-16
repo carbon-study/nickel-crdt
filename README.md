@@ -12,14 +12,15 @@ order-dependent refusal; it does not establish admission progress or SEC.
 ## Keyed-register single-write checkpoint
 
 The [native checkpoint](docs/register-checkpoint.md) adds single-write keyed
-write/read/replication through the actual shared graph and publication shell.
+write/read/replication in memory through the actual shared graph and publication shell.
 Run `cargo run --locked --example register-checkpoint`. The [single-write safety
 checkpoint](https://github.com/carbon-study/nickel-crdt/issues/105#issuecomment-6905714405) is accepted: independent causal-read/retained-history meaning,
 public-history preservation and exact publication/private-counter contracts are
-linked to the actual native methods. This is not a stable verified release,
-universal write/admission progress, SEC, atomic multi-write registers or Undo/Redo.
-Writer fencing, agreed initial bytes and the documented translation/model trust
-boundaries still apply.
+linked to the actual native methods. This is not a stable verified release or a
+proof of universal write/admission progress, termination or SEC. It delivers no
+persistence, Carbon integration, writer-allocation/recovery guarantee, atomic
+multi-write registers or Undo/Redo. Writer fencing, agreed initial bytes and the
+documented translation/model trust boundaries still apply.
 
 ## Shared-layer experiment
 

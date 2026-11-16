@@ -60,8 +60,8 @@ basis, including other keys. Receiving does not advance the private author count
 Read chooses the highest (Lamport, writer) at that key, or the initial value if
 none exists. The intended causal-maxima meaning agrees with this scan when valid
 clocks strictly increase along ancestry; the accepted public-history composition
-preserves that invariant through the actual constructor and returns. Equal priority values cannot be
-assumed unique on arbitrary malformed arrays. All counted losing writes remain
+preserves that invariant through the actual constructor and returns. Equal
+priority values cannot be assumed unique on arbitrary malformed arrays. All counted losing writes remain
 stored. Storage canonicalization is writer-first and is not read priority.
 
 Whole-fact duplicate classification comes first, before payload validation.
@@ -75,9 +75,10 @@ successful candidate. Clock/counter exhaustion returns an explicit error.
 Missing dependencies require the external caller to retry after delivering them.
 The former dependency-cap/frontier refusal has been removed, rather than
 replaced by a larger configured cap or a different causal context. Counted writes
-still cite the whole current frontier. Counter/clock exhaustion, writer fencing,
-validity and termination remain separate obligations. There is no unconditional
-eventual delivery/admission or SEC result.
+still cite the whole current frontier. Clock/counter exhaustion and caller
+writer-fencing requirements still apply. The public-history preservation law is
+a safety result, not an unconditional eventual delivery/admission, termination
+or SEC result.
 Rust allocation failure, the hax translation and its pinned models remain trust
 boundaries; finite tests are not universal validity or progress proofs.
 
@@ -85,9 +86,9 @@ boundaries; finite tests are not universal validity or progress proofs.
 
 `RegisterPublic.public_history` combines the retained-history invariant and
 positional ID uniqueness. The actual constructor establishes it; every
-`receive` and `write` return preserves it. Under that invariant and the same
-initial configuration, `public_read_is_the_causal_read` connects the actual
-public read to the independent causal-maxima meaning.
+`receive` and `write` return preserves it. Under that invariant,
+`public_read_is_the_causal_read` connects the actual public read to the
+independent causal-maxima meaning for that replica's configured initial bytes.
 
 `receive_added_meaning` and `write_counted_meaning` bind successful publication
 to a fresh valid whole fact and the exact retained-history extension, including
@@ -102,8 +103,9 @@ are checked on the complete fact payload.
 These safety and successful-result laws do not prove every valid offer is Added,
 every requested write succeeds, termination, or an independent iff classification
 of every error code. Complete full-register history/Undo, delivery/progress,
-recovery and convergence remain outside this checkpoint. Caller fencing and the
-translation/model/compiler/runtime trust boundaries below still apply.
+writer-allocation/recovery guarantees, persistence, Carbon integration and
+convergence remain outside this checkpoint. Caller fencing and the documented
+translation/model/compiler/runtime trust boundaries still apply.
 
 The component accounts below preserve each earlier theorem's individual scope.
 Where one component alone does not establish ancestry, retention or validity,
