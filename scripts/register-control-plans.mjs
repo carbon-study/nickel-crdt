@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import {scopedAnchor,codeMask} from './mutation-scope.mjs';
 
-export function registerControlPlans({source,graphSource,view,loopView,canonicalView,pastView,historyView,validView,publicView,frontierView}){
+export function registerControlPlans({source,graphSource,view,loopView,canonicalView,pastView,historyView,validView,publicView,frontierView,sharedPastView}){
  const graphModes=new Set(['past-pass-skips-input','frontier-pushes-first-id','frontier-inverts-child','frontier-reference-always-false','frontier-reference-empty-input','frontier-reference-wrong-fact','frontier-empty-errors','past-skips-parent-check','past-extend-never-pushes','past-extend-unselected','canonical-push-drops-value','canonical-copies-wrong-fact','canonical-discards-output','canonical-chooses-largest','canonical-choice-always-errors']);
  const bodyModes=[
   ["frontier-pushes-first-id","pub fn frontier<","push(&mut out, id(f), internal)?","push(&mut out, id(&facts[0]), internal)?","Canonical.frontier_is_nonparent_filter"],
@@ -260,8 +260,14 @@ export function registerControlPlans({source,graphSource,view,loopView,canonical
   // Withholding freshness at receive_added_preserves_invariant is a search (20 s, 100% rlimit): that composition
   // dependence is uncontrolled; freshness itself is owned at not_duplicate_is_fresh.
   // Exact past and history meaning (#97 obligation 1): soundness and completeness are separate owners.
-  ['without-past-soundness-closure',replaceInDeclaration('past_has_only_ancestors_and_keeps_roots','  past_stays_in_closed_set ops facts roots (ancestor ops facts roots)','  ()',pastView),'RegisterPast.past_has_only_ancestors_and_keeps_roots'],
-  ['without-past-completeness-paths',replaceInDeclaration('successful_past_is_exact_closure','      past_contains_every_causal_path ops facts roots root steps id;','      ();',pastView),'RegisterPast.successful_past_is_exact_closure'],
+  ['without-shared-past-soundness',replaceInDeclaration('past_has_only_ancestors_and_keeps_roots','  Nickel.PastExact.past_has_only_ancestors_and_keeps_roots ops facts roots;','  ();',pastView),'RegisterPast.past_has_only_ancestors_and_keeps_roots'],
+  ['without-shared-past-short-paths',replaceInDeclaration('past_contains_short_paths','  Nickel.PastExact.past_contains_short_paths ops facts roots root steps id;','  ();',pastView),'RegisterPast.past_contains_short_paths'],
+  ['without-shared-past-all-paths',replaceInDeclaration('past_contains_every_causal_path','  Nickel.PastExact.past_contains_every_causal_path ops facts roots root steps id;','  ();',pastView),'RegisterPast.past_contains_every_causal_path'],
+  ['without-shared-past-members',replaceInDeclaration('successful_past_is_exact_closure','  Nickel.PastExact.exact_selection_members ops facts roots selected;','  ();',pastView),'RegisterPast.successful_past_is_exact_closure'],
+  ['without-shared-past-exactness',replaceInDeclaration('successful_past_is_exact_closure','  Nickel.PastExact.successful_past_is_exact_closure ops facts roots;','  ();',pastView),'RegisterPast.successful_past_is_exact_closure'],
+  ['without-shared-path-meaning',replaceInDeclaration('past_contains_every_causal_path','  all_shared_paths_are_register ops facts;','  ();',pastView),'RegisterPast.past_contains_every_causal_path'],
+  ['without-past-soundness-closure',replaceInDeclaration('past_has_only_ancestors_and_keeps_roots','  past_stays_in_closed_set ops facts roots (ancestor ops facts roots)','  ()',sharedPastView),'PastExact.past_has_only_ancestors_and_keeps_roots'],
+  ['without-past-completeness-paths',replaceInDeclaration('successful_past_is_exact_closure','      past_contains_every_causal_path ops facts roots root steps id;','      ();',sharedPastView),'PastExact.successful_past_is_exact_closure'],
   ['without-admission-exact-selection',replaceInDeclaration('selected_basis_is_exact','  Nickel.RegisterPast.validated_selection_is_exact facts offered Native.v_OPS;','  ();',historyView),'RegisterHistory.selected_basis_is_exact'],
   ['without-admission-whole-basis',replaceInDeclaration('selected_basis_is_exact','  Nickel.RegisterPast.actual_basis_is_exact_filter Native.v_OPS._1 facts (Alloc.Vec.impl_1__as_slice selected);','  ();',historyView),'RegisterHistory.selected_basis_is_exact'],
   // The read bridge consumes the maximum-read contract with the native read/winner bodies hidden.
