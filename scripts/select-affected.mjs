@@ -60,7 +60,7 @@ function graphAt(ref){
   const graph=new Map();
   // Several files can define one module (for example the text and register extractions of
   // Nickel_crdt.Event_shell); their dependencies are united.
-  for(const f of files){const mod=moduleOfFile(f);if(!mod)continue;if(/^proofs\/generated\//.test(f))textModules.add(mod);if(/^proofs\/causal-envelope-view\//.test(f))causalModules.add(mod);if(/^proofs\/register-view\//.test(f))registerViewModules.add(mod);const text=show(ref,f);if(text===null)continue;
+  for(const f of files){const mod=moduleOfFile(f);if(!mod)continue;if(/^proofs\/generated\//.test(f))textModules.add(mod);if(/^proofs\/causal-envelope-view\//.test(f))causalModules.add(mod);if(/^proofs\/register-view\//.test(f))registerViewModules.add(mod);const text=show(ref,f);if(text===null){forceFull("unreadable enumerated proof file",ref+":"+f);continue;}
     const d=graph.get(mod)??new Set();for(const x of depsOf(text))if(x!==mod)d.add(x);graph.set(mod,d);}
   return graph;
 }
