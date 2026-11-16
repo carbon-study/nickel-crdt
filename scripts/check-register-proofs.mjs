@@ -177,6 +177,9 @@ if(coverageOnly){
 // one (dependency controls reuse the positive's workspace), or in shard 0 for a positive-only record.
 let selection=null;
 if(selectionFile!==null){
+ // The shard must partition every negative into nonempty parts, exactly as unselected shard runs
+ // require, before any early no-work exit.
+ if(shard)shardPartition(negativeNames,shard.n);
  let rec;try{rec=JSON.parse(await fs.readFile(selectionFile,'utf8'));}catch(e){assert.fail('selection record unreadable: '+e.message);}
  const keys=['schema','base','head','diagnosticOnly','basePlans','headPlans','full','reasons','affected','register','text','shared'];
  assert(rec&&typeof rec==='object'&&!Array.isArray(rec)&&Object.keys(rec).length===keys.length&&keys.every(k=>Object.hasOwn(rec,k)),'selection record has an unrecognised shape');
