@@ -24,11 +24,6 @@ function ids_exact<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.grap
   forall(a: it, b: it) . (ops._1._3(a, b) == true <==> a == b)
 }
 
-// Elimination form, for clients instantiating ids_exact at concrete ops types.
-proof ids_exact_elim<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et)): unit
-  takes ids_exact(ops)
-  gives forall(a: it, b: it) . (ops._1._3(a, b) == true <==> a == b)
-{ () }
 proof ids_exact_intro<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et)): unit
   takes forall(a: it, b: it) . (ops._1._3(a, b) == true <==> a == b)
   gives ids_exact(ops)
@@ -176,7 +171,8 @@ proof past_stays_in_closed_set<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.Eve
   Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
     ((_: nat, selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => selection_ok(roots, p, selected)),
     ((selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => selected), selection_ok(roots, p), ((_: et) => Prims.l_True));
-  // Empty iteration is also sound; completing zero passes is not completeness.
+  // Control-routing instance: the zero-pass mutant still satisfies soundness.
+  // It must reach the completeness owner instead of failing this true foundation.
   Nickel.LoopUtil.result_preserve_any(mk_usize(0), mk_usize(0),
     ((_: nat, selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => selection_ok(roots, p, selected)),
     ((selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => selected), selection_ok(roots, p), ((_: et) => Prims.l_True));

@@ -101,7 +101,7 @@ The control owners follow the implementation knowledge:
   with the corresponding native bodies withheld at the consuming assertions.
 
 Proof-line accounting against the preceding main: text removes67 and adds31;
-register removes50 and adds17; the shared module adds189. The net is **+120**
+register removes50 and adds17; the shared module adds185. The net is **+116**
 lines, not net retirement of the complete duplicate chain. No Rust forward is
 retired by this cut. The remaining exact-ancestry/completeness chain, concrete
 text totality/agreement obligations and approved writer-stream slice still need

@@ -32,9 +32,6 @@ module Tactics = FStar.Tactics.V2
 let ids_exact (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) : Type0 =
   forall(a: it) (b: it). ops._1._3 a b == true <==> a == b
 
-let ids_exact_elim (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) : Lemma (requires ids_exact ops) (ensures forall(a: it) (b: it). ops._1._3 a b == true <==> a == b) =
-  ()
-
 let ids_exact_intro (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) : Lemma (requires forall(a: it) (b: it). ops._1._3 a b == true <==> a == b) (ensures ids_exact ops) =
   ()
 
