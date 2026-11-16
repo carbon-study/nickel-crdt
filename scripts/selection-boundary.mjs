@@ -2,8 +2,9 @@
 // usage: node selection-boundary.mjs <out> <head-tree> <base-tree> <head-rev> <base-rev>
 // Writes <out>/mode ("full" or "selected"), <out>/identity.json and, when selected,
 // <out>/selection.json for check-register-proofs.mjs selection:<file>. Every doubt selects full:
-// the default base (nix/selection-base-none), a missing head or base revision (dirty tree or an
-// unpinned base), a toolchain difference (flake.lock or flake.nix), a base or head export that
+// the default base (nix/selection-base-none), a missing head or base revision (no selection-head
+// override matching this tree, or an unpinned base),
+// a toolchain difference (flake.lock or flake.nix), a base or head export that
 // fails, a selector that fails, or a record that is full or diagnostic. Base and head plans are
 // exported by each tree's own runner; the record comes from the head tree's selector over a
 // two-commit repository holding exactly the base tree and then exactly the head tree.

@@ -4,10 +4,14 @@
   inputs.hax.url = "github:cryspen/hax/f33e5c844497c057450ebf56828cbb191223e93a";
   # PR affected-set selection only (not wired into CI): the default is a sentinel that always selects the
   # full register gate; a PR build overrides it with the exact base commit, e.g.
-  # --override-input selection-base github:carbon-study/nickel-crdt/<base-sha>.
+  # --override-input selection-base github:carbon-study/nickel-crdt/<base-sha>
+  # --override-input selection-head github:carbon-study/nickel-crdt/<head-sha>.
+  # Overriding an input drops self.rev, so the head revision comes from selection-head, accepted only
+  # when its tree is byte-identical to self (same store path).
   inputs.selection-base = { url = "path:./nix/selection-base-none"; flake = false; };
+  inputs.selection-head = { url = "path:./nix/selection-base-none"; flake = false; };
 
-  outputs = { self, nixpkgs, hax, selection-base }:
+  outputs = { self, nixpkgs, hax, selection-base, selection-head }:
     nixpkgs.lib.foldl' nixpkgs.lib.recursiveUpdate { } (map (system: let
       pkgs = import nixpkgs { inherit system; };
       rust = hax.packages.${system}.rustc;
@@ -186,7 +190,7 @@ ${extra}        node scripts/check-register-proofs.mjs "$out"${pkgs.lib.optional
         export HOME="$TMPDIR/home"
         mkdir -p "$HOME"
         export NICKEL_HAX_BIN=unused-by-export NICKEL_PROOF_FSTAR=unused-by-export NICKEL_HAX_SOURCE=unused-by-export NICKEL_FSTAR_MODEL_CACHE=unused-by-export
-        node ${selectionSource}/selection-boundary.mjs "$out" ${self} ${selection-base} ${pkgs.lib.escapeShellArg (self.rev or "")} ${pkgs.lib.escapeShellArg (selection-base.rev or "")}
+        node ${selectionSource}/selection-boundary.mjs "$out" ${self} ${selection-base} ${pkgs.lib.escapeShellArg (if selection-head.outPath == self.outPath then selection-head.rev or "" else "")} ${pkgs.lib.escapeShellArg (selection-base.rev or "")}
       '';
       # Selected register shards: "full" runs the ordinary shard, "selected" consumes the record (which
       # the runner refuses unless it matches this tree's own plan export); anything else refuses.
