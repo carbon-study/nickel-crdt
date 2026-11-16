@@ -60,5 +60,8 @@
     "proof-cache.mjs",
     "proof-reform.mjs",
     "register-control-plans.mjs"
+  ],
+  "selection": [
+    "selection-boundary.mjs"
   ]
 }

@@ -2,8 +2,12 @@
   description = "nickel-crdt: Rust core and implementation-linked proof scaffolding";
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/7d1a7c21a4c00ea653fc7ed5c083d261340f185f";
   inputs.hax.url = "github:cryspen/hax/f33e5c844497c057450ebf56828cbb191223e93a";
+  # PR affected-set selection only (not wired into CI): the default is a sentinel that always selects the
+  # full register gate; a PR build overrides it with the exact base commit, e.g.
+  # --override-input selection-base github:carbon-study/nickel-crdt/<base-sha>.
+  inputs.selection-base = { url = "path:./nix/selection-base-none"; flake = false; };
 
-  outputs = { self, nixpkgs, hax }:
+  outputs = { self, nixpkgs, hax, selection-base }:
     nixpkgs.lib.foldl' nixpkgs.lib.recursiveUpdate { } (map (system: let
       pkgs = import nixpkgs { inherit system; };
       rust = hax.packages.${system}.rustc;
@@ -171,6 +175,43 @@ ${extra}        node scripts/check-register-proofs.mjs "$out"${pkgs.lib.optional
       }) registerShards);
       # Checks the gate's partition and that ci.yml lists exactly register-proofs-shard-0..n-1.
       registerShardCoverage = mkRegisterProof "-shard-coverage" "        export NICKEL_CI_WORKFLOW=${./.github/workflows/ci.yml}\n" [ "shard-coverage:${toString registerShards}" ];
+      # Selection boundary (scripts/selection-boundary.mjs): exact head (self.rev) and base
+      # (selection-base.rev) trees, each exporting its own plans, the head's selector over both, and
+      # full on any doubt. Plan export checks only that the proof tool variables are set, so they are
+      # placeholders here and the selection does not build models.
+      selectionSource = pkgs.lib.fileset.toSource { root = ./scripts; fileset = scriptsFor "selection"; };
+      registerSelection = pkgs.runCommand "nickel-register-selection" {
+        nativeBuildInputs = tools ++ [ pkgs.git ];
+      } ''
+        export HOME="$TMPDIR/home"
+        mkdir -p "$HOME"
+        export NICKEL_HAX_BIN=unused-by-export NICKEL_PROOF_FSTAR=unused-by-export NICKEL_HAX_SOURCE=unused-by-export NICKEL_FSTAR_MODEL_CACHE=unused-by-export
+        node ${selectionSource}/selection-boundary.mjs "$out" ${self} ${selection-base} ${pkgs.lib.escapeShellArg (self.rev or "")} ${pkgs.lib.escapeShellArg (selection-base.rev or "")}
+      '';
+      # Selected register shards: "full" runs the ordinary shard, "selected" consumes the record (which
+      # the runner refuses unless it matches this tree's own plan export); anything else refuses.
+      registerSelectedChecks = builtins.listToAttrs (builtins.genList (i: let shardArg = "shard:${toString i}/${toString registerShards}"; in {
+        name = "register-proofs-selected-shard-${toString i}";
+        value = pkgs.runCommand "nickel-register-proofs-selected-shard-${toString i}" {
+          nativeBuildInputs = tools;
+        } ''
+          export HOME="$TMPDIR/home"
+          mkdir -p "$HOME"
+          cp -r ${registerSource} work
+          chmod -R u+w work
+          cd work
+          ${modelEnv}
+          export NICKEL_HAX_BIN="${haxBin}/bin/cargo-hax"
+          export NICKEL_FSTAR_MODEL_CACHE="${models}"
+          mode="$(cat ${registerSelection}/mode)"
+          case "$mode" in
+            full) node scripts/check-register-proofs.mjs "$out" ${shardArg} ;;
+            selected) node scripts/check-register-proofs.mjs "$out" "selection:${registerSelection}/selection.json" ${shardArg} ;;
+            *) echo "unknown selection mode: $mode" >&2; exit 1 ;;
+          esac
+          cp ${registerSelection}/identity.json "$out/selection-identity.json"
+        '';
+      }) registerShards);
       editReferenceSource = pkgs.lib.fileset.toSource {
         root = ./.;
         fileset = pkgs.lib.fileset.unions [
@@ -203,7 +244,7 @@ ${extra}        node scripts/check-register-proofs.mjs "$out"${pkgs.lib.optional
         node --experimental-vm-modules ${gateInputSource}/scripts/check-gate-inputs.mjs \
           text=${proofSource}/scripts shared=${sharedProofSource}/scripts \
           sharedNative=${sharedNativeSource}/scripts models=${proofTools} \
-          registerNative=${registerNativeSource}/scripts register=${registerSource}/scripts > "$out"
+          registerNative=${registerNativeSource}/scripts register=${registerSource}/scripts selection=${selectionSource} > "$out"
       '';
     in {
       packages.${system} = {
@@ -222,7 +263,8 @@ ${extra}        node scripts/check-register-proofs.mjs "$out"${pkgs.lib.optional
         hax = haxBin;
         hax-fstar = fstar;
         register-proofs-shard-coverage = registerShardCoverage;
-      } // proofShardChecks // registerShardChecks;
+        register-selection = registerSelection;
+      } // proofShardChecks // registerShardChecks // registerSelectedChecks;
       checks.${system} = { inherit native; gate-inputs = gateInputs; register-native = registerNative; register-proofs = registerProof; shared-native = sharedNative; shared-proofs = sharedProof; proofs = proofCheck; edit-reference = editReference; };
       devShells.${system} = {
         default = pkgs.mkShell {

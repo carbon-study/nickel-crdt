@@ -14,6 +14,7 @@ export const entries = {
   models: ['build-proof-models.mjs'],
   registerNative: ['check-register-native.mjs'],
   register: ['check-register-proofs.mjs'],
+  selection: ['selection-boundary.mjs'],
 };
 export function dependencies(source, name) {
   const specs = [...new vm.SourceTextModule(source, {identifier:name}).dependencySpecifiers];
