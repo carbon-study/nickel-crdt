@@ -448,3 +448,43 @@ let successful_past_is_exact_closure (#ft: Type0) (#it: eqtype) (#et: Type0) (op
 
 let exact_selection_members (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (roots: t_Slice it) (selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) : Lemma (requires exact_past_result ops facts roots (Result.Result_Ok selected)) (ensures forall(id: it). member (Alloc.Vec.impl_1__as_slice selected) id <==> ancestor ops facts roots id) =
   ()
+
+let same_parents (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (into: t_Slice ft) (other: t_Slice ft) (id: it) : Type0 =
+  forall(older: it). causal_edge ops into id older <==> causal_edge ops other id older
+
+let shared_ancestry (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (into: t_Slice ft) (other: t_Slice ft) (roots: t_Slice it) : Type0 =
+  forall(id: it). ancestor ops into roots id ==> same_parents ops into other id
+
+let rec shared_path_stays_shared (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (into: t_Slice ft) (other: t_Slice ft) (roots: t_Slice it) (start: it) (steps: Prims.list it) (finish: it) : Lemma (requires (shared_ancestry ops into other roots /\ ancestor ops into roots start /\ ancestor ops other roots start /\ Prims.l_or (causal_path ops into start steps finish) (causal_path ops other start steps finish))) (ensures Prims.l_and (ancestor ops into roots finish) (ancestor ops other roots finish)) (decreases steps) =
+  causal_path_equations ops into;
+  causal_path_equations ops other;
+  match steps with | Prims.Nil -> begin () end | Prims.Cons next rest -> begin assert (Prims.l_and (causal_edge ops into start next) (causal_edge ops other start next)) by (
+    Tactics.prune "Nickel.PastExact.ancestor";
+    Tactics.smt_sync' 1 1
+  );
+  ancestor_follows_edge ops into roots start next;
+  ancestor_follows_edge ops other roots start next;
+  assert (Prims.l_and (Prims.l_and (ancestor ops into roots next) (ancestor ops other roots next)) (Prims.l_or (causal_path ops into next rest finish) (causal_path ops other next rest finish))) by (
+    Tactics.prune "Nickel.PastExact.ancestor";
+    Tactics.prune "Nickel.PastExact.shared_ancestry";
+    Tactics.smt_sync' 1 1
+  );
+  shared_path_stays_shared ops into other roots next rest finish;
+  assert (Prims.l_and (ancestor ops into roots finish) (ancestor ops other roots finish)) by (
+    Tactics.prune "Nickel.PastExact.ancestor";
+    Tactics.prune "Nickel.PastExact.shared_ancestry";
+    Tactics.smt_sync' 1 1
+  ) end
+
+let shared_ancestry_agrees (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (into: t_Slice ft) (other: t_Slice ft) (roots: t_Slice it) : Lemma (requires shared_ancestry ops into other roots) (ensures forall(id: it). ancestor ops into roots id <==> ancestor ops other roots id) =
+  causal_path_equations ops into;
+  causal_path_equations ops other;
+  let each_path (root: it) (steps: Prims.list it) (id: it) : Lemma (requires (member roots root /\ Prims.l_or (causal_path ops into root steps id) (causal_path ops other root steps id))) (ensures Prims.l_and (ancestor ops into roots id) (ancestor ops other roots id)) =
+    assert (causal_path ops into root Prims.Nil root);
+    assert (causal_path ops other root Prims.Nil root);
+    shared_path_stays_shared ops into other roots root steps id;
+    assert (Prims.l_and (ancestor ops into roots id) (ancestor ops other roots id)) by (
+      Tactics.prune "Nickel.PastExact.ancestor";
+      Tactics.smt_sync' 1 1
+    ) in
+  FStar.Classical.forall_intro_3 (FStar.Classical.move_requires_3 each_path)
