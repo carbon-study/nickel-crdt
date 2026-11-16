@@ -122,17 +122,32 @@ jobs:
             i="${BASH_REMATCH[1]}"
             [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "pull_request base sha missing or malformed: $BASE_SHA"; exit 1; }
             [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] || { echo "checkout HEAD is not GITHUB_SHA"; exit 1; }
-            .github/scripts/check.sh "$TARGET" 9000 nix build -L --no-write-lock-file --out-link selected-result \
-              ".#packages.aarch64-linux.register-proofs-selected-shard-$i" \
-              --override-input selection-head "git+file://$PWD?rev=$GITHUB_SHA&shallow=1" \
-              --override-input selection-base "github:carbon-study/nickel-crdt/$BASE_SHA"
+            overrides=(--override-input selection-head "git+file://$PWD?rev=$GITHUB_SHA&shallow=1"
+                       --override-input selection-base "github:carbon-study/nickel-crdt/$BASE_SHA")
+            # The boundary first, so its identity and route are kept even if the proof build fails.
             mkdir -p selection-evidence
-            cp selected-result/selection-identity.json selected-result/planned.json selected-result/results.json selection-evidence/
+            .github/scripts/check.sh "$TARGET-selection" 1800 nix build -L --no-write-lock-file --out-link selection-result \
+              .#packages.aarch64-linux.register-selection "${overrides[@]}"
+            cp selection-result/identity.json selection-result/mode selection-evidence/
+            if [ -e selection-result/selection.json ]; then cp selection-result/selection.json selection-evidence/; fi
+            .github/scripts/check.sh "$TARGET" 9000 nix build -L --no-write-lock-file --out-link selected-result \
+              ".#packages.aarch64-linux.register-proofs-selected-shard-$i" "${overrides[@]}"
           else
             .github/scripts/check.sh ${{ matrix.target }} 9000 nix build -L --no-link .#packages.aarch64-linux.${{ matrix.target }}
           fi
       # Identity (exact base/head, toolchain digests, route), planned names and executed results of
       # each pull-request register shard.
+      # Collected whether or not the build passed; the build step keeps its own status. Results exist
+      # only for a passing build and are not reconstructed otherwise; planned names are in the log.
+      - name: collect register selection evidence
+        if: always() && github.event_name == 'pull_request' && startsWith(matrix.target, 'register-proofs-shard-')
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          mkdir -p selection-evidence
+          for f in "/tmp/$TARGET-selection.log" "/tmp/$TARGET.log"; do if [ -e "$f" ]; then cp "$f" selection-evidence/; fi; done
+          for f in selection-identity.json planned.json results.json; do if [ -e "selected-result/$f" ]; then cp "selected-result/$f" selection-evidence/; fi; done
+          ls -la selection-evidence
       - name: keep register selection evidence
         if: always() && github.event_name == 'pull_request' && startsWith(matrix.target, 'register-proofs-shard-')
         uses: actions/upload-artifact@v4

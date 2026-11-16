@@ -234,6 +234,7 @@ if(selectionFile!==null){
 // A shard may be combined with named modes: it runs the union, each negative once.
 const planned=new Set(negativeNames.filter((n,k)=>wanted(n,k)));
 console.log('planned '+planned.size+' negatives'+(wanted('positive',-1)?' after the positive':''));
+console.log('planned names: '+(wanted('positive',-1)?['positive',...planned]:[...planned]).join(' '));
 await fs.writeFile(path.join(output,'planned.json'),JSON.stringify({positive:wanted('positive',-1),negatives:[...planned]},null,1)+'\n');
 if(shard){const parts=shardPartition(negativeNames,shard.n);console.log('shard '+shard.i+'/'+shard.n+': '+parts[shard.i].length+' of '+negativeNames.length+' negatives'+(named.length?' plus '+named.filter(n=>n!=='positive').length+' named':''));}
 const results=[];
