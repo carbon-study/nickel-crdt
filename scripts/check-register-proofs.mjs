@@ -34,8 +34,9 @@ assert(!exportPlans||selected.length===1,'export-plans is exclusive');
 const selectionArgs=selected.filter(a=>a.startsWith('selection:'));
 assert(selectionArgs.length<=1,'use at most one selection');
 const selectionFile=selectionArgs.length?selectionArgs[0].slice('selection:'.length):null;
+assert(selectionFile===null||selectionFile.length>0,'selection needs a record path');
 const named=selected.filter(a=>!a.startsWith('shard')&&!a.startsWith('selection:')&&a!=='export-plans');
-assert(!selectionFile||(selectionFile.length>0&&named.length===0&&!exportPlans&&coverageOnly===null),'selection combines only with a shard');
+assert(selectionFile===null||(named.length===0&&!exportPlans&&coverageOnly===null),'selection combines only with a shard');
 let wanted=(name,k)=>name==='positive'||!selected.length||named.includes(name)||(shard!==null&&k%shard.n===shard.i);
 function shardPartition(names,n){
  assert.equal(new Set(names).size,names.length,'negative mode names are unique');
@@ -147,9 +148,12 @@ const positive=path.join(output,'positive/proof'),file=path.join(positive,'Nicke
 const negativeNames=[...bodyModes.map(p=>p.name),...depModes.map(p=>p.name)];
 async function exportText(){
  const describe=p=>({name:p.name,kind:p.kind,owner:p.owner,theorem:p.theorem,roots:p.roots,...(p.sourceFile?{sourceFile:p.sourceFile}:{}),...(p.module?{module:p.module}:{}),...(p.classifierModule?{classifierModule:p.classifierModule}:{}),mutated:p.mutated===null?null:digest(p.mutated)});
- // Source identity: the digest of every file the plans are built from, plus the code that builds and
- // exports them, so a selector can check an export against the commit it claims to describe.
+ // Source identity: the digest of every file the plans are built from, every register gate script, and
+ // the view receipt (which pins every source, .lt and view this gate verifies, and is checked against
+ // the tree above), so a selector can check an export against the commit it claims to describe and a
+ // selection record made for one tree is refused on any tree whose verified inputs differ.
  const planInputs=['scripts/check-register-proofs.mjs','scripts/register-control-plans.mjs','scripts/mutation-scope.mjs',
+  'scripts/negative-proof-evidence.mjs','scripts/proof-cache.mjs','scripts/proof-reform.mjs','proofs/register-view/receipt.json',
   'src/register.rs','src/event_layer.rs','proofs/generated/Nickel.LoopUtil.fst',
   ...['Canonical','Register','RegisterPast','RegisterHistory','RegisterValid','RegisterPublic','RegisterFrontier'].map(m=>'proofs/register-view/Nickel.'+m+'.fst')];
  const sources={};for(const f of planInputs)sources[f]=digest(await fs.readFile(path.join(root,f)));
@@ -172,7 +176,7 @@ if(coverageOnly){
 // negatives (split by shard index like unselected runs) and the positive in every shard that runs
 // one (dependency controls reuse the positive's workspace), or in shard 0 for a positive-only record.
 let selection=null;
-if(selectionFile){
+if(selectionFile!==null){
  let rec;try{rec=JSON.parse(await fs.readFile(selectionFile,'utf8'));}catch(e){assert.fail('selection record unreadable: '+e.message);}
  const keys=['schema','base','head','diagnosticOnly','basePlans','headPlans','full','reasons','affected','register','text','shared'];
  assert(rec&&typeof rec==='object'&&!Array.isArray(rec)&&Object.keys(rec).length===keys.length&&keys.every(k=>Object.hasOwn(rec,k)),'selection record has an unrecognised shape');

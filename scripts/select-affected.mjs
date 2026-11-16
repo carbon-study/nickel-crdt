@@ -112,9 +112,10 @@ for(const mod of seeds)if(!known.has(mod))forceFull('seed module absent from bot
 
 // ---------------------------------------------------------------- register plans
 const HEX=/^[0-9a-f]{64}$/,NAME=/^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-// The files an export's plans are built from; every export must carry exactly these digests, and each
+// The export's source identity (plan inputs, register gate scripts, view receipt); every export must carry exactly these digests, and each
 // must equal the file at the ref the export claims to describe.
 const PLAN_INPUTS=['scripts/check-register-proofs.mjs','scripts/register-control-plans.mjs','scripts/mutation-scope.mjs',
+  'scripts/negative-proof-evidence.mjs','scripts/proof-cache.mjs','scripts/proof-reform.mjs','proofs/register-view/receipt.json',
   'src/register.rs','src/event_layer.rs','proofs/generated/Nickel.LoopUtil.fst',
   ...['Canonical','Register','RegisterPast','RegisterHistory','RegisterValid','RegisterPublic','RegisterFrontier'].map(m=>'proofs/register-view/Nickel.'+m+'.fst')];
 const sha=b=>createHash('sha256').update(b).digest('hex');
