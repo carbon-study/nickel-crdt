@@ -495,7 +495,10 @@ let least_next (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) (j: u
       begin choice end end end
 
 let least_extends_all (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) : Lemma (ensures forall(j: usize{v j < v (Nickel.EditIdentity.length input)}) (choice: Option.t_Option usize). least_choice input out (v j) choice ==> least_choice input out (v j + 1) (least_next input out j choice)) =
-  let each (j: usize{v j < v (Nickel.EditIdentity.length input)}) (choice: Option.t_Option usize) : Lemma (ensures least_choice input out (v j) choice ==> least_choice input out (v j + 1) (least_next input out j choice)) = () in
+  let each (j: usize{v j < v (Nickel.EditIdentity.length input)}) (choice: Option.t_Option usize) : Lemma (ensures least_choice input out (v j) choice ==> least_choice input out (v j + 1) (least_next input out j choice)) = if Native.has_fact out (Rust_primitives.Slice.slice_index input j).f_id then
+    begin () end
+  else
+    begin match choice with | Option.Option_None -> begin () end | Option.Option_Some k -> begin () end end in
   FStar.Classical.forall_intro_2 each
 
 let selected_id_is_least (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) : Lemma (ensures least_result input out (Native.choose_unseen input out)) =
@@ -579,6 +582,19 @@ let push_membership (out: facts_vec) (fact: Native.t_Fact) (id: Native.t_EventId
     Tactics.smt_sync' 1 1
   ) end | _ -> begin () end
 
+let appended_shape (out: facts_vec) (fact: Native.t_Fact) (result: facts_vec & Result.t_Result unit Native.t_Error) : Type0 =
+  match result with | (next, Result.Result_Ok _) -> begin Alloc.Vec.impl_1__as_slice next == Seq.append (Alloc.Vec.impl_1__as_slice out) (Seq.create 1 fact) end | _ -> begin Prims.l_True end
+
+let push_appends_one (out: facts_vec) (fact: Native.t_Fact) : Lemma (ensures appended_shape out fact (Native.push out fact)) =
+  match Native.push out fact with | (next, Result.Result_Ok _) -> begin assert (Alloc.Vec.impl_1__as_slice next == Seq.append (Alloc.Vec.impl_1__as_slice out) (Seq.create 1 fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.push";
+    Tactics.prune "Nickel_crdt.Event_layer.push";
+    Tactics.prune "Alloc.Vec.impl_1__as_slice";
+    Tactics.prune "Alloc.Vec.from_seq";
+    Tactics.prune "Alloc.Vec.impl_1__len";
+    Tactics.smt_sync' 1 1
+  ) end | _ -> begin () end
+
 let frontier_bounds_unseen (input: t_Slice Native.t_Fact) (out: facts_vec) (i: usize{v i < v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice out))}) (k: usize{v k < v (Nickel.EditIdentity.length input)}) : Lemma (requires (order_frontier input out /\ Native.has_fact (Alloc.Vec.impl_1__as_slice out) (Rust_primitives.Slice.slice_index input k).f_id == false)) (ensures event_key (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) i).f_id <= event_key (Rust_primitives.Slice.slice_index input k).f_id) =
   ()
 
@@ -597,21 +613,17 @@ let append_least_preserves_frontier (input: t_Slice Native.t_Fact) (out: facts_v
     if v i < v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice out)) then
       begin assert (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice next) i == Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) i);
       frontier_bounds_unseen input out i j;
-      assert (event_key (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) i).f_id <= event_key (Rust_primitives.Slice.slice_index input j).f_id) end
+      assert (event_key (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) i).f_id <= event_key (Rust_primitives.Slice.slice_index input j).f_id) by (
+        Tactics.prune "Nickel.EditAccepted.order_frontier";
+        Tactics.smt_sync' 1 1
+      ) end
     else
       begin assert (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice next) i == fact);
       assert (event_key fact.f_id <= event_key (Rust_primitives.Slice.slice_index input j).f_id) end in
   let each_frontier_imp (i: usize{v i < v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice next))}) (j: usize{v j < v (Nickel.EditIdentity.length input)}) : Lemma (ensures Native.has_fact (Alloc.Vec.impl_1__as_slice next) (Rust_primitives.Slice.slice_index input j).f_id == false ==> event_key (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice next) i).f_id <= event_key (Rust_primitives.Slice.slice_index input j).f_id) = FStar.Classical.move_requires_2 each_frontier i j in
   FStar.Classical.forall_intro_2 each_frontier_imp;
   let each_pair (i: usize{v i < v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice next))}) (j: usize{v j < v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice next))}) : Lemma (ensures v i < v j ==> event_key (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice next) i).f_id <= event_key (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice next) j).f_id) =
-    assert (Alloc.Vec.impl_1__as_slice next == Seq.append (Alloc.Vec.impl_1__as_slice out) (Seq.create 1 fact)) by (
-      Tactics.prune "Nickel_crdt.Edit.push";
-      Tactics.prune "Nickel_crdt.Event_layer.push";
-      Tactics.prune "Alloc.Vec.impl_1__as_slice";
-      Tactics.prune "Alloc.Vec.from_seq";
-      Tactics.prune "Alloc.Vec.impl_1__len";
-      Tactics.smt_sync' 1 1
-    );
+    push_appends_one out fact;
     if v i < v j then
       begin assert (v i < v (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice out)));
       assert (Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice next) i == Rust_primitives.Slice.slice_index (Alloc.Vec.impl_1__as_slice out) i);

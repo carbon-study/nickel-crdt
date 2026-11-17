@@ -236,8 +236,8 @@ this machinery to answer them.
 | --- | --- |
 | retain | approved and now default in the reference/oracles, with consume evidence preserved; carry it into the Rust selection proof |
 | frozen observed masks | approved for the first cut after conditional yes and completed peer confirmation; preserve the original masks and later deletion behavior |
-| new-work redo | adopt explicit keep/clear continuation or select a narrower alternative; no silent default |
-| exact returning IDs | adopt the observable contract before claiming old handles target returned occurrences |
+| new-work redo | explicit keep/clear and blocked-top stack continuation approved; carry into native refinement; clear-first/keep-unsupported fallback permitted if needed, no silent default |
+| exact returning IDs | same original IDs approved; prove the representation preserves this contract; general anchors remain separate |
 | candidate ordering | FugueMax candidate has a closed scoped review and fixes the rejected multi-event prepend witness; adopt the chosen order/domain before Rust. Hidden-inside-run contiguity remains labelled empirical evidence, not an unconditional theorem. The dense baseline and its `a2413b` failure remain comparison only |
 | budgets | choose supported workloads/limit response; current 128 events/512 births/etc. are experiment ceilings, not release targets; measure candidate costs before proposing numeric release bounds; prove prefix-admissibility before inferring it from final-fit |
 | Latte regeneration | Ren directed the compiler to stay private; continue private authoring/public F* checking, and validate locked emitter access before proof slices without assuming anonymous regeneration |

@@ -161,7 +161,9 @@
     "root": {
       "inputs": {
         "hax": "hax",
-        "nixpkgs": "nixpkgs_3"
+        "nixpkgs": "nixpkgs_3",
+        "selection-base": "selection-base",
+        "selection-head": "selection-head"
       }
     },
     "rust-by-examples": {
@@ -200,6 +202,30 @@
         "repo": "rust-overlay",
         "type": "github"
       }
+    },
+    "selection-base": {
+      "flake": false,
+      "locked": {
+        "path": "./nix/selection-base-none",
+        "type": "path"
+      },
+      "original": {
+        "path": "./nix/selection-base-none",
+        "type": "path"
+      },
+      "parent": []
+    },
+    "selection-head": {
+      "flake": false,
+      "locked": {
+        "path": "./nix/selection-base-none",
+        "type": "path"
+      },
+      "original": {
+        "path": "./nix/selection-base-none",
+        "type": "path"
+      },
+      "parent": []
     },
     "systems": {
       "locked": {

@@ -1,7 +1,7 @@
 # four choices before the first Rust cut
 
-**Decision record and remaining proposals for Ren.** Items 1–2 are approved; items
-3–4 remain pending. These close the history/effect/identity choices in the
+**Decision record for Ren.** All four choices below are approved for the stated
+first-cut scope. These close the history/effect/identity choices in the
 [roadmap](../ROADMAP.md). They do not choose a text-ordering
 algorithm, approve the cut's budgets or authorize engine implementation.
 
@@ -85,8 +85,19 @@ Explicit Restore is new work too and needs the same choice when redo is pending.
 A blocked top Redo stays blocked; keep does not give access to an older entry
 under it. Choosing arbitrary older entries or a branch needs another contract.
 
-**Decision:** accept these continuation outcomes with explicit keep/clear, or
-restrict the first cut to one of them? Keeping both is not a UI requirement.
+**Decision: explicit caller keep/clear approved.** Ren broadly agreed with the
+attached assessment in [Discord message 1571570347805778042](https://discord.com/channels/1423457371052834828/1423457371954483214/1571570347805778042).
+The assessment recommends this API, including the rejection until a choice is
+supplied, Restore as new work and blocked-top stack behavior. If proving keep
+turns out substantially more expensive, it permits shipping clear first with
+keep explicitly returning unsupported. That fallback is not an implementation
+delivery or a measured cost finding. There is no silent always-clear default.
+
+Clear removes pending private redo access; keep additionally owes preservation
+of pending entries and their stack order across new work and later Undo/Redo.
+Both still owe the common ordered effect/admission and private-state refinement.
+The restricted experiment exercises both modes; it supplies no measured native
+proof-cost comparison. The general sequence-history construction remains open.
 
 ## 4. a returning occurrence keeps its ID
 
@@ -103,17 +114,20 @@ the same memory address or internal representation, and does not promise a
 working anchor API: the first cut excludes general anchor resolution. A future
 anchor contract still has to specify hidden targets and fallback behavior.
 
-**Decision:** accept stable public IDs across these returns, or require a fresh-ID
-or observational-equivalence contract instead? The latter needs its own precise
-future-observation rule before implementation.
+**Decision: same IDs approved.** Ren answered “same IDs” in
+[Discord message 1571570395054604391](https://discord.com/channels/1423457371052834828/1423457371954483214/1571570395054604391),
+replying to this exact return/remembered-ID scenario. Redo and Restore reveal
+the original occurrences. This does not decide whether a particular API admits
+a deletion targeting an already-hidden occurrence. Nor does returning an
+occurrence cancel another author’s still-live deletion of that occurrence.
 
-## what approval would change
+## implementation obligations after these decisions
 
-An answer can be as short as “retain; observed masks; explicit keep/clear;
-same IDs,” with any exception named. No new questionnaire is needed.
-
-After approval, Lynn must revise the profile and affected policy assertions
-openly, preserve the superseded failures, and reconcile the API. Existing
+The profile records these choices; the existing restricted reference already
+uses explicit keep/clear and original occurrence identities, so this decision
+record changes no executable assertion. Native API reconciliation and the
+general sequence-history construction remain obligations. Preserve superseded
+failures rather than treating approval as proof. Existing
 [session behavior](private-session-profile.md) and
 [mask argument](hybrid-continuation.md) are the comparison, not an independent
 oracle for what people should want. Passing finite continuations does not

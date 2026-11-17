@@ -1,0 +1,967 @@
+import Rust_primitives
+import Core_models
+import FStar.Pervasives
+import Nickel.LoopUtil
+import Native = Nickel_crdt.Register
+import Envelope = Nickel_crdt.Causal
+import Option = Core_models.Option
+import Seq = FStar.Seq
+import Tactics = FStar.Tactics.V2
+import Nickel.EventShell
+import Result = Core_models.Result
+import Shell = Nickel_crdt.Event_shell
+import Nickel.CausalEnvelope
+import Nickel.Canonical
+import Nickel.Register
+import Nickel.RegisterPast
+import Nickel.EventClassifier
+import Nickel.RegisterHistory
+import Nickel.RegisterValid
+
+// Public-caller statements (positional uniqueness, read, producer bookkeeping and later public
+// meaning), split from RegisterHistory.lt for the 60 s per-module budget. Statements unchanged.
+// ---------------------------------------------------------------- public callers: positional uniqueness
+// #117's positional ID uniqueness is stronger than stored_unique: it also forbids repeated identical
+// entries. The arbitrary-slice laws above keep stored_unique and their domains; only public callers
+// combine the two.
+proof positional_ids_are_stored_unique(facts: Alloc.Vec.t_Vec(Nickel.Register.fact, Alloc.Alloc.t_Global)): unit
+  takes Nickel.Register.fact_ids_unique(facts)
+  gives stored_unique(Alloc.Vec.impl_1__as_slice(facts))
+{
+  const items = Alloc.Vec.impl_1__as_slice(facts);
+  proof each(f: Nickel.Register.fact, g: Nickel.Register.fact, i: nat, j: nat): unit
+    takes i < Seq.length(items) and Seq.index(items, i) == f
+    takes j < Seq.length(items) and Seq.index(items, j) == g
+    takes f.f_id == g.f_id
+    gives f == g
+  { () };
+  FStar.Classical.forall_intro_4(FStar.Classical.move_requires_4(each))
+}
+// The public invariant: the history invariant with positional uniqueness (whose stored_unique
+// part positional_ids_are_stored_unique also gives).
+function public_history(r: Native.t_Replica): Type0 {
+  history_invariant(r) and Nickel.Register.fact_ids_unique(r.f_facts)
+}
+proof receive_preserves_public_history(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  takes public_history(before)
+  gives public_history((Native.impl_Replica__receive(before, offered))._1)
+{
+  receive_preserves_history(before, offered);
+  Nickel.Register.receive_preserves_unique_ids(before, offered);
+  assert(public_history((Native.impl_Replica__receive(before, offered))._1)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel.Register.receive_preserves_private");
+    Tactics.prune("Nickel.Register.planned_preserves_private");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+    Tactics.prune("Nickel.RegisterValid.history_invariant");
+    Tactics.prune("Nickel.Register.fact_ids_unique");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof write_preserves_public_history(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  takes public_history(before)
+  gives public_history((Native.impl_Replica__write(before, key, value))._1)
+{
+  write_preserves_history(before, key, value);
+  Nickel.Register.write_preserves_unique_ids(before, key, value);
+  assert(public_history((Native.impl_Replica__write(before, key, value))._1)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+    Tactics.prune("Nickel.RegisterValid.history_invariant");
+    Tactics.prune("Nickel.Register.fact_ids_unique");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof new_establishes_public_history(writer: u64, initial: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  gives forall(r: Native.t_Replica) . Native.impl_Replica__new(writer, initial) == Result.Result_Ok(r) ==> public_history(r)
+{
+  new_establishes_history(writer, initial);
+  Nickel.Register.new_has_unique_ids(writer, initial);
+  assert(forall(r: Native.t_Replica) . Native.impl_Replica__new(writer, initial) == Result.Result_Ok(r) ==> public_history(r)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__new");
+    Tactics.prune("Nickel.RegisterValid.history_invariant");
+    Tactics.prune("Nickel.Register.fact_ids_unique");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// ---------------------------------------------------------------- public callers: single-valued read
+// A slice entry is a member (RegisterPast's absent-prefix form).
+proof index_is_member(ids: t_Slice(Envelope.t_Id), k: nat): unit
+  takes k < Seq.length(ids)
+  gives Nickel.RegisterPast.member(ids, Seq.index(ids, k))
+{ assert(v(mk_usize(k)) == k) }
+// Id-level parent clocks give the positional parent-clock premise of the read bridge.
+proof positional_clocks_from_ids(facts: t_Slice(Nickel.Register.fact)): unit
+  takes id_clocks_increase(facts)
+  gives clocks_increase(facts)
+{
+  proof each(newer: nat, older: nat, k: nat): unit
+    takes newer < Seq.length(facts) and older < Seq.length(facts)
+    takes k < Seq.length(Alloc.Vec.impl_1__as_slice(Seq.index(facts, newer).f_after)) and
+      Seq.index(Alloc.Vec.impl_1__as_slice(Seq.index(facts, newer).f_after), k) == Seq.index(facts, older).f_id
+    gives clock_below(facts, older, newer)
+  {
+    index_is_member(Alloc.Vec.impl_1__as_slice(Seq.index(facts, newer).f_after), k);
+    assert(stored(facts, Seq.index(facts, newer)));
+    assert(stored(facts, Seq.index(facts, older)))
+  };
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(each))
+}
+// The position-free stream clause gives the path-free stream premise of single-valuedness:
+// the predecessor is an id ancestor, so its clock is smaller.
+proof stream_step_at(h: t_Slice(Nickel.Register.fact), i: nat): unit
+  takes stored_unique(h) and id_clocks_increase(h) and streams_ok(h)
+  takes i < Seq.length(h) and v(Seq.index(h, i).f_id.f_counter) > 1
+  gives exists(j: nat) . predecessor_of(h, i, j) and clock_below(h, j, i)
+{
+  const f = Seq.index(h, i);
+  assert(stored(h, f));
+  proof via(g: Nickel.Register.fact, j: nat, root: Envelope.t_Id, steps: Prims.list(Envelope.t_Id)): unit
+    takes j < Seq.length(h) and Seq.index(h, j) == g
+    takes g.f_id.f_peer == f.f_id.f_peer and v(g.f_id.f_counter) + 1 == v(f.f_id.f_counter)
+    takes Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(f.f_after), root) and id_path(h, root, steps, g.f_id)
+    gives exists(j: nat) . predecessor_of(h, i, j) and clock_below(h, j, i)
+  {
+    assert(id_edge(h, f.f_id, root));
+    assert(id_path(h, f.f_id, Prims.Cons(root, steps), g.f_id));
+    assert(stored(h, g));
+    id_path_clock_decreases(h, f, root, steps, g);
+    assert(predecessor_of(h, i, j) and clock_below(h, j, i)) by {
+      Tactics.prune("Nickel.RegisterHistory.id_path");
+      Tactics.prune("Nickel.RegisterHistory.id_edge");
+      Tactics.prune("Nickel.RegisterHistory.id_clocks_increase");
+      Tactics.prune("Nickel.RegisterHistory.stored_unique");
+      Tactics.prune("Nickel.RegisterValid.streams_ok");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_4(FStar.Classical.move_requires_4(via));
+  assert(exists(j: nat) . predecessor_of(h, i, j) and clock_below(h, j, i)) by {
+    Tactics.prune("Nickel.RegisterHistory.id_path");
+    Tactics.prune("Nickel.RegisterHistory.id_clocks_increase");
+    Tactics.prune("Nickel.RegisterHistory.stored_unique");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof counter_positive_at(h: t_Slice(Nickel.Register.fact), i: nat): unit
+  takes streams_ok(h)
+  takes i < Seq.length(h)
+  gives v(Seq.index(h, i).f_id.f_counter) >= 1
+{ assert(stored(h, Seq.index(h, i))) }
+proof public_single_value_premises(r: Native.t_Replica): unit
+  takes public_history(r)
+  gives stream_steps(Alloc.Vec.impl_1__as_slice(r.f_facts)) and ids_unique(Alloc.Vec.impl_1__as_slice(r.f_facts)) and
+    counters_positive(Alloc.Vec.impl_1__as_slice(r.f_facts))
+{
+  const h = Alloc.Vec.impl_1__as_slice(r.f_facts);
+  positional_ids_are_stored_unique(r.f_facts);
+  proof positive(i: nat): unit
+    gives i < Seq.length(h) ==> v(Seq.index(h, i).f_id.f_counter) >= 1
+  { if i < Seq.length(h) { counter_positive_at(h, i) } else { () } };
+  proof step(i: nat): unit
+    gives (i < Seq.length(h) and v(Seq.index(h, i).f_id.f_counter) > 1) ==>
+      (exists(j: nat) . predecessor_of(h, i, j) and clock_below(h, j, i))
+  { if i < Seq.length(h) { if v(Seq.index(h, i).f_id.f_counter) > 1 { stream_step_at(h, i) } else { () } } else { () } };
+  FStar.Classical.forall_intro(positive);
+  FStar.Classical.forall_intro(step);
+  assert(stream_steps(h) and ids_unique(h) and counters_positive(h)) by {
+    Tactics.prune("Nickel.RegisterValid.streams_ok");
+    Tactics.prune("Nickel.RegisterHistory.stored_unique");
+    Tactics.prune("Nickel.RegisterHistory.id_clocks_increase");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// Single-valuedness from the path-free stream premise (the arbitrary-slice law above keeps
+// its chained-stream form).
+proof causal_read_is_single_valued_by_steps(facts: t_Slice(Nickel.Register.fact), key: u64, initial: t_Slice(u8), x: t_Slice(u8), y: t_Slice(u8)): unit
+  takes stream_steps(facts) and ids_unique(facts) and counters_positive(facts)
+  takes causal_read(facts, key, initial, x)
+  takes causal_read(facts, key, initial, y)
+  gives Nickel.Register.bytes_same(x, y)
+{
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(maximal_pair_is_one_fact(facts, key)));
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(bytes_same_through))
+}
+proof public_clocks_increase(r: Native.t_Replica): unit
+  takes public_history(r)
+  gives clocks_increase(Alloc.Vec.impl_1__as_slice(r.f_facts))
+{
+  positional_clocks_from_ids(Alloc.Vec.impl_1__as_slice(r.f_facts));
+  assert(clocks_increase(Alloc.Vec.impl_1__as_slice(r.f_facts))) by {
+    Tactics.prune("Nickel.RegisterHistory.clocks_increase");
+    Tactics.prune("Nickel.RegisterHistory.stored_unique");
+    Tactics.prune("Nickel.RegisterHistory.closed");
+    Tactics.prune("Nickel.RegisterHistory.observations_ok");
+    Tactics.prune("Nickel.RegisterValid.clocks_exact");
+    Tactics.prune("Nickel.RegisterValid.values_changed");
+    Tactics.prune("Nickel.RegisterValid.streams_ok");
+    Tactics.prune("Nickel.Register.fact_ids_unique");
+    Tactics.prune("Nickel.Register.receive_preserves_private");
+    Tactics.prune("Nickel.Register.planned_preserves_private");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// The public read of a public replica is its causal read, and every causal read of that
+// history has the same bytes.
+proof public_read_is_the_causal_read(r: Native.t_Replica, key: u64, x: t_Slice(u8)): unit
+  takes public_history(r)
+  gives causal_read(Alloc.Vec.impl_1__as_slice(r.f_facts), key, Alloc.Vec.impl_1__as_slice(r.f_initial),
+      Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(r, key))) and
+    (causal_read(Alloc.Vec.impl_1__as_slice(r.f_facts), key, Alloc.Vec.impl_1__as_slice(r.f_initial), x) ==>
+      Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(r, key)), x))
+{
+  const h = Alloc.Vec.impl_1__as_slice(r.f_facts);
+  const init = Alloc.Vec.impl_1__as_slice(r.f_initial);
+  Nickel.Register.public_read_is_history(r, key);
+  public_clocks_increase(r);
+  assert(clocks_increase(h)) by {
+    Tactics.prune("Nickel.RegisterPublic.public_history");
+    Tactics.prune("Nickel.Register.public_read_is_history");
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+    Tactics.prune("Nickel_crdt.Register.read_history");
+    Tactics.prune("Nickel_crdt.Register.winner");
+    Tactics.prune("Nickel.RegisterHistory.id_clocks_increase");
+    Tactics.prune("Nickel.RegisterHistory.parent_edge");
+    Tactics.prune("Nickel.RegisterHistory.clock_below");
+    Tactics.prune("Nickel.RegisterHistory.clocks_increase");
+    Tactics.prune("Nickel.RegisterHistory.stored_unique");
+    Tactics.prune("Nickel.RegisterHistory.closed");
+    Tactics.prune("Nickel.RegisterHistory.observations_ok");
+    Tactics.prune("Nickel.RegisterValid.clocks_exact");
+    Tactics.prune("Nickel.RegisterValid.values_changed");
+    Tactics.prune("Nickel.RegisterValid.streams_ok");
+    Tactics.prune("Nickel.Register.fact_ids_unique");
+    Tactics.prune("Nickel.Register.receive_preserves_private");
+    Tactics.prune("Nickel.Register.planned_preserves_private");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+    Tactics.smt_sync'(1, 1)
+  };
+  read_history_is_causal_read(h, init, key);
+  public_single_value_premises(r);
+  FStar.Classical.move_requires(causal_read_is_single_valued_by_steps(h, key, init, Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(r, key))), x);
+  assert(causal_read(h, key, init, Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(r, key))) and
+    (causal_read(h, key, init, x) ==> Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(r, key)), x))) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+    Tactics.prune("Nickel.Register.public_read_is_history");
+    Tactics.prune("Nickel_crdt.Register.read_history");
+    Tactics.prune("Nickel_crdt.Register.winner");
+    Tactics.prune("Nickel.RegisterHistory.causal_read");
+    Tactics.prune("Nickel.RegisterPublic.public_history");
+    Tactics.prune("Nickel.RegisterHistory.clocks_increase");
+    Tactics.prune("Nickel.RegisterHistory.id_clocks_increase");
+    Tactics.prune("Nickel.RegisterHistory.stream_steps");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// ---------------------------------------------------------------- public callers: producer bookkeeping
+// Local producer-state meaning only: this is not an ID-allocation or recovery guarantee, and it
+// does not say the counter exceeds any received fact of this writer (receive never restores it).
+proof new_public_producer(writer: u64, initial: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  gives forall(r: Native.t_Replica) . Native.impl_Replica__new(writer, initial) == Result.Result_Ok(r) ==>
+    (public_history(r) and r.f_writer == writer and v(r.f_next_counter) == 1)
+{
+  new_establishes_public_history(writer, initial);
+  proof each(r: Native.t_Replica): unit
+    takes Native.impl_Replica__new(writer, initial) == Result.Result_Ok(r)
+    gives r.f_writer == writer and v(r.f_next_counter) == 1
+  { () };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(each));
+  assert(forall(r: Native.t_Replica) . Native.impl_Replica__new(writer, initial) == Result.Result_Ok(r) ==>
+    (public_history(r) and r.f_writer == writer and v(r.f_next_counter) == 1)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__new");
+    Tactics.prune("Nickel.RegisterPublic.public_history");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// Every receive return keeps public_history, the writer and the private counter (and the
+// initial value).
+proof receive_public_producer(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  takes public_history(before)
+  gives public_history((Native.impl_Replica__receive(before, offered))._1) and
+    Nickel.Register.private_frame(before, (Native.impl_Replica__receive(before, offered))._1)
+{
+  receive_preserves_public_history(before, offered);
+  Nickel.Register.receive_preserves_private(before, offered);
+  assert(public_history((Native.impl_Replica__receive(before, offered))._1) and
+    Nickel.Register.private_frame(before, (Native.impl_Replica__receive(before, offered))._1)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel.RegisterPublic.public_history");
+    Tactics.prune("Nickel.Register.private_frame");
+    Tactics.prune("Nickel.Register.receive_preserves_private");
+    Tactics.prune("Nickel.Register.planned_preserves_private");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// Every write return keeps public_history. An error or equal-value no-edit leaves the whole
+// replica unchanged; a counted write authors (writer, old counter), advances the private counter
+// by exactly one and installs the checked successful candidate.
+proof write_public_producer(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  takes public_history(before)
+  gives public_history((Native.impl_Replica__write(before, key, value))._1) and
+    Nickel.Register.write_outcome(before, Native.impl_Replica__write(before, key, value)) and
+    Nickel.Register.write_installation(before, key, value, Native.impl_Replica__write(before, key, value))
+{
+  write_preserves_public_history(before, key, value);
+  Nickel.Register.write_publication_on_every_return(before, key, value);
+  Nickel.Register.write_installs_successful_candidate(before, key, value);
+  assert(public_history((Native.impl_Replica__write(before, key, value))._1) and
+    Nickel.Register.write_outcome(before, Native.impl_Replica__write(before, key, value)) and
+    Nickel.Register.write_installation(before, key, value, Native.impl_Replica__write(before, key, value))) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+    Tactics.prune("Nickel.RegisterPublic.public_history");
+    Tactics.prune("Nickel.Register.write_outcome");
+    Tactics.prune("Nickel.Register.write_installation");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// Exhaustion: a counted write never wraps (its old counter is below the u64 maximum). The
+// equal-value no-edit has no counter premise (Register.equal_value_write_is_neutral), so it
+// succeeds even at the maximum counter.
+proof counted_write_does_not_wrap(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  gives forall(next: Native.t_Replica, authored: Nickel.Register.fact) .
+    Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_Some(authored))) ==>
+      v(before.f_next_counter) < Rust_primitives.Integers.maxint(Rust_primitives.Integers.U64)
+{
+  Nickel.Register.write_publication_on_every_return(before, key, value);
+  assert(forall(next: Native.t_Replica, authored: Nickel.Register.fact) .
+    Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_Some(authored))) ==>
+      v(before.f_next_counter) < Rust_primitives.Integers.maxint(Rust_primitives.Integers.U64)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// ---------------------------------------------------------------- public callers: receive meaning
+// A successful lookup names a stored entry with the fact's id and the returned comparison.
+proof! lookup_some_hits<f: Type0, i: Type0>(facts: t_Slice(f), fact: f, id: f => i, eq: i => i => bool, same: f => f => bool,
+  at: usize where v(at) <= v(Core_models.Slice.impl__len(facts)), b: bool): unit
+  decreases v(Core_models.Slice.impl__len(facts)) - v(at)
+  takes Nickel.EventClassifier.lookup(facts, fact, id, eq, same, at) == Option.Option_Some(b)
+  gives exists(k: nat) . v(at) <= k and k < Seq.length(facts) and eq(id(Seq.index(facts, k)), id(fact)) == true and
+    same(Seq.index(facts, k), fact) == b
+{
+  if v(at) < v(Core_models.Slice.impl__len(facts)) {
+    if eq(id(Rust_primitives.Slice.slice_index(facts, at)), id(fact)) {
+      assert(v(at) < Seq.length(facts) and eq(id(Seq.index(facts, v(at))), id(fact)) == true and same(Seq.index(facts, v(at)), fact) == b)
+    } else { lookup_some_hits(facts, fact, id, eq, same, at +! mk_usize(1), b) }
+  } else { () }
+}
+// With a single id hit at j, lookup returns the comparison at j.
+proof! lookup_single_hit<f: Type0, i: Type0>(facts: t_Slice(f), fact: f, id: f => i, eq: i => i => bool, same: f => f => bool,
+  at: usize where v(at) <= v(Core_models.Slice.impl__len(facts)), j: nat): unit
+  decreases v(Core_models.Slice.impl__len(facts)) - v(at)
+  takes forall(k: nat) . (k < Seq.length(facts) and eq(id(Seq.index(facts, k)), id(fact)) == true) ==> k == j
+  takes v(at) <= j and j < Seq.length(facts) and eq(id(Seq.index(facts, j)), id(fact)) == true
+  gives Nickel.EventClassifier.lookup(facts, fact, id, eq, same, at) == Option.Option_Some(same(Seq.index(facts, j), fact))
+{
+  if v(at) < v(Core_models.Slice.impl__len(facts)) {
+    if eq(id(Rust_primitives.Slice.slice_index(facts, at)), id(fact)) { () }
+    else { lookup_single_hit(facts, fact, id, eq, same, at +! mk_usize(1), j) }
+  } else { () }
+}
+// Register instance: with positionally unique ids, an offer whose id is stored at j is classified
+// by whole-value equality with the entry at j.
+proof stored_id_classifies(h: t_Slice(Nickel.Register.fact), offered: Nickel.Register.fact, j: nat): unit
+  takes ids_unique(h)
+  takes j < Seq.length(h) and Seq.index(h, j).f_id == offered.f_id
+  gives Nickel_crdt.Event_layer.classify(h, offered, Native.v_OPS._1) == Option.Option_Some(Native.fact_equal(Seq.index(h, j), offered))
+{
+  register_ops_are_exact();
+  Nickel.EventClassifier.classification_is_exact(h, offered, Native.v_OPS._1);
+  lookup_single_hit(h, offered, Native.v_OPS._1._1._1, Native.v_OPS._1._1._3, Native.v_OPS._1._1._6, mk_usize(0), j);
+  assert(Nickel_crdt.Event_layer.classify(h, offered, Native.v_OPS._1) == Option.Option_Some(Native.fact_equal(Seq.index(h, j), offered))) by {
+    Tactics.prune("Nickel_crdt.Event_layer.classify");
+    Tactics.prune("Nickel.EventClassifier.lookup");
+    Tactics.prune("Nickel.RegisterHistory.ids_unique");
+    Tactics.prune("Nickel.EventClassifier.classification_is_exact");
+    Tactics.prune("Nickel_crdt.Register.write_equal");
+    Tactics.prune("Nickel_crdt.Register.bytes_equal");
+    Tactics.prune("Nickel_crdt.Causal.event_equal");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// A Duplicate classification names the identical stored fact.
+proof duplicate_classification_is_stored(h: t_Slice(Nickel.Register.fact), offered: Nickel.Register.fact): unit
+  takes Nickel_crdt.Event_layer.classify(h, offered, Native.v_OPS._1) == Option.Option_Some(true)
+  gives stored(h, offered)
+{
+  register_ops_are_exact();
+  Nickel.EventClassifier.classification_is_exact(h, offered, Native.v_OPS._1);
+  assert(Nickel.EventClassifier.lookup(h, offered, Native.v_OPS._1._1._1, Native.v_OPS._1._1._3, Native.v_OPS._1._1._6, mk_usize(0)) == Option.Option_Some(true)) by {
+    Tactics.prune("Nickel_crdt.Event_layer.classify");
+    Tactics.prune("Nickel.EventClassifier.lookup");
+    Tactics.prune("Nickel.EventClassifier.classification_is_exact");
+    Tactics.smt_sync'(1, 1)
+  };
+  lookup_some_hits(h, offered, Native.v_OPS._1._1._1, Native.v_OPS._1._1._3, Native.v_OPS._1._1._6, mk_usize(0), true);
+  FStar.Classical.forall_intro_2(Nickel.Register.fact_equal_is_whole_value);
+  assert(stored(h, offered)) by {
+    Tactics.prune("Nickel_crdt.Event_layer.classify");
+    Tactics.prune("Nickel.EventClassifier.lookup");
+    Tactics.prune("Nickel.EventClassifier.classification_is_exact");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// Receive's publication by the planner result (Duplicate and errors keep the replica).
+proof receive_by_plan(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  gives (Native.planned((), before, offered) == Result.Result_Ok(Option.Option_None) ==> Native.impl_Replica__receive(before, offered) == (before, Result.Result_Ok(Native.Admission_Duplicate))) and
+    (forall(e: Native.t_Error) . Native.planned((), before, offered) == Result.Result_Err(e) ==> Native.impl_Replica__receive(before, offered) == (before, Result.Result_Err(e))) and
+    (forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Duplicate)) ==> (next == before and Native.planned((), before, offered) == Result.Result_Ok(Option.Option_None))) and
+    (forall(next: Native.t_Replica, e: Native.t_Error) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Err(e)) ==> next == before)
+{
+  Nickel.Register.receive_publication_is_exact(before, offered);
+  match Native.planned((), before, offered) {
+    Result.Result_Err(_) => { assert((Native.planned((), before, offered) == Result.Result_Ok(Option.Option_None) ==> Native.impl_Replica__receive(before, offered) == (before, Result.Result_Ok(Native.Admission_Duplicate))) and
+    (forall(e: Native.t_Error) . Native.planned((), before, offered) == Result.Result_Err(e) ==> Native.impl_Replica__receive(before, offered) == (before, Result.Result_Err(e))) and
+    (forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Duplicate)) ==> (next == before and Native.planned((), before, offered) == Result.Result_Ok(Option.Option_None))) and
+    (forall(next: Native.t_Replica, e: Native.t_Error) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Err(e)) ==> next == before)) by {
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+      Tactics.prune("Nickel_crdt.Register.planned");
+      Tactics.prune("Nickel.Register.receive_preserves_private");
+      Tactics.prune("Nickel.Register.planned_preserves_private");
+      Tactics.prune("Nickel.Register.planned_checks_payload");
+      Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+      Tactics.prune("Nickel.Register.receive_publication_is_exact");
+      Tactics.smt_sync'(1, 1)
+    } },
+    Result.Result_Ok(option) => match option {
+      Option.Option_None => { assert((Native.planned((), before, offered) == Result.Result_Ok(Option.Option_None) ==> Native.impl_Replica__receive(before, offered) == (before, Result.Result_Ok(Native.Admission_Duplicate))) and
+    (forall(e: Native.t_Error) . Native.planned((), before, offered) == Result.Result_Err(e) ==> Native.impl_Replica__receive(before, offered) == (before, Result.Result_Err(e))) and
+    (forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Duplicate)) ==> (next == before and Native.planned((), before, offered) == Result.Result_Ok(Option.Option_None))) and
+    (forall(next: Native.t_Replica, e: Native.t_Error) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Err(e)) ==> next == before)) by {
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+      Tactics.prune("Nickel_crdt.Register.planned");
+      Tactics.prune("Nickel.Register.receive_preserves_private");
+      Tactics.prune("Nickel.Register.planned_preserves_private");
+      Tactics.prune("Nickel.Register.planned_checks_payload");
+      Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+      Tactics.prune("Nickel.Register.receive_publication_is_exact");
+      Tactics.smt_sync'(1, 1)
+    } },
+      Option.Option_Some(_) => { assert((Native.planned((), before, offered) == Result.Result_Ok(Option.Option_None) ==> Native.impl_Replica__receive(before, offered) == (before, Result.Result_Ok(Native.Admission_Duplicate))) and
+    (forall(e: Native.t_Error) . Native.planned((), before, offered) == Result.Result_Err(e) ==> Native.impl_Replica__receive(before, offered) == (before, Result.Result_Err(e))) and
+    (forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Duplicate)) ==> (next == before and Native.planned((), before, offered) == Result.Result_Ok(Option.Option_None))) and
+    (forall(next: Native.t_Replica, e: Native.t_Error) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Err(e)) ==> next == before)) by {
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+      Tactics.prune("Nickel_crdt.Register.planned");
+      Tactics.prune("Nickel.Register.receive_preserves_private");
+      Tactics.prune("Nickel.Register.planned_preserves_private");
+      Tactics.prune("Nickel.Register.planned_checks_payload");
+      Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+      Tactics.prune("Nickel.Register.receive_publication_is_exact");
+      Tactics.smt_sync'(1, 1)
+    } },
+    },
+  }
+}
+// The planner's first stage: duplicate classification decides Duplicate and its errors.
+proof plan_by_duplicate(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  gives (Native.duplicate((), before, offered) == Result.Result_Ok(true) ==> Native.planned((), before, offered) == Result.Result_Ok(Option.Option_None)) and
+    (forall(e: Native.t_Error) . Native.duplicate((), before, offered) == Result.Result_Err(e) ==> Native.planned((), before, offered) == Result.Result_Err(e)) and
+    (Native.planned((), before, offered) == Result.Result_Ok(Option.Option_None) ==> Native.duplicate((), before, offered) == Result.Result_Ok(true))
+{
+  Nickel.EventShell.planning_is_exact(before, offered, (), Native.duplicate, Native.validate, Native.prepare, Native.execute);
+  assert((Native.duplicate((), before, offered) == Result.Result_Ok(true) ==> Native.planned((), before, offered) == Result.Result_Ok(Option.Option_None)) and
+    (forall(e: Native.t_Error) . Native.duplicate((), before, offered) == Result.Result_Err(e) ==> Native.planned((), before, offered) == Result.Result_Err(e)) and
+    (Native.planned((), before, offered) == Result.Result_Ok(Option.Option_None) ==> Native.duplicate((), before, offered) == Result.Result_Ok(true))) by {
+    Tactics.prune("Nickel_crdt.Event_shell.plan");
+    Tactics.prune("Nickel_crdt.Event_layer.classify");
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel_crdt.Event_layer.push");
+    Tactics.prune("Nickel_crdt.Event_layer.canonical");
+    Tactics.prune("Nickel.Register.receive_preserves_private");
+    Tactics.prune("Nickel.Register.planned_preserves_private");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+    Tactics.prune("Nickel.EventShell.planning_is_exact");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// The native duplicate callback by the shared classifier result.
+proof duplicate_by_classify(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  gives (Nickel_crdt.Event_layer.classify(Alloc.Vec.impl_1__as_slice(before.f_facts), offered, Native.v_OPS._1) == Option.Option_Some(true) ==> Native.duplicate((), before, offered) == Result.Result_Ok(true)) and
+    (Nickel_crdt.Event_layer.classify(Alloc.Vec.impl_1__as_slice(before.f_facts), offered, Native.v_OPS._1) == Option.Option_Some(false) ==> Native.duplicate((), before, offered) == Result.Result_Err(Native.Error_Conflict)) and
+    (Native.duplicate((), before, offered) == Result.Result_Ok(true) ==> Nickel_crdt.Event_layer.classify(Alloc.Vec.impl_1__as_slice(before.f_facts), offered, Native.v_OPS._1) == Option.Option_Some(true))
+{
+  assert((Nickel_crdt.Event_layer.classify(Alloc.Vec.impl_1__as_slice(before.f_facts), offered, Native.v_OPS._1) == Option.Option_Some(true) ==> Native.duplicate((), before, offered) == Result.Result_Ok(true)) and
+    (Nickel_crdt.Event_layer.classify(Alloc.Vec.impl_1__as_slice(before.f_facts), offered, Native.v_OPS._1) == Option.Option_Some(false) ==> Native.duplicate((), before, offered) == Result.Result_Err(Native.Error_Conflict)) and
+    (Native.duplicate((), before, offered) == Result.Result_Ok(true) ==> Nickel_crdt.Event_layer.classify(Alloc.Vec.impl_1__as_slice(before.f_facts), offered, Native.v_OPS._1) == Option.Option_Some(true))) by {
+    Tactics.prune("Nickel_crdt.Event_layer.classify");
+    Tactics.prune("Nickel.Register.receive_preserves_private");
+    Tactics.prune("Nickel.Register.planned_preserves_private");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// Every non-Added receive return of a public replica, independent of the native interpreter:
+// an identical retained offer is Duplicate; a retained id with a different fact is Conflict;
+// Duplicate names the identical retained fact; Duplicate and every error leave the replica unchanged.
+proof receive_duplicate_meaning(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  takes public_history(before)
+  gives (stored(Alloc.Vec.impl_1__as_slice(before.f_facts), offered) ==> Native.impl_Replica__receive(before, offered) == (before, Result.Result_Ok(Native.Admission_Duplicate))) and
+    ((exists(g: Nickel.Register.fact) . stored(Alloc.Vec.impl_1__as_slice(before.f_facts), g) and g.f_id == offered.f_id and g =!= offered) ==>
+      Native.impl_Replica__receive(before, offered) == (before, Result.Result_Err(Native.Error_Conflict))) and
+    (forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Duplicate)) ==> (next == before and stored(Alloc.Vec.impl_1__as_slice(before.f_facts), offered))) and
+    (forall(next: Native.t_Replica, e: Native.t_Error) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Err(e)) ==> next == before)
+{
+  const h = Alloc.Vec.impl_1__as_slice(before.f_facts);
+  public_single_value_premises(before);
+  receive_by_plan(before, offered);
+  plan_by_duplicate(before, offered);
+  duplicate_by_classify(before, offered);
+  proof hit(g: Nickel.Register.fact, j: nat): unit
+    takes j < Seq.length(h) and Seq.index(h, j) == g and g.f_id == offered.f_id
+    gives Nickel_crdt.Event_layer.classify(Alloc.Vec.impl_1__as_slice(before.f_facts), offered, Native.v_OPS._1) == Option.Option_Some(Native.fact_equal(g, offered))
+  { stored_id_classifies(h, offered, j) };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(hit));
+  FStar.Classical.move_requires(duplicate_classification_is_stored(h), offered);
+  FStar.Classical.forall_intro_2(Nickel.Register.fact_equal_is_whole_value);
+  proof conflict(g: Nickel.Register.fact, j: nat): unit
+    takes j < Seq.length(h) and Seq.index(h, j) == g and g.f_id == offered.f_id and g =!= offered
+    gives Native.impl_Replica__receive(before, offered) == (before, Result.Result_Err(Native.Error_Conflict))
+  {
+    hit(g, j);
+    assert(Nickel_crdt.Event_layer.classify(h, offered, Native.v_OPS._1) == Option.Option_Some(false));
+    assert(Native.duplicate((), before, offered) == Result.Result_Err(Native.Error_Conflict)) by {
+      Tactics.prune("Nickel_crdt.Event_layer.classify");
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+      Tactics.prune("Nickel_crdt.Register.planned");
+      Tactics.smt_sync'(1, 1)
+    };
+    assert(Native.planned((), before, offered) == Result.Result_Err(Native.Error_Conflict)) by {
+      Tactics.prune("Nickel_crdt.Register.duplicate");
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+      Tactics.prune("Nickel_crdt.Register.planned");
+      Tactics.smt_sync'(1, 1)
+    };
+    assert(Native.impl_Replica__receive(before, offered) == (before, Result.Result_Err(Native.Error_Conflict))) by {
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+      Tactics.prune("Nickel_crdt.Register.planned");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(conflict));
+  proof identical(j: nat): unit
+    takes j < Seq.length(h) and Seq.index(h, j) == offered
+    gives Native.impl_Replica__receive(before, offered) == (before, Result.Result_Ok(Native.Admission_Duplicate))
+  {
+    hit(offered, j);
+    Nickel.Register.fact_equal_is_whole_value(offered, offered);
+    assert(Nickel_crdt.Event_layer.classify(h, offered, Native.v_OPS._1) == Option.Option_Some(true));
+    assert(Native.duplicate((), before, offered) == Result.Result_Ok(true)) by {
+      Tactics.prune("Nickel_crdt.Event_layer.classify");
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+      Tactics.prune("Nickel_crdt.Register.planned");
+      Tactics.smt_sync'(1, 1)
+    };
+    assert(Native.planned((), before, offered) == Result.Result_Ok(Option.Option_None)) by {
+      Tactics.prune("Nickel_crdt.Register.duplicate");
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+      Tactics.prune("Nickel_crdt.Register.planned");
+      Tactics.smt_sync'(1, 1)
+    };
+    assert(Native.impl_Replica__receive(before, offered) == (before, Result.Result_Ok(Native.Admission_Duplicate))) by {
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+      Tactics.prune("Nickel_crdt.Register.planned");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(identical));
+  assert((stored(Alloc.Vec.impl_1__as_slice(before.f_facts), offered) ==> Native.impl_Replica__receive(before, offered) == (before, Result.Result_Ok(Native.Admission_Duplicate)))) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel_crdt.Register.duplicate");
+    Tactics.prune("Nickel_crdt.Event_layer.classify");
+    Tactics.prune("Nickel.RegisterPublic.public_history");
+    Tactics.prune("Nickel.RegisterHistory.stream_steps");
+    Tactics.prune("Nickel.RegisterHistory.ids_unique");
+    Tactics.prune("Nickel.RegisterHistory.counters_positive");
+    Tactics.prune("Nickel.Register.receive_preserves_private");
+    Tactics.prune("Nickel.Register.planned_preserves_private");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+    Tactics.smt_sync'(1, 1)
+  };
+  assert(((exists(g: Nickel.Register.fact) . stored(Alloc.Vec.impl_1__as_slice(before.f_facts), g) and g.f_id == offered.f_id and g =!= offered) ==>
+      Native.impl_Replica__receive(before, offered) == (before, Result.Result_Err(Native.Error_Conflict)))) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel_crdt.Register.duplicate");
+    Tactics.prune("Nickel_crdt.Event_layer.classify");
+    Tactics.prune("Nickel.RegisterPublic.public_history");
+    Tactics.prune("Nickel.RegisterHistory.stream_steps");
+    Tactics.prune("Nickel.RegisterHistory.ids_unique");
+    Tactics.prune("Nickel.RegisterHistory.counters_positive");
+    Tactics.prune("Nickel.Register.receive_preserves_private");
+    Tactics.prune("Nickel.Register.planned_preserves_private");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+    Tactics.smt_sync'(1, 1)
+  };
+  assert((forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Duplicate)) ==> (next == before and stored(Alloc.Vec.impl_1__as_slice(before.f_facts), offered)))) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel_crdt.Register.duplicate");
+    Tactics.prune("Nickel_crdt.Event_layer.classify");
+    Tactics.prune("Nickel.RegisterPublic.public_history");
+    Tactics.prune("Nickel.RegisterHistory.stream_steps");
+    Tactics.prune("Nickel.RegisterHistory.ids_unique");
+    Tactics.prune("Nickel.RegisterHistory.counters_positive");
+    Tactics.prune("Nickel.Register.receive_preserves_private");
+    Tactics.prune("Nickel.Register.planned_preserves_private");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+    Tactics.smt_sync'(1, 1)
+  };
+  assert((forall(next: Native.t_Replica, e: Native.t_Error) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Err(e)) ==> next == before)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel_crdt.Register.duplicate");
+    Tactics.prune("Nickel_crdt.Event_layer.classify");
+    Tactics.prune("Nickel.RegisterPublic.public_history");
+    Tactics.prune("Nickel.RegisterHistory.stream_steps");
+    Tactics.prune("Nickel.RegisterHistory.ids_unique");
+    Tactics.prune("Nickel.RegisterHistory.counters_positive");
+    Tactics.prune("Nickel.Register.receive_preserves_private");
+    Tactics.prune("Nickel.Register.planned_preserves_private");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+    Tactics.smt_sync'(1, 1)
+  };
+  ()
+}
+// The meaning of an admissible new fact relative to a retained history, independent of the
+// native interpreter: parents retained, observation = causal read of its exact ancestors,
+// exact clock successor, a changed value, and its writer-stream clause.
+function valid_offer(h: Seq.seq(Nickel.Register.fact), initial: t_Slice(u8), f: Nickel.Register.fact): Type0 {
+  (forall(p: Envelope.t_Id) . Nickel.RegisterPast.member(Alloc.Vec.impl_1__as_slice(f.f_after), p) ==>
+    (exists(g: Nickel.Register.fact) . stored(h, g) and g.f_id == p)) and
+  observation_ok(h, initial, f) and
+  clock_exact_in(h, anc_of(h, f), f.f_payload.f_lamport) and
+  not Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(f.f_payload.f_value), Alloc.Vec.impl_1__as_slice(f.f_payload.f_observed)) and
+  stream_ok_in(h, anc_of(h, f), f)
+}
+// Added: the offer had a fresh id and was a valid offer; the new retained history is exactly the
+// old one plus it, and is again a public history.
+proof receive_added_meaning(before: Native.t_Replica, offered: Nickel.Register.fact): unit
+  takes public_history(before)
+  gives forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Added)) ==>
+    (fresh_id(before, offered) and
+     valid_offer(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(before.f_initial), offered) and
+     extends_by(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(next.f_facts), offered) and
+     public_history(next))
+{
+  receive_added_offer_is_fresh(before, offered);
+  receive_added_parents_stored(before, offered);
+  receive_added_freezes_id_read(before, offered);
+  FStar.Classical.move_requires(id_frozen_gives_observation(before), offered);
+  receive_added_basis_is_exact_ancestry(before, offered);
+  FStar.Classical.move_requires(exact_basis_gives_clock_and_value(before), offered);
+  receive_added_offer_stream(before, offered);
+  Nickel.Register.receive_added_retains_exact_facts(before, offered);
+  receive_preserves_public_history(before, offered);
+  assert(forall(next: Native.t_Replica) . Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Added)) ==>
+    (fresh_id(before, offered) and
+     valid_offer(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(before.f_initial), offered) and
+     extends_by(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(next.f_facts), offered) and
+     public_history(next))) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel.RegisterHistory.fresh_id");
+    Tactics.prune("Nickel.RegisterHistory.observation_ok");
+    Tactics.prune("Nickel.RegisterValid.clock_exact_in");
+    Tactics.prune("Nickel.RegisterValid.stream_ok_in");
+    Tactics.prune("Nickel.RegisterHistory.id_frozen_admission");
+    Tactics.prune("Nickel.RegisterHistory.exact_selected_basis");
+    Tactics.prune("Nickel.RegisterHistory.stored_unique");
+    Tactics.prune("Nickel.RegisterHistory.id_clocks_increase");
+    Tactics.prune("Nickel.RegisterHistory.closed");
+    Tactics.prune("Nickel.RegisterHistory.observations_ok");
+    Tactics.prune("Nickel.RegisterValid.clocks_exact");
+    Tactics.prune("Nickel.RegisterValid.values_changed");
+    Tactics.prune("Nickel.RegisterValid.streams_ok");
+    Tactics.prune("Nickel.Register.fact_ids_unique");
+    Tactics.prune("Nickel.Register.receive_preserves_private");
+    Tactics.prune("Nickel.Register.planned_preserves_private");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// The Added meaning at one concrete outcome (an explicit instance for callers).
+proof receive_added_meaning_at(before: Native.t_Replica, offered: Nickel.Register.fact, next: Native.t_Replica): unit
+  takes public_history(before)
+  takes Native.impl_Replica__receive(before, offered) == (next, Result.Result_Ok(Native.Admission_Added))
+  gives fresh_id(before, offered) and valid_offer(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(before.f_initial), offered) and
+    extends_by(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(next.f_facts), offered) and public_history(next)
+{
+  receive_added_meaning(before, offered);
+  assert(fresh_id(before, offered) and valid_offer(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(before.f_initial), offered) and
+    extends_by(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(next.f_facts), offered) and public_history(next)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel.RegisterHistory.fresh_id");
+    Tactics.prune("Nickel.RegisterPublic.valid_offer");
+    Tactics.prune("Nickel.RegisterPublic.public_history");
+    Tactics.prune("Nickel.RegisterHistory.extends_by");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel.Register.receive_preserves_private");
+    Tactics.prune("Nickel.Register.planned_preserves_private");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// A planned Added candidate is exactly receive's Added outcome.
+proof planned_some_is_added(before: Native.t_Replica, offered: Nickel.Register.fact, candidate: Native.t_Replica): unit
+  takes Native.planned((), before, offered) == Result.Result_Ok(Option.Option_Some(candidate))
+  gives Native.impl_Replica__receive(before, offered) == (candidate, Result.Result_Ok(Native.Admission_Added))
+{
+  Nickel.Register.receive_publication_is_exact(before, offered);
+  assert(Native.impl_Replica__receive(before, offered) == (candidate, Result.Result_Ok(Native.Admission_Added))) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel.Register.receive_publication_is_exact");
+    Tactics.prune("Nickel.Register.receive_preserves_private");
+    Tactics.prune("Nickel.Register.planned_preserves_private");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// A counted write's authored fact is exactly an Added receive into a candidate whose retained
+// facts are the installed ones; it carries the writer, old counter, request and read.
+proof write_counted_is_added_receive(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global),
+  next: Native.t_Replica, authored: Nickel.Register.fact): unit
+  takes Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_Some(authored)))
+  gives Native.impl_Replica__receive(before, authored) == ((Native.impl_Replica__receive(before, authored))._1, Result.Result_Ok(Native.Admission_Added)) and (Native.impl_Replica__receive(before, authored))._1.f_facts == next.f_facts and
+    authored.f_id.f_peer == before.f_writer and authored.f_id.f_counter == before.f_next_counter and
+    authored.f_payload.f_key == key and authored.f_payload.f_value == value and
+    authored.f_payload.f_observed == Native.impl_Replica__read(before, key)
+{
+  Nickel.Register.write_installs_successful_candidate(before, key, value);
+  proof via(candidate: Native.t_Replica): unit
+    takes Native.planned((), before, authored) == Result.Result_Ok(Option.Option_Some(candidate))
+    takes Nickel.Register.installed_candidate(candidate, next)
+    gives Native.impl_Replica__receive(before, authored) == ((Native.impl_Replica__receive(before, authored))._1, Result.Result_Ok(Native.Admission_Added)) and (Native.impl_Replica__receive(before, authored))._1.f_facts == next.f_facts
+  { planned_some_is_added(before, authored, candidate) };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(via));
+  assert(Native.impl_Replica__receive(before, authored) == ((Native.impl_Replica__receive(before, authored))._1, Result.Result_Ok(Native.Admission_Added)) and (Native.impl_Replica__receive(before, authored))._1.f_facts == next.f_facts and
+    authored.f_id.f_peer == before.f_writer and authored.f_id.f_counter == before.f_next_counter and
+    authored.f_payload.f_key == key and authored.f_payload.f_value == value and
+    authored.f_payload.f_observed == Native.impl_Replica__read(before, key)) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+    Tactics.prune("Nickel_crdt.Register.planned");
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+    Tactics.prune("Nickel_crdt.Event_layer.frontier");
+    Tactics.prune("Nickel_crdt.Register.next_lamport");
+    Tactics.prune("Nickel.Register.receive_preserves_private");
+    Tactics.prune("Nickel.Register.planned_preserves_private");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// A counted write of a public replica, independent of the native interpreter: the authored fact
+// has (writer, old counter), the requested key and value, observes THE causal read of the key,
+// has a fresh id and is a valid offer; the new retained history is exactly the old one plus it.
+// (Its parents being the retained maxima is the frontier edge, not claimed here.)
+proof write_counted_meaning(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  takes public_history(before)
+  gives forall(next: Native.t_Replica, authored: Nickel.Register.fact) . Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_Some(authored))) ==>
+    (authored.f_id.f_peer == before.f_writer and authored.f_id.f_counter == before.f_next_counter and
+     authored.f_payload.f_key == key and authored.f_payload.f_value == value and
+     causal_read(Alloc.Vec.impl_1__as_slice(before.f_facts), key, Alloc.Vec.impl_1__as_slice(before.f_initial), Alloc.Vec.impl_1__as_slice(authored.f_payload.f_observed)) and
+     fresh_id(before, authored) and valid_offer(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(before.f_initial), authored) and
+     extends_by(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(next.f_facts), authored))
+{
+  public_read_is_the_causal_read(before, key, Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key)));
+  proof counted(next: Native.t_Replica, authored: Nickel.Register.fact): unit
+    takes Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_Some(authored)))
+    gives authored.f_id.f_peer == before.f_writer and authored.f_id.f_counter == before.f_next_counter and
+     authored.f_payload.f_key == key and authored.f_payload.f_value == value and
+     causal_read(Alloc.Vec.impl_1__as_slice(before.f_facts), key, Alloc.Vec.impl_1__as_slice(before.f_initial), Alloc.Vec.impl_1__as_slice(authored.f_payload.f_observed)) and
+     fresh_id(before, authored) and valid_offer(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(before.f_initial), authored) and
+     extends_by(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(next.f_facts), authored)
+  {
+    write_counted_is_added_receive(before, key, value, next, authored);
+    receive_added_meaning_at(before, authored, (Native.impl_Replica__receive(before, authored))._1);
+    assert(authored.f_id.f_peer == before.f_writer and authored.f_id.f_counter == before.f_next_counter and
+     authored.f_payload.f_key == key and authored.f_payload.f_value == value and
+     causal_read(Alloc.Vec.impl_1__as_slice(before.f_facts), key, Alloc.Vec.impl_1__as_slice(before.f_initial), Alloc.Vec.impl_1__as_slice(authored.f_payload.f_observed)) and
+     fresh_id(before, authored) and valid_offer(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(before.f_initial), authored) and
+     extends_by(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(next.f_facts), authored)) by {
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+      Tactics.prune("Nickel_crdt.Register.planned");
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+      Tactics.prune("Nickel_crdt.Event_layer.frontier");
+      Tactics.prune("Nickel_crdt.Register.next_lamport");
+      Tactics.prune("Nickel.RegisterHistory.fresh_id");
+      Tactics.prune("Nickel.RegisterPublic.valid_offer");
+      Tactics.prune("Nickel.RegisterHistory.causal_read");
+      Tactics.prune("Nickel.RegisterPublic.public_history");
+      Tactics.prune("Nickel.Register.write_installation");
+      Tactics.prune("Nickel.Register.receive_publication_is_exact");
+      Tactics.prune("Nickel.Register.receive_preserves_private");
+      Tactics.prune("Nickel.Register.planned_preserves_private");
+      Tactics.prune("Nickel.Register.planned_checks_payload");
+      Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(counted));
+  assert(forall(next: Native.t_Replica, authored: Nickel.Register.fact) . Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_Some(authored))) ==>
+    (authored.f_id.f_peer == before.f_writer and authored.f_id.f_counter == before.f_next_counter and
+     authored.f_payload.f_key == key and authored.f_payload.f_value == value and
+     causal_read(Alloc.Vec.impl_1__as_slice(before.f_facts), key, Alloc.Vec.impl_1__as_slice(before.f_initial), Alloc.Vec.impl_1__as_slice(authored.f_payload.f_observed)) and
+     fresh_id(before, authored) and valid_offer(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(before.f_initial), authored) and
+     extends_by(Alloc.Vec.impl_1__as_slice(before.f_facts), Alloc.Vec.impl_1__as_slice(next.f_facts), authored))) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+    Tactics.prune("Nickel.RegisterHistory.fresh_id");
+    Tactics.prune("Nickel.RegisterPublic.valid_offer");
+    Tactics.prune("Nickel.RegisterHistory.causal_read");
+    Tactics.prune("Nickel.RegisterPublic.public_history");
+    Tactics.prune("Nickel.Register.receive_preserves_private");
+    Tactics.prune("Nickel.Register.planned_preserves_private");
+    Tactics.prune("Nickel.Register.planned_checks_payload");
+    Tactics.prune("Nickel.Register.planned_adds_exact_fact");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+// ---------------------------------------------------------------- public callers: no-edit converse
+// A no-edit write (Ok None) happened only because the value equals the pre-write read; the
+// whole replica is unchanged. There is no engine value-byte policy bound.
+proof noedit_write_is_equal_value(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  gives forall(next: Native.t_Replica) . Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_None)) ==>
+    (next == before and
+     Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key))))
+{
+  Nickel.Register.bytes_equal_exact(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key)));
+  match Core_models.Num.impl_u64__checked_add(before.f_next_counter, mk_u64(1)) {
+    Option.Option_None => {
+      assert(forall(next: Native.t_Replica) . Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_None)) ==>
+    (next == before and
+     Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key))))) by {
+        Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+        Tactics.prune("Nickel_crdt.Event_layer.frontier");
+        Tactics.prune("Nickel_crdt.Register.next_lamport");
+        Tactics.prune("Nickel_crdt.Register.bytes_equal");
+        Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+        Tactics.prune("Nickel.Register.bytes_same");
+        Tactics.prune("Nickel.Register.bytes_equal_exact");
+        Tactics.smt_sync'(1, 1)
+      }
+    },
+    Option.Option_Some(next) => match Nickel_crdt.Event_layer.frontier(Alloc.Vec.impl_1__as_slice(before.f_facts), Native.v_OPS._1) {
+      Result.Result_Err(_) => {
+        assert(forall(next: Native.t_Replica) . Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_None)) ==>
+    (next == before and
+     Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key))))) by {
+          Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+          Tactics.prune("Nickel_crdt.Event_layer.frontier");
+          Tactics.prune("Nickel_crdt.Register.next_lamport");
+          Tactics.prune("Nickel_crdt.Register.bytes_equal");
+          Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+          Tactics.prune("Nickel.Register.bytes_same");
+          Tactics.prune("Nickel.Register.bytes_equal_exact");
+          Tactics.smt_sync'(1, 1)
+        }
+      },
+      Result.Result_Ok(parents) => match Native.next_lamport(Alloc.Vec.impl_1__as_slice(before.f_facts)) {
+        Result.Result_Err(_) => {
+          assert(forall(next: Native.t_Replica) . Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_None)) ==>
+    (next == before and
+     Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key))))) by {
+            Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+            Tactics.prune("Nickel_crdt.Event_layer.frontier");
+            Tactics.prune("Nickel_crdt.Register.next_lamport");
+            Tactics.prune("Nickel_crdt.Register.bytes_equal");
+            Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+            Tactics.prune("Nickel.Register.bytes_same");
+            Tactics.prune("Nickel.Register.bytes_equal_exact");
+            Tactics.smt_sync'(1, 1)
+          }
+        },
+        Result.Result_Ok(clock) => {
+          assert(forall(next: Native.t_Replica) . Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_None)) ==>
+    (next == before and
+     Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key))))) by {
+            Tactics.prune("Nickel_crdt.Register.impl_Replica__receive");
+            Tactics.prune("Nickel_crdt.Event_layer.frontier");
+            Tactics.prune("Nickel_crdt.Register.next_lamport");
+            Tactics.prune("Nickel_crdt.Register.bytes_equal");
+            Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+            Tactics.prune("Nickel.Register.bytes_same");
+            Tactics.prune("Nickel.Register.bytes_equal_exact");
+            Tactics.smt_sync'(1, 1)
+          }
+        }
+      }
+    }
+  }
+}
+proof bytes_same_trans(a: t_Slice(u8), b: t_Slice(u8), c: t_Slice(u8)): unit
+  takes Nickel.Register.bytes_same(a, b) and Nickel.Register.bytes_same(b, c)
+  gives Nickel.Register.bytes_same(a, c)
+{ () }
+// The no-edit converse for a public replica: a no-edit write leaves the replica unchanged, and its
+// value has the same bytes as every causal read of the key (so it is THE visible value).
+proof write_noedit_meaning(before: Native.t_Replica, key: u64, value: Alloc.Vec.t_Vec(u8, Alloc.Alloc.t_Global)): unit
+  takes public_history(before)
+  gives forall(next: Native.t_Replica, x: t_Slice(u8)) .
+    (Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_None)) and
+     causal_read(Alloc.Vec.impl_1__as_slice(before.f_facts), key, Alloc.Vec.impl_1__as_slice(before.f_initial), x)) ==>
+    (next == before and Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), x))
+{
+  noedit_write_is_equal_value(before, key, value);
+  proof each(next: Native.t_Replica, x: t_Slice(u8)): unit
+    takes Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_None))
+    takes causal_read(Alloc.Vec.impl_1__as_slice(before.f_facts), key, Alloc.Vec.impl_1__as_slice(before.f_initial), x)
+    gives next == before and Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), x)
+  {
+    public_read_is_the_causal_read(before, key, x);
+    assert(Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key))) and
+      Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key)), x)) by {
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+      Tactics.prune("Nickel_crdt.Register.read_history");
+      Tactics.prune("Nickel_crdt.Register.winner");
+      Tactics.prune("Nickel.Register.bytes_same");
+      Tactics.prune("Nickel.RegisterHistory.causal_read");
+      Tactics.prune("Nickel.RegisterPublic.public_history");
+      Tactics.smt_sync'(1, 1)
+    };
+    bytes_same_trans(Alloc.Vec.impl_1__as_slice(value), Alloc.Vec.impl_1__as_slice(Native.impl_Replica__read(before, key)), x);
+    assert(next == before and Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), x)) by {
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+      Tactics.prune("Nickel_crdt.Register.impl_Replica__read");
+      Tactics.prune("Nickel.Register.bytes_same");
+      Tactics.prune("Nickel.RegisterHistory.causal_read");
+      Tactics.prune("Nickel.RegisterPublic.public_history");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each));
+  assert(forall(next: Native.t_Replica, x: t_Slice(u8)) .
+    (Native.impl_Replica__write(before, key, value) == (next, Result.Result_Ok(Option.Option_None)) and
+     causal_read(Alloc.Vec.impl_1__as_slice(before.f_facts), key, Alloc.Vec.impl_1__as_slice(before.f_initial), x)) ==>
+    (next == before and Nickel.Register.bytes_same(Alloc.Vec.impl_1__as_slice(value), x))) by {
+    Tactics.prune("Nickel_crdt.Register.impl_Replica__write");
+    Tactics.prune("Nickel.Register.bytes_same");
+    Tactics.prune("Nickel.RegisterHistory.causal_read");
+    Tactics.prune("Nickel.RegisterPublic.public_history");
+    Tactics.smt_sync'(1, 1)
+  }
+}
