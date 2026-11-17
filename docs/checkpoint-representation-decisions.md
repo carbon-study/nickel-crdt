@@ -8,8 +8,9 @@ client refinement or convergence proofs.
 
 ## text keeps the author-relative gap
 
-A text fact names the births it deletes, the scalars it inserts, and a position
-in its author's pre-edit visible sequence. The receiver reconstructs that
+A text fact names the births it deletes and the scalars it inserts. Only a fact
+that inserts scalars carries a position in its author's pre-edit visible
+sequence; deletion-only facts have no gap. The receiver reconstructs that
 specified author basis before deriving the FugueMax origins. The position must
 not be interpreted in the receiver's current visible sequence.
 
@@ -63,8 +64,10 @@ adopted here.
 
 Undo and redo belong to the user's own captured history. Their decisions stay
 frozen: another user's later Undo does not revise, re-enable or retarget them,
-and another user's counted intervening write still blocks an older Undo even
-after that write is undone. Those outcomes are settled.
+and, for registers, another user's counted write that has the target in its
+causal past still blocks that target's Undo even after the later write is undone.
+A concurrent write without that causal relationship does not block it. Those
+outcomes are settled.
 
 Generalizing producer IDs must preserve that rule; it does not authorize
 composing Undo across users. Connecting producer streams to the ownership
