@@ -315,6 +315,18 @@ let successful_past_has_direct_dependencies (facts: t_Slice Native.t_Fact) (afte
 let fact_dependencies_present (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact) : Type0 =
   dependencies_present facts (Alloc.Vec.impl_1__as_slice fact.f_after)
 
+let successful_validation_has_stream_checks (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact) : Lemma (requires Native.impl_Replica__validate_new facts fact == Result.Result_Ok ()) (ensures exists(selected: Alloc.Vec.t_Vec Native.t_EventId Alloc.Alloc.t_Global). Prims.l_and (Nickel_crdt.Event_layer.validate_event facts fact Native.v_TEXT_OPS == Result.Result_Ok selected) (Nickel.EventGraph.stream_checks facts fact (Nickel.EventGraphText.text_event_ops ()) selected)) =
+  Nickel.EventGraphText.text_admission_checks_streams facts fact;
+  match Nickel_crdt.Event_layer.validate_event facts fact Native.v_TEXT_OPS with | Result.Result_Ok selected -> begin assert (exists(selected: Alloc.Vec.t_Vec Native.t_EventId Alloc.Alloc.t_Global). Prims.l_and (Nickel_crdt.Event_layer.validate_event facts fact Native.v_TEXT_OPS == Result.Result_Ok selected) (Nickel.EventGraph.stream_checks facts fact (Nickel.EventGraphText.text_event_ops ()) selected)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel.EventGraphText.text_admission_checks_streams";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Err _ -> begin assert (exists(selected: Alloc.Vec.t_Vec Native.t_EventId Alloc.Alloc.t_Global). Prims.l_and (Nickel_crdt.Event_layer.validate_event facts fact Native.v_TEXT_OPS == Result.Result_Ok selected) (Nickel.EventGraph.stream_checks facts fact (Nickel.EventGraphText.text_event_ops ()) selected)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel.EventGraphText.text_admission_checks_streams";
+    Tactics.smt_sync' 1 1
+  ) end
+
 let validation_has_dependencies (facts: t_Slice Native.t_Fact) (fact: Native.t_Fact) (result: Result.t_Result unit Native.t_Error) : Type0 =
   match result with | Result.Result_Ok _ -> begin fact_dependencies_present facts fact end | _ -> begin Prims.l_True end
 
@@ -482,3 +494,36 @@ let new_establishes_causal_closure (writer: Option.t_Option Native.t_Writer) : L
     Tactics.prune "Rust_primitives.Slice.slice_index";
     Tactics.smt_sync' 1 1
   )
+
+let added_stream_checks (before: Native.t_Replica) (fact: Native.t_Fact) (outcome: Native.t_Replica & Result.t_Result Native.t_Admission Native.t_Error) : Type0 =
+  match outcome with | (_, Result.Result_Ok Native.Admission_Added) -> begin exists(selected: Alloc.Vec.t_Vec Native.t_EventId Alloc.Alloc.t_Global). Prims.l_and (Nickel_crdt.Event_layer.validate_event (Alloc.Vec.impl_1__as_slice before.f_facts) fact Native.v_TEXT_OPS == Result.Result_Ok selected) (Nickel.EventGraph.stream_checks (Alloc.Vec.impl_1__as_slice before.f_facts) fact (Nickel.EventGraphText.text_event_ops ()) selected) end | _ -> begin Prims.l_True end
+
+let receive_added_checks_stream (before: Native.t_Replica) (fact: Native.t_Fact) : Lemma (ensures added_stream_checks before fact (Native.impl_Replica__receive before fact)) =
+  Nickel.EditAtomic.successful_plan_requires_validation before fact;
+  Nickel.EditCommit.receive_uses_plan before fact;
+  match Native.impl_Replica__validate_new (Alloc.Vec.impl_1__as_slice before.f_facts) fact with | Result.Result_Ok _ -> begin successful_validation_has_stream_checks (Alloc.Vec.impl_1__as_slice before.f_facts) fact;
+  assert (added_stream_checks before fact (Native.impl_Replica__receive before fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__validate_new";
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
+    Tactics.prune "Nickel.EditWellFormed.successful_validation_has_stream_checks";
+    Tactics.prune "Nickel.EditAtomic.successful_plan_requires_validation";
+    Tactics.prune "Nickel.EditCommit.receive_uses_plan";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Err _ -> begin assert (added_stream_checks before fact (Native.impl_Replica__receive before fact)) by (
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__validate_new";
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";
+    Tactics.prune "Nickel_crdt.Event_shell.plan";
+    Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive";
+    Tactics.prune "Nickel_crdt.Event_shell.receive_into";
+    Tactics.prune "Nickel.EditWellFormed.successful_validation_has_stream_checks";
+    Tactics.prune "Nickel.EditAtomic.successful_plan_requires_validation";
+    Tactics.prune "Nickel.EditCommit.receive_uses_plan";
+    Tactics.smt_sync' 1 1
+  ) end

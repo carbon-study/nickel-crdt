@@ -216,37 +216,12 @@ proof validated_stream_checks(facts: t_Slice(Nickel.Register.fact), offered: Nic
   gives forall(selected: Nickel.RegisterPast.ids_vec) . Nickel_crdt.Event_layer.validate_event(facts, offered, eops) == Result.Result_Ok(selected) ==>
     stream_checks(facts, offered, eops, selected)
 {
-  assert(eops == (eops._1, (eops._2._1, eops._2._2, (eops._2._3._1, eops._2._3._2))));
-  Nickel.RegisterPast.ops_shape(eops._1);
-  proof membership_boolean(ids: t_Slice(Envelope.t_Id), id: Envelope.t_Id): unit
-    gives Nickel_crdt.Event_layer.has_id(ids, id, eops._1) == true or Nickel_crdt.Event_layer.has_id(ids, id, eops._1) == false
-    hint Nickel_crdt.Event_layer.has_id(ids, id, eops._1)
-  { () };
-  match Nickel_crdt.Event_layer.past(facts, eops._1._1._2(offered), eops._1) {
-    Result.Result_Ok(past_ids) => {
-      Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
-        ((at: nat, _: unit) => no_forbidden_prefix(facts, offered, eops, past_ids, at)), ((_: unit) => past_ids),
-        ((x: Nickel.RegisterPast.ids_vec) => x == past_ids and no_forbidden_prefix(facts, offered, eops, past_ids, Seq.length(facts))),
-        ((_: Native.t_Error) => Prims.l_True));
-      assert(forall(selected: Nickel.RegisterPast.ids_vec) . Nickel_crdt.Event_layer.validate_event(facts, offered, eops) == Result.Result_Ok(selected) ==>
-        stream_checks(facts, offered, eops, selected)) by {
-        Tactics.prune("Nickel_crdt.Event_layer.past");
-        Tactics.prune("Nickel_crdt.Event_layer.has_id");
-        Tactics.prune("Nickel_crdt.Event_layer.duplicate_ids");
-        Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
-        Tactics.smt_sync'(1, 1)
-      }
-    },
-    Result.Result_Err(_) => {
-      assert(forall(selected: Nickel.RegisterPast.ids_vec) . Nickel_crdt.Event_layer.validate_event(facts, offered, eops) == Result.Result_Ok(selected) ==>
-        stream_checks(facts, offered, eops, selected)) by {
-        Tactics.prune("Nickel_crdt.Event_layer.past");
-        Tactics.prune("Nickel_crdt.Event_layer.has_id");
-        Tactics.prune("Nickel_crdt.Event_layer.duplicate_ids");
-        Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
-        Tactics.smt_sync'(1, 1)
-      }
-    }
+  Nickel.EventGraph.validated_stream_checks(facts, offered, eops);
+  assert(forall(selected: Nickel.RegisterPast.ids_vec) . Nickel_crdt.Event_layer.validate_event(facts, offered, eops) == Result.Result_Ok(selected) ==>
+    stream_checks(facts, offered, eops, selected)) by {
+    Tactics.prune("Nickel_crdt.Event_layer.validate_event");
+    Tactics.prune("Nickel.EventGraph.validated_stream_checks");
+    Tactics.smt_sync'(1, 1)
   }
 }
 

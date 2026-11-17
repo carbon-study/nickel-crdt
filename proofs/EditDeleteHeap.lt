@@ -1,0 +1,530 @@
+import Rust_primitives
+import Core_models
+import Nickel.Vector
+import Nickel.LoopUtil
+import Nickel.EditDeletePermutation
+import FStar.Pervasives
+import FStar.Classical
+import FStar.Mul
+import Math = FStar.Math.Lemmas
+import Seq = FStar.Seq
+import Native = Nickel_crdt.Edit
+import P = Nickel.EditDeletePermutation
+import Flow = Core_models.Ops.Control_flow
+import Folds = Rust_primitives.Hax.Folds
+import Tactics = FStar.Tactics.V2
+
+type births = P.births
+function le(a: Native.t_BirthId, b: Native.t_BirthId): Type0 {
+  Native.birth_lt(b, a) == false
+}
+proof order_transitive(a: Native.t_BirthId, b: Native.t_BirthId, c: Native.t_BirthId): unit
+  gives (le(a, b) and le(b, c)) ==> le(a, c)
+{ () }
+proof order_antisymmetric(a: Native.t_BirthId, b: Native.t_BirthId): unit
+  gives (le(a, b) and le(b, a)) ==> a == b
+{ () }
+proof order_total(a: Native.t_BirthId, b: Native.t_BirthId): unit
+  gives (Native.birth_lt(a, b) == true ==> le(a, b)) and (le(a, b) or le(b, a)) and le(a, a)
+{ () }
+function child_of(parent: nat, child: nat): Type0 {
+  child == parent * 2 + 1 or child == parent * 2 + 2
+}
+function heap_from(xs: t_Slice(Native.t_BirthId), base: nat, finish: nat): Type0 {
+  forall(parent: nat, child: nat) .
+    (base <= parent and child_of(parent, child) and child < finish and finish <= Seq.length(xs)) ==>
+    le(Seq.index(xs, child), Seq.index(xs, parent))
+}
+function heap_except(xs: t_Slice(Native.t_BirthId), base: nat, finish: nat, hole: nat): Type0 {
+  (forall(parent: nat, child: nat) .
+    (base <= parent and parent <> hole and child_of(parent, child) and child < finish and finish <= Seq.length(xs)) ==>
+    le(Seq.index(xs, child), Seq.index(xs, parent))) and
+  // The hole's parent must also dominate the hole's children, so moving the
+  // larger child upward cannot break an already repaired edge above it.
+  (forall(parent: nat, child: nat) .
+    (base <= parent and child_of(parent, hole) and child_of(hole, child) and child < finish and finish <= Seq.length(xs)) ==>
+    le(Seq.index(xs, child), Seq.index(xs, parent)))
+}
+function unchanged_outside(before: t_Slice(Native.t_BirthId), after: t_Slice(Native.t_BirthId), base: nat, finish: nat): Type0 {
+  Seq.length(after) == Seq.length(before) and
+  (forall(i: nat where i < Seq.length(before)) . (i < base or finish <= i) ==> Seq.index(after, i) == Seq.index(before, i))
+}
+function segment_reordering(before: t_Slice(Native.t_BirthId), after: t_Slice(Native.t_BirthId), base: nat, finish: nat): Type0 {
+  unchanged_outside(before, after, base, finish) and
+  (forall(i: nat where i < Seq.length(after)) . (base <= i and i < finish) ==>
+    (exists(j: nat) . base <= j and j < finish and j < Seq.length(before) and Seq.index(after, i) == Seq.index(before, j)))
+}
+proof segment_reordering_transitive(before: t_Slice(Native.t_BirthId), middle: t_Slice(Native.t_BirthId), after: t_Slice(Native.t_BirthId), base: nat, finish: nat): unit
+  takes segment_reordering(before, middle, base, finish)
+  takes segment_reordering(middle, after, base, finish)
+  gives segment_reordering(before, after, base, finish)
+{ () }
+proof exchange_entries(values: births, left: usize where v(left) < Seq.length(Alloc.Vec.impl_1__as_slice(values)),
+  right: usize where v(right) < Seq.length(Alloc.Vec.impl_1__as_slice(values))): unit
+  gives Seq.length(Alloc.Vec.impl_1__as_slice(P.exchange(values, left, right))) == Seq.length(Alloc.Vec.impl_1__as_slice(values)) and
+    (forall(i: nat where i < Seq.length(Alloc.Vec.impl_1__as_slice(values))) .
+      Seq.index(Alloc.Vec.impl_1__as_slice(P.exchange(values, left, right)), i) ==
+        (if i ==? v(left) { Seq.index(Alloc.Vec.impl_1__as_slice(values), v(right)) }
+         else { if i ==? v(right) { Seq.index(Alloc.Vec.impl_1__as_slice(values), v(left)) }
+                else { Seq.index(Alloc.Vec.impl_1__as_slice(values), i) } }))
+{ () }
+function largest_child(xs: t_Slice(Native.t_BirthId), root: nat, child: nat, finish: nat): Type0 {
+  child_of(root, child) and child < finish and finish <= Seq.length(xs) and
+  (forall(other: nat) . (child_of(root, other) and other < finish) ==> le(Seq.index(xs, other), Seq.index(xs, child)))
+}
+proof swap_repairs_hole(values: births, base: nat, finish: nat,
+  root: usize where v(root) < Seq.length(Alloc.Vec.impl_1__as_slice(values)),
+  child: usize where v(child) < Seq.length(Alloc.Vec.impl_1__as_slice(values))): unit
+  takes base <= v(root)
+  takes heap_except(Alloc.Vec.impl_1__as_slice(values), base, finish, v(root))
+  takes largest_child(Alloc.Vec.impl_1__as_slice(values), v(root), v(child), finish)
+  takes le(Seq.index(Alloc.Vec.impl_1__as_slice(values), v(root)), Seq.index(Alloc.Vec.impl_1__as_slice(values), v(child)))
+  gives heap_except(Alloc.Vec.impl_1__as_slice(P.exchange(values, root, child)), base, finish, v(child)) and
+    segment_reordering(Alloc.Vec.impl_1__as_slice(values), Alloc.Vec.impl_1__as_slice(P.exchange(values, root, child)), base, finish)
+{
+  exchange_entries(values, root, child);
+}
+proof fitting_root_completes(xs: t_Slice(Native.t_BirthId), base: nat, finish: nat, root: nat, child: nat): unit
+  takes base <= root
+  takes heap_except(xs, base, finish, root)
+  takes largest_child(xs, root, child, finish)
+  takes le(Seq.index(xs, child), Seq.index(xs, root))
+  gives heap_from(xs, base, finish)
+{
+  proof each(other: nat where other < Seq.length(xs)): unit
+    takes child_of(root, other) and other < finish
+    gives le(Seq.index(xs, other), Seq.index(xs, root))
+  {
+    order_transitive(Seq.index(xs, other), Seq.index(xs, child), Seq.index(xs, root));
+  };
+  FStar.Classical.forall_intro(FStar.Classical.move_requires(each));
+}
+
+function sift_invariant(before: t_Slice(Native.t_BirthId), base: nat, finish: nat, at: nat, state: P.sift_state): Type0 {
+  base <= v(state._1) and Prims.pow2(at) <= v(state._1) + 1 and
+  segment_reordering(before, Alloc.Vec.impl_1__as_slice(state._2), base, finish) and
+  heap_except(Alloc.Vec.impl_1__as_slice(state._2), base, finish, v(state._1))
+}
+function sift_post(before: t_Slice(Native.t_BirthId), base: nat, finish: nat, state: P.sift_state): Type0 {
+  segment_reordering(before, Alloc.Vec.impl_1__as_slice(state._2), base, finish) and
+  heap_from(Alloc.Vec.impl_1__as_slice(state._2), base, finish)
+}
+function break_step_keeps<state: Type0>(p: nat => state => Type0, post: state => Type0, at: nat,
+  out: Flow.t_ControlFlow((unit, state), state)): Type0 {
+  match out { Flow.ControlFlow_Break((_, next)) => post(next), Flow.ControlFlow_Continue(next) => p(at + 1, next) }
+}
+proof! break_complete<state: Type0>(start: usize, finish: usize where v(start) <= v(finish),
+  inv: Nickel.LoopUtil.total_invariant(state, start, finish), value: state,
+  f: Nickel.LoopUtil.break_callback(state, start, finish), p: nat => state => Type0, post: state => Type0): unit
+  decreases v(finish) - v(start)
+  takes p(v(start), value)
+  takes forall(s: state, at: Nickel.LoopUtil.position(start, finish)) . p(v(at), s) ==> break_step_keeps(p, post, v(at), f(s, at))
+  takes forall(s: state) . p(v(finish), s) ==> post(s)
+  gives post(Folds.fold_range_cf(start, finish, inv, value, f))
+{
+  if v(start) < v(finish) {
+    Nickel.LoopUtil.break_step(start, finish, inv, value, f);
+    match f(value, start) {
+      Flow.ControlFlow_Break((_, next)) => {
+        assert(post(Folds.fold_range_cf(start, finish, inv, value, f))) by {
+          Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf"); Tactics.smt_sync'(1, 1)
+        }
+      },
+      Flow.ControlFlow_Continue(next) => {
+        break_complete(start +! mk_usize(1), finish, inv, next, f, p, post);
+        assert(post(Folds.fold_range_cf(start, finish, inv, value, f))) by {
+          Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf"); Tactics.smt_sync'(1, 1)
+        }
+      },
+    }
+  } else {
+    Nickel.LoopUtil.break_end(start, finish, inv, value, f);
+    assert(post(Folds.fold_range_cf(start, finish, inv, value, f))) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf"); Tactics.smt_sync'(1, 1)
+    }
+  }
+}
+proof leaf_completes(xs: t_Slice(Native.t_BirthId), base: nat, finish: nat, root: nat): unit
+  takes root >= finish / 2
+  takes heap_except(xs, base, finish, root)
+  gives heap_from(xs, base, finish)
+{ () }
+// The actual extracted bound is the model's size_bits (32 or64), not an
+// assumption about the machine running this check.
+proof actual_sift_limit(): unit
+  gives v((Rust_primitives.Integers.cast(Core_models.Num.impl_usize__BITS) : usize)) == Rust_primitives.Integers.size_bits
+{ () }
+proof exhausted_sift_completes(before: t_Slice(Native.t_BirthId), base: nat, finish: nat, state: P.sift_state): unit
+  takes finish <= Seq.length(before)
+  takes sift_invariant(before, base, finish, Rust_primitives.Integers.size_bits, state)
+  gives sift_post(before, base, finish, state)
+{
+  assert(v(state._1) >= finish / 2) by {
+    Tactics.prune("Nickel.EditDeleteHeap.heap_except");
+    Tactics.prune("Nickel.EditDeleteHeap.segment_reordering");
+    Tactics.smt_sync'(1, 1)
+  };
+  leaf_completes(Alloc.Vec.impl_1__as_slice(state._2), base, finish, v(state._1));
+}
+
+function chosen_child(values: births, left: usize where v(left) < Seq.length(Alloc.Vec.impl_1__as_slice(values)), finish: usize): usize {
+  if Rust_primitives.Integers.lt(left +! mk_usize(1), finish) &&
+    Rust_primitives.Integers.lt(left +! mk_usize(1), Alloc.Vec.impl_1__len(values)) &&
+    Native.birth_lt(Core_models.Ops.Index.f_index(values, left), Core_models.Ops.Index.f_index(values, left +! mk_usize(1))) {
+    left +! mk_usize(1)
+  } else { left }
+}
+proof chosen_is_largest(values: births, root: usize, finish: usize): unit
+  takes v(root) < v(finish) / 2 and v(finish) <= Seq.length(Alloc.Vec.impl_1__as_slice(values))
+  gives largest_child(Alloc.Vec.impl_1__as_slice(values), v(root), v(chosen_child(values, root *! mk_usize(2) +! mk_usize(1), finish)), v(finish))
+{
+  const left = root *! mk_usize(2) +! mk_usize(1);
+  order_total(Core_models.Ops.Index.f_index(values, left), Core_models.Ops.Index.f_index(values, left));
+  if v(left) + 1 < v(finish) {
+    order_total(Core_models.Ops.Index.f_index(values, left), Core_models.Ops.Index.f_index(values, left +! mk_usize(1)));
+  } else { () }
+}
+function sift_step(finish: usize, current: P.sift_state, at: usize): Flow.t_ControlFlow((unit, P.sift_state), P.sift_state) {
+  const root = (current._1 : usize);
+  const values = (current._2 : births);
+  if Rust_primitives.Integers.gte(root, finish /! mk_usize(2)) { Flow.ControlFlow_Break(((), current)) }
+  else {
+    const left = (root *! mk_usize(2) +! mk_usize(1) : usize);
+    if Rust_primitives.Integers.gte(root, Alloc.Vec.impl_1__len(values)) || Rust_primitives.Integers.gte(left, Alloc.Vec.impl_1__len(values)) {
+      Flow.ControlFlow_Break(((), current))
+    } else {
+      const child = (if Rust_primitives.Integers.lt(left +! mk_usize(1), finish) &&
+        Rust_primitives.Integers.lt(left +! mk_usize(1), Alloc.Vec.impl_1__len(values)) &&
+        Native.birth_lt(Rust_primitives.Notations.op_String_Access(values, left), Rust_primitives.Notations.op_String_Access(values, left +! mk_usize(1))) {
+        left +! mk_usize(1)
+      } else { left } : usize);
+      if Rust_primitives.Integers.gte(child, Alloc.Vec.impl_1__len(values)) || Rust_primitives.Integers.op_Tilde_Dot(Native.birth_lt(Rust_primitives.Notations.op_String_Access(values, root), Rust_primitives.Notations.op_String_Access(values, child))) {
+        Flow.ControlFlow_Break(((), current))
+      } else {
+        const old = (Rust_primitives.Notations.op_String_Access(values, root) : Native.t_BirthId);
+        const one = (Alloc.Slice.impl__to_vec(Rust_primitives.Hax.Monomorphized_update_at.update_at_usize(Alloc.Vec.impl_1__as_slice(values), root, (Rust_primitives.Notations.op_String_Access(values, child) : Native.t_BirthId))) : births);
+        const swapped = (Alloc.Slice.impl__to_vec(Rust_primitives.Hax.Monomorphized_update_at.update_at_usize(Alloc.Vec.impl_1__as_slice(one), child, old)) : births);
+        Flow.ControlFlow_Continue((child, swapped))
+      }
+    }
+  }
+}
+proof sift_step_correct(before: t_Slice(Native.t_BirthId), base: nat, finish: usize, current: P.sift_state, at: usize): unit
+  takes v(finish) <= Seq.length(before)
+  takes sift_invariant(before, base, v(finish), v(at), current)
+  gives break_step_keeps(sift_invariant(before, base, v(finish)), sift_post(before, base, v(finish)), v(at), sift_step(finish, current, at))
+{
+  const root = current._1;
+  const values = current._2;
+  if v(root) >= v(finish) / 2 {
+    leaf_completes(Alloc.Vec.impl_1__as_slice(values), base, v(finish), v(root));
+  } else {
+    const left = root *! mk_usize(2) +! mk_usize(1);
+    const child = chosen_child(values, left, finish);
+    chosen_is_largest(values, root, finish);
+    if Native.birth_lt(Core_models.Ops.Index.f_index(values, root), Core_models.Ops.Index.f_index(values, child)) {
+      order_total(Core_models.Ops.Index.f_index(values, root), Core_models.Ops.Index.f_index(values, child));
+      swap_repairs_hole(values, base, v(finish), root, child);
+      segment_reordering_transitive(before, Alloc.Vec.impl_1__as_slice(values), Alloc.Vec.impl_1__as_slice(P.exchange(values, root, child)), base, v(finish));
+      Math.pow2_double_sum(v(at));
+      assert(sift_step(finish, current, at) == Flow.ControlFlow_Continue((child, P.exchange(values, root, child)))) by {
+        Tactics.prune("Nickel.EditDeleteHeap.heap_except");
+        Tactics.prune("Nickel.EditDeleteHeap.segment_reordering");
+        Tactics.smt_sync'(1, 1)
+      };
+      assert(sift_invariant(before, base, v(finish), v(at) + 1, (child, P.exchange(values, root, child)))) by {
+        Tactics.prune("Nickel.EditDeletePermutation.exchange");
+        Tactics.prune("Nickel.EditDeleteHeap.sift_step");
+        Tactics.smt_sync'(1, 1)
+      };
+      assert(break_step_keeps(sift_invariant(before, base, v(finish)), sift_post(before, base, v(finish)), v(at), sift_step(finish, current, at))) by {
+        Tactics.prune("Nickel.EditDeletePermutation.exchange");
+        Tactics.prune("Nickel.EditDeleteHeap.sift_step");
+        Tactics.smt_sync'(1, 1)
+      }
+    } else {
+      fitting_root_completes(Alloc.Vec.impl_1__as_slice(values), base, v(finish), v(root), v(child));
+    }
+  }
+}
+
+proof sift_callbacks_complete(before: t_Slice(Native.t_BirthId), base: nat, finish: usize): unit
+  takes v(finish) <= Seq.length(before)
+  gives forall(inv: Nickel.LoopUtil.total_invariant(P.sift_state, mk_usize(0), (Rust_primitives.Integers.cast(Core_models.Num.impl_usize__BITS) : usize)),
+    initial: P.sift_state, f: Nickel.LoopUtil.break_callback(P.sift_state, mk_usize(0), (Rust_primitives.Integers.cast(Core_models.Num.impl_usize__BITS) : usize))) .
+    (sift_invariant(before, base, v(finish), 0, initial) and
+      (forall(current: P.sift_state, at: Nickel.LoopUtil.position(mk_usize(0), (Rust_primitives.Integers.cast(Core_models.Num.impl_usize__BITS) : usize))) . f(current, at) == sift_step(finish, current, at))) ==>
+    (heap_from(Alloc.Vec.impl_1__as_slice((Folds.fold_range_cf(mk_usize(0), (Rust_primitives.Integers.cast(Core_models.Num.impl_usize__BITS) : usize), inv, initial, f))._2), base, v(finish)) and
+      segment_reordering(before, Alloc.Vec.impl_1__as_slice((Folds.fold_range_cf(mk_usize(0), (Rust_primitives.Integers.cast(Core_models.Num.impl_usize__BITS) : usize), inv, initial, f))._2), base, v(finish)))
+{
+  const limit = (Rust_primitives.Integers.cast(Core_models.Num.impl_usize__BITS) : usize);
+  proof each(inv: Nickel.LoopUtil.total_invariant(P.sift_state, mk_usize(0), limit), initial: P.sift_state,
+    f: Nickel.LoopUtil.break_callback(P.sift_state, mk_usize(0), limit)): unit
+    takes sift_invariant(before, base, v(finish), 0, initial)
+    takes forall(current: P.sift_state, at: Nickel.LoopUtil.position(mk_usize(0), limit)) . f(current, at) == sift_step(finish, current, at)
+    gives sift_post(before, base, v(finish), Folds.fold_range_cf(mk_usize(0), limit, inv, initial, f))
+  {
+    actual_sift_limit();
+    FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(sift_step_correct(before, base, finish)));
+    FStar.Classical.forall_intro(FStar.Classical.move_requires(exhausted_sift_completes(before, base, v(finish))));
+    break_complete(mk_usize(0), limit, inv, initial, f, sift_invariant(before, base, v(finish)), sift_post(before, base, v(finish)));
+  };
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(each));
+}
+proof initial_sift_state(values: births, start: usize, finish: usize): unit
+  takes v(finish) <= Seq.length(Alloc.Vec.impl_1__as_slice(values))
+  takes heap_from(Alloc.Vec.impl_1__as_slice(values), v(start) + 1, v(finish))
+  gives sift_invariant(Alloc.Vec.impl_1__as_slice(values), v(start), v(finish), 0, (start, values))
+{ () }
+
+// Extensionality of this checked finite interpreter, not equality of functions.
+proof! break_pointwise<state: Type0>(start: usize, finish: usize where v(start) <= v(finish),
+  left_inv: Nickel.LoopUtil.total_invariant(state, start, finish), right_inv: Nickel.LoopUtil.total_invariant(state, start, finish),
+  value: state, left: Nickel.LoopUtil.break_callback(state, start, finish), right: Nickel.LoopUtil.break_callback(state, start, finish)): unit
+  decreases v(finish) - v(start)
+  takes forall(s: state, at: Nickel.LoopUtil.position(start, finish)) . left(s, at) == right(s, at)
+  gives Folds.fold_range_cf(start, finish, left_inv, value, left) == Folds.fold_range_cf(start, finish, right_inv, value, right)
+{
+  if v(start) < v(finish) {
+    Nickel.LoopUtil.break_step(start, finish, left_inv, value, left);
+    Nickel.LoopUtil.break_step(start, finish, right_inv, value, right);
+    match left(value, start) {
+      Flow.ControlFlow_Break((_, next)) => {
+        assert(Folds.fold_range_cf(start, finish, left_inv, value, left) == Folds.fold_range_cf(start, finish, right_inv, value, right)) by {
+          Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf"); Tactics.smt_sync'(1, 1)
+        }
+      },
+      Flow.ControlFlow_Continue(next) => {
+        break_pointwise(start +! mk_usize(1), finish, left_inv, right_inv, next, left, right);
+        assert(Folds.fold_range_cf(start, finish, left_inv, value, left) == Folds.fold_range_cf(start, finish, right_inv, value, right)) by {
+          Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf"); Tactics.smt_sync'(1, 1)
+        }
+      },
+    }
+  } else {
+    Nickel.LoopUtil.break_end(start, finish, left_inv, value, left);
+    Nickel.LoopUtil.break_end(start, finish, right_inv, value, right);
+  }
+}
+proof break_pointwise_any<state: Type0>(start: usize, finish: usize where v(start) <= v(finish), value: state): unit
+  gives forall(left_inv: Nickel.LoopUtil.total_invariant(state, start, finish), right_inv: Nickel.LoopUtil.total_invariant(state, start, finish),
+    left: Nickel.LoopUtil.break_callback(state, start, finish), right: Nickel.LoopUtil.break_callback(state, start, finish)) .
+    (forall(s: state, at: Nickel.LoopUtil.position(start, finish)) . left(s, at) == right(s, at)) ==>
+    Folds.fold_range_cf(start, finish, left_inv, value, left) == Folds.fold_range_cf(start, finish, right_inv, value, right)
+{
+  proof annotations(left_inv: Nickel.LoopUtil.total_invariant(state, start, finish), right_inv: Nickel.LoopUtil.total_invariant(state, start, finish)): unit
+    gives forall(left: Nickel.LoopUtil.break_callback(state, start, finish), right: Nickel.LoopUtil.break_callback(state, start, finish)) .
+      (forall(s: state, at: Nickel.LoopUtil.position(start, finish)) . left(s, at) == right(s, at)) ==>
+      Folds.fold_range_cf(start, finish, left_inv, value, left) == Folds.fold_range_cf(start, finish, right_inv, value, right)
+  {
+    proof each(left: Nickel.LoopUtil.break_callback(state, start, finish), right: Nickel.LoopUtil.break_callback(state, start, finish)): unit
+      takes forall(s: state, at: Nickel.LoopUtil.position(start, finish)) . left(s, at) == right(s, at)
+      gives Folds.fold_range_cf(start, finish, left_inv, value, left) == Folds.fold_range_cf(start, finish, right_inv, value, right)
+    { break_pointwise(start, finish, left_inv, right_inv, value, left, right) };
+    FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each));
+  };
+  FStar.Classical.forall_intro_2(annotations);
+}
+
+function sift_model(values: births, start: usize, finish: usize): P.sift_state {
+  const limit = (Rust_primitives.Integers.cast(Core_models.Num.impl_usize__BITS) : usize);
+  Folds.fold_range_cf(mk_usize(0), limit,
+    ((_: P.sift_state, _: Nickel.LoopUtil.inv_position(mk_usize(0), limit)) => Prims.l_True),
+    (start, values), ((current: P.sift_state, at: Nickel.LoopUtil.position(mk_usize(0), limit)) => sift_step(finish, current, at)))
+}
+proof sift_is_model(values: births, start: usize, finish: usize): unit
+  gives Native.sift_births(values, start, finish) == sift_model(values, start, finish)._2
+{
+  break_pointwise_any(mk_usize(0), (Rust_primitives.Integers.cast(Core_models.Num.impl_usize__BITS) : usize), (start, values));
+  assert(Native.sift_births(values, start, finish) == sift_model(values, start, finish)._2) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof sift_restores_heap(values: births, start: usize, finish: usize): unit
+  takes v(finish) <= Seq.length(Alloc.Vec.impl_1__as_slice(values))
+  takes heap_from(Alloc.Vec.impl_1__as_slice(values), v(start) + 1, v(finish))
+  gives heap_from(Alloc.Vec.impl_1__as_slice(Native.sift_births(values, start, finish)), v(start), v(finish)) and
+    segment_reordering(Alloc.Vec.impl_1__as_slice(values), Alloc.Vec.impl_1__as_slice(Native.sift_births(values, start, finish)), v(start), v(finish))
+  hint Native.sift_births(values, start, finish)
+{
+  initial_sift_state(values, start, finish);
+  sift_callbacks_complete(Alloc.Vec.impl_1__as_slice(values), v(start), finish);
+  assert(sift_post(Alloc.Vec.impl_1__as_slice(values), v(start), v(finish), sift_model(values, start, finish))) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf");
+    Tactics.smt_sync'(1, 1)
+  };
+  sift_is_model(values, start, finish);
+  assert(heap_from(Alloc.Vec.impl_1__as_slice(Native.sift_births(values, start, finish)), v(start), v(finish)) and
+    segment_reordering(Alloc.Vec.impl_1__as_slice(values), Alloc.Vec.impl_1__as_slice(Native.sift_births(values, start, finish)), v(start), v(finish))) by {
+    Tactics.prune("Nickel_crdt.Edit.sift_births");
+    Tactics.prune("Nickel.EditDeleteHeap.sift_model");
+    Tactics.prune("Nickel.EditDeleteHeap.heap_from");
+    Tactics.prune("Nickel.EditDeleteHeap.segment_reordering");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+proof leaf_suffix(xs: t_Slice(Native.t_BirthId), base: nat, finish: nat): unit
+  takes base >= finish / 2
+  gives heap_from(xs, base, finish)
+{ () }
+function build_invariant(len: usize, at: nat, current: births): Type0 {
+  at <= v(len) / 2 and Seq.length(Alloc.Vec.impl_1__as_slice(current)) == v(len) and
+  heap_from(Alloc.Vec.impl_1__as_slice(current), v(len) / 2 - at, v(len))
+}
+function built_heap(len: usize, current: births): Type0 {
+  Seq.length(Alloc.Vec.impl_1__as_slice(current)) == v(len) and heap_from(Alloc.Vec.impl_1__as_slice(current), 0, v(len))
+}
+proof heap_builds(values: births, len: usize): unit
+  takes v(len) == Seq.length(Alloc.Vec.impl_1__as_slice(values))
+  gives built_heap(len, Native.heap_births(values, len))
+  hint Native.heap_births(values, len)
+{
+  leaf_suffix(Alloc.Vec.impl_1__as_slice(values), v(len) / 2, v(len));
+  Nickel.LoopUtil.plain_preserve_any(mk_usize(0), len /! mk_usize(2), build_invariant(len), built_heap(len));
+  assert(built_heap(len, Native.heap_births(values, len))) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range");
+    Tactics.prune("Nickel_crdt.Edit.sift_births");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+
+proof! root_dominates(xs: t_Slice(Native.t_BirthId), finish: nat, at: nat): unit
+  decreases at
+  takes at < finish and finish <= Seq.length(xs)
+  takes heap_from(xs, 0, finish)
+  gives le(Seq.index(xs, at), Seq.index(xs, 0))
+{
+  if at > 0 {
+    const parent = (at - 1) / 2;
+    root_dominates(xs, finish, parent);
+    order_transitive(Seq.index(xs, at), Seq.index(xs, parent), Seq.index(xs, 0));
+  } else { order_total(Seq.index(xs, 0), Seq.index(xs, 0)); }
+}
+function tail_ordered(xs: t_Slice(Native.t_BirthId), start: nat): Type0 {
+  forall(i: nat, j: nat) . (start <= i and i < j and j < Seq.length(xs)) ==> le(Seq.index(xs, i), Seq.index(xs, j))
+}
+function below_tail(xs: t_Slice(Native.t_BirthId), start: nat): Type0 {
+  forall(i: nat, j: nat) . (i < start and start <= j and j < Seq.length(xs)) ==> le(Seq.index(xs, i), Seq.index(xs, j))
+}
+function drain_invariant(len: usize, at: nat, current: births): Type0 {
+  at <= v(len) and Seq.length(Alloc.Vec.impl_1__as_slice(current)) == v(len) and
+  heap_from(Alloc.Vec.impl_1__as_slice(current), 0, v(len) - at) and
+  tail_ordered(Alloc.Vec.impl_1__as_slice(current), v(len) - at) and
+  below_tail(Alloc.Vec.impl_1__as_slice(current), v(len) - at)
+}
+function sorted(xs: t_Slice(Native.t_BirthId)): Type0 { tail_ordered(xs, 0) }
+proof drain_swap(values: births, len: usize, step: Nickel.LoopUtil.position(mk_usize(0), len)): unit
+  takes drain_invariant(len, v(step), values)
+  gives heap_from(Alloc.Vec.impl_1__as_slice(P.exchange(values, mk_usize(0), (len -! mk_usize(1)) -! step)), 1, v(len) - 1 - v(step)) and
+    tail_ordered(Alloc.Vec.impl_1__as_slice(P.exchange(values, mk_usize(0), (len -! mk_usize(1)) -! step)), v(len) - 1 - v(step)) and
+    below_tail(Alloc.Vec.impl_1__as_slice(P.exchange(values, mk_usize(0), (len -! mk_usize(1)) -! step)), v(len) - 1 - v(step)) and
+    Seq.length(Alloc.Vec.impl_1__as_slice(P.exchange(values, mk_usize(0), (len -! mk_usize(1)) -! step))) == v(len)
+{
+  const before = Alloc.Vec.impl_1__as_slice(values);
+  const finish = (len -! mk_usize(1)) -! step;
+  exchange_entries(values, mk_usize(0), finish);
+  proof each(i: nat where i < v(len) - v(step)): unit
+    gives le(Seq.index(before, i), Seq.index(before, 0))
+  { root_dominates(before, v(len) - v(step), i) };
+  FStar.Classical.forall_intro(each);
+}
+proof reordering_keeps_tail(before: t_Slice(Native.t_BirthId), after: t_Slice(Native.t_BirthId), finish: nat): unit
+  takes segment_reordering(before, after, 0, finish)
+  takes tail_ordered(before, finish) and below_tail(before, finish)
+  gives tail_ordered(after, finish) and below_tail(after, finish)
+{ () }
+
+function sorted_births(len: usize, values: births): Type0 {
+  Seq.length(Alloc.Vec.impl_1__as_slice(values)) == v(len) and sorted(Alloc.Vec.impl_1__as_slice(values))
+}
+proof drain_step_orders(len: usize, current: births, at: Nickel.LoopUtil.position(mk_usize(0), len)): unit
+  takes drain_invariant(len, v(at), current)
+  gives break_step_keeps(drain_invariant(len), sorted_births(len), v(at), P.drain_step(len, current, at))
+{
+  const finish = (len -! mk_usize(1)) -! at;
+  const swapped = P.exchange(current, mk_usize(0), finish);
+  drain_swap(current, len, at);
+  sift_restores_heap(swapped, mk_usize(0), finish);
+  reordering_keeps_tail(Alloc.Vec.impl_1__as_slice(swapped), Alloc.Vec.impl_1__as_slice(Native.sift_births(swapped, mk_usize(0), finish)), v(finish));
+  assert(P.drain_step(len, current, at) == Flow.ControlFlow_Continue(Native.sift_births(swapped, mk_usize(0), finish))) by {
+    Tactics.prune("Nickel_crdt.Edit.sift_births");
+    Tactics.smt_sync'(1, 1)
+  };
+  assert(break_step_keeps(drain_invariant(len), sorted_births(len), v(at), P.drain_step(len, current, at))) by {
+    Tactics.prune("Nickel_crdt.Edit.sift_births");
+    Tactics.prune("Nickel.EditDeletePermutation.exchange");
+    Tactics.prune("Nickel.EditDeletePermutation.drain_step");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof drain_callbacks_complete(len: usize): unit
+  gives forall(inv: Nickel.LoopUtil.total_invariant(births, mk_usize(0), len), initial: births,
+    f: Nickel.LoopUtil.break_callback(births, mk_usize(0), len)) .
+    (drain_invariant(len, 0, initial) and
+      (forall(current: births, at: Nickel.LoopUtil.position(mk_usize(0), len)) . f(current, at) == P.drain_step(len, current, at))) ==>
+    sorted_births(len, Folds.fold_range_cf(mk_usize(0), len, inv, initial, f))
+{
+  proof each(inv: Nickel.LoopUtil.total_invariant(births, mk_usize(0), len), initial: births,
+    f: Nickel.LoopUtil.break_callback(births, mk_usize(0), len)): unit
+    takes drain_invariant(len, 0, initial)
+    takes forall(current: births, at: Nickel.LoopUtil.position(mk_usize(0), len)) . f(current, at) == P.drain_step(len, current, at)
+    gives sorted_births(len, Folds.fold_range_cf(mk_usize(0), len, inv, initial, f))
+  {
+    FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(drain_step_orders(len)));
+    break_complete(mk_usize(0), len, inv, initial, f, drain_invariant(len), sorted_births(len));
+  };
+  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(each));
+}
+function drain_model(values: births, len: usize): births {
+  Folds.fold_range_cf(mk_usize(0), len,
+    ((_: births, _: Nickel.LoopUtil.inv_position(mk_usize(0), len)) => Prims.l_True), values,
+    ((current: births, at: Nickel.LoopUtil.position(mk_usize(0), len)) => P.drain_step(len, current, at)))
+}
+proof drain_is_model(values: births, len: usize): unit
+  gives Native.drain_births(values, len) == drain_model(values, len)
+{
+  break_pointwise_any(mk_usize(0), len, values);
+  assert(Native.drain_births(values, len) == drain_model(values, len)) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf");
+    Tactics.prune("Nickel_crdt.Edit.sift_births");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof drain_sorts(values: births, len: usize): unit
+  takes built_heap(len, values)
+  gives sorted_births(len, Native.drain_births(values, len))
+  hint Native.drain_births(values, len)
+{
+  assert(drain_invariant(len, 0, values));
+  drain_callbacks_complete(len);
+  assert(sorted_births(len, drain_model(values, len))) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf");
+    Tactics.smt_sync'(1, 1)
+  };
+  drain_is_model(values, len);
+  assert(sorted_births(len, Native.drain_births(values, len))) by {
+    Tactics.prune("Nickel_crdt.Edit.drain_births");
+    Tactics.prune("Nickel.EditDeleteHeap.drain_model");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+proof ordered_births_sorted(xs: t_Slice(Native.t_BirthId)): unit
+  gives sorted(Alloc.Vec.impl_1__as_slice(Native.ordered_births(xs)))
+  hint Native.ordered_births(xs)
+{
+  const copied = Alloc.Slice.impl__to_vec(xs);
+  const len = Alloc.Vec.impl_1__len(copied);
+  heap_builds(copied, len);
+  assert(built_heap(len, Native.heap_births(copied, len))) by {
+    Tactics.prune("Nickel_crdt.Edit.heap_births");
+    Tactics.smt_sync'(1, 1)
+  };
+  drain_sorts(Native.heap_births(copied, len), len);
+  assert(sorted(Alloc.Vec.impl_1__as_slice(Native.ordered_births(xs)))) by {
+    Tactics.prune("Nickel_crdt.Edit.heap_births");
+    Tactics.prune("Nickel_crdt.Edit.drain_births");
+    Tactics.smt_sync'(1, 1)
+  }
+}

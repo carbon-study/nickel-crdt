@@ -9,6 +9,12 @@
 # Runners are ARM64 (ubuntu-24.04-arm): ren measured them faster for large
 # builds, and every flake now exposes aarch64-linux.
 name: ci
+# PR runs carry their PR number and head SHA in the run title, so tools can
+# attribute a run to a PR without GitHub's query-time pull_requests match (it
+# lists only currently open PRs, with their current head). Other events keep
+# the default title: an empty run-name falls back to it (to be confirmed by the
+# pilot's push run on main).
+run-name: ${{ github.event_name == 'pull_request' && format('ci [pr:{0} head:{1}] {2}', github.event.pull_request.number, github.event.pull_request.head.sha, github.event.pull_request.title) || '' }}
 
 # Prose-only changes (Markdown) skip the whole gate. No job reads these paths:
 # the proof derivations name their sources explicitly in flake.nix (not

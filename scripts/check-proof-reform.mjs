@@ -95,6 +95,17 @@ export function checkProofReformFence() {
   }
   assertReformedSource('LoopUtil','Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf")');
   assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf")'),/fixture reform:/);
+  for(const name of ['EditDeletePermutation','EditDeleteAnswer','EditDeleteHeap','EditDeleteComplete']) {
+    assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.Unapproved.visibility")'),new RegExp(name+' reform:'));
+    assert.throws(()=>assertReformedSource(name,'Tactics.norm([])'),new RegExp(name+' reform:'));
+    assert.throws(()=>assertReformedSource(name,"Tactics.smt_sync'(0, 0)"),new RegExp(name+' reform:'));
+  }
   console.log('PASS proof-reform fence: approved direct tactic, normalization/import/alias controls');
 }
 checkProofReformFence();
+// Shared stream ownership moves the implementation loop out of RegisterValid;
+// client queries may withhold only their actual checked callees.
+assertReformedSource('EventGraph','Tactics.prune("Nickel_crdt.Event_layer.past");');
+assertReformedSource('RegisterValid','Tactics.prune("Nickel.EventGraph.validated_stream_checks");');
+assert.throws(()=>assertReformedSource('RegisterValid','Tactics.prune("Nickel_crdt.Event_layer.duplicate_ids");'));
+assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Nickel.EditWellFormed.successful_validation_has_stream_checks");'));
