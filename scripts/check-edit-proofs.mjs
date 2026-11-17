@@ -57,6 +57,7 @@ const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tre
   'accepted-reuses-member','accepted-wrong-canonical-push','accepted-publication-duplicates',
   'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes','past-refuses-closure','duplicate-scan-skips-pairs','scheduler-ready-skips-dependency','scheduler-reselects-done','scheduler-refuses-ready','scheduler-checks-empty-after','scheduler-records-wrong-id','scheduler-stops-early','scheduler-erases-wrong-trace','scheduler-invents-bookkeeping-error','basis-includes-unselected','basis-omits-selected','basis-event-ignores-roots','replay-nodes-skip-first','replay-nodes-reverse','replay-groups-include-all','replay-groups-skip-all','replay-context-passes-empty','replay-context-invents-error','replay-context-contaminates-basis','scheduler-forgets-completed-tree'];
 modes.push('plan-interprets-uncanonical-call', ...["shared-plan-skips-validation","shared-plan-ignores-duplicate","shared-plan-swallows-classifier-error","identity-call-passes-empty","identity-call-ignores-payload","past-membership-call-passes-empty","scheduler-readiness-call-passes-empty","scheduler-choice-call-passes-empty"]);
+modes.push('past-guard-refuses-present','past-extension-refuses-selection');
 modes.push("past-extend-call-clears-selection","past-pass-call-skips-facts","past-call-clears-roots");
 modes.push('text-policy-swaps-eq-lt','graph-policy-swaps-eq-lt','admission-policy-swaps-errors');
 // Contract-dependency families run after the positive chain verifies. With no
@@ -161,6 +162,8 @@ const mutationDefinitions=[
   ["past-membership-always-false","src/event_layer.rs","fn has_id<","if id_eq(&ids[i], wanted) {","if false {"],
   ["past-skips-predecessors","src/event_layer.rs","fn extend_past<","if has_id(&selected, &id(fact), ops) {","if false {"],
   ["past-skips-passes","src/event_layer.rs","fn past<","for _ in 0..facts.len() {","for _ in 0..0usize {"],
+  ["past-guard-refuses-present","src/event_layer.rs","fn validate_after<","if !has_fact(facts, &after[i], ops)","if has_fact(facts, &after[i], ops)"],
+  ["past-extension-refuses-selection","src/event_layer.rs","fn extend_past<","Ok(selected)","Err(internal())"],
   ["past-refuses-closure","src/event_layer.rs","fn past<","Ok(selected)","Err((ops.1.0)())"],
   ["duplicate-scan-skips-pairs","src/event_layer.rs","fn duplicate_ids<","if id_eq(&xs[i], &xs[j]) {","if false {"],
   ["scheduler-ready-skips-dependency","src/event_layer.rs","fn ready<","if has_id(done, &after[i], ops) {","if true {"],
@@ -247,7 +250,9 @@ const theorems={
   'native-push-prepends':'EditAccepted.push_result_is_exact',
   'causal-validator-passes-empty':'EditWellFormed.successful_validation_has_direct_dependencies',
   'causal-accepts-missing':'EditWellFormed.dependency_validation_is_sound',
-  'past-refuses-closure':'EditPastTotal.fitting_closed_history_computes_past',
+  'past-guard-refuses-present':'PastExact.present_dependencies_pass_guard',
+  'past-extension-refuses-selection':'PastExact.extend_stored_selection_succeeds',
+  'past-refuses-closure':'PastExact.fitting_closed_history_computes_past',
   'duplicate-scan-skips-pairs':'EditPastTotal.duplicate_scan_is_exact',
   'past-skips-passes':'EditPast.past_stays_in_closed_set',
   'past-skips-predecessors':'EditPast.extend_past_covers_predecessors',
@@ -505,7 +510,7 @@ async function check(mode) {
   const extractionChanged=extractionIdentity.filter(([name,hash])=>recorded[name]!==hash).map(([name])=>name);
   // Counter calculation/installation/wiring controls need only their owning module. The positive path still
   // checks both the public Spec surface and the existing ghost causal-rank family.
-  const proofRoot=/^(EventGraph|EventGraphText|EventShell|EventClassifier)\./.test(theorems[mode]??'')?'Nickel.'+theorems[mode].split('.')[0]+'.fst':mode==='positive'?'Nickel.Spec.fst':mode.startsWith('replay-')?'Nickel.EditReplay.fst':mode.startsWith('basis-')?'Nickel.EditBasis.fst':mode.startsWith('scheduler-')?'Nickel.EditSchedule.fst':['past-refuses-closure','duplicate-scan-skips-pairs'].includes(mode)?'Nickel.EditPastTotal.fst':mode.startsWith('past-')?'Nickel.EditPast.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
+  const proofRoot=/^(PastExact|EventGraph|EventGraphText|EventShell|EventClassifier)\./.test(theorems[mode]??'')?'Nickel.'+theorems[mode].split('.')[0]+'.fst':mode==='positive'?'Nickel.Spec.fst':mode.startsWith('replay-')?'Nickel.EditReplay.fst':mode.startsWith('basis-')?'Nickel.EditBasis.fst':mode.startsWith('scheduler-')?'Nickel.EditSchedule.fst':['past-refuses-closure','duplicate-scan-skips-pairs'].includes(mode)?'Nickel.EditPastTotal.fst':mode.startsWith('past-')?'Nickel.EditPast.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
   const checked=await verify({label:mode,dir:proof,roots:(mode==='positive'?['Nickel.EventGraph.fst','Nickel.EventGraphText.fst','Nickel.EventShell.fst','Nickel.EventClassifier.fst','Nickel.Spec.fst','Nickel.EditCausal.fst','Nickel.EditPastTotal.fst','Nickel.EditSchedule.fst','Nickel.EditBasis.fst','Nickel.EditReplay.fst']:['Nickel_crdt.Edit.fst',proofRoot]).map(name=>path.join(proof,name)),fstar,models,modelCache});
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {
