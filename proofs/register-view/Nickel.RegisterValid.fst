@@ -146,23 +146,12 @@ let stream_checks (facts: t_Slice Nickel.Register.fact) (offered: Nickel.Registe
   Prims.l_and (((match eops._2._1 (eops._1._1._1 offered) with | Option.Option_Some prev -> begin Nickel_crdt.Event_layer.has_id (Alloc.Vec.impl_1__as_slice selected) prev eops._1 == true end | Option.Option_None -> begin Prims.l_True end) <: Type0)) (no_forbidden_prefix facts offered eops selected (Seq.length facts))
 
 let validated_stream_checks (facts: t_Slice Nickel.Register.fact) (offered: Nickel.Register.fact) (eops: Nickel.RegisterPast.reops) : Lemma (ensures forall(selected: Nickel.RegisterPast.ids_vec). Nickel_crdt.Event_layer.validate_event facts offered eops == Result.Result_Ok selected ==> stream_checks facts offered eops selected) =
-  assert (eops == (eops._1, (eops._2._1, eops._2._2, (eops._2._3._1, eops._2._3._2))));
-  Nickel.RegisterPast.ops_shape eops._1;
-  let membership_boolean (ids: t_Slice Envelope.t_Id) (id: Envelope.t_Id) : Lemma (ensures Prims.l_or (Nickel_crdt.Event_layer.has_id ids id eops._1 == true) (Nickel_crdt.Event_layer.has_id ids id eops._1 == false)) [SMTPat (Nickel_crdt.Event_layer.has_id ids id eops._1)] = () in
-  match Nickel_crdt.Event_layer.past facts (eops._1._1._2 offered) eops._1 with | Result.Result_Ok past_ids -> begin Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len facts) (fun (at: nat) (_: unit) -> no_forbidden_prefix facts offered eops past_ids at) (fun (_: unit) -> past_ids) (fun (x: Nickel.RegisterPast.ids_vec) -> Prims.l_and (x == past_ids) (no_forbidden_prefix facts offered eops past_ids (Seq.length facts))) (fun (_: Native.t_Error) -> Prims.l_True);
+  Nickel.EventGraph.validated_stream_checks facts offered eops;
   assert (forall(selected: Nickel.RegisterPast.ids_vec). Nickel_crdt.Event_layer.validate_event facts offered eops == Result.Result_Ok selected ==> stream_checks facts offered eops selected) by (
-    Tactics.prune "Nickel_crdt.Event_layer.past";
-    Tactics.prune "Nickel_crdt.Event_layer.has_id";
-    Tactics.prune "Nickel_crdt.Event_layer.duplicate_ids";
-    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel.EventGraph.validated_stream_checks";
     Tactics.smt_sync' 1 1
-  ) end | Result.Result_Err _ -> begin assert (forall(selected: Nickel.RegisterPast.ids_vec). Nickel_crdt.Event_layer.validate_event facts offered eops == Result.Result_Ok selected ==> stream_checks facts offered eops selected) by (
-    Tactics.prune "Nickel_crdt.Event_layer.past";
-    Tactics.prune "Nickel_crdt.Event_layer.has_id";
-    Tactics.prune "Nickel_crdt.Event_layer.duplicate_ids";
-    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
-    Tactics.smt_sync' 1 1
-  ) end
+  )
 
 let stream_ok_in (h: Seq.seq Nickel.Register.fact) (sel: Envelope.t_Id -> Type0) (f: Nickel.Register.fact) : Type0 =
   Prims.l_and (Prims.l_and (v f.f_id.f_counter >= 1) (v f.f_id.f_counter > 1 ==> (exists(g: Nickel.Register.fact). Prims.l_and (Prims.l_and (Prims.l_and (stored h g) (sel g.f_id)) (g.f_id.f_peer == f.f_id.f_peer)) (v g.f_id.f_counter + 1 == v f.f_id.f_counter)))) (forall(g: Nickel.Register.fact). Prims.l_and (Prims.l_and (stored h g) (sel g.f_id)) (g.f_id.f_peer == f.f_id.f_peer) ==> v g.f_id.f_counter < v f.f_id.f_counter)

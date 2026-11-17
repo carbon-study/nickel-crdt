@@ -240,6 +240,7 @@ export function registerControlPlans({source,graphSource,view,loopView,canonical
   ['without-public-new-unique',replaceInDeclaration('new_establishes_public_history','  Nickel.Register.new_has_unique_ids writer initial;','  ();',publicView),'RegisterPublic.new_establishes_public_history'],
   ['without-stream-extension',replaceInDeclaration('stream_kept','  ancestry_unchanged_by_extension h h2 fnew (Alloc.Vec.impl_1__as_slice g.f_after);','  ();',validView),'RegisterValid.stream_kept'],
   ['without-stream-preservation',replaceInDeclaration('history_from_parts','  FStar.Classical.move_requires (streams_preserved h h2) offered','  ()',validView),'RegisterValid.history_from_parts'],
+  ['without-shared-stream-checks',replaceInDeclaration('validated_stream_checks','  Nickel.EventGraph.validated_stream_checks facts offered eops;','  ();',validView),'RegisterValid.validated_stream_checks'],
   ['without-stream-native-checks',replaceInDeclaration('stream_witness','  validated_stream_checks (Alloc.Vec.impl_1__as_slice before.f_facts) offered Native.v_OPS;','  ();',validView),'RegisterValid.stream_witness'],
   ['without-receive-stream-witness',replaceInDeclaration('receive_added_offer_stream','  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 (stream_witness before offered));','  ();',validView),'RegisterValid.receive_added_offer_stream'],
   ['without-clock-extension',replaceInDeclaration('clock_kept','  ancestry_unchanged_by_extension h h2 fnew (Alloc.Vec.impl_1__as_slice g.f_after);','  ();',validView),'RegisterValid.clock_kept'],
