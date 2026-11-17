@@ -163,15 +163,16 @@ fn sift_births(mut values: Vec<BirthId>, start: usize, finish: usize) -> Vec<Bir
     }
     values
 }
-// Sort scratch storage only: original delete-list order is part of fact equality.
-fn ordered_births(xs: &[BirthId]) -> Vec<BirthId> {
-    let mut values = xs.to_vec();
-    let len = values.len();
+// Build and drain are separate implementation boundaries for the two loops.
+fn heap_births(mut values: Vec<BirthId>, len: usize) -> Vec<BirthId> {
     for step in 0..(len / 2) {
         if step < len / 2 {
             values = sift_births(values, len / 2 - 1 - step, len);
         }
     }
+    values
+}
+fn drain_births(mut values: Vec<BirthId>, len: usize) -> Vec<BirthId> {
     for step in 0..len {
         let finish = len - 1 - step;
         if values.is_empty() || finish >= values.len() { break; }
@@ -181,6 +182,13 @@ fn ordered_births(xs: &[BirthId]) -> Vec<BirthId> {
         values = sift_births(values, 0, finish);
     }
     values
+}
+// Sort scratch storage only: original delete-list order is part of fact equality.
+fn ordered_births(xs: &[BirthId]) -> Vec<BirthId> {
+    let values = xs.to_vec();
+    let len = values.len();
+    let values = heap_births(values, len);
+    drain_births(values, len)
 }
 fn duplicate_births(xs: &[BirthId]) -> bool {
     if xs.len() < 2 { return false; }

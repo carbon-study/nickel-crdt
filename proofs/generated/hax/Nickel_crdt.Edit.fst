@@ -279,11 +279,8 @@ let sift_births (values: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global) (start 
   in
   values
 
-let ordered_births (xs: t_Slice t_BirthId) : Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global =
-  let values:Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global =
-    Alloc.Slice.impl__to_vec #t_BirthId xs
-  in
-  let len:usize = Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global values in
+let heap_births (values: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global) (len: usize)
+    : Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global =
   let values:Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global =
     Rust_primitives.Hax.Folds.fold_range (mk_usize 0)
       (len /! mk_usize 2 <: usize)
@@ -305,6 +302,10 @@ let ordered_births (xs: t_Slice t_BirthId) : Alloc.Vec.t_Vec t_BirthId Alloc.All
             values
           else values)
   in
+  values
+
+let drain_births (values: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global) (len: usize)
+    : Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global =
   Rust_primitives.Hax.Folds.fold_range_cf (mk_usize 0)
     len
     (fun values temp_1_ ->
@@ -353,6 +354,14 @@ let ordered_births (xs: t_Slice t_BirthId) : Alloc.Vec.t_Vec t_BirthId Alloc.All
           Core_models.Ops.Control_flow.t_ControlFlow
             (Prims.unit & Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global)
             (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global))
+
+let ordered_births (xs: t_Slice t_BirthId) : Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global =
+  let values:Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global =
+    Alloc.Slice.impl__to_vec #t_BirthId xs
+  in
+  let len:usize = Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global values in
+  let values:Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global = heap_births values len in
+  drain_births values len
 
 let duplicate_births (xs: t_Slice t_BirthId) : bool =
   if (Core_models.Slice.impl__len #t_BirthId xs <: usize) <. mk_usize 2
