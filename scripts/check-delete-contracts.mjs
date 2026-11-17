@@ -48,17 +48,18 @@ export async function checkDeleteContracts({proof,output,fstar,models,modelCache
   await fs.mkdir(output,{recursive:true});
   await fs.writeFile(path.join(output,'delete-planned.json'),JSON.stringify(cases.map(c=>({name:c.name,positive:c.positive,owner:c.owner})),null,2));
   await fs.writeFile(path.join(output,'delete-results.json'),'[]');
+  console.log('DELETE-PLAN '+JSON.stringify(cases.map(c=>({name:c.name,positive:c.positive,owner:c.owner}))));
   for(const c of cases){const out=path.join(output,c.name),dir=path.join(work,c.name),p=path.join(dir,'proof');await fs.mkdir(out,{recursive:true});await fs.cp(proof,p,{recursive:true,preserveTimestamps:true});
     if(c.rust){const crate=path.join(dir,'crate');await fs.mkdir(crate,{recursive:true});for(const n of ['Cargo.toml','Cargo.lock','src','tests','proof-smoke'])await fs.cp(path.join(root,n),path.join(crate,n),{recursive:true});
       const source=await fs.readFile(path.join(root,'src/edit.rs'),'utf8');await fs.writeFile(path.join(crate,'src/edit.rs'),prepareDeleteMutation(c,source));
       // A private target per source is essential: hax metadata is package-named.
       const env={...process.env,CARGO_TARGET_DIR:path.join(dir,'target')};
-      const test=await runAsync(c.name+' native','cargo',c.tests,crate,{env});await fs.writeFile(path.join(out,'native.log'),test.log);assert.equal(test.status,101,test.log);assert.match(test.log,/test result: FAILED/,'require actual assertions, not compilation failure');
+      const test=await runAsync(c.name+' native','cargo',c.tests,crate,{env});await fs.writeFile(path.join(out,'native.log'),test.log);assert.equal(test.status,101,test.log);assert.match(test.log,/test result: FAILED/,'require test failure, not compilation failure');assert.match(test.log,/assertion [^\n]*failed/,'require actual native assertion failure');
       const extract=path.join(dir,'extract'),hax=process.env.NICKEL_HAX_BIN;assert(hax,'locked hax required');
       const ex=await runAsync(c.name+' hax',hax,editProofHaxArgs(extract),crate,{env});await fs.writeFile(path.join(out,'hax.log'),ex.log);assert.equal(ex.status,0,ex.log);
       const names=(await fs.readdir(extract)).filter(n=>/\.fsti?$/.test(n)).sort();assert.deepEqual(names,['Nickel_crdt.Edit.fst','Nickel_crdt.Event_layer.fst','Nickel_crdt.Event_shell.fst']);
       let changed=false;const inventory=[];for(const n of names){const bytes=await fs.readFile(path.join(extract,n));assert(!/\b(?:admit|assume|admit_smt_queries)\b/.test(bytes.toString()),'no extracted admissions');if(digest(bytes)!==digest(await fs.readFile(path.join(proof,n))))changed=true;await put(path.join(p,n),bytes);inventory.push([n,digest(bytes)]);}
-      assert(changed,'native fault must change fresh extraction');await fs.writeFile(path.join(out,'extraction.json'),JSON.stringify(inventory,null,2));
+      assert(changed,'native fault must change fresh extraction');await fs.writeFile(path.join(out,'extraction.json'),JSON.stringify(inventory,null,2));console.log('DELETE-EXTRACTION '+JSON.stringify({name:c.name,inventory}));
     }else{const source=await fs.readFile(path.join(proof,c.view.file),'utf8');await put(path.join(p,c.view.file),prepareDeleteMutation(c,source));}
     // Positive witnesses deliberately query weaker components. Other cases must
     // fail in their exact named owner; an earlier unrelated failure never counts.
@@ -69,4 +70,5 @@ export async function checkDeleteContracts({proof,output,fstar,models,modelCache
     rows.push({name:c.name,owner:c.owner,positive:c.positive,status:result.status,root:ownerFile});await fs.writeFile(path.join(output,'delete-results.json'),JSON.stringify(rows,null,2));console.log('PASS '+c.name+(c.positive?' (weaker-root scope witness)':''));
   }
   assert.deepEqual(rows.map(r=>r.name),cases.map(c=>c.name),'planned and executed delete inventory');
+  console.log('DELETE-RESULTS '+JSON.stringify(rows));
 }
