@@ -51,7 +51,7 @@ checkNegativeProofEvidence();
 await checkProofReform(root);
 const sourceFiles=['src/edit.rs','src/event_layer.rs','src/event_shell.rs'];
 const original=Object.fromEntries(await Promise.all(sourceFiles.map(async name=>[name,await fs.readFile(path.join(root,name),'utf8')])));
-const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tree-publication-clears-private-counter","plan-clears-private-counter",'positive','plan-ignores-duplicate','plan-swallows-classifier-error','receive-plan-rewrites-counter','invalid-forgets-reason','writer-index-collides','native-push-discards-value','native-push-prepends','causal-validator-passes-empty','causal-accepts-missing','causal-call-passes-empty','causal-refuses-present','plan-interprets-uncanonical','scalar-validation-bypasses-on-history','scalar-accepts-invalid','scalar-call-passes-empty','scalar-refuses-valid','canonical-step-refuses','canonical-refuses','plan-keeps-old-tree','plan-passes-old-tree','order-key-ignores-writer','order-chooses-largest','order-discards-canonical','local-return-after','edit-call-passes-old-counter','edit-commit-ignores-counter','receive-error-corrupts-counter','edit-error-corrupts-counter','edit-success-reuses-counter',
+const modes=["stream-admission-skips-predecessor","stream-admission-skips-forbidden","stream-admission-swaps-forbidden-args","stream-text-omits-predecessor-policy",'plan-skips-validation',"tree-publication-uses-private-writer","tree-publication-clears-private-counter","plan-clears-private-counter",'positive','plan-ignores-duplicate','plan-swallows-classifier-error','receive-plan-rewrites-counter','invalid-forgets-reason','writer-index-collides','native-push-discards-value','native-push-prepends','causal-validator-passes-empty','causal-accepts-missing','causal-call-passes-empty','causal-refuses-present','plan-interprets-uncanonical','scalar-validation-bypasses-on-history','scalar-accepts-invalid','scalar-call-passes-empty','scalar-refuses-valid','canonical-step-refuses','canonical-refuses','plan-keeps-old-tree','plan-passes-old-tree','order-key-ignores-writer','order-chooses-largest','order-discards-canonical','local-return-after','edit-call-passes-old-counter','edit-commit-ignores-counter','receive-error-corrupts-counter','edit-error-corrupts-counter','edit-success-reuses-counter',
   'local-return-gap','local-stale-tree','receive-success-counter','author-forgets-gap','receive-private-gate',
   'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality',
   'identity-scan-key','identity-birth-equality','identity-writer-equality',
@@ -104,6 +104,10 @@ if(args.length===0){for(const name of Object.keys(families))familyRuns.add(name)
 // Each row is [mode, source owner, item header, anchor, replacement]. This is
 // the sole mutation definition table; the lookup below is only its index.
 const mutationDefinitions=[
+  ["stream-admission-skips-predecessor","src/event_layer.rs","fn validate_event<","if !has_id(&selected, &previous, ops) {","if false {"],
+  ["stream-admission-skips-forbidden","src/event_layer.rs","fn validate_event<","&& forbidden(&id(e), &id(fact))","&& false"],
+  ["stream-admission-swaps-forbidden-args","src/event_layer.rs","fn validate_event<","forbidden(&id(e), &id(fact))","forbidden(&id(fact), &id(e))"],
+  ["stream-text-omits-predecessor-policy","src/edit.rs","fn validate_new(","&TEXT_OPS)","&crate::event_layer::event_ops(TEXT_OPS.0, |_| None, forbidden_ancestor, duplicate_dependency_error, predecessor_error))"],
   ["plan-skips-validation","src/edit.rs","fn plan_validate(","Replica::validate_new(&before.facts, fact)","Ok(())"],
   ["tree-publication-uses-private-writer","src/edit.rs","fn with_tree(","self.tree = tree;","if self.writer.is_some() { self.tree = tree; }"],
   ["tree-publication-clears-private-counter","src/edit.rs","fn with_tree(","self.tree = tree;","self.tree = tree; self.next_counter = 0;"],
@@ -220,6 +224,10 @@ function prepareMutation(mode,sources=original) {
   return typeof sources==='string'?mutant:{...sources,[owner]:mutant};
 }
 const theorems={
+"stream-admission-skips-predecessor":"EventGraph.validated_stream_checks",
+"stream-admission-skips-forbidden":"EventGraph.validated_stream_checks",
+"stream-admission-swaps-forbidden-args":"EventGraph.validated_stream_checks",
+"stream-text-omits-predecessor-policy":"EditWellFormed.successful_validation_has_stream_checks",
   'scheduler-forgets-completed-tree':'EditSchedule.successful_schedule_has_complete_event_work',
   'replay-nodes-skip-first':'EditReplay.actual_nodes_replay_in_order',
   'replay-nodes-reverse':'EditReplay.actual_nodes_replay_in_order',
@@ -249,7 +257,7 @@ const theorems={
   "receive-plan-rewrites-counter":"EditCommit.receive_uses_plan",
   'native-push-discards-value':'EditAccepted.push_result_is_exact',
   'native-push-prepends':'EditAccepted.push_result_is_exact',
-  'causal-validator-passes-empty':'EditWellFormed.successful_validation_has_direct_dependencies',
+  'causal-validator-passes-empty':'EditWellFormed.successful_validation_has_stream_checks',
   'causal-accepts-missing':'EditWellFormed.dependency_validation_is_sound',
   'past-guard-refuses-present':'PastExact.present_dependencies_pass_guard',
   'past-extension-refuses-selection':'PastExact.extend_stored_selection_succeeds',
@@ -444,7 +452,7 @@ async function check(mode) {
   // Each mode has its own Cargo target: hax names its metadata by package, not by
   // source tree, so crate copies sharing a target read each other's extraction.
   const env={...process.env,CARGO_TARGET_DIR:path.join(root,'target','edit-proof-check','modes',mode)};
-  const nativeArgs=['test','--offline','--locked','-p','nickel-crdt',...(mode==='scheduler-forgets-completed-tree'?['--lib','operation_provenance_tests']:mode.startsWith('replay-')?['--lib','author_replay_tests']:mode.startsWith('basis-')?['--lib','basis_filter_tests']:((mode.startsWith('past-')||mode.startsWith('scheduler-'))?['--lib','causal_basis_tests']:['--test','edit_admit']))];
+  const nativeArgs=['test','--offline','--locked','-p','nickel-crdt',...(mode.startsWith('stream-')?[]:(mode==='scheduler-forgets-completed-tree'?['--lib','operation_provenance_tests']:mode.startsWith('replay-')?['--lib','author_replay_tests']:mode.startsWith('basis-')?['--lib','basis_filter_tests']:((mode.startsWith('past-')||mode.startsWith('scheduler-'))?['--lib','causal_basis_tests']:['--test','edit_admit'])))];
   const native=await runAsync('edit native '+mode,'cargo',nativeArgs,crate,{env});
   await fs.writeFile(path.join(output,mode+'.native.log'),native.log);
   if(mode==='positive') {

@@ -17,6 +17,10 @@ module Seq = FStar.Seq
 
 module Option = Core_models.Option
 
+module Result = Core_models.Result
+
+module Tactics = FStar.Tactics.V2
+
 unfold type graph_fields (f: Type0) (i: Type0) = (f -> i) & (f -> t_Slice i) & (i -> i -> bool) & (i -> i -> bool) & (f -> f) & (f -> f -> bool)
 
 unfold type graph_errors (e: Type0) = (unit -> e) & (unit -> e)
@@ -95,3 +99,28 @@ let fact_membership_is_exact (#f: Type0) (#i: Type0) (#e: Type0) (facts: t_Slice
     Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
     Tactics.smt_sync' 1 1
   )
+
+let no_forbidden_prefix (#ft: Type0) (#it: Type0) (#et: Type0) (facts: t_Slice ft) (offered: ft) (eops: event_ops ft it et) (selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) (at: nat) : Type0 =
+  forall(j: nat). Prims.l_and (j < at) (j < Seq.length facts) ==> Prims.l_not (Prims.l_and (Native.has_id (Alloc.Vec.impl_1__as_slice selected) (eops._1._1._1 (Seq.index facts j)) eops._1 == true) (eops._2._2 (eops._1._1._1 (Seq.index facts j)) (eops._1._1._1 offered) == true))
+
+let stream_checks (#ft: Type0) (#it: Type0) (#et: Type0) (facts: t_Slice ft) (offered: ft) (eops: event_ops ft it et) (selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) : Type0 =
+  Prims.l_and (((match eops._2._1 (eops._1._1._1 offered) with | Option.Option_Some prev -> begin Native.has_id (Alloc.Vec.impl_1__as_slice selected) prev eops._1 == true end | Option.Option_None -> begin Prims.l_True end) <: Type0)) (no_forbidden_prefix facts offered eops selected (Seq.length facts))
+
+let validated_stream_checks (#ft: Type0) (#it: Type0) (#et: Type0) (facts: t_Slice ft) (offered: ft) (eops: event_ops ft it et) : Lemma (ensures forall(selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global). Native.validate_event facts offered eops == Result.Result_Ok selected ==> stream_checks facts offered eops selected) =
+  assert (eops == (eops._1, (eops._2._1, eops._2._2, (eops._2._3._1, eops._2._3._2))));
+  assert (eops._1 == ((eops._1._1._1, eops._1._1._2, eops._1._1._3, eops._1._1._4, eops._1._1._5, eops._1._1._6), (eops._1._2._1, eops._1._2._2)));
+  let membership_boolean (ids: t_Slice it) (id: it) : Lemma (ensures Prims.l_or (Native.has_id ids id eops._1 == true) (Native.has_id ids id eops._1 == false)) [SMTPat (Native.has_id ids id eops._1)] = () in
+  match Native.past facts (eops._1._1._2 offered) eops._1 with | Result.Result_Ok past_ids -> begin Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len facts) (fun (at: nat) (_: unit) -> no_forbidden_prefix facts offered eops past_ids at) (fun (_: unit) -> past_ids) (fun (x: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) -> Prims.l_and (x == past_ids) (no_forbidden_prefix facts offered eops past_ids (Seq.length facts))) (fun (_: et) -> Prims.l_True);
+  assert (forall(selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global). Native.validate_event facts offered eops == Result.Result_Ok selected ==> stream_checks facts offered eops selected) by (
+    Tactics.prune "Nickel_crdt.Event_layer.past";
+    Tactics.prune "Nickel_crdt.Event_layer.has_id";
+    Tactics.prune "Nickel_crdt.Event_layer.duplicate_ids";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.smt_sync' 1 1
+  ) end | Result.Result_Err _ -> begin assert (forall(selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global). Native.validate_event facts offered eops == Result.Result_Ok selected ==> stream_checks facts offered eops selected) by (
+    Tactics.prune "Nickel_crdt.Event_layer.past";
+    Tactics.prune "Nickel_crdt.Event_layer.has_id";
+    Tactics.prune "Nickel_crdt.Event_layer.duplicate_ids";
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.smt_sync' 1 1
+  ) end

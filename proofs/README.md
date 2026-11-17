@@ -1796,3 +1796,25 @@ Allocation/process failure and the existing translation/model/solver trust
 boundaries remain. Sorting a scratch list preserves retained fact order; the
 first-pair shortcut does not extend to other early duplicates. The semantic
 proof is not a universal speedup or a resource-safety guarantee.
+
+### shared producer-stream admission
+
+`EventGraph.validated_stream_checks` proves a success-only contract about the
+actual shared `validate_event`: its returned selection passes the supplied
+`has_id` test for the required predecessor, when present. Every stored fact whose
+ID passes that selection-membership test fails the forbidden-ancestor test. The domain permits arbitrary callbacks; it
+assumes no ID equality laws, closed history or writer allocator.
+
+The existing `RegisterValid.validated_stream_checks` retains its concrete
+statement and feeds the register history invariant. The text policy instance
+feeds actual text validation and the public `Added` receive composition in
+`EditWellFormed`. This contract is relative to the returned selection and supplied
+callbacks. Exact ancestry and independent writer-counter meaning are separate
+client obligations; it does not establish admission progress or recovery.
+
+The `event` contract family checks the shared loop, both text contract hops and
+the public receive composition. Four `stream-*` native modes separately alter
+predecessor checking, forbidden checking, forbidden argument order and the actual
+text predecessor-policy argument. The older `causal-validator-passes-empty`
+control now rejects first in `successful_validation_has_stream_checks`; its
+original direct-dependency statement and contract-removal controls remain.

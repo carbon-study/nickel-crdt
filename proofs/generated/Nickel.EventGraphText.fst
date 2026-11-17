@@ -149,3 +149,13 @@ let scheduler_choice_is_text_call (facts: t_Slice Native.t_Fact) (done: t_Slice 
 
 let scheduler_application_is_text_call (facts: t_Slice Native.t_Fact) (event: Native.t_Fact) (operations: t_Slice (Native.t_EventId & Alloc.Vec.t_Vec Native.t_Node Alloc.Alloc.t_Global)) (tree: Native.t_Tree) : Lemma (ensures Native.scheduled_apply () facts event operations tree == Native.interpret_event facts event operations tree) [SMTPat (Native.scheduled_apply () facts event operations tree)] =
   ()
+
+let text_admission_checks_streams (facts: t_Slice Native.t_Fact) (offered: Native.t_Fact) : Lemma (ensures forall(selected: Alloc.Vec.t_Vec Native.t_EventId Alloc.Alloc.t_Global). Shared.validate_event facts offered Native.v_TEXT_OPS == Core_models.Result.Result_Ok selected ==> Nickel.EventGraph.stream_checks facts offered (text_event_ops ()) selected) =
+  text_policy_is_exact ();
+  Nickel.EventGraph.validated_stream_checks facts offered (text_event_ops ());
+  assert (forall(selected: Alloc.Vec.t_Vec Native.t_EventId Alloc.Alloc.t_Global). Shared.validate_event facts offered Native.v_TEXT_OPS == Core_models.Result.Result_Ok selected ==> Nickel.EventGraph.stream_checks facts offered (text_event_ops ()) selected) by (
+    Tactics.prune "Nickel_crdt.Event_layer.validate_event";
+    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
+    Tactics.prune "Nickel.EventGraph.validated_stream_checks";
+    Tactics.smt_sync' 1 1
+  )
