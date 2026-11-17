@@ -64,10 +64,13 @@ adopted here.
 
 Undo and redo belong to the user's own captured history. Their decisions stay
 frozen: another user's later Undo does not revise, re-enable or retarget them,
-and, for registers, another user's counted write that has the target in its
-causal past still blocks that target's Undo even after the later write is undone.
-A concurrent write without that causal relationship does not block it. Those
-outcomes are settled.
+and, in the single-key register histories behind these answers, another user's
+counted write in the Undo author's captured past blocks the target if it has
+that target in its own causal past, even after the later write is undone. A
+concurrent write without that causal relationship does not block it. Those
+outcomes are settled. This does not decide cross-key Undo blocking for the
+native register's shared frontier; that remains a separate multi-key contract
+question.
 
 Generalizing producer IDs must preserve that rule; it does not authorize
 composing Undo across users. Connecting producer streams to the ownership
