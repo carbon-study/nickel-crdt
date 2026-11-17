@@ -245,3 +245,36 @@ and two-receiver totality/composition controls remain. Against the preceding ful
 ancestry cut, text removes36 and adds33 authored proof lines, while the common
 module adds63: **+60** net. There is no native-forward, API, model, budget or
 classifier change. Generic text totality and writer-stream consolidation remain.
+
+## shared closed-history past success
+
+The success direction is now a common argument too. `PastExact` bounds a unique
+selection by positions in the fact slice: if a stored ID is still missing, there
+is room to append before the real `usize` limit. The checked push contract then
+feeds extension, pass and full-past success. Present roots pass the actual missing
+reference scan through a stored-position witness and checked fact membership.
+No artificial event/parent ceiling or numeric ID rank is introduced.
+
+The full-past law requires exact ID equality, all parent references present,
+distinct roots and root presence. It does not require unique fact IDs or acyclicity.
+The text instance supplies exact equality internally; its old theorem premises do
+not change. All38 concrete declarations, headers and mathematical definitions
+remain, with six proof bodies replaced. A proposed extra concrete presence helper
+was deleted after its removal verified; no replacement abstraction was needed.
+The actual text exactness and two-receiver callers still separately compose their
+success and ancestry laws. This is success of this closure computation under its
+stated premises, not general valid-offer admission or placement convergence.
+
+Four historical push/extension/pass/full-success removal owners follow the shared
+argument. Each concrete wrapper has its own shared-callee removal control; the
+missing-reference guard and generic uniqueness domain have separate controls.
+The native full-past refusal owner moves to the generic full-past law. Two typed
+native faults refuse present roots or extension, with fresh extraction and their
+specific generic owners. Existing public totality and receiver controls remain.
+
+Against the preceding agreement cut, text removes161 and adds33 authored proof
+lines; register proof sources are untouched; the common module removes2 and adds276 (net+274). The net
+is **+146** authored lines, not a size reduction. No concrete declaration or
+native forward is retired, and no runtime API, model, pin, budget or classifier
+changes. The approved writer-stream consolidation remains before multi-write or
+another client.

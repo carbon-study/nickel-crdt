@@ -488,3 +488,185 @@ let shared_ancestry_agrees (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.
       Tactics.smt_sync' 1 1
     ) in
   FStar.Classical.forall_intro_3 (FStar.Classical.move_requires_3 each_path)
+
+let unique_selection (#it: eqtype) (ids: Seq.seq it) : Type0 =
+  forall(i: FStar.Fin.under (Seq.length ids)) (j: FStar.Fin.under (Seq.length ids)). i < j ==> Prims.l_not (Seq.index ids i == Seq.index ids j)
+
+let unique_positions_differ (#it: eqtype) (ids: Seq.seq it) (i: nat{i < Seq.length ids}) (j: nat{Prims.l_and (i < j) (j < Seq.length ids)}) : Lemma (requires unique_selection ids) (ensures Prims.l_not (Seq.index ids i == Seq.index ids j)) =
+  ()
+
+let empty_and_singleton_roots_are_unique (#it: eqtype) (id: it) : Lemma (ensures Prims.l_and (unique_selection ((Seq.empty <: Seq.seq it))) (unique_selection (Seq.create 1 id))) =
+  ()
+
+let stored_selection (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) : Type0 =
+  Prims.l_and (unique_selection (Alloc.Vec.impl_1__as_slice selected)) (all_ids (Alloc.Vec.impl_1__as_slice selected) (fact_id_present ops facts))
+
+let selected_fact_position (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (ids: t_Slice it{all_ids ids (fact_id_present ops facts)}) (at: nat{at < Seq.length ids}) : position: FStar.Fin.under (Seq.length facts){ops._1._1 (Seq.index facts position) == Seq.index ids at} =
+  assert (fact_id_present ops facts (Rust_primitives.Slice.slice_index ids (mk_usize at)));
+  assert (fact_id_present ops facts (Seq.index ids at));
+  parent_fact_position ops facts (Seq.index ids at)
+
+let missing_position (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global{stored_selection ops facts selected}) (id: it{fact_id_present ops facts id}) (at: nat{at <= Seq.length (Alloc.Vec.impl_1__as_slice selected)}) : position: FStar.Fin.under (Seq.length facts){ops._1._1 (Seq.index facts position) == (if at ==? Seq.length (Alloc.Vec.impl_1__as_slice selected) then
+  begin id end
+else
+  begin Seq.index (Alloc.Vec.impl_1__as_slice selected) at end)} =
+  if at ==? Seq.length (Alloc.Vec.impl_1__as_slice selected) then
+    begin parent_fact_position ops facts id end
+  else
+    begin selected_fact_position ops facts (Alloc.Vec.impl_1__as_slice selected) at end
+
+let missing_stored_id_leaves_room (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) (id: it) : Lemma (requires (stored_selection ops facts selected /\ fact_id_present ops facts id /\ Prims.l_not (member (Alloc.Vec.impl_1__as_slice selected) id))) (ensures Seq.length (Alloc.Vec.impl_1__as_slice selected) < Seq.length facts) =
+  let ids = Alloc.Vec.impl_1__as_slice selected in
+  let count = Seq.length ids in
+  assert (unique_selection ids);
+  assert (absent_prefix ids id count);
+  if count < Seq.length facts then
+    begin () end
+  else
+    begin if count ==? 0 then
+      begin let position = parent_fact_position ops facts id in
+      assert (position < count) end
+    else
+      begin let position = fun (at: nat{at <= count}) -> ((missing_position ops facts selected id at) <: FStar.Fin.under count) in
+      let positions = Seq.init (count + 1) position in
+      Seq.lemma_init_len (count + 1) position;
+      Seq.init_index (count + 1) position;
+      match FStar.Fin.pigeonhole positions with | (i, j) -> begin assert (Prims.l_and (i < j) (j <= count));
+      assert (position i == position j);
+      if j ==? count then
+        begin assert (Seq.index ids i == id);
+        assert (Seq.index ids (v (mk_usize i)) == id);
+        assert (Prims.l_not (Seq.index ids (v (mk_usize i)) == id)) end
+      else
+        begin assert (j < count);
+        assert (Seq.index ids i == Seq.index ids j);
+        unique_positions_differ ids i j;
+        assert (Prims.l_not (Seq.index ids i == Seq.index ids j));
+        assert (i == j) end end end end
+
+let stored_result (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (result: Result.t_Result (Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) et) : Type0 =
+  match result with | Result.Result_Ok selected -> begin stored_selection ops facts selected end | _ -> begin Prims.l_False end
+
+let stored_push_result (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (result: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global & Result.t_Result unit et) : Type0 =
+  match result with | (selected, Result.Result_Ok _) -> begin stored_selection ops facts selected end | _ -> begin Prims.l_False end
+
+let fresh_append_is_unique (#it: eqtype) (before: t_Slice it) (id: it) : Lemma (requires (unique_selection before /\ Prims.l_not (member before id))) (ensures unique_selection (Seq.append before (Seq.create 1 id))) =
+  let next = Seq.append before (Seq.create 1 id) in
+  assert (absent_prefix before id (Seq.length before));
+  let pair (i: FStar.Fin.under (Seq.length next)) (j: FStar.Fin.under (Seq.length next)) : Lemma (ensures i < j ==> Prims.l_not (Seq.index next i == Seq.index next j)) = if i < j then
+    begin if j < Seq.length before then
+      begin unique_positions_differ before i j;
+      assert (Seq.index next i == Seq.index before i);
+      assert (Seq.index next j == Seq.index before j) end
+    else
+      begin assert (j == Seq.length before);
+      assert (i < Seq.length before);
+      assert (Prims.l_not (Seq.index before (v (mk_usize i)) == id));
+      assert (Seq.index next i == Seq.index before i);
+      assert (Seq.index next j == id) end;
+    assert (Prims.l_not (Seq.index next i == Seq.index next j)) end
+  else
+    begin () end in
+  FStar.Classical.forall_intro_2 #(FStar.Fin.under (Seq.length next)) #(fun (_: FStar.Fin.under (Seq.length next)) -> FStar.Fin.under (Seq.length next)) #(fun (i: FStar.Fin.under (Seq.length next)) (j: FStar.Fin.under (Seq.length next)) -> i < j ==> Prims.l_not (Seq.index next i == Seq.index next j)) pair;
+  assert (unique_selection next)
+
+let distinct_pair_roots_are_unique (#it: eqtype) (a: it) (b: it) : Lemma (requires Prims.l_not (a == b)) (ensures unique_selection (Seq.append (Seq.create 1 a) (Seq.create 1 b))) =
+  empty_and_singleton_roots_are_unique a;
+  assert (Prims.l_not (member (Seq.create 1 a) b));
+  fresh_append_is_unique (Seq.create 1 a) b
+
+let fresh_stored_push_succeeds (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) (id: it) : Lemma (requires (stored_selection ops facts selected /\ fact_id_present ops facts id /\ Prims.l_not (member (Alloc.Vec.impl_1__as_slice selected) id))) (ensures stored_push_result ops facts (Shared.push selected id ops._2._1)) =
+  missing_stored_id_leaves_room ops facts selected id;
+  fresh_append_is_unique (Alloc.Vec.impl_1__as_slice selected) id;
+  selected_push_preserves Seq.empty (fact_id_present ops facts) selected id ops._2._1;
+  Nickel.Canonical.push_is_exact selected id ops._2._1;
+  assert (stored_push_result ops facts (Shared.push selected id ops._2._1)) by (
+    Tactics.prune "Nickel_crdt.Event_layer.push";
+    Tactics.smt_sync' 1 1
+  )
+
+let extend_stored_selection_succeeds (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (fact: ft) (before: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) : Lemma (requires (stored_selection ops facts before /\ all_ids (ops._1._2 fact) (fact_id_present ops facts) /\ ids_exact ops)) (ensures stored_result ops facts (Shared.extend_past fact before ops)) =
+  ops_shape ops;
+  let each_push (selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) (id: it) : Lemma (requires (stored_selection ops facts selected /\ fact_id_present ops facts id /\ Prims.l_not (member (Alloc.Vec.impl_1__as_slice selected) id))) (ensures stored_push_result ops facts (Shared.push selected id ops._2._1)) =
+    fresh_stored_push_succeeds ops facts selected id;
+    assert (stored_push_result ops facts (Shared.push selected id ops._2._1)) by (
+      Tactics.prune "Nickel_crdt.Event_layer.push";
+      Tactics.smt_sync' 1 1
+    ) in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_push);
+  let selected_membership (ids: t_Slice it) (id: it) : Lemma (ensures Shared.has_id ids id ops == true <==> member ids id) [SMTPat (Shared.has_id ids id ops)] = id_membership_is_exact ids id ops in
+  if Shared.has_id (Alloc.Vec.impl_1__as_slice before) (ops._1._1 fact) ops then
+    begin Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len (ops._1._2 fact)) (fun (_: nat) (selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) -> stored_selection ops facts selected) (fun (selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) -> selected) (stored_selection ops facts) (fun (_: et) -> Prims.l_False);
+    assert (stored_result ops facts (Shared.extend_past fact before ops)) by (
+      Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+      Tactics.prune "Nickel.LoopUtil.step_safe";
+      Tactics.prune "Nickel.LoopUtil.output_safe";
+      Tactics.prune "Nickel_crdt.Event_layer.has_id";
+      Tactics.prune "Nickel_crdt.Event_layer.push";
+      Tactics.smt_sync' 1 1
+    ) end
+  else
+    begin assert (stored_result ops facts (Shared.extend_past fact before ops)) by (
+      Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+      Tactics.prune "Nickel_crdt.Event_layer.has_id";
+      Tactics.prune "Nickel_crdt.Event_layer.push";
+      Tactics.smt_sync' 1 1
+    ) end
+
+let history_references_present (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) : Type0 =
+  forall(i: nat{i < Seq.length facts}). all_ids (ops._1._2 (Seq.index facts i)) (fact_id_present ops facts)
+
+let stored_pass_succeeds (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (before: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) : Lemma (requires (history_references_present ops facts /\ stored_selection ops facts before /\ ids_exact ops)) (ensures stored_result ops facts (Shared.past_pass facts before ops)) =
+  ops_shape ops;
+  let each_extend (selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) (i: usize{v i < Seq.length facts}) : Lemma (requires stored_selection ops facts selected) (ensures stored_result ops facts (Shared.extend_past (Seq.index facts (v i)) selected ops)) =
+    extend_stored_selection_succeeds ops facts (Seq.index facts (v i)) selected;
+    assert (stored_result ops facts (Shared.extend_past (Seq.index facts (v i)) selected ops)) by (
+      Tactics.prune "Nickel_crdt.Event_layer.extend_past";
+      Tactics.smt_sync' 1 1
+    ) in
+  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_extend);
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len facts) (fun (_: nat) (selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) -> stored_selection ops facts selected) (fun (selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) -> selected) (stored_selection ops facts) (fun (_: et) -> Prims.l_False);
+  assert (stored_result ops facts (Shared.past_pass facts before ops)) by (
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Nickel_crdt.Event_layer.extend_past";
+    Tactics.smt_sync' 1 1
+  )
+
+let present_dependencies_pass_guard (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (after: t_Slice it) : Lemma (requires (ids_exact ops /\ all_ids after (fact_id_present ops facts))) (ensures Shared.validate_after facts after ops == Result.Result_Ok ()) =
+  let each_id (id: it) : Lemma (requires fact_id_present ops facts id) (ensures Shared.has_fact facts id ops == true) [SMTPat (Shared.has_fact facts id ops)] =
+    let position = parent_fact_position ops facts id in
+    Nickel.EventGraph.fact_membership_is_exact facts id ops;
+    assert (v (mk_usize position) == position);
+    assert (ops._1._3 (ops._1._1 (Seq.index facts (v (mk_usize position)))) id == true) in
+  ops_shape ops;
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len after) (fun (_: nat) (_: unit) -> Prims.l_True) (fun (_: unit) -> ()) (fun (_: unit) -> Prims.l_True) (fun (_: et) -> Prims.l_False);
+  assert (Shared.validate_after facts after ops == Result.Result_Ok ()) by (
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Nickel_crdt.Event_layer.has_fact";
+    Tactics.smt_sync' 1 1
+  )
+
+let fitting_closed_history_computes_past (#ft: Type0) (#it: eqtype) (#et: Type0) (ops: Nickel.EventGraph.graph_ops ft it et) (facts: t_Slice ft) (roots: t_Slice it) : Lemma (requires (history_references_present ops facts /\ unique_selection roots /\ all_ids roots (fact_id_present ops facts) /\ ids_exact ops)) (ensures stored_result ops facts (Shared.past facts roots ops)) =
+  ops_shape ops;
+  present_dependencies_pass_guard ops facts roots;
+  assert (stored_selection ops facts (Alloc.Slice.impl__to_vec roots));
+  let each_pass (selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) : Lemma (requires stored_selection ops facts selected) (ensures stored_result ops facts (Shared.past_pass facts selected ops)) =
+    stored_pass_succeeds ops facts selected;
+    assert (stored_result ops facts (Shared.past_pass facts selected ops)) by (
+      Tactics.prune "Nickel_crdt.Event_layer.past_pass";
+      Tactics.smt_sync' 1 1
+    ) in
+  FStar.Classical.forall_intro (FStar.Classical.move_requires each_pass);
+  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Core_models.Slice.impl__len facts) (fun (_: nat) (selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) -> stored_selection ops facts selected) (fun (selected: Alloc.Vec.t_Vec it Alloc.Alloc.t_Global) -> selected) (stored_selection ops facts) (fun (_: et) -> Prims.l_False);
+  assert (stored_result ops facts (Shared.past facts roots ops)) by (
+    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
+    Tactics.prune "Nickel.LoopUtil.step_safe";
+    Tactics.prune "Nickel.LoopUtil.output_safe";
+    Tactics.prune "Nickel_crdt.Event_layer.past_pass";
+    Tactics.prune "Nickel_crdt.Event_layer.validate_after";
+    Tactics.smt_sync' 1 1
+  )
