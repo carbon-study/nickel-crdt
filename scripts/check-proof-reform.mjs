@@ -95,6 +95,11 @@ export function checkProofReformFence() {
   }
   assertReformedSource('LoopUtil','Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf")');
   assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf")'),/fixture reform:/);
+  for(const name of ['EditDeletePermutation','EditDeleteAnswer','EditDeleteHeap','EditDeleteComplete']) {
+    assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.Unapproved.visibility")'),new RegExp(name+' reform:'));
+    assert.throws(()=>assertReformedSource(name,'Tactics.norm([])'),new RegExp(name+' reform:'));
+    assert.throws(()=>assertReformedSource(name,"Tactics.smt_sync'(0, 0)"),new RegExp(name+' reform:'));
+  }
   console.log('PASS proof-reform fence: approved direct tactic, normalization/import/alias controls');
 }
 checkProofReformFence();
