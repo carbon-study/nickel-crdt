@@ -1,0 +1,111 @@
+import Rust_primitives
+import Core_models
+import Nickel.Vector
+import Nickel.LoopUtil
+import Nickel.EditDeletePermutation
+import FStar.Pervasives
+import FStar.Classical
+import Seq = FStar.Seq
+import Props = FStar.Seq.Properties
+import Native = Nickel_crdt.Edit
+import Flow = Core_models.Ops.Control_flow
+import Result = Core_models.Result
+import Option = Core_models.Option
+import Tactics = FStar.Tactics.V2
+
+// Independent positions in the original list, not adjacency in scratch storage.
+function repeated(xs: t_Slice(Native.t_BirthId)): Type0 {
+  exists(i: nat, j: nat) . i < j and j < Seq.length(xs) and Seq.index(xs, i) == Seq.index(xs, j)
+}
+proof! index_has_count(xs: t_Slice(Native.t_BirthId), i: nat): unit
+  decreases Seq.length(xs)
+  takes i < Seq.length(xs)
+  gives Seq.count(Seq.index(xs, i), xs) >= 1
+{
+  if i > 0 { index_has_count(Seq.slice(xs, 1, Seq.length(xs)), i - 1); } else { () }
+}
+proof! equal_positions_count(xs: t_Slice(Native.t_BirthId), i: nat, j: nat): unit
+  decreases Seq.length(xs)
+  takes i < j and j < Seq.length(xs)
+  takes Seq.index(xs, i) == Seq.index(xs, j)
+  gives Seq.count(Seq.index(xs, i), xs) >= 2
+{
+  if i < 1 {
+    const tail = Seq.slice(xs, 1, Seq.length(xs));
+    index_has_count(tail, j - 1);
+  } else {
+    equal_positions_count(Seq.slice(xs, 1, Seq.length(xs)), i - 1, j - 1);
+  }
+}
+proof! count_has_equal_positions(xs: t_Slice(Native.t_BirthId), id: Native.t_BirthId): unit
+  decreases Seq.length(xs)
+  takes Seq.count(id, xs) >= 2
+  gives repeated(xs)
+{
+  const tail = Seq.slice(xs, 1, Seq.length(xs));
+  if Seq.index(xs, 0) ==? id {
+    const at = Props.index_mem(id, tail);
+    assert(0 < at + 1 and at + 1 < Seq.length(xs) and Seq.index(xs, 0) == Seq.index(xs, at + 1));
+  } else {
+    count_has_equal_positions(tail, id);
+    assert(repeated(xs));
+  }
+}
+proof same_births_transports_pair(before: t_Slice(Native.t_BirthId), after: t_Slice(Native.t_BirthId)): unit
+  gives (Nickel.EditDeletePermutation.same_births(before, after) and repeated(after)) ==> repeated(before)
+{
+  proof each(i: nat, j: nat): unit
+    takes Nickel.EditDeletePermutation.same_births(before, after)
+    takes i < j and j < Seq.length(after) and Seq.index(after, i) == Seq.index(after, j)
+    gives repeated(before)
+  {
+    equal_positions_count(after, i, j);
+    assert(Seq.count(Seq.index(after, i), before) >= 2) by {
+      Tactics.prune("FStar.Seq.count");
+      Tactics.prune("FStar.Seq.Properties.count");
+      Tactics.smt_sync'(1, 1)
+    };
+    count_has_equal_positions(before, Seq.index(after, i));
+    assert(repeated(before)) by {
+      Tactics.prune("FStar.Seq.count");
+      Tactics.prune("FStar.Seq.Properties.count");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each));
+}
+
+proof duplicate_answer_has_original_pair(xs: t_Slice(Native.t_BirthId)): unit
+  gives Native.duplicate_births(xs) == true ==> repeated(xs)
+  hint Native.duplicate_births(xs)
+{
+  if Seq.length(xs) >= 2 {
+    const ordered = Native.ordered_births(xs);
+    Nickel.EditDeletePermutation.ordered_preserves_births(xs);
+    same_births_transports_pair(xs, Alloc.Vec.impl_1__as_slice(ordered));
+    Nickel.LoopUtil.preserve_any(mk_usize(1), Alloc.Vec.impl_1__len(ordered),
+      ((_: nat, _: unit) => Prims.l_True), ((_: unit) => Prims.l_True),
+      ((answer: bool) => answer == true ==> repeated(Alloc.Vec.impl_1__as_slice(ordered))));
+    assert(Native.duplicate_births(xs) == true ==> repeated(xs)) by {
+      Tactics.prune("Nickel_crdt.Edit.ordered_births");
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.smt_sync'(1, 1)
+    }
+  } else { () }
+}
+
+// This actual validator branch must not be stolen by a false duplicate answer.
+// No history-validity or dependency-presence premise is needed for this branch.
+proof distinct_delete_keeps_placement_error(facts: t_Slice(Native.t_Fact), fact: Native.t_Fact): unit
+  takes Native.validate_scalars(Alloc.Vec.impl_1__as_slice(fact.f_insert)) == Result.Result_Ok(())
+  takes not repeated(Alloc.Vec.impl_1__as_slice(fact.f_delete))
+  takes Alloc.Vec.impl_1__is_empty(fact.f_insert) == true
+  takes Core_models.Option.impl__is_some(fact.f_gap) == true
+  gives Native.impl_Replica__validate_new(facts, fact) == Result.Result_Err(Native.Error_Invalid(Native.Invalid_PlacementWithoutBirth))
+{
+  duplicate_answer_has_original_pair(Alloc.Vec.impl_1__as_slice(fact.f_delete));
+  assert(Native.impl_Replica__validate_new(facts, fact) == Result.Result_Err(Native.Error_Invalid(Native.Invalid_PlacementWithoutBirth))) by {
+    Tactics.prune("Nickel_crdt.Edit.duplicate_births");
+    Tactics.smt_sync'(1, 1)
+  }
+}
