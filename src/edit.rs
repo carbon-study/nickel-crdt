@@ -144,16 +144,54 @@ fn validate_scalars(scalars: &[u32]) -> Result<(), Error> {
 fn duplicate_events(xs: &[EventId]) -> bool {
     crate::event_layer::duplicate_ids(xs, &TEXT_OPS.0)
 }
-fn duplicate_births(xs: &[BirthId]) -> bool {
-    for i in 0..xs.len() {
-        for j in 0..i {
-            if xs[i] == xs[j] {
-                return true;
-            }
+// A sift moves down one heap level each round. A usize-indexed heap has no
+// more levels than usize has bits; break as soon as the root is a leaf or fits.
+fn sift_births(mut values: Vec<BirthId>, start: usize, finish: usize) -> Vec<BirthId> {
+    let mut root = start;
+    for _ in 0..(usize::BITS as usize) {
+        if root >= finish / 2 { break; }
+        let mut child = root * 2 + 1;
+        if root >= values.len() || child >= values.len() { break; }
+        if child + 1 < finish && child + 1 < values.len() && birth_lt(values[child], values[child + 1]) {
+            child += 1;
         }
+        if child >= values.len() || !birth_lt(values[root], values[child]) { break; }
+        let old = values[root];
+        values[root] = values[child];
+        values[child] = old;
+        root = child;
+    }
+    values
+}
+// Sort scratch storage only: original delete-list order is part of fact equality.
+fn ordered_births(xs: &[BirthId]) -> Vec<BirthId> {
+    let mut values = xs.to_vec();
+    let len = values.len();
+    for step in 0..(len / 2) {
+        if step < len / 2 {
+            values = sift_births(values, len / 2 - 1 - step, len);
+        }
+    }
+    for step in 0..len {
+        let finish = len - 1 - step;
+        if values.is_empty() || finish >= values.len() { break; }
+        let old = values[0];
+        values[0] = values[finish];
+        values[finish] = old;
+        values = sift_births(values, 0, finish);
+    }
+    values
+}
+fn duplicate_births(xs: &[BirthId]) -> bool {
+    if xs.len() < 2 { return false; }
+    if xs[0] == xs[1] { return true; }
+    let ordered = ordered_births(xs);
+    for i in 1..ordered.len() {
+        if i > 0 && i < ordered.len() && ordered[i - 1] == ordered[i] { return true; }
     }
     false
 }
+
 impl Default for Tree {
     fn default() -> Self {
         Self {
@@ -780,3 +818,6 @@ const TEXT_OPS: crate::event_layer::EventOps<Fact, EventId, Error> = {
         required_predecessor, forbidden_ancestor, duplicate_dependency_error, predecessor_error,
     )
 };
+
+#[cfg(test)]
+mod delete_duplicate_tests;
