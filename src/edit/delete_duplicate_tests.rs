@@ -4,7 +4,7 @@ fn quadratic(xs: &[BirthId]) -> bool {
     false
 }
 fn id(n: usize) -> BirthId {
-    BirthId { event: EventId { writer: if n % 2 == 0 { Writer::Alice } else { Writer::Bo }, counter: (n / 3) as u64 }, index: n % 3 }
+    BirthId { event: EventId { writer: if n % 2 == 0 { Writer::Alice } else { Writer::Bo }, counter: (n / 6) as u64 }, index: (n / 2) % 3 }
 }
 fn check(xs: &[BirthId]) {
     let before = xs.to_vec();
@@ -15,6 +15,12 @@ fn check(xs: &[BirthId]) {
 }
 #[test]
 fn all_small_identity_lists_match_independent_sort_and_pairwise_oracles() {
+    // Each adjacent alphabet pair differs only in writer identity.
+    for n in [0, 2, 4] {
+        assert_ne!(id(n).event.writer, id(n + 1).event.writer);
+        assert_eq!(id(n).event.counter, id(n + 1).event.counter);
+        assert_eq!(id(n).index, id(n + 1).index);
+    }
     for len in 0..=6 {
         for mut code in 0..6usize.pow(len as u32) {
             let mut xs = Vec::new();
@@ -51,9 +57,10 @@ fn deterministic_scrambles_match_pairwise_oracle() {
 fn measure_duplicate_scaling() {
     use std::{hint::black_box,time::Instant};
     for len in [64,256,1024,4096,16384] {
-        for kind in ["distinct","early-duplicate","late-duplicate"] {
+        for kind in ["distinct","first-pair-duplicate","near-early-duplicate","late-duplicate"] {
             let mut xs:Vec<_>=(0..len).map(id).collect();
-            if kind=="early-duplicate" {xs[1]=xs[0];}
+            if kind=="first-pair-duplicate" {xs[1]=xs[0];}
+            if kind=="near-early-duplicate" {xs[2]=xs[0];}
             if kind=="late-duplicate" {xs[len-1]=xs[0];}
             assert_eq!(duplicate_births(&xs),quadratic(&xs));
             let mut old=Vec::new();let mut new=Vec::new();
