@@ -450,6 +450,10 @@ let successful_execution_orders_its_exact_past_cut (facts: facts_vec) (roots: t_
     ) in
   FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 combine);
   assert (interpreted_cut facts roots tree) by (
+    Tactics.prune "Nickel.EditSchedule.interpreted_cut";
+    Tactics.prune "Nickel.EditPast.exact_past_result";
+    Tactics.prune "Nickel.EditPastTotal.stored_selection";
+    Tactics.prune "Nickel.EditSchedule.complete_causal_trace";
     Tactics.prune "Nickel_crdt.Edit.past";
     Tactics.prune "Nickel_crdt.Event_layer.past";
     Tactics.prune "Nickel_crdt.Edit.interpret";

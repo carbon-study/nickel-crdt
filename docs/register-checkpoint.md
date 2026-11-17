@@ -1,10 +1,13 @@
-# native single-write register checkpoint — candidate
+# native single-write register checkpoint
 
-This branch contains a runnable candidate, not an accepted verified delivery.
-The [approved cut](register-first-cut.md) still requires full client refinement,
-clock/valid-history preservation, focused proof controls, review and exact-head CI.
-Atomic multi-write registers follow this checkpoint, then the agreed implemented
-text semantic/refinement slice, before collections. No Undo/Redo is implemented.
+**The [single-write safety checkpoint](https://github.com/carbon-study/nickel-crdt/issues/105#issuecomment-6905714405) is accepted** on main
+`58b7e61`, with the exact reviewed `591c23a` source tree and complete green
+[main workflow](https://github.com/carbon-study/nickel-crdt/actions/runs/43773921327).
+The later sharding merge changes no native/proof/pin bytes. This is not a stable
+verified release, universal admission/progress or SEC. Atomic multi-write
+registers follow as a separate delivery after the approved shared exact-past
+consolidation, then the agreed implemented text semantic/refinement slice before
+collections. No Undo/Redo is implemented.
 
 ## manipulate a register
 
@@ -21,7 +24,7 @@ node scripts/check-register-native.mjs
 
 Keys and writer IDs are independent u64 values. The caller supplies globally
 unique, fenced writer streams: no concurrent producer, rollback or ID reuse.
-Counters start at1; receiving the producer's old history is **not** restoration
+Counters start at 1; receiving the producer's old history is **not** restoration
 of its private counter. There is no checkpoint/recovery protocol.
 
 Values are opaque byte strings. Their application encoding must carry any format
@@ -31,8 +34,20 @@ Compared replicas of a document must agree on this configuration. No plugin
 ownership is encoded into keys or writer identities.
 
 There is no engine event-count, parent-count or value-byte policy ceiling.
-Workload budgets belong to callers/harnesses; see [the migration](policy-budgets.md).
+Optional workload budgets belong to callers; see [the migration](policy-budgets.md).
+No register-budget harness is delivered by this candidate. The retained capacity
+tests use a text-only caller guard, not register engine Capacity outcomes.
 No automatic GC, winner-only compaction or buffering policy is selected.
+
+Each counted write deep-clones the current replica; its successful receive stages
+another replica clone and canonicalizes all retained facts. Facts retain both the
+new value and the observed value, as well as their parent IDs. Copy work per
+counted write therefore grows with retained history. For N accumulating counted
+writes whose value and observed byte strings are bounded by S bytes, the
+cumulative payload-byte copying component is O(N² · S), in addition to parent-ID
+copying and canonicalization work. This is a source-level cost description, not
+a measured runtime bound or a new workload ceiling. Equal-value no-edit returns
+before constructing these candidates.
 
 ## retained meaning and admission
 
@@ -44,9 +59,9 @@ basis, including other keys. Receiving does not advance the private author count
 
 Read chooses the highest (Lamport, writer) at that key, or the initial value if
 none exists. The intended causal-maxima meaning agrees with this scan when valid
-clocks strictly increase along ancestry; preserving that invariant through actual
-admission is an outstanding proof obligation. Equal priority values cannot be
-assumed unique on arbitrary malformed arrays. All counted losing writes remain
+clocks strictly increase along ancestry; the accepted public-history composition
+preserves that invariant through the actual constructor and returns. Equal
+priority values cannot be assumed unique on arbitrary malformed arrays. All counted losing writes remain
 stored. Storage canonicalization is writer-first and is not read priority.
 
 Whole-fact duplicate classification comes first, before payload validation.
@@ -60,11 +75,41 @@ successful candidate. Clock/counter exhaustion returns an explicit error.
 Missing dependencies require the external caller to retry after delivering them.
 The former dependency-cap/frontier refusal has been removed, rather than
 replaced by a larger configured cap or a different causal context. Counted writes
-still cite the whole current frontier. Counter/clock exhaustion, writer fencing,
-validity and termination remain separate obligations. There is no unconditional
-eventual delivery/admission or SEC result.
+still cite the whole current frontier. Clock/counter exhaustion and caller
+writer-fencing requirements still apply. The public-history preservation law is
+a safety result, not an unconditional eventual delivery/admission, termination
+or SEC result.
 Rust allocation failure, the hax translation and its pinned models remain trust
 boundaries; finite tests are not universal validity or progress proofs.
+
+## accepted composition and its domain
+
+`RegisterPublic.public_history` combines the retained-history invariant and
+positional ID uniqueness. The actual constructor establishes it; every
+`receive` and `write` return preserves it. Under that invariant,
+`public_read_is_the_causal_read` connects the actual public read to the
+independent causal-maxima meaning for that replica's configured initial bytes.
+
+`receive_added_meaning` and `write_counted_meaning` bind successful publication
+to a fresh valid whole fact and the exact retained-history extension, including
+losing writes. `RegisterFrontier.counted_write_basis_is_whole_history` identifies
+the successful local write's actual validation basis with the literal complete
+pre-write fact slice. `receive_duplicate_meaning` and `write_noedit_meaning`
+connect those outcomes to retained whole facts and the causal read. Public
+producer contracts compose all-return history preservation with exact private
+counter/identity, publication and neutrality laws. The equality/clone callbacks
+are checked on the complete fact payload.
+
+These safety and successful-result laws do not prove every valid offer is Added,
+every requested write succeeds, termination, or an independent iff classification
+of every error code. Complete full-register history/Undo, delivery/progress,
+writer-allocation/recovery guarantees, persistence, Carbon integration and
+convergence remain outside this checkpoint. Caller fencing and the documented
+translation/model/compiler/runtime trust boundaries still apply.
+
+The component accounts below preserve each earlier theorem's individual scope.
+Where one component alone does not establish ancestry, retention or validity,
+that limitation does not remove the separate accepted composition above.
 
 ## current evidence boundary
 
@@ -102,21 +147,26 @@ does not establish which facts canonicalization retains.
 The current theorem name, `write_publication_on_every_return`, does not mean
 successful candidate installation follows from that law alone. The new
 installation law is separate: the counter-bump-without-installation fault that
-satisfied the old counter law is its dedicated actual-source control. A full
-independent retained-history meaning law remains required.
+satisfied the old counter law is its dedicated actual-source control. These frame/installation laws alone do not supply independent retained-history
+meaning; that separate link is supplied by the accepted public composition above.
 Native and proof controls cover premature counter publication; additional proof
 controls corrupt the successful counter and returned identity.
 
-Its checked statements and remaining control/integration frontier are tracked
-with the candidate; none of these alone establishes full register refinement,
-valid-history preservation, shared canonical convergence or the multi-write
-contract. The existing text theorem statements and implementation are unchanged.
+None of these component statements alone establishes valid-history preservation
+or full client refinement; the accepted single-write composition above supplies
+its separate safety links. Shared convergence, admission/progress, the multi-write
+contract and full register history/Undo are not established by this checkpoint. The existing text theorem statements and implementation are unchanged.
+
+Equal-value no-edit has no engine value-byte-budget premise in this API. The
+older bounded no-edit evidence at `52f597a` required value fitness and did not
+let equality bypass that policy check; that is a historical claim about the
+pre-migration engine, not a condition or guarantee of the ceiling-free API.
 
 ### added-receive payload boundary
 
 `validation_is_exact_basis_checks` characterizes the actual validator in both
 directions: the actual shared admission and basis-selection calls succeed, the
-counter is nonzero and byte bounds hold, the observed bytes equal the read of
+counter is nonzero, the observed bytes equal the read of
 that selected basis, the new bytes differ, and its clock equals the actual
 `next_lamport` result on that basis. `planned_checks_payload` and
 `receive_added_checks_payload` transport those checks to the actual public
@@ -183,9 +233,8 @@ the retained length by one. These are conditional success laws on every typed
 replica, not only reachable replicas. Earlier publication, frame and installation
 laws still cover their separate all-return obligations.
 
-The candidate states content retention through successful canonicalization. Independent
-ancestry/valid-history preservation, canonical ordering and history agreement,
-full client refinement and fitting admission/progress remain open. An operation
+The content law alone does not supply ordering, independent ancestry/valid-history
+preservation, history agreement, full client refinement or fitting admission/progress. An operation
 that always refuses is not excluded by these success-only laws. No SEC or
 checkpoint acceptance follows from this cut alone. Rust APIs and implementation
 bytes are unchanged; the native extraction roots include the complete shared
@@ -211,7 +260,173 @@ controls are retained with exact branch-local boundary counts.
 
 This repairs the three affected match sites in the register dependency closure,
 not the ten other inventoried text-side match sites. The private compiler source
-fix is merged but is not activated in Nickel. Both the unchanged pinned producer
-and the corrected experimental producer check the complete register closure.
-The remaining text audit and checkpoint obligations stay open; exact-head CI
-and scoped repair review are required before accepting this cut.
+fix is merged but is not activated in Nickel. For the bounded three-site repair
+at `2de2294`, the complete register closure verified with both the unchanged pinned
+producer and the corrected experimental producer. That retained comparison
+supersedes the earlier failed `LoopUtil.preserve` run; it does not claim a new
+corrected-producer check of every subsequent candidate. The
+[retained comparison evidence](https://gist.github.com/lynn-in-residence/690c8d6e8dc2744f87e989afb48e34e2)
+includes the two complete-closure logs and source/view identities.
+The remaining text audit stays open. The bounded register closure has closed
+scoped review and exact-head CI as part of the accepted checkpoint; this does not
+activate the compiler repair or extend the corrected-producer comparison.
+
+### strict storage order through actual publication
+
+The generic `Canonical.choose_is_least` law follows the actual shared minimum
+scan. `canonical_outputs_strict_id_order` establishes strict ID order for every
+successful canonical result, under explicit irreflexive/transitive/total comparator
+and exact value-policy premises. The input need not be a reachable history.
+The choice and canonical loops use their checked Result-loop contracts; native
+membership, step and fold bodies are withheld at the relevant consuming queries.
+A scoped boolean-shape lemma supplies the membership result shape under opacity.
+
+The register discharges the actual constructed comparator as writer-first, then
+counter. This storage order is separate from the Lamport/writer read priority.
+`execute_orders_fact_history`, `planned_orders_fact_history`,
+`receive_added_orders_fact_history` and `write_counted_orders_fact_history`
+carry the property through actual computation and publication. These are
+success-only laws on every typed replica; existing publication/neutrality laws
+retain their all-return domains. No new native implementation or API is involved.
+
+The focused gate reverses the actual choice comparison arguments and swaps the
+register's actual comparator slot for equality. Fresh extracted native modules
+must typecheck before the unchanged semantic owners reject ordinarily. The
+policy-slot fault is bound to the complete unique code-masked const declaration;
+missing, commented or duplicate policy items refuse preparation. Extraction
+explicitly retains `less_id`, already present in the healthy four-module output,
+so a wrong policy cannot turn the test into a missing-declaration error.
+
+A separate native-body control changes `less_id` to counter-first, then writer.
+That remains a strict total order, but violates the writer-first contract;
+`less_id_is_lexicographic` must reject it ordinarily after fresh extraction and
+native typechecking. This checks the specified order independently of the
+comparator-slot fault and generic strictness premises.
+
+Separate removal controls check minimum-to-step, canonical-to-execute and both
+plan-to-publication callers with the relevant bodies and automatic contracts
+withheld. The successful execute branch checks strict ordering under opacity
+before calling the policy refinement lemma, so its premise cannot be recovered
+by unfolding the canonicalizer outside the consuming query.
+The native definition visibility added for this cut is exactly the register's
+`identity` and `less_id`. New match-consuming queries are branch-local; no compiler
+sequencing repair is activated.
+
+The counted-write ordering query also withholds the hinted
+`planned_checks_payload`, `planned_preserves_private` and
+`planned_adds_exact_fact` contracts. It consumes the checked plan-order and
+candidate-installation laws directly; payload, private-frame and whole-history
+retention instantiations are not needed at this boundary. Those separate
+theorems and their callers are unchanged. Only the last name is new to the
+Register fence. The plan-order removal keeps its original semantic owner,
+actual call and query boundary.
+
+This ordering cut alone does not establish independent exact ancestry or
+valid-history/client refinement; those single-write safety links are supplied by
+the accepted composition above. Fitting admission/progress remains open beyond
+this checkpoint. Canonical success on unique-ID inputs is addressed separately
+below. No SEC result follows from this cut.
+
+### successful canonical agreement on equal whole-fact contents
+
+`Canonical.canonical_is_permutation_independent` composes the checked content
+and strict-order contracts: with the same explicit strict comparator and exact
+value policy, two inputs of equal length containing exactly the same whole facts
+produce identical whole-fact vectors **if both actual canonicalizations succeed**.
+Neither input is restricted to reachable histories. The law says nothing about
+which calls succeed or about equality of errors.
+
+The finite argument is positional, with no numeric rank or finite identity
+universe assumption. Two ordered vectors with the same facts agree one position
+at a time: a first mismatch would place the two facts before each other, contrary
+to the strict comparator. Equal prefixes and irreflexivity also rule out finding
+either fact at an earlier position. Sequence extensionality gives vector equality.
+The actual canonicalizer is withheld at the consuming agreement queries; its
+checked exact-content and strict-order contracts supply the two results.
+
+`Register.execute_agrees_on_same_fact_contents` discharges the real register
+policy and carries this to the actual `execute` calls: equal whole-fact input
+contents and lengths, plus two successful executions, imply identical retained
+fact vectors. Private writer/counter/configuration fields need not agree and are
+not asserted equal. This is not equality of reads across different initial values,
+a receive/admission result, history validity or replica convergence.
+
+Four owning removal controls separately withhold the generic ordered-output,
+exact-content and vector-equality steps, then the generic agreement contract at
+the register caller. The existing fresh-extraction minimum-scan fault remains
+the native implementation-sensitivity control for the underlying ordering chain;
+it is not relabelled as a direct fault of the new agreement theorem. No Rust,
+model, compiler, runtime, budget or source-fence changes are involved.
+
+### canonical success for unique-ID input
+
+`Canonical.canonical_succeeds_for_unique_ids` proves that the actual shared
+canonicalizer returns `Ok` for every typed input slice with distinct projected
+IDs, under the explicit exact ID-equality/copy/whole-fact equality policy.
+This is a success law, not merely a property conditional on success. It includes
+empty inputs and does not restrict inputs to reachable histories.
+
+Success does not require a strict comparator: even an arbitrary total boolean
+comparison callback keeps the selected index in range. The choice scan cannot
+take its error branch, and `None` means all input IDs are already represented.
+If the output is shorter than a unique-ID input, a positional pigeonhole argument
+rules that out. A step therefore has a selected in-range fact and room to append
+before the real `usize` maximum. The checked Result-loop interface carries this
+through the actual complete range, preserving the whole-fact prefix invariant
+and disallowing an error exit. Strict order is still required by the separate
+ordering/agreement laws; success alone does not imply sorted output.
+
+`Register.execute_succeeds_for_unique_ids` discharges the actual register policy
+and proves that `execute` returns a candidate for any typed replica with distinct
+stored IDs. Its policy precondition is established with the native policy,
+constructors and ID projection withheld before invoking generic success. It
+does not prove that an arbitrary offered event passes admission, that public
+writes progress, or that a replica satisfies independent history validity.
+
+Two fresh Rust fault controls make the actual choice scan and register executor
+return errors. Earlier success-only properties can remain true; the new
+`choose_finishes_scan` and `execute_succeeds_for_unique_ids` owners must reject
+ordinarily after native typechecking. Separate contract removals cover scan
+coverage/totality, the finite unseen-ID argument, membership, step success, the
+Result-loop rule, the real ID policy and the register's canonical-success call.
+The old theorem domains, fences, native implementation, models and budgets are
+unchanged.
+
+These laws concern the actual extracted functions under the pinned Hax/vector
+models and total logical callbacks. They do not certify allocation availability,
+panic freedom or termination of arbitrary external Rust callbacks. The bounded
+public runtime caller exercises real successful calls under several comparison
+policies; those finite observations do not remove these trust boundaries or
+establish admission, valid-history preservation, convergence or SEC.
+
+### positional uniqueness across public returns
+
+the retained vector now has a separate positional-ID property:
+`Register.fact_ids_unique` says equal IDs at two in-range positions force the
+positions to be equal. this excludes even two identical copies of one fact.
+it is stronger than a set-level “same ID means same whole fact” condition.
+
+`facts_order_implies_unique` derives it from the already checked strict
+writer-first storage order. `receive_added_has_unique_ids` and
+`write_counted_has_unique_ids` apply that implication to the actual public
+success results; neither assumes a valid input history for that success-only
+claim. `new_has_unique_ids` checks the actual constructor's empty vector.
+
+`receive_preserves_unique_ids` and `write_preserves_unique_ids` preserve the
+property on **every return** when it holds before. Added/counted outcomes use
+the checked ordering chain; duplicate, error and no-edit paths use the existing
+publication/neutrality contracts. the consuming queries hide the relevant
+native public/planning bodies and match `fact_ids_unique` as an opaque
+predicate at those all-return queries. its definition is established by the
+order-to-uniqueness law, not reconstructed from native code at the caller.
+this adds exactly that one local predicate to the Register fence. no reachable-state restriction is substituted
+for the typed-state statements.
+
+`receive_result_can_execute` and `write_result_can_execute` then discharge
+#116's positional uniqueness premise on the actual returned replica and invoke
+its checked canonical-execution success law. this says a subsequent pure
+`execute` has an Ok result, including after a refused or no-edit operation.
+it does not say a refused fact will become admissible, restore a producer
+counter, prove a deterministic causal read, or close full client refinement,
+valid history, convergence or SEC. all existing hax/vector-model and total
+logical callback trust boundaries remain.

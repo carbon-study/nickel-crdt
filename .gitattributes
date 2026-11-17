@@ -1,0 +1,11 @@
+# Receipts and .sha256 files pin exact bytes of sources and views: keep LF everywhere.
+* text=auto eol=lf
+
+# Extracted F* views are generated from proofs/*.lt (and the native crate); collapse them
+# in diffs and keep them out of language statistics.
+proofs/generated/**/*.fst linguist-generated=true
+proofs/register-view/*.fst linguist-generated=true
+proofs/causal-envelope-view/*.fst linguist-generated=true
+
+# Latte sources are the authored proofs; Linguist has no Latte grammar, so show them as F*.
+*.lt linguist-language=F*

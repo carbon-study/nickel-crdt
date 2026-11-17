@@ -63,6 +63,51 @@ sensitivity. An arbitrary earlier failure, exhaustion or type failure is never
 accepted instead. See [scope and trust](../docs/shared-layer-experiment.md) and
 [exact extraction](generated/hax/README.md).
 
+## generic non-parent frontier
+
+`Canonical.frontier_is_nonparent_filter` specifies the actual shared
+`event_layer::frontier`: it succeeds on every typed input slice and returns,
+in input order, each position's ID exactly when no input fact's parent list
+mentions that ID under the supplied comparison. Repeated unmentioned positions
+remain repeated. No uniqueness, acyclicity or closure premise is added.
+
+The native implementation factors its complete inner scan into private
+`referenced_by_any`. Callback arguments and evaluation order are preserved,
+including evaluating the current fact's ID inside every inner iteration;
+there is no early exit. The proof composes checked membership, plain-loop,
+push and Result-loop contracts at the actual calls. Native body and argument
+faults and separate contract-removal controls own those connections.
+
+This is a computational filter/success contract under the existing translation
+and model trust, not a physical allocation guarantee. Relating the filter to
+causal maxima and showing that its ancestors cover a closed register history
+are separate obligations. It does not establish admission progress, client
+refinement, checkpoint acceptance or convergence.
+
+## counted register writes use the whole retained history
+
+For a replica satisfying `RegisterPublic.public_history`, a counted write's
+actual validation and basis-selection calls succeed with a basis whose complete
+fact sequence equals the pre-write retained fact sequence. This includes losing
+writes, parents, observations and clocks, in storage order. The statement is
+`RegisterFrontier.counted_write_basis_is_whole_history`; it is conditional on
+an actual `Ok(Some(authored))` write, not a guarantee that a requested write
+is admitted.
+
+The proof first follows stored child edges to a fact nobody names as a parent.
+Strictly increasing stored-parent clocks and the existing u64 clock bound give
+a ghost well-founded measure; no numeric ID rank is assumed. The checked native
+frontier keeps that terminal fact, so its ancestor closure covers every retained
+fact. Checked write-installation and exact-ancestry contracts carry this to the
+actual authored parents and validation selection. Selecting every position in
+the checked whole-fact filter gives literal sequence equality, not just equal IDs
+or equal reads.
+
+This is a candidate proof cut, subject to scoped review and exact-head acceptance.
+It adds no native code, policy, model, pin or resource-limit change. Error/no-edit
+neutrality remains separately checked; admission progress, allocation/recovery,
+checkpoint acceptance and convergence do not follow from this success-only law.
+
 ## running the edit gate
 
 With no arguments, `scripts/check-edit-proofs.mjs` (and therefore `.#proofs` and
@@ -1717,3 +1762,59 @@ production/placement refinement, tree-work totality and public valid-fitting
 admission remain open. No cache is enabled, and runtime bodies, hax snapshot,
 compiler/model pins, theorem-rejection classification and proof limits are
 unchanged.
+
+## exact delete-id duplicate check
+
+`EditDeletePermutation.lt` proves length and full-id multiplicity preservation
+for the actual scratch copy/build/drain calls. `EditDeleteHeap.lt` proves their
+heap/order laws and sorted output, including sufficiency of the extracted
+32-or-64-bit `usize::BITS` sift bound. The pointwise loop-model equations are
+checked implementation links, not an assumed sorting specification.
+
+`EditDeleteAnswer.lt` gives the independent original-position meaning:
+two distinct positions in the original slice contain equal complete birth ids.
+`EditDeleteComplete.lt` composes preservation, sortedness and both answer
+directions into an iff for the actual native duplicate checker, on all typed
+slices. Its actual fact-local validator composition preserves scalar-error
+precedence and rejects repeated deletes before causal admission. This is not a
+complete public receive error-code iff, admission, progress or SEC result.
+
+The normal text positive reaches all four modules after fresh Rust extraction.
+`contracts:delete` selects 44 ordinary named-owner negatives and four explicitly
+passing weaker-component scope witnesses. No-argument and complementary-family
+CI routes include it. `delete-planned.json` and `delete-results.json` distinguish
+planned/executed cases and positive witnesses; failures, exhaustion and setup
+errors are not successful negatives. One duplicate drain-value-loss experiment
+is retained once: its Rust, extraction and owning preservation law are identical
+across the earlier component inventories.
+
+`delete-control-fixtures.mjs` contains exact scoped Rust/view mutation inputs
+from those paired experiments. Source/view drift refuses; it does not silently
+regenerate anchors. Private Latte is unnecessary for executing the public gate.
+These fixtures and source/view digests do not establish compiler correctness.
+Allocation/process failure and the existing translation/model/solver trust
+boundaries remain. Sorting a scratch list preserves retained fact order; the
+first-pair shortcut does not extend to other early duplicates. The semantic
+proof is not a universal speedup or a resource-safety guarantee.
+
+### shared producer-stream admission
+
+`EventGraph.validated_stream_checks` proves a success-only contract about the
+actual shared `validate_event`: its returned selection passes the supplied
+`has_id` test for the required predecessor, when present. Every stored fact whose
+ID passes that selection-membership test fails the forbidden-ancestor test. The domain permits arbitrary callbacks; it
+assumes no ID equality laws, closed history or writer allocator.
+
+The existing `RegisterValid.validated_stream_checks` retains its concrete
+statement and feeds the register history invariant. The text policy instance
+feeds actual text validation and the public `Added` receive composition in
+`EditWellFormed`. This contract is relative to the returned selection and supplied
+callbacks. Exact ancestry and independent writer-counter meaning are separate
+client obligations; it does not establish admission progress or recovery.
+
+The `event` contract family checks the shared loop, both text contract hops and
+the public receive composition. Four `stream-*` native modes separately alter
+predecessor checking, forbidden checking, forbidden argument order and the actual
+text predecessor-policy argument. The older `causal-validator-passes-empty`
+control now rejects first in `successful_validation_has_stream_checks`; its
+original direct-dependency statement and contract-removal controls remain.

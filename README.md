@@ -9,15 +9,18 @@ configuration. The [policy-budget migration](docs/policy-budgets.md) records the
 API/proof changes and retained overflow boundaries. This removes one source of
 order-dependent refusal; it does not establish admission progress or SEC.
 
-## Keyed-register checkpoint candidate
+## Keyed-register single-write checkpoint
 
 The [native checkpoint](docs/register-checkpoint.md) adds single-write keyed
-write/read/replication through the actual shared graph and publication shell.
-Run `cargo run --locked --example register-checkpoint`. The read-selection,
-equality, no-edit and publication proofs are bounded components; full register
-validity/refinement and convergence remain open. This is not acceptance of the
-complete [register-first cut](docs/register-first-cut.md), atomic multi-write
-registers or Undo/Redo.
+write/read/replication in memory through the actual shared graph and publication shell.
+Run `cargo run --locked --example register-checkpoint`. The [single-write safety
+checkpoint](https://github.com/carbon-study/nickel-crdt/issues/105#issuecomment-6905714405) is accepted: independent causal-read/retained-history meaning,
+public-history preservation and exact publication/private-counter contracts are
+linked to the actual native methods. This is not a stable verified release or a
+proof of universal write/admission progress, termination or SEC. It delivers no
+persistence, Carbon integration, writer-allocation/recovery guarantee, atomic
+multi-write registers or Undo/Redo. Writer fencing, agreed initial bytes and the
+documented translation/model trust boundaries still apply.
 
 ## Shared-layer experiment
 
@@ -30,12 +33,13 @@ with client obligations and the unproved semantic boundaries listed in the scope
 
 ## Next native delivery
 
-The [register-first slice](docs/register-first-cut.md) is the next approved
-delivery: keyed write/read/replication with implementation-linked obligations.
-It is not implemented yet. Text remains a preserved track, with an explicit
-return point after that slice and a goal of sharing the convergence argument
-where the actual client laws support it. No strong eventual consistency claim
-is delivered by this plan.
+The [single-write register slice](docs/register-first-cut.md) has landed and is
+accepted. Before multi-write registers, consolidate the duplicated shared
+exact-past proof with its concrete text/register instances and preserved controls.
+Atomic multi-write registers and the agreed text semantic/refinement slice remain
+separate deliveries before collections; the explicit return to text and the
+shared-convergence obligations are unchanged. No strong eventual consistency
+claim is delivered by this checkpoint.
 
 ## Ordering research candidates
 

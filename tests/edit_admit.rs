@@ -389,3 +389,23 @@ fn repeated_dependency_is_rejected_before_closure() {
     // The single-dependency fact is still admitted.
     receive(a, &reply);
 }
+
+#[test]
+fn producer_stream_requires_its_own_predecessor_in_selected_ancestors() {
+    let r = new(None);
+    let offered = Fact {
+        id: EventId { writer: Writer(1), counter: 2 },
+        after: vec![], insert: vec![], delete: vec![], gap: None,
+    };
+    let (next, result) = r.clone().receive(&offered);
+    assert_eq!(result, Err(Error::Invalid(Invalid::Predecessor)));
+    assert_eq!(next, r);
+
+    let (_, other) = edit(new(Some(Writer(2))), 0, "b", vec![]);
+    let r = receive(r, &other);
+    let mut offered = offered;
+    offered.after = vec![other.id];
+    let (next, result) = r.clone().receive(&offered);
+    assert_eq!(result, Err(Error::Invalid(Invalid::Predecessor)));
+    assert_eq!(next, r);
+}
