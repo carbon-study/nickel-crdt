@@ -368,7 +368,9 @@ export const deleteControlFixtures = [
     "tests": [
       "test",
       "--offline",
-      "--locked"
+      "--locked",
+      "--test",
+      "fact_local_first"
     ]
   },
   {
@@ -645,7 +647,9 @@ export const deleteControlFixtures = [
     "tests": [
       "test",
       "--offline",
-      "--locked"
+      "--locked",
+      "--test",
+      "fact_local_first"
     ]
   },
   {
