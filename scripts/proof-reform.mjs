@@ -47,6 +47,11 @@ const acceptedVisibility=new Set([
 ]);
 // Generic owners get only the specific callee visibility used in their proofs.
 const genericVisibility={
+  EditDeletePermutation:new Set(["\"Rust_primitives.Hax.Folds.fold_range_cf\"","\"Alloc.Slice.impl__to_vec\"","\"Rust_primitives.Hax.Folds.fold_range\"","\"Nickel_crdt.Edit.sift_births\"","\"Nickel.EditDeletePermutation.drain_step\"","\"Nickel_crdt.Edit.heap_births\"","\"Nickel_crdt.Edit.drain_births\""]),
+  EditDeleteAnswer:new Set(["\"FStar.Seq.count\"","\"FStar.Seq.Properties.count\"","\"Nickel_crdt.Edit.ordered_births\"","\"Rust_primitives.Hax.Folds.fold_range_return\"","\"Nickel_crdt.Edit.duplicate_births\""]),
+  EditDeleteHeap:new Set(["\"Rust_primitives.Hax.Folds.fold_range_cf\"","\"Nickel.EditDeleteHeap.heap_except\"","\"Nickel.EditDeleteHeap.segment_reordering\"","\"Nickel.EditDeletePermutation.exchange\"","\"Nickel.EditDeleteHeap.sift_step\"","\"Nickel_crdt.Edit.sift_births\"","\"Nickel.EditDeleteHeap.sift_model\"","\"Nickel.EditDeleteHeap.heap_from\"","\"Rust_primitives.Hax.Folds.fold_range\"","\"Nickel.EditDeletePermutation.drain_step\"","\"Nickel_crdt.Edit.drain_births\"","\"Nickel.EditDeleteHeap.drain_model\"","\"Nickel_crdt.Edit.heap_births\""]),
+  EditDeleteComplete:new Set(["\"Nickel_crdt.Edit.birth_lt\"","\"Nickel_crdt.Edit.ordered_births\"","\"FStar.Seq.count\"","\"FStar.Seq.Properties.count\"","\"Rust_primitives.Hax.Folds.fold_range_return\"","\"Nickel_crdt.Edit.duplicate_births\""]),
+
   RegisterFrontier:new Set(["\"Nickel.RegisterFrontier.counted_write_roots_cover_at\"","\"Nickel_crdt.Register.v_OPS\"","\"Nickel_crdt.Register.same_id\"","\"Nickel.RegisterHistory.register_ops_are_exact\"","\"Nickel_crdt.Register.parents\"","\"Nickel_crdt.Register.identity\"","\"Nickel_crdt.Event_layer.frontier\"","\"Nickel.Canonical.frontier_is_nonparent_filter\"","\"Nickel.Canonical.frontier_state\"","\"Nickel.RegisterFrontier.roots_cover\"","\"Nickel_crdt.Register.impl_Replica__write\"","\"Nickel.Register.write_installs_successful_candidate\"","\"Nickel.Register.write_installation\"","\"Nickel_crdt.Event_layer.validate_event\"","\"Nickel_crdt.Event_layer.select_basis\"","\"Nickel_crdt.Register.impl_Replica__receive\"","\"Nickel.RegisterHistory.receive_added_basis_is_exact_ancestry\"","\"Nickel.RegisterHistory.exact_selected_basis\"","\"Nickel_crdt.Register.planned\"","\"Nickel.RegisterPublic.write_counted_is_added_receive\"","\"Nickel.Register.planned_checks_payload\"","\"Nickel.Register.planned_adds_exact_fact\"","\"Nickel.RegisterFrontier.added_basis_at\"","\"Nickel.RegisterFrontier.whole_basis\"","\"Nickel.RegisterFrontier.exact_basis_is_whole\""]),
   EventGraph:new Set(["\"Nickel_crdt.Event_layer.has_id\"","\"Nickel_crdt.Event_layer.ready\""]),
   EventGraphText:new Set(["\"Nickel_crdt.Edit.v_TEXT_OPS\"","\"Nickel_crdt.Event_layer.graph_ops\"","\"Nickel_crdt.Event_layer.event_ops\""]),
@@ -108,6 +113,6 @@ export function assertReformedSource(name,source) {
     }
   }
 }
-export async function checkProofReform(root,names=['PastExact','Canonical','LoopEquality','EventGraph','EventGraphText','EventShell','EventClassifier','EditAtomic','LoopUtil','Smoke','Vector','EditCausal','EditIdentity','EditWellFormed','Spec','EditCommit','EditAccepted','EditPast','EditPastTotal','EditSchedule','EditBasis','EditReplay']) {
+export async function checkProofReform(root,names=['EditDeletePermutation','EditDeleteAnswer','EditDeleteHeap','EditDeleteComplete','PastExact','Canonical','LoopEquality','EventGraph','EventGraphText','EventShell','EventClassifier','EditAtomic','LoopUtil','Smoke','Vector','EditCausal','EditIdentity','EditWellFormed','Spec','EditCommit','EditAccepted','EditPast','EditPastTotal','EditSchedule','EditBasis','EditReplay']) {
   for(const name of names)assertReformedSource(name,await fs.readFile(path.join(root,'proofs',name+'.lt'),'utf8'));
 }

@@ -1762,3 +1762,37 @@ production/placement refinement, tree-work totality and public valid-fitting
 admission remain open. No cache is enabled, and runtime bodies, hax snapshot,
 compiler/model pins, theorem-rejection classification and proof limits are
 unchanged.
+
+## exact delete-id duplicate check
+
+`EditDeletePermutation.lt` proves length and full-id multiplicity preservation
+for the actual scratch copy/build/drain calls. `EditDeleteHeap.lt` proves their
+heap/order laws and sorted output, including sufficiency of the extracted
+32-or-64-bit `usize::BITS` sift bound. The pointwise loop-model equations are
+checked implementation links, not an assumed sorting specification.
+
+`EditDeleteAnswer.lt` gives the independent original-position meaning:
+two distinct positions in the original slice contain equal complete birth ids.
+`EditDeleteComplete.lt` composes preservation, sortedness and both answer
+directions into an iff for the actual native duplicate checker, on all typed
+slices. Its actual fact-local validator composition preserves scalar-error
+precedence and rejects repeated deletes before causal admission. This is not a
+complete public receive error-code iff, admission, progress or SEC result.
+
+The normal text positive reaches all four modules after fresh Rust extraction.
+`contracts:delete` selects 44 ordinary named-owner negatives and four explicitly
+passing weaker-component scope witnesses. No-argument and complementary-family
+CI routes include it. `delete-planned.json` and `delete-results.json` distinguish
+planned/executed cases and positive witnesses; failures, exhaustion and setup
+errors are not successful negatives. One duplicate drain-value-loss experiment
+is retained once: its Rust, extraction and owning preservation law are identical
+across the earlier component inventories.
+
+`delete-control-fixtures.mjs` contains exact scoped Rust/view mutation inputs
+from those paired experiments. Source/view drift refuses; it does not silently
+regenerate anchors. Private Latte is unnecessary for executing the public gate.
+These fixtures and source/view digests do not establish compiler correctness.
+Allocation/process failure and the existing translation/model/solver trust
+boundaries remain. Sorting a scratch list preserves retained fact order; the
+first-pair shortcut does not extend to other early duplicates. The semantic
+proof is not a universal speedup or a resource-safety guarantee.
