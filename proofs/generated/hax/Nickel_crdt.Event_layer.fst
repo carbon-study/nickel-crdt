@@ -960,6 +960,47 @@ let choose_ready
   | Core_models.Ops.Control_flow.ControlFlow_Continue _ ->
     Core_models.Option.Option_None <: Core_models.Option.t_Option usize
 
+let referenced_by_any
+      (#v_F #v_I #v_E: Type0)
+      (facts: t_Slice v_F)
+      (fact: v_F)
+      (ops:
+          (((v_F -> v_I) & (v_F -> t_Slice v_I) & (v_I -> v_I -> bool) & (v_I -> v_I -> bool) &
+              (v_F -> v_F) &
+              (v_F -> v_F -> bool)) &
+            ((Prims.unit -> v_E) & (Prims.unit -> v_E))))
+    : bool =
+  let
+  ((id: (v_F -> v_I)),
+    (after: (v_F -> t_Slice v_I)),
+    (_: (v_I -> v_I -> bool)),
+    (_: (v_I -> v_I -> bool)),
+    (_: (v_F -> v_F)),
+    (_: (v_F -> v_F -> bool))),
+  (_: ((Prims.unit -> v_E) & (Prims.unit -> v_E))) =
+    ops
+  in
+  let child:bool = false in
+  let child:bool =
+    Rust_primitives.Hax.Folds.fold_range (mk_usize 0)
+      (Core_models.Slice.impl__len #v_F facts <: usize)
+      (fun child temp_1_ ->
+          let child:bool = child in
+          let _:usize = temp_1_ in
+          true)
+      child
+      (fun child j ->
+          let child:bool = child in
+          let j:usize = j in
+          let e:v_F = facts.[ j ] in
+          if has_id #v_F #v_I #v_E (after e) (id fact) ops
+          then
+            let child:bool = true in
+            child
+          else child)
+  in
+  child
+
 let frontier
       (#v_F #v_I #v_E: Type0)
       (facts: t_Slice v_F)
@@ -971,7 +1012,7 @@ let frontier
     : Core_models.Result.t_Result (Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global) v_E =
   let
   ((id: (v_F -> v_I)),
-    (after: (v_F -> t_Slice v_I)),
+    (_: (v_F -> t_Slice v_I)),
     (_: (v_I -> v_I -> bool)),
     (_: (v_I -> v_I -> bool)),
     (_: (v_F -> v_F)),
@@ -981,34 +1022,18 @@ let frontier
   in
   let out:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = Alloc.Vec.impl__new #v_I () in
   match
-    Rust_primitives.Hax.Folds.fold_return (Core_models.Iter.Traits.Collect.f_into_iter #(t_Slice v_F
-          )
-          #FStar.Tactics.Typeclasses.solve
-          facts
-        <:
-        Core_models.Slice.Iter.t_Iter v_F)
-      out
-      (fun out f ->
+    Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
+      (Core_models.Slice.impl__len #v_F facts <: usize)
+      (fun out temp_1_ ->
           let out:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = out in
-          let f:v_F = f in
-          let child:bool = false in
-          let child:bool =
-            Core_models.Iter.Traits.Iterator.f_fold (Core_models.Iter.Traits.Collect.f_into_iter #(t_Slice
-                    v_F)
-                  #FStar.Tactics.Typeclasses.solve
-                  facts
-                <:
-                Core_models.Slice.Iter.t_Iter v_F)
-              child
-              (fun child e ->
-                  let child:bool = child in
-                  let e:v_F = e in
-                  if has_id #v_F #v_I #v_E (after e) (id f) ops <: bool
-                  then
-                    let child:bool = true in
-                    child
-                  else child)
-          in
+          let _:usize = temp_1_ in
+          true)
+      out
+      (fun out i ->
+          let out:Alloc.Vec.t_Vec v_I Alloc.Alloc.t_Global = out in
+          let i:usize = i in
+          let f:v_F = facts.[ i ] in
+          let child:bool = referenced_by_any #v_F #v_I #v_E facts f ops in
           if ~.child
           then
             let

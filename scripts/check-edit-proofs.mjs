@@ -57,6 +57,8 @@ const modes=['plan-skips-validation',"tree-publication-uses-private-writer","tre
   'accepted-reuses-member','accepted-wrong-canonical-push','accepted-publication-duplicates',
   'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes','past-refuses-closure','duplicate-scan-skips-pairs','scheduler-ready-skips-dependency','scheduler-reselects-done','scheduler-refuses-ready','scheduler-checks-empty-after','scheduler-records-wrong-id','scheduler-stops-early','scheduler-erases-wrong-trace','scheduler-invents-bookkeeping-error','basis-includes-unselected','basis-omits-selected','basis-event-ignores-roots','replay-nodes-skip-first','replay-nodes-reverse','replay-groups-include-all','replay-groups-skip-all','replay-context-passes-empty','replay-context-invents-error','replay-context-contaminates-basis','scheduler-forgets-completed-tree'];
 modes.push('plan-interprets-uncanonical-call', ...["shared-plan-skips-validation","shared-plan-ignores-duplicate","shared-plan-swallows-classifier-error","identity-call-passes-empty","identity-call-ignores-payload","past-membership-call-passes-empty","scheduler-readiness-call-passes-empty","scheduler-choice-call-passes-empty"]);
+modes.push('past-guard-refuses-present','past-extension-refuses-selection');
+modes.push("past-extend-call-clears-selection","past-pass-call-skips-facts","past-call-clears-roots");
 modes.push('text-policy-swaps-eq-lt','graph-policy-swaps-eq-lt','admission-policy-swaps-errors');
 // Contract-dependency families run after the positive chain verifies. With no
 // arguments (CI) every mode and every family runs. Development runs may select
@@ -151,12 +153,17 @@ const mutationDefinitions=[
   ["accepted-wrong-canonical-push","src/event_layer.rs","fn canonical_step<","push(&mut out, clone_selected_fact(&facts[i], clone_fact), internal)?;","push(&mut out, clone_selected_fact(&facts[0], clone_fact), internal)?;"],
   ["accepted-publication-duplicates","src/edit.rs","fn with_tree(","self.tree = tree;","self.tree = tree; if !self.facts.is_empty() && self.facts.len() < usize::MAX { let copy = self.facts[0].clone(); self.facts.push(copy); }"],
   ["content-changes-whole-fact","src/edit.rs","fn clone_selected_fact(","fact.clone()","let mut changed = fact.clone(); changed.gap = None; changed"],
-  ["content-omits-facts","src/event_layer.rs","fn canonical<","for _ in 0..facts.len() {","for _ in 0..0 {"],
+  ["content-omits-facts","src/event_layer.rs","fn canonical<","for _ in 0..facts.len() {","for _ in 0..0usize {"],
+  ["past-extend-call-clears-selection","src/edit.rs","fn extend_past(","crate::event_layer::extend_past(fact, selected, &TEXT_OPS.0)","crate::event_layer::extend_past(fact, Vec::new(), &TEXT_OPS.0)"],
+  ["past-pass-call-skips-facts","src/edit.rs","fn past_pass(","crate::event_layer::past_pass(facts, selected, &TEXT_OPS.0)","crate::event_layer::past_pass(&[], selected, &TEXT_OPS.0)"],
+  ["past-call-clears-roots","src/edit.rs","fn past(","crate::event_layer::past(facts, after, &TEXT_OPS.0)","crate::event_layer::past(facts, &[], &TEXT_OPS.0)"],
   ["past-drops-roots","src/event_layer.rs","fn past<","let mut selected = after_ids.to_vec();","let mut selected = Vec::new();"],
   ["past-invents-id","src/event_layer.rs","fn extend_past<","if has_id(&selected, &id(fact), ops) {","if true {"],
   ["past-membership-always-false","src/event_layer.rs","fn has_id<","if id_eq(&ids[i], wanted) {","if false {"],
   ["past-skips-predecessors","src/event_layer.rs","fn extend_past<","if has_id(&selected, &id(fact), ops) {","if false {"],
-  ["past-skips-passes","src/event_layer.rs","fn past<","for _ in 0..facts.len() {","for _ in 0..0 {"],
+  ["past-skips-passes","src/event_layer.rs","fn past<","for _ in 0..facts.len() {","for _ in 0..0usize {"],
+  ["past-guard-refuses-present","src/event_layer.rs","fn validate_after<","if !has_fact(facts, &after[i], ops)","if has_fact(facts, &after[i], ops)"],
+  ["past-extension-refuses-selection","src/event_layer.rs","fn extend_past<","Ok(selected)","Err(internal())"],
   ["past-refuses-closure","src/event_layer.rs","fn past<","Ok(selected)","Err((ops.1.0)())"],
   ["duplicate-scan-skips-pairs","src/event_layer.rs","fn duplicate_ids<","if id_eq(&xs[i], &xs[j]) {","if false {"],
   ["scheduler-ready-skips-dependency","src/event_layer.rs","fn ready<","if has_id(done, &after[i], ops) {","if true {"],
@@ -164,7 +171,7 @@ const mutationDefinitions=[
   ["scheduler-refuses-ready","src/event_layer.rs","fn choose_ready<","return Some(i);","return None;"],
   ["scheduler-checks-empty-after","src/event_layer.rs","fn choose_ready<","ready(after(&facts[i]), done, ops)","ready(&[], done, ops)"],
   ["scheduler-records-wrong-id","src/edit.rs","fn interpret_scheduled(","fact_id,","|_| EventId { writer: Writer::Alice, counter: 0 },"],
-  ["scheduler-stops-early","src/event_shell.rs","fn scheduled<","for _ in 0..facts.len() {","for _ in 0..0 {"],
+  ["scheduler-stops-early","src/event_shell.rs","fn scheduled<","for _ in 0..facts.len() {","for _ in 0..0usize {"],
   ["scheduler-erases-wrong-trace","src/edit.rs","fn interpret(","let pair = interpret_scheduled(facts)?;","let pair = interpret_scheduled(&[])?;"],
   ["scheduler-invents-bookkeeping-error","src/event_shell.rs","fn scheduled<","let event_id = id(event);","if operations.len() == 0 { return Err(internal()); } let event_id = id(event);"],
   ["basis-includes-unselected","src/event_layer.rs","fn select_basis<","if has_id(selected, &id(fact), ops) {","if true {"],
@@ -243,7 +250,9 @@ const theorems={
   'native-push-prepends':'EditAccepted.push_result_is_exact',
   'causal-validator-passes-empty':'EditWellFormed.successful_validation_has_direct_dependencies',
   'causal-accepts-missing':'EditWellFormed.dependency_validation_is_sound',
-  'past-refuses-closure':'EditPastTotal.fitting_closed_history_computes_past',
+  'past-guard-refuses-present':'PastExact.present_dependencies_pass_guard',
+  'past-extension-refuses-selection':'PastExact.extend_stored_selection_succeeds',
+  'past-refuses-closure':'PastExact.fitting_closed_history_computes_past',
   'duplicate-scan-skips-pairs':'EditPastTotal.duplicate_scan_is_exact',
   'past-skips-passes':'EditPast.past_stays_in_closed_set',
   'past-skips-predecessors':'EditPast.extend_past_covers_predecessors',
@@ -297,11 +306,18 @@ const theorems={
 // caller composition sensitive. Only the exact named new owner may reject a
 // moved-body control; an arbitrary earlier dependency failure is never credited.
 theorems['plan-interprets-uncanonical-call']='EditAccepted.plan_publishes_interpretation';
+theorems['past-extend-call-clears-selection']='EventGraphText.extend_past_is_text_call';
+theorems['past-pass-call-skips-facts']='EventGraphText.past_pass_is_text_call';
+theorems['past-call-clears-roots']='EventGraphText.past_is_text_call';
 theorems['text-policy-swaps-eq-lt']='EventGraphText.text_policy_is_exact';
 theorems['graph-policy-swaps-eq-lt']='EventGraph.graph_ops_preserve_callbacks';
 theorems['admission-policy-swaps-errors']='EventGraph.event_ops_preserve_callbacks';
 const priorOwners={...theorems};
 const ownerMigrations={
+  'past-skips-predecessors':['PastExact.extend_past_covers_predecessors','direct-predecessor coverage of the actual generic loop is shared; old concrete text statement remains'],
+  'past-drops-roots':['PastExact.past_stays_in_closed_set','root-retention induction is shared; preserve the old concrete text law as a thin composition'],
+  'past-invents-id':['PastExact.extend_past_preserves','the actual extend body is checked in the shared closed-set owner'],
+  'past-skips-passes':['PastExact.past_covers_bounded_predecessor_paths','zero passes preserve closed-set soundness but violate completeness; keep the Rust range usize and require ordinary rejection in the depth owner, not an earlier true soundness law'],
   "plan-interprets-uncanonical-call":["EditAccepted.plan_publishes_canonical_facts","added wrong-prepare callback omits canonicalization; exact canonical fact publication owns this fault, while interpretation of the returned facts can still agree"],
   "plan-interprets-uncanonical":["EventShell.planning_is_exact","callback ordering moved from concrete plan to generic plan"],
   "past-membership-always-false": [
@@ -381,8 +397,8 @@ await fs.writeFile(path.join(output,'mutation-owners.json'),JSON.stringify(mutat
 const identity=JSON.parse(await fs.readFile(path.join(modelCache,'identity.json'),'utf8'));
 assert.equal(identity.models,models);assert.equal(identity.fstar,fstar);
 const views=new Map();
-for(const name of ['Prelude','LoopUtil','LoopEquality','EventGraph','EventGraphText','EventShell','EventClassifier','Vector','EditAtomic','EditCommit','EditIdentity','EditAccepted','EditWellFormed','Spec','EditCausal','EditPast','EditPastTotal','EditSchedule','EditBasis','EditReplay']) {
-  const source=`proofs/${name}.lt`,view=`proofs/generated/Nickel.${name}.fst`;
+for(const name of ['PastExact','Canonical','Prelude','LoopUtil','LoopEquality','EventGraph','EventGraphText','EventShell','EventClassifier','Vector','EditAtomic','EditCommit','EditIdentity','EditAccepted','EditWellFormed','Spec','EditCausal','EditPast','EditPastTotal','EditSchedule','EditBasis','EditReplay']) {
+  const source=`proofs/${name}.lt`,view=name==='Canonical'?'proofs/register-view/Nickel.Canonical.fst':`proofs/generated/Nickel.${name}.fst`;
   const code=await fs.readFile(path.join(root,view),'utf8');
   const receipt=(await fs.readFile(path.join(root,`proofs/generated/${name}.sha256`),'utf8')).trim().split('\n');
   assert.deepEqual(receipt,[digest(await fs.readFile(path.join(root,source)))+'  '+source,digest(code)+'  '+view]);
@@ -494,7 +510,7 @@ async function check(mode) {
   const extractionChanged=extractionIdentity.filter(([name,hash])=>recorded[name]!==hash).map(([name])=>name);
   // Counter calculation/installation/wiring controls need only their owning module. The positive path still
   // checks both the public Spec surface and the existing ghost causal-rank family.
-  const proofRoot=/^(EventGraph|EventGraphText|EventShell|EventClassifier)\./.test(theorems[mode]??'')?'Nickel.'+theorems[mode].split('.')[0]+'.fst':mode==='positive'?'Nickel.Spec.fst':mode.startsWith('replay-')?'Nickel.EditReplay.fst':mode.startsWith('basis-')?'Nickel.EditBasis.fst':mode.startsWith('scheduler-')?'Nickel.EditSchedule.fst':['past-refuses-closure','duplicate-scan-skips-pairs'].includes(mode)?'Nickel.EditPastTotal.fst':mode.startsWith('past-')?'Nickel.EditPast.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
+  const proofRoot=/^(PastExact|EventGraph|EventGraphText|EventShell|EventClassifier)\./.test(theorems[mode]??'')?'Nickel.'+theorems[mode].split('.')[0]+'.fst':mode==='positive'?'Nickel.Spec.fst':mode.startsWith('replay-')?'Nickel.EditReplay.fst':mode.startsWith('basis-')?'Nickel.EditBasis.fst':mode.startsWith('scheduler-')?'Nickel.EditSchedule.fst':['past-refuses-closure','duplicate-scan-skips-pairs'].includes(mode)?'Nickel.EditPastTotal.fst':mode.startsWith('past-')?'Nickel.EditPast.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
   const checked=await verify({label:mode,dir:proof,roots:(mode==='positive'?['Nickel.EventGraph.fst','Nickel.EventGraphText.fst','Nickel.EventShell.fst','Nickel.EventClassifier.fst','Nickel.Spec.fst','Nickel.EditCausal.fst','Nickel.EditPastTotal.fst','Nickel.EditSchedule.fst','Nickel.EditBasis.fst','Nickel.EditReplay.fst']:['Nickel_crdt.Edit.fst',proofRoot]).map(name=>path.join(proof,name)),fstar,models,modelCache});
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {

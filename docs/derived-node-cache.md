@@ -154,7 +154,8 @@ worth the proof work. These observations do not make it a verified backend,
 a stable latency budget, or an editor-ready release.
 
 There is an important proof-domain issue before adoption. Current
-`EditCommit.same_shared` compares facts/tree/limits without a cache. An arbitrary
+`EditCommit.same_shared` compares exact facts and tree, without a cache or a
+policy-limits field. An arbitrary
 poisoned cache can change future behavior despite equality of those fields;
 the corruption control exhibits the danger. Adding cache equality or a new
 validity premise would change the claim. It must not be smuggled into a recheck
