@@ -47,6 +47,8 @@ const acceptedVisibility=new Set([
   // Caller opacity for one proof-level definition: append_least_preserves_frontier
   // consumes the frontier contract (frontier_bounds_unseen) instead of re-instantiating it.
   '"Nickel.EditAccepted.order_frontier"',
+  // Least-choice induction needs abstract nat keys, not their native encoding.
+  '"Nickel.EditAccepted.event_key"',
 ]);
 // Generic owners get only the specific callee visibility used in their proofs.
 const genericVisibility={
