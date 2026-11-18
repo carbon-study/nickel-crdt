@@ -1823,9 +1823,10 @@ original direct-dependency statement and contract-removal controls remain.
 
 Accepted, Remaining and Delete controls share `scripts/fstar-mutation-scope.mjs`.
 It locates exactly one emitted top-level `let`/`let rec` declaration, stops
-before the next supported declaration/directive, and preserves source offsets
+before the next supported declaration, and preserves source offsets
 while ignoring strings and nested F* comments during declaration discovery.
-Unsupported unindented syntax and missing/duplicate declarations refuse. Literal
+Unsupported unindented syntax (including column-0 directives/attributes) and
+missing/duplicate declarations refuse rather than truncate a call enumeration. Literal
 anchor edits additionally require one changed, nonempty in-scope occurrence
 starting in code. The Remaining family's explicitly indexed repeated-call
 controls retain their existing selection logic inside that shared scope.

@@ -14,11 +14,19 @@ export function checkFstarMutationScope() {
   assert.throws(()=>replaceUniqueInFstarDeclaration(source,'owner','','();'),/nonempty anchor/);
   assert.throws(()=>replaceUniqueInFstarDeclaration(source,'owner','required ();','required ();'),/changed replacement/);
   // Every supported top-level boundary ends the scope; local lets stay inside.
-  for(const next of ['let rec later () = ()','open Aux','type t = unit','module Aux = A','val later: unit','assume val later: unit','unfold let later = ()','#set-options "--fuel 0"','[@@ inline_for_extraction]','and later () = ()']) {
+  for(const next of ['let rec later () = ()','open Aux','type t = unit','module Aux = A','val later: unit','assume val later: unit','unfold let later = ()','and later () = ()']) {
     const input='let owner () =\n  required ();\n'+next+'\n';
     assert.equal(fstarDeclaration(input,'owner').body,'let owner () =\n  required ();');
   }
   assert.throws(()=>fstarDeclaration('let owner () = ()\nexception Unhandled\nlet next () = ()\n','owner'),/unsupported unindented syntax/);
+  // Never silently truncate an enumeration at unsupported body directives.
+  for(const directive of ['#push-options "--fuel 0"','[@@ inline_for_extraction]']) {
+    for(const prefix of ['', '  required ();\n']) {
+      const input='let owner () =\n'+prefix+directive+'\n  required ();\nlet later () = ()\n';
+      assert.throws(()=>fstarDeclaration(input,'owner'),/unsupported unindented syntax/);
+      assert.throws(()=>replaceUniqueInFstarDeclaration(input,'owner','required ();','();'),/unsupported unindented syntax/);
+    }
+  }
   const local='let rec owner\n  () =\n  let local = "let owner () = ()" in\n  required ();\nlet owner_more = ()\n';
   assert(fstarDeclaration(local,'owner').body.includes('let local'));
   const commented='// let owner () = ()\n(* outer (* let owner () = () *) *)\n'+source;

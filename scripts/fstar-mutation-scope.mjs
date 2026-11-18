@@ -37,9 +37,9 @@ export function fstarDeclaration(source,name,where=name) {
   const matches=[...code.matchAll(new RegExp('^let (?:rec )?'+name+'(?=[ \\t\\r\\n])','gm'))];
   assert.equal(matches.length,1,`${where}: one F* declaration required: ${name}`);
   const start=matches[0].index,tail=code.slice(start+matches[0][0].length);
-  // Stop before another top-level declaration/directive, including modifiers
+  // Stop before another top-level declaration, including modifiers
   // used by emitted definitions. Indented local lets are part of the owner.
-  const next=/\n(?:(?:(?:unfold|inline_for_extraction|noextract|irreducible|private) )*(?:let|type|val|assume val|open|module|and)\b|#|\[@)/.exec(tail);
+  const next=/\n(?:(?:(?:unfold|inline_for_extraction|noextract|irreducible|private) )*(?:let|type|val|assume val|open|module|and)\b)/.exec(tail);
   const end=next?start+matches[0][0].length+next.index:source.length;
   const unsupported=code.slice(start,end).split('\n').slice(1).find(line=>line.length&&!/^[ \t\r]/.test(line)&&!/^else\b/.test(line));
   assert(!unsupported,`${where}: unsupported unindented syntax inside declaration`);
