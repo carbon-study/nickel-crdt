@@ -131,6 +131,8 @@ proof receive_preserves_causal_rank(before: Native.t_Replica, fact: Native.t_Fac
         appended_contents(before.f_facts, fact, next.f_facts) and
         Nickel.EditIdentity.prefix_absent(Alloc.Vec.impl_1__as_slice(before.f_facts), fact.f_id,
           mk_usize(0), Nickel.EditIdentity.length(Alloc.Vec.impl_1__as_slice(before.f_facts)))) by {
+        // Consume the direct-dependency contract; do not re-derive presence from its definition.
+        Tactics.prune("Nickel.EditWellFormed.fact_dependencies_present");
         Tactics.prune("Nickel.EditIdentity.prefix_absent");
         Tactics.prune("Nickel_crdt.Edit.impl_Replica__receive");
     Tactics.prune("Nickel_crdt.Event_shell.receive");

@@ -30,6 +30,9 @@ export function checkProofReformFence() {
   assertReformedSource('EditSchedule','Tactics.prune("Nickel.EditCausal.causal_rank")');
   for(const name of ['fixture','EditPast','EditPastTotal','EditWellFormed'])
     assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EditCausal.causal_rank")'),new RegExp(name+' reform:'));
+  assertReformedSource('EditCausal','Tactics.prune("Nickel.EditWellFormed.fact_dependencies_present")');
+  for(const name of ['fixture','EditPast','EditPastTotal','EditSchedule'])
+    assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EditWellFormed.fact_dependencies_present")'),new RegExp(name+' reform:'));
   assertReformedSource('EditWellFormed','Tactics.prune("Nickel.EditIdentity.prefix_absent")');
   assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Nickel.EditIdentity.prefix_absent")'),/fixture reform:/);
   assert.throws(()=>assertReformedSource('EditWellFormed','assert_norm(true)'),/EditWellFormed reform:/);

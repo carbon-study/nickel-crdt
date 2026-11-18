@@ -14,7 +14,7 @@ const pastVisibility=new Set(["\"Nickel.PastExact.extend_past_preserves\"","\"Ni
 const receiverPastVisibility=['"Nickel.EditPast.ancestor"','"Nickel.EditPast.fact_id_present"','"Nickel.EditPast.exact_past_result"','"Nickel.EditPastTotal.shared_ancestry"','"Nickel.EditPastTotal.same_members"'];
 const pastTotalVisibility=new Set(['"Nickel.PastExact.missing_stored_id_leaves_room"','"Nickel.PastExact.fresh_append_is_unique"','"Nickel.PastExact.fresh_stored_push_succeeds"','"Nickel.PastExact.extend_stored_selection_succeeds"','"Nickel.PastExact.stored_pass_succeeds"','"Nickel.PastExact.fitting_closed_history_computes_past"','"Nickel.PastExact.shared_ancestry"','"Nickel.EditCausal.causal_path"','"Nickel.PastExact.causal_path"','"Nickel.PastExact.ancestor"','"Nickel.PastExact.shared_path_stays_shared"','"Nickel.PastExact.shared_ancestry_agrees"',...pastVisibility,'"Nickel_crdt.Edit.validate_after"','"Nickel_crdt.Edit.duplicate_events"',...receiverPastVisibility]);
 const causalVisibility=new Set([
-  '"Nickel.EditCausal.causal_rank"',
+  '"Nickel.EditCausal.causal_rank"','"Nickel.EditWellFormed.fact_dependencies_present"',
   '"Nickel.EditIdentity.prefix_absent"','"Nickel_crdt.Edit.has_fact"','"Nickel_crdt.Edit.impl_Replica__new"','"Nickel_crdt.Edit.impl_Replica__receive"','"Nickel_crdt.Edit.impl_Replica__edit"']);
 const atomicVisibility=new Set([
   '"Nickel_crdt.Edit.frontier"',
