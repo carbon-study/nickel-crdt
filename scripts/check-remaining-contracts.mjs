@@ -1,6 +1,7 @@
 // Source-family call-removal controls for the remaining reform. Each case
 // edits one declaration and requires its own ordinary semantic rejection.
 import assert from 'node:assert/strict';
+import {fstarDeclaration,replaceUniqueInFstarDeclaration} from './fstar-mutation-scope.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {put,verify} from './proof-cache.mjs';
@@ -53,16 +54,11 @@ calls('EditCausal','present_fact_has_id',['absence_on_whole_facts']);
 calls('EditCausal','new_establishes_causal_rank',['Nickel.EditAtomic.new_has_empty_facts']);
 calls('EditCausal','receive_preserves_causal_rank',['Nickel.EditAtomic.receive_rejection_unchanged','receive_added_has_exact_contents','Nickel.EditIdentity.receive_added_has_fresh_event_id','receive_added_has_direct_dependencies','exact_extension_extends_rank']);
 calls('EditCausal','edit_preserves_causal_rank',['Nickel.EditAtomic.edit_rejection_or_empty_unchanged','edit_authored_has_exact_contents','Nickel.EditIdentity.authored_event_id_is_fresh','Nickel.EditCommit.authored_fact_replays_same_commit','receive_added_has_direct_dependencies','exact_extension_extends_rank']);
-function declaration(view,name) {
-  const match=new RegExp('^let (?:rec )?'+name+' ','m').exec(view);assert(match,'missing '+name);
-  const tail=view.slice(match.index+match[0].length),next=/\nlet (?:rec )?\w+ /.exec(tail);
-  return [match.index,next?match.index+match[0].length+next.index:view.length];
-}
 export async function checkRemainingContracts({proof,output,fstar,models,modelCache,select=()=>true}) {
   const originals=new Map();
   for(const {module}of cases)if(!originals.has(module))originals.set(module,await fs.readFile(path.join(proof,'Nickel.'+module+'.fst'),'utf8'));
   for(const c of cases.filter(select)) {
-    const {module,owner,callee}=c,original=originals.get(module),[a,b]=declaration(original,owner);
+    const {module,owner,callee}=c,original=originals.get(module),{start:a,end:b}=fstarDeclaration(original,owner);
     const body=original.slice(a,b),escaped=callee.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
     // Only complete statement calls; a recursive call in the conclusion is
     // never an anchor. A separate case is made for every repeated call.
@@ -97,10 +93,8 @@ export async function checkRemainingContracts({proof,output,fstar,models,modelCa
   // This lemma has a real SMT pattern: withhold its global facts at each
   // dependency-loop caller, independently of the other caller.
   for(const [module,owner] of [['EditWellFormed','dependency_validation_is_sound'],['EditWellFormed','present_dependencies_pass_guard'],['EditCausal','present_id_rank_bound']]){
-    const original=originals.get(module),[a,b]=declaration(original,owner);
-    const body=original.slice(a,b),needle='Tactics.prune "Nickel_crdt.Edit.has_fact";';
-    assert.equal(body.split(needle).length,2);
-    const view=original.slice(0,a)+body.replace(needle,needle+'\n    Tactics.prune "Nickel.EditWellFormed.membership_result_is_exact";')+original.slice(b);
+    const original=originals.get(module),needle='Tactics.prune "Nickel_crdt.Edit.has_fact";';
+    const view=replaceUniqueInFstarDeclaration(original,owner,needle,needle+'\n    Tactics.prune "Nickel.EditWellFormed.membership_result_is_exact";');
     const file=path.join(proof,'Nickel.'+module+'.fst');
     try{await put(file,view);const r=await verify({dir:proof,roots:[file],fstar,models,modelCache});
       await fs.writeFile(path.join(output,owner+'-without-membership.proof.log'),r.log);

@@ -1,25 +1,15 @@
 // Accepted callers withhold their callee bodies; each must then fail at its owner
 // when the contract it composes is withheld too.
 import assert from 'node:assert/strict';
+import {fstarDeclaration,replaceUniqueInFstarDeclaration} from './fstar-mutation-scope.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {put,verify} from './proof-cache.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
 export async function checkAcceptedContracts({proof,output,fstar,models,modelCache,select=()=>true}) {
   const file=path.join(proof,'Nickel.EditAccepted.fst'),original=await fs.readFile(file,'utf8');
-  function declaration(theorem) {
-    const match=new RegExp('^let (?:rec )?'+theorem+' ','m').exec(original);assert(match,theorem);
-    const start=match.index;
-    const next=/\n(?:let (?:rec )?\w+ |open |type |module |val )/.exec(original.slice(start+4));
-    const end=next?start+4+next.index:original.length;
-    return {start,end,body:original.slice(start,end)};
-  }
-  // Replace one needle inside one named declaration only.
-  function withhold(theorem,needle,replacement) {
-    const {start,end,body}=declaration(theorem);
-    assert.equal(body.split(needle).length,2,theorem+': '+needle);
-    return original.slice(0,start)+body.replace(needle,replacement)+original.slice(end);
-  }
+  const declaration=theorem=>fstarDeclaration(original,theorem);
+  const withhold=(theorem,needle,replacement)=>replaceUniqueInFstarDeclaration(original,theorem,needle,replacement);
   const step=' [SMTPat (Native.canonical_step input out)]',tree=' [SMTPat (Native.impl_Replica__with_tree state tree)]';
   const cases=[
     ['accepted-push-without-length-value','push_result_is_exact','  length_value ();','  ();'],
@@ -87,11 +77,7 @@ export async function checkCanonicalFrameControls({proof,output,fstar,models,mod
   if(cases.length===0)return;
   const file=path.join(proof,'Nickel.EditAccepted.fst'),nativeFile=path.join(proof,'Nickel_crdt.Edit.fst');
   const original=await fs.readFile(file,'utf8'),native=await fs.readFile(nativeFile,'utf8');
-  function bounds(view,name) {
-    const matches=[...view.matchAll(new RegExp('^let '+name+' ','gm'))];assert.equal(matches.length,1,name);
-    const a=matches[0].index,n=/\n(?:let |type |open |val |module |assume val )/.exec(view.slice(a+4));
-    return [a,n?a+4+n.index:view.length];
-  }
+  const bounds=(view,name)=>{const {start,end}=fstarDeclaration(view,name);return [start,end];};
   const[a,b]=bounds(original,'canonical_uses_complete_range');
   assert.equal(original.slice(a,b).split('\n')[0],'let canonical_uses_complete_range (input: t_Slice Native.t_Fact) : Lemma (ensures Native.canonical input == canonical_loop_result input) =');
   // Deliberately trust only the exact source-to-frame equation. Otherwise a
