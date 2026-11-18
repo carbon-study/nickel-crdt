@@ -69,33 +69,11 @@ else
     begin selected_fact_position facts (Alloc.Vec.impl_1__as_slice selected) at end
 
 let missing_stored_id_leaves_room (facts: facts_vec) (selected: ids_vec) (id: Native.t_EventId) : Lemma (requires (stored_selection facts selected /\ fact_id_present facts id /\ Prims.l_not (member (Alloc.Vec.impl_1__as_slice selected) id))) (ensures Seq.length (Alloc.Vec.impl_1__as_slice selected) < Seq.length (Alloc.Vec.impl_1__as_slice facts)) =
-  let ids = Alloc.Vec.impl_1__as_slice selected in
-  let count = Seq.length ids in
-  assert (unique_selection ids);
-  assert (absent_prefix ids id count);
-  if count < Seq.length (Alloc.Vec.impl_1__as_slice facts) then
-    begin () end
-  else
-    begin if count ==? 0 then
-      begin let position = parent_fact_position facts id in
-      assert (position < count) end
-    else
-      begin let position = fun (at: nat{at <= count}) -> ((missing_position facts selected id at) <: FStar.Fin.under count) in
-      let positions = Seq.init (count + 1) position in
-      Seq.lemma_init_len (count + 1) position;
-      Seq.init_index (count + 1) position;
-      match FStar.Fin.pigeonhole positions with | (i, j) -> begin assert (Prims.l_and (i < j) (j <= count));
-      assert (position i == position j);
-      if j ==? count then
-        begin assert (Seq.index ids i == id);
-        assert (Seq.index ids (v (mk_usize i)) == id);
-        assert (Prims.l_not (Seq.index ids (v (mk_usize i)) == id)) end
-      else
-        begin assert (j < count);
-        assert (Seq.index ids i == Seq.index ids j);
-        unique_positions_differ ids i j;
-        assert (Prims.l_not (Seq.index ids i == Seq.index ids j));
-        assert (i == j) end end end end
+  Nickel.PastExact.missing_stored_id_leaves_room (Nickel.EventGraphText.text_graph_ops ()) (Alloc.Vec.impl_1__as_slice facts) selected id;
+  assert (Seq.length (Alloc.Vec.impl_1__as_slice selected) < Seq.length (Alloc.Vec.impl_1__as_slice facts)) by (
+    Tactics.prune "Nickel.PastExact.missing_stored_id_leaves_room";
+    Tactics.smt_sync' 1 1
+  )
 
 let stored_result (facts: facts_vec) (result: Result.t_Result ids_vec Native.t_Error) : Type0 =
   match result with | Result.Result_Ok selected -> begin stored_selection facts selected end | _ -> begin Prims.l_False end
@@ -104,24 +82,11 @@ let stored_push_result (facts: facts_vec) (result: ids_vec & Result.t_Result uni
   match result with | (selected, Result.Result_Ok _) -> begin stored_selection facts selected end | _ -> begin Prims.l_False end
 
 let fresh_append_is_unique (before: t_Slice Native.t_EventId) (id: Native.t_EventId) : Lemma (requires (unique_selection before /\ Prims.l_not (member before id))) (ensures unique_selection (Seq.append before (Seq.create 1 id))) =
-  let next = Seq.append before (Seq.create 1 id) in
-  assert (absent_prefix before id (Seq.length before));
-  let pair (i: FStar.Fin.under (Seq.length next)) (j: FStar.Fin.under (Seq.length next)) : Lemma (ensures i < j ==> Prims.l_not (Seq.index next i == Seq.index next j)) = if i < j then
-    begin if j < Seq.length before then
-      begin unique_positions_differ before i j;
-      assert (Seq.index next i == Seq.index before i);
-      assert (Seq.index next j == Seq.index before j) end
-    else
-      begin assert (j == Seq.length before);
-      assert (i < Seq.length before);
-      assert (Prims.l_not (Seq.index before (v (mk_usize i)) == id));
-      assert (Seq.index next i == Seq.index before i);
-      assert (Seq.index next j == id) end;
-    assert (Prims.l_not (Seq.index next i == Seq.index next j)) end
-  else
-    begin () end in
-  FStar.Classical.forall_intro_2 #(FStar.Fin.under (Seq.length next)) #(fun (_: FStar.Fin.under (Seq.length next)) -> FStar.Fin.under (Seq.length next)) #(fun (i: FStar.Fin.under (Seq.length next)) (j: FStar.Fin.under (Seq.length next)) -> i < j ==> Prims.l_not (Seq.index next i == Seq.index next j)) pair;
-  assert (unique_selection next)
+  Nickel.PastExact.fresh_append_is_unique before id;
+  assert (unique_selection (Seq.append before (Seq.create 1 id))) by (
+    Tactics.prune "Nickel.PastExact.fresh_append_is_unique";
+    Tactics.smt_sync' 1 1
+  )
 
 let distinct_pair_roots_are_unique (a: Native.t_EventId) (b: Native.t_EventId) : Lemma (requires Prims.l_not (a == b)) (ensures unique_selection (Seq.append (Seq.create 1 a) (Seq.create 1 b))) =
   empty_and_singleton_roots_are_unique a;
@@ -129,106 +94,48 @@ let distinct_pair_roots_are_unique (a: Native.t_EventId) (b: Native.t_EventId) :
   fresh_append_is_unique (Seq.create 1 a) b
 
 let fresh_stored_push_succeeds (facts: facts_vec) (selected: ids_vec) (id: Native.t_EventId) : Lemma (requires (stored_selection facts selected /\ fact_id_present facts id /\ Prims.l_not (member (Alloc.Vec.impl_1__as_slice selected) id))) (ensures stored_push_result facts (Native.push selected id)) =
-  missing_stored_id_leaves_room facts selected id;
-  fresh_append_is_unique (Alloc.Vec.impl_1__as_slice selected) id;
-  selected_push_preserves Seq.empty (fact_id_present facts) selected id;
-  push_result_is_exact selected id;
+  Nickel.EventGraphText.push_is_text_call selected id;
+  Nickel.PastExact.fresh_stored_push_succeeds (Nickel.EventGraphText.text_graph_ops ()) (Alloc.Vec.impl_1__as_slice facts) selected id;
   assert (stored_push_result facts (Native.push selected id)) by (
     Tactics.prune "Nickel_crdt.Edit.push";
     Tactics.prune "Nickel_crdt.Event_layer.push";
+    Tactics.prune "Nickel.PastExact.fresh_stored_push_succeeds";
     Tactics.smt_sync' 1 1
   )
 
 let extend_stored_selection_succeeds (facts: facts_vec) (fact: Native.t_Fact) (before: ids_vec) : Lemma (requires (stored_selection facts before /\ all_ids (Alloc.Vec.impl_1__as_slice fact.f_after) (fact_id_present facts))) (ensures stored_result facts (Native.extend_past fact before)) =
-  let each_push (selected: ids_vec) (id: Native.t_EventId) : Lemma (requires (stored_selection facts selected /\ fact_id_present facts id /\ Prims.l_not (member (Alloc.Vec.impl_1__as_slice selected) id))) (ensures stored_push_result facts (Native.push selected id)) =
-    fresh_stored_push_succeeds facts selected id;
-    assert (stored_push_result facts (Native.push selected id)) by (
-      Tactics.prune "Nickel_crdt.Edit.push";
-      Tactics.prune "Nickel_crdt.Event_layer.push";
-      Tactics.smt_sync' 1 1
-    ) in
-  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_push);
-  let membership_boolean (ids: t_Slice Native.t_EventId) (id: Native.t_EventId) : Lemma (ensures Prims.l_or (Native.has_event ids id == true) (Native.has_event ids id == false)) [SMTPat (Native.has_event ids id)] = () in
-  if Native.has_event (Alloc.Vec.impl_1__as_slice before) fact.f_id then
-    begin Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Alloc.Vec.impl_1__len fact.f_after) (fun (_: nat) (selected: ids_vec) -> stored_selection facts selected) (fun (selected: ids_vec) -> selected) (stored_selection facts) (fun (_: Native.t_Error) -> Prims.l_False);
-    assert (stored_result facts (Native.extend_past fact before)) by (
-      Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
-      Tactics.prune "Nickel.LoopUtil.step_safe";
-      Tactics.prune "Nickel.LoopUtil.output_safe";
-      Tactics.prune "Nickel_crdt.Edit.has_event";
-      Tactics.prune "Nickel_crdt.Event_layer.has_id";
-      Tactics.prune "Nickel_crdt.Edit.push";
-      Tactics.prune "Nickel_crdt.Event_layer.push";
-      Tactics.smt_sync' 1 1
-    ) end
-  else
-    begin assert (stored_result facts (Native.extend_past fact before)) by (
-      Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
-      Tactics.prune "Nickel_crdt.Edit.has_event";
-      Tactics.prune "Nickel_crdt.Event_layer.has_id";
-      Tactics.prune "Nickel_crdt.Edit.push";
-      Tactics.prune "Nickel_crdt.Event_layer.push";
-      Tactics.smt_sync' 1 1
-    ) end
+  text_past_ids_are_exact ();
+  Nickel.EventGraphText.extend_past_is_text_call fact before;
+  Nickel.PastExact.extend_stored_selection_succeeds (Nickel.EventGraphText.text_graph_ops ()) (Alloc.Vec.impl_1__as_slice facts) fact before;
+  assert (stored_result facts (Native.extend_past fact before)) by (
+    Tactics.prune "Nickel_crdt.Edit.extend_past";
+    Tactics.prune "Nickel_crdt.Event_layer.extend_past";
+    Tactics.prune "Nickel.PastExact.extend_stored_selection_succeeds";
+    Tactics.smt_sync' 1 1
+  )
 
 let history_references_present (facts: facts_vec) : Type0 =
   forall(i: nat{i < Seq.length (Alloc.Vec.impl_1__as_slice facts)}). all_ids (Alloc.Vec.impl_1__as_slice (Seq.index (Alloc.Vec.impl_1__as_slice facts) i).f_after) (fact_id_present facts)
 
 let stored_pass_succeeds (facts: facts_vec) (before: ids_vec) : Lemma (requires (history_references_present facts /\ stored_selection facts before)) (ensures stored_result facts (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) before)) =
-  Nickel.EventGraphText.text_graph_policy_is_exact ();
-  let each_extend (selected: ids_vec) (i: usize{v i < Seq.length (Alloc.Vec.impl_1__as_slice facts)}) : Lemma (requires stored_selection facts selected) (ensures stored_result facts (Native.extend_past (Seq.index (Alloc.Vec.impl_1__as_slice facts) (v i)) selected)) =
-    extend_stored_selection_succeeds facts (Seq.index (Alloc.Vec.impl_1__as_slice facts) (v i)) selected;
-    assert (stored_result facts (Native.extend_past (Seq.index (Alloc.Vec.impl_1__as_slice facts) (v i)) selected)) by (
-      Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
-      Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
-      Tactics.prune "Nickel_crdt.Event_layer.event_ops";
-      Tactics.prune "Nickel_crdt.Edit.extend_past";
-      Tactics.prune "Nickel_crdt.Event_layer.extend_past";
-      Tactics.smt_sync' 1 1
-    ) in
-  FStar.Classical.forall_intro_2 (FStar.Classical.move_requires_2 each_extend);
-  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Alloc.Vec.impl_1__len facts) (fun (_: nat) (selected: ids_vec) -> stored_selection facts selected) (fun (selected: ids_vec) -> selected) (stored_selection facts) (fun (_: Native.t_Error) -> Prims.l_False);
+  text_past_ids_are_exact ();
+  Nickel.EventGraphText.past_pass_is_text_call (Alloc.Vec.impl_1__as_slice facts) before;
+  Nickel.PastExact.stored_pass_succeeds (Nickel.EventGraphText.text_graph_ops ()) (Alloc.Vec.impl_1__as_slice facts) before;
   assert (stored_result facts (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) before)) by (
-    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
-    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
-    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
-    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
-    Tactics.prune "Nickel.LoopUtil.step_safe";
-    Tactics.prune "Nickel.LoopUtil.output_safe";
-    Tactics.prune "Nickel_crdt.Edit.extend_past";
-    Tactics.prune "Nickel_crdt.Event_layer.extend_past";
+    Tactics.prune "Nickel_crdt.Edit.past_pass";
+    Tactics.prune "Nickel_crdt.Event_layer.past_pass";
+    Tactics.prune "Nickel.PastExact.stored_pass_succeeds";
     Tactics.smt_sync' 1 1
   )
 
 let fitting_closed_history_computes_past (facts: facts_vec) (roots: t_Slice Native.t_EventId) : Lemma (requires (history_references_present facts /\ unique_selection roots /\ all_ids roots (fact_id_present facts))) (ensures stored_result facts (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) =
-  Nickel.EventGraphText.text_graph_policy_is_exact ();
-  Nickel.EventGraphText.text_graph_callbacks_are_exact ();
-  stored_roots_are_present facts roots;
-  Nickel.EditWellFormed.present_dependencies_pass_guard (Alloc.Vec.impl_1__as_slice facts) roots;
-  assert (stored_selection facts (Alloc.Slice.impl__to_vec roots));
-  let each_pass (selected: ids_vec) : Lemma (requires stored_selection facts selected) (ensures stored_result facts (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected)) =
-    stored_pass_succeeds facts selected;
-    assert (stored_result facts (Native.past_pass (Alloc.Vec.impl_1__as_slice facts) selected)) by (
-      Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
-      Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
-      Tactics.prune "Nickel_crdt.Event_layer.event_ops";
-      Tactics.prune "Nickel_crdt.Edit.past_pass";
-      Tactics.prune "Nickel_crdt.Event_layer.past_pass";
-      Tactics.smt_sync' 1 1
-    ) in
-  FStar.Classical.forall_intro (FStar.Classical.move_requires each_pass);
-  Nickel.LoopUtil.result_preserve_any (mk_usize 0) (Alloc.Vec.impl_1__len facts) (fun (_: nat) (state: bool & ids_vec) -> stored_selection facts state._2) (fun (state: bool & ids_vec) -> state._2) (stored_selection facts) (fun (_: Native.t_Error) -> Prims.l_False);
+  text_past_ids_are_exact ();
+  Nickel.EventGraphText.past_is_text_call (Alloc.Vec.impl_1__as_slice facts) roots;
+  Nickel.PastExact.fitting_closed_history_computes_past (Nickel.EventGraphText.text_graph_ops ()) (Alloc.Vec.impl_1__as_slice facts) roots;
   assert (stored_result facts (Native.past (Alloc.Vec.impl_1__as_slice facts) roots)) by (
-    Tactics.prune "Nickel_crdt.Edit.v_TEXT_OPS";
-    Tactics.prune "Nickel_crdt.Event_layer.graph_ops";
-    Tactics.prune "Nickel_crdt.Event_layer.event_ops";
-    Tactics.prune "Rust_primitives.Hax.Folds.fold_range_return";
-    Tactics.prune "Nickel.LoopUtil.step_safe";
-    Tactics.prune "Nickel.LoopUtil.output_safe";
-    Tactics.prune "Nickel_crdt.Edit.past_pass";
-    Tactics.prune "Nickel_crdt.Event_layer.past_pass";
-    Tactics.prune "Nickel_crdt.Edit.validate_after";
-    Tactics.prune "Nickel_crdt.Event_layer.validate_after";
+    Tactics.prune "Nickel_crdt.Edit.past";
+    Tactics.prune "Nickel_crdt.Event_layer.past";
+    Tactics.prune "Nickel.PastExact.fitting_closed_history_computes_past";
     Tactics.smt_sync' 1 1
   )
 
@@ -292,34 +199,42 @@ let shared_ancestry (into: facts_vec) (other: facts_vec) (roots: t_Slice Native.
   forall(id: Native.t_EventId). ancestor into roots id ==> same_parents into other id
 
 let rec shared_path_stays_shared (into: facts_vec) (other: facts_vec) (roots: t_Slice Native.t_EventId) (start: Native.t_EventId) (steps: Prims.list Native.t_EventId) (finish: Native.t_EventId) : Lemma (requires (shared_ancestry into other roots /\ ancestor into roots start /\ ancestor other roots start /\ Prims.l_or (Nickel.EditCausal.causal_path into start steps finish) (Nickel.EditCausal.causal_path other start steps finish))) (ensures Prims.l_and (ancestor into roots finish) (ancestor other roots finish)) (decreases steps) =
-  match steps with | Prims.Nil -> begin () end | Prims.Cons next rest -> begin assert (Prims.l_and (Nickel.EditCausal.causal_edge into start next) (Nickel.EditCausal.causal_edge other start next)) by (
-    Tactics.prune "Nickel.EditPast.ancestor";
-    Tactics.smt_sync' 1 1
-  );
-  ancestor_follows_edge into roots start next;
-  ancestor_follows_edge other roots start next;
-  assert (Prims.l_and (Prims.l_and (ancestor into roots next) (ancestor other roots next)) (Prims.l_or (Nickel.EditCausal.causal_path into next rest finish) (Nickel.EditCausal.causal_path other next rest finish))) by (
-    Tactics.prune "Nickel.EditPast.ancestor";
-    Tactics.prune "Nickel.EditPastTotal.shared_ancestry";
-    Tactics.smt_sync' 1 1
-  );
-  shared_path_stays_shared into other roots next rest finish;
+  all_shared_paths_are_text into;
+  all_shared_paths_are_text other;
+  text_causal_edge_is_shared into;
+  text_causal_edge_is_shared other;
+  assert (forall(id: Native.t_EventId). Nickel.PastExact.ancestor (Nickel.EventGraphText.text_graph_ops ()) (Alloc.Vec.impl_1__as_slice into) roots id <==> ancestor into roots id);
+  assert (forall(id: Native.t_EventId). Nickel.PastExact.ancestor (Nickel.EventGraphText.text_graph_ops ()) (Alloc.Vec.impl_1__as_slice other) roots id <==> ancestor other roots id);
+  Nickel.PastExact.shared_path_stays_shared (Nickel.EventGraphText.text_graph_ops ()) (Alloc.Vec.impl_1__as_slice into) (Alloc.Vec.impl_1__as_slice other) roots start steps finish;
   assert (Prims.l_and (ancestor into roots finish) (ancestor other roots finish)) by (
     Tactics.prune "Nickel.EditPast.ancestor";
+    Tactics.prune "Nickel.PastExact.ancestor";
+    Tactics.prune "Nickel.PastExact.shared_path_stays_shared";
     Tactics.prune "Nickel.EditPastTotal.shared_ancestry";
+    Tactics.prune "Nickel.PastExact.shared_ancestry";
+    Tactics.prune "Nickel.EditCausal.causal_path";
+    Tactics.prune "Nickel.PastExact.causal_path";
     Tactics.smt_sync' 1 1
-  ) end
+  )
 
 let shared_ancestry_agrees (into: facts_vec) (other: facts_vec) (roots: t_Slice Native.t_EventId) : Lemma (requires shared_ancestry into other roots) (ensures forall(id: Native.t_EventId). ancestor into roots id <==> ancestor other roots id) =
-  let each_path (root: Native.t_EventId) (steps: Prims.list Native.t_EventId) (id: Native.t_EventId) : Lemma (requires (member roots root /\ Prims.l_or (Nickel.EditCausal.causal_path into root steps id) (Nickel.EditCausal.causal_path other root steps id))) (ensures Prims.l_and (ancestor into roots id) (ancestor other roots id)) =
-    assert (Nickel.EditCausal.causal_path into root Prims.Nil root);
-    assert (Nickel.EditCausal.causal_path other root Prims.Nil root);
-    shared_path_stays_shared into other roots root steps id;
-    assert (Prims.l_and (ancestor into roots id) (ancestor other roots id)) by (
-      Tactics.prune "Nickel.EditPast.ancestor";
-      Tactics.smt_sync' 1 1
-    ) in
-  FStar.Classical.forall_intro_3 (FStar.Classical.move_requires_3 each_path)
+  all_shared_paths_are_text into;
+  all_shared_paths_are_text other;
+  text_causal_edge_is_shared into;
+  text_causal_edge_is_shared other;
+  assert (forall(id: Native.t_EventId). Nickel.PastExact.ancestor (Nickel.EventGraphText.text_graph_ops ()) (Alloc.Vec.impl_1__as_slice into) roots id <==> ancestor into roots id);
+  assert (forall(id: Native.t_EventId). Nickel.PastExact.ancestor (Nickel.EventGraphText.text_graph_ops ()) (Alloc.Vec.impl_1__as_slice other) roots id <==> ancestor other roots id);
+  Nickel.PastExact.shared_ancestry_agrees (Nickel.EventGraphText.text_graph_ops ()) (Alloc.Vec.impl_1__as_slice into) (Alloc.Vec.impl_1__as_slice other) roots;
+  assert (forall(id: Native.t_EventId). ancestor into roots id <==> ancestor other roots id) by (
+    Tactics.prune "Nickel.EditPast.ancestor";
+    Tactics.prune "Nickel.PastExact.ancestor";
+    Tactics.prune "Nickel.PastExact.shared_ancestry_agrees";
+    Tactics.prune "Nickel.EditPastTotal.shared_ancestry";
+    Tactics.prune "Nickel.PastExact.shared_ancestry";
+    Tactics.prune "Nickel.EditCausal.causal_path";
+    Tactics.prune "Nickel.PastExact.causal_path";
+    Tactics.smt_sync' 1 1
+  )
 
 let shared_past_facts (into: facts_vec) (other: facts_vec) (roots: t_Slice Native.t_EventId) : Type0 =
   forall(fact: Native.t_Fact). Prims.l_and (fact_present (Alloc.Vec.impl_1__as_slice into) fact) (ancestor into roots fact.f_id ==> fact_present (Alloc.Vec.impl_1__as_slice other) fact)

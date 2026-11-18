@@ -1,0 +1,88 @@
+import Rust_primitives
+import Core_models
+import Nickel.Vector
+import Nickel.LoopUtil
+import Nickel.EditDeleteHeap
+import Nickel.EditDeleteAnswer
+import Nickel.EditDeletePermutation
+import FStar.Pervasives
+import FStar.Classical
+import Seq = FStar.Seq
+import Native = Nickel_crdt.Edit
+import H = Nickel.EditDeleteHeap
+import A = Nickel.EditDeleteAnswer
+import P = Nickel.EditDeletePermutation
+import Result = Core_models.Result
+import Tactics = FStar.Tactics.V2
+
+function adjacent_free_before(xs: t_Slice(Native.t_BirthId), finish: nat): Type0 {
+  forall(i: usize where 0 < v(i) and v(i) < Seq.length(xs)) .
+    v(i) < finish ==> Seq.index(xs, v(i) - 1) <> Seq.index(xs, v(i))
+}
+proof sorted_adjacent_free_disallows_pair(xs: t_Slice(Native.t_BirthId)): unit
+  gives (H.sorted(xs) and adjacent_free_before(xs, Seq.length(xs))) ==> not A.repeated(xs)
+{
+  proof each(i: nat, j: nat): unit
+    takes H.sorted(xs) and adjacent_free_before(xs, Seq.length(xs))
+    takes i < j and j < Seq.length(xs) and Seq.index(xs, i) == Seq.index(xs, j)
+    gives Prims.l_False
+  {
+    const next = mk_usize(i + 1);
+    H.order_antisymmetric(Seq.index(xs, i), Seq.index(xs, i + 1));
+    assert(Seq.index(xs, i) == Seq.index(xs, v(next))) by {
+      Tactics.prune("Nickel_crdt.Edit.birth_lt");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each));
+}
+proof duplicate_births_complete(xs: t_Slice(Native.t_BirthId)): unit
+  gives A.repeated(xs) ==> Native.duplicate_births(xs) == true
+  hint Native.duplicate_births(xs)
+{
+  if Seq.length(xs) >= 2 {
+    const ordered = Native.ordered_births(xs);
+    const after = Alloc.Vec.impl_1__as_slice(ordered);
+    P.ordered_preserves_births(xs);
+    assert(P.same_births(after, xs)) by {
+      Tactics.prune("Nickel_crdt.Edit.ordered_births");
+      Tactics.prune("FStar.Seq.count");
+      Tactics.prune("FStar.Seq.Properties.count");
+      Tactics.smt_sync'(1, 1)
+    };
+    A.same_births_transports_pair(after, xs);
+    H.ordered_births_sorted(xs);
+    sorted_adjacent_free_disallows_pair(after);
+    Nickel.LoopUtil.preserve_any(mk_usize(1), Alloc.Vec.impl_1__len(ordered),
+      ((at: nat, _: unit) => adjacent_free_before(after, at)),
+      ((_: unit) => adjacent_free_before(after, Seq.length(after))), ((answer: bool) => answer == true));
+    assert(A.repeated(xs) ==> Native.duplicate_births(xs) == true) by {
+      Tactics.prune("Nickel_crdt.Edit.ordered_births");
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.smt_sync'(1, 1)
+    }
+  } else { () }
+}
+proof duplicate_births_exact(xs: t_Slice(Native.t_BirthId)): unit
+  gives (Native.duplicate_births(xs) == true <==> A.repeated(xs))
+{
+  A.duplicate_answer_has_original_pair(xs);
+  duplicate_births_complete(xs);
+  assert(Native.duplicate_births(xs) == true <==> A.repeated(xs)) by {
+    Tactics.prune("Nickel_crdt.Edit.duplicate_births");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// This is the actual fact-local validator, before shared graph admission.
+// Scalar rejection keeps its existing precedence over delete duplicates.
+proof repeated_delete_rejected_before_admission(facts: t_Slice(Native.t_Fact), fact: Native.t_Fact): unit
+  takes Native.validate_scalars(Alloc.Vec.impl_1__as_slice(fact.f_insert)) == Result.Result_Ok(())
+  takes A.repeated(Alloc.Vec.impl_1__as_slice(fact.f_delete))
+  gives Native.impl_Replica__validate_new(facts, fact) == Result.Result_Err(Native.Error_Invalid(Native.Invalid_DeleteDuplicate))
+{
+  duplicate_births_complete(Alloc.Vec.impl_1__as_slice(fact.f_delete));
+  assert(Native.impl_Replica__validate_new(facts, fact) == Result.Result_Err(Native.Error_Invalid(Native.Invalid_DeleteDuplicate))) by {
+    Tactics.prune("Nickel_crdt.Edit.duplicate_births");
+    Tactics.smt_sync'(1, 1)
+  }
+}

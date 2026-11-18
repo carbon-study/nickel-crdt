@@ -67,10 +67,14 @@ export function checkProofReformFence() {
     assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EditSchedule.no_eligible_prefix")'),new RegExp(name+' reform:'));
   for(const ghost of ['Nickel.EditPast.ancestor','Nickel.EditPast.fact_id_present','Nickel.EditPast.exact_past_result','Nickel.EditPastTotal.shared_ancestry','Nickel.EditPastTotal.same_members']) {
     assertReformedSource('EditPastTotal','Tactics.prune('+JSON.stringify(ghost)+')');
-    // EditSchedule may also prune `ancestor` (its cut-order boundary, #83); every
-    // other ghost here is EditPastTotal-only.
-    for(const name of ['fixture','EditPast','EditSchedule','EditCausal'].filter(name=>!(name==='EditSchedule'&&ghost==='Nickel.EditPast.ancestor')))
+    // EditSchedule may prune ancestor (#83) and carry exact_past_result as an
+    // opaque premise at its final checked-cut composition; other ghosts stay local.
+    for(const name of ['fixture','EditPast','EditSchedule','EditCausal'].filter(name=>!(name==='EditSchedule'&&['Nickel.EditPast.ancestor','Nickel.EditPast.exact_past_result'].includes(ghost))))
       assert.throws(()=>assertReformedSource(name,'Tactics.prune('+JSON.stringify(ghost)+')'),new RegExp(name+' reform:'));
+  }
+  for(const ghost of ['Nickel.EditSchedule.interpreted_cut','Nickel.EditPast.exact_past_result','Nickel.EditPastTotal.stored_selection','Nickel.EditSchedule.complete_causal_trace']) {
+    assertReformedSource('EditSchedule','Tactics.prune('+JSON.stringify(ghost)+')');
+    assert.throws(()=>assertReformedSource('fixture','Tactics.prune('+JSON.stringify(ghost)+')'),/fixture reform:/);
   }
   for(const native of ['has_event','ready','choose_ready','interpret','interpret_event','interpret_scheduled']) {
     assertReformedSource('EditSchedule','Tactics.prune("Nickel_crdt.Edit.'+native+'")');
@@ -79,8 +83,8 @@ export function checkProofReformFence() {
   for(const native of ['interpret_event','interpret_scheduled'])
     for(const name of ['EditCausal','EditPast'])
       assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel_crdt.Edit.'+native+'")'),new RegExp(name+' reform:'));
-  assertReformedSource('EditPast','Tactics.prune("Nickel.EventGraph.membership_is_exact")');
-  for(const name of ['fixture','EditCausal','EditAtomic','EditIdentity','EditWellFormed','EditPastTotal','EditSchedule'])
+  assertReformedSource('PastExact','Tactics.prune("Nickel.EventGraph.membership_is_exact")');
+  for(const name of ['fixture','EditCausal','EditAtomic','EditIdentity','EditWellFormed','EditPast','EditPastTotal','EditSchedule'])
     assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.EventGraph.membership_is_exact")'),new RegExp(name+' reform:'));
   assertReformedSource('EditPastTotal','Tactics.prune("Nickel_crdt.Edit.validate_after")');
   assertReformedSource('EditPastTotal','Tactics.prune("Nickel_crdt.Edit.duplicate_events")');
@@ -91,6 +95,24 @@ export function checkProofReformFence() {
   }
   assertReformedSource('LoopUtil','Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf")');
   assert.throws(()=>assertReformedSource('fixture','Tactics.prune("Rust_primitives.Hax.Folds.fold_range_cf")'),/fixture reform:/);
+  for(const name of ['EditDeletePermutation','EditDeleteAnswer','EditDeleteHeap','EditDeleteComplete']) {
+    assert.throws(()=>assertReformedSource(name,'Tactics.prune("Nickel.Unapproved.visibility")'),new RegExp(name+' reform:'));
+    assert.throws(()=>assertReformedSource(name,'Tactics.norm([])'),new RegExp(name+' reform:'));
+    assert.throws(()=>assertReformedSource(name,"Tactics.smt_sync'(0, 0)"),new RegExp(name+' reform:'));
+  }
   console.log('PASS proof-reform fence: approved direct tactic, normalization/import/alias controls');
 }
 checkProofReformFence();
+// Shared stream ownership moves the implementation loop out of RegisterValid;
+// client queries may withhold only their actual checked callees.
+assertReformedSource('EventGraph','Tactics.prune("Nickel_crdt.Event_layer.past");');
+assertReformedSource('RegisterValid','Tactics.prune("Nickel.EventGraph.validated_stream_checks");');
+assert.throws(()=>assertReformedSource('RegisterValid','Tactics.prune("Nickel_crdt.Event_layer.duplicate_ids");'));
+assert.throws(()=>assertReformedSource('EventGraph','Tactics.prune("Nickel.EditWellFormed.successful_validation_has_stream_checks");'));
+// The fixpoint depth argument consumes its step lemmas' closed-selection facts; only
+// PastExact may withhold its own pass_prefix, and only that exact name.
+assertReformedSource('PastExact','Tactics.prune("Nickel.PastExact.pass_prefix");');
+assertReformedSource('PastExact','Tactics.prune("Nickel.PastExact.prefix_of");');
+assert.throws(()=>assertReformedSource('RegisterPast','Tactics.prune("Nickel.PastExact.pass_prefix");'));
+assert.throws(()=>assertReformedSource('EditPast','Tactics.prune("Nickel.PastExact.prefix_of");'));
+assert.throws(()=>assertReformedSource('PastExact','Tactics.prune("Nickel.PastExact.pass_from");'));

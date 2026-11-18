@@ -118,9 +118,10 @@ pub fn past_pass<F, I: Clone, E>(facts: &[F], mut selected: Vec<I>, ops: &GraphO
     // Scanning from the end closes a chain of one writer's facts in one pass when
     // they are stored in counter order. Canonical order is by ID, not causal (an
     // earlier-stored alice:1 may depend on bo:2), so mixed chains can take more
-    // passes; nothing depends on the order, since past repeats passes until one
-    // adds nothing. Scan order changes only the order of the returned IDs; every
-    // caller uses them as a set.
+    // passes; closure does not depend on the order, since past repeats passes until
+    // one adds nothing. Scan order does change the order of the returned IDs. Every
+    // in-crate caller uses them only through membership; the public past,
+    // event_basis and validate_event return them in this new order.
     for offset in 0..facts.len() {
         let i = facts.len() - 1 - offset;
         selected = extend_past(&facts[i], selected, ops)?;
@@ -211,16 +212,25 @@ pub fn choose_ready<F, I, E>(facts: &[F], done: &[I], ops: &GraphOps<F, I, E>) -
     None
 }
 
-pub fn frontier<F, I, E>(facts: &[F], ops: &GraphOps<F, I, E>) -> Result<Vec<I>, E> {
-    let ((id, after, _, _, _, _), (internal, _)) = *ops;
-    let mut out = Vec::new();
-    for f in facts {
-        let mut child = false;
-        for e in facts {
-            if has_id(after(e), &id(f), ops) {
-                child = true;
-            }
+// Keep the complete scan and callback order; frontier consumes its boolean result.
+fn referenced_by_any<F, I, E>(facts: &[F], fact: &F, ops: &GraphOps<F, I, E>) -> bool {
+    let ((id, after, _, _, _, _), _) = *ops;
+    let mut child = false;
+    for j in 0..facts.len() {
+        let e = &facts[j];
+        if has_id(after(e), &id(fact), ops) {
+            child = true;
         }
+    }
+    child
+}
+
+pub fn frontier<F, I, E>(facts: &[F], ops: &GraphOps<F, I, E>) -> Result<Vec<I>, E> {
+    let ((id, _, _, _, _, _), (internal, _)) = *ops;
+    let mut out = Vec::new();
+    for i in 0..facts.len() {
+        let f = &facts[i];
+        let child = referenced_by_any(facts, f, ops);
         if !child {
             push(&mut out, id(f), internal)?;
         }

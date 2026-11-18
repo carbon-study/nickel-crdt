@@ -67,37 +67,10 @@ proof missing_stored_id_leaves_room(facts: facts_vec, selected: ids_vec, id: Nat
   takes not member(Alloc.Vec.impl_1__as_slice(selected), id)
   gives Seq.length(Alloc.Vec.impl_1__as_slice(selected)) < Seq.length(Alloc.Vec.impl_1__as_slice(facts))
 {
-  const ids = Alloc.Vec.impl_1__as_slice(selected);
-  const count = Seq.length(ids);
-  assert(unique_selection(ids));
-  assert(absent_prefix(ids, id, count));
-  if count < Seq.length(Alloc.Vec.impl_1__as_slice(facts)) { () } else {
-    if count ==? 0 {
-      const position = parent_fact_position(facts, id);
-      assert(position < count)
-    } else {
-      const position = ((at: nat where at <= count) => (missing_position(facts, selected, id, at) : FStar.Fin.under(count)));
-      const positions = Seq.init(count + 1, position);
-      Seq.lemma_init_len(count + 1, position);
-      Seq.init_index(count + 1, position);
-      match FStar.Fin.pigeonhole(positions) {
-        (i, j) => {
-          assert(i < j and j <= count);
-          assert(position(i) == position(j));
-          if j ==? count {
-            assert(Seq.index(ids, i) == id);
-            assert(Seq.index(ids, v(mk_usize(i))) == id);
-            assert(not (Seq.index(ids, v(mk_usize(i))) == id))
-          } else {
-            assert(j < count);
-            assert(Seq.index(ids, i) == Seq.index(ids, j));
-            unique_positions_differ(ids, i, j);
-            assert(not (Seq.index(ids, i) == Seq.index(ids, j)));
-            assert(i == j)
-          }
-        }
-      }
-    }
+  Nickel.PastExact.missing_stored_id_leaves_room(Nickel.EventGraphText.text_graph_ops(), Alloc.Vec.impl_1__as_slice(facts), selected, id);
+  assert(Seq.length(Alloc.Vec.impl_1__as_slice(selected)) < Seq.length(Alloc.Vec.impl_1__as_slice(facts))) by {
+    Tactics.prune("Nickel.PastExact.missing_stored_id_leaves_room");
+    Tactics.smt_sync'(1, 1)
   }
 }
 function stored_result(facts: facts_vec, result: Result.t_Result(ids_vec, Native.t_Error)): Type0 {
@@ -111,33 +84,14 @@ proof fresh_append_is_unique(before: t_Slice(Native.t_EventId), id: Native.t_Eve
   takes not member(before, id)
   gives unique_selection(Seq.append(before, Seq.create(1, id)))
 {
-  const next = Seq.append(before, Seq.create(1, id));
-  assert(absent_prefix(before, id, Seq.length(before)));
-  proof pair(i: FStar.Fin.under(Seq.length(next)), j: FStar.Fin.under(Seq.length(next))): unit
-    gives i < j ==> not (Seq.index(next, i) == Seq.index(next, j))
-  {
-    if i < j {
-      if j < Seq.length(before) {
-        unique_positions_differ(before, i, j);
-        assert(Seq.index(next, i) == Seq.index(before, i));
-        assert(Seq.index(next, j) == Seq.index(before, j))
-      } else {
-        assert(j == Seq.length(before));
-        assert(i < Seq.length(before));
-        assert(not (Seq.index(before, v(mk_usize(i))) == id));
-        assert(Seq.index(next, i) == Seq.index(before, i));
-        assert(Seq.index(next, j) == id)
-      };
-      assert(not (Seq.index(next, i) == Seq.index(next, j)))
-    } else { () }
-  };
-  FStar.Classical.forall_intro_2<
-    #FStar.Fin.under(Seq.length(next)),
-    #((_: FStar.Fin.under(Seq.length(next))) => FStar.Fin.under(Seq.length(next))),
-    #((i: FStar.Fin.under(Seq.length(next)), j: FStar.Fin.under(Seq.length(next))) => i < j ==> not (Seq.index(next, i) == Seq.index(next, j)))>(pair);
-  assert(unique_selection(next))
+  Nickel.PastExact.fresh_append_is_unique(before, id);
+  assert(unique_selection(Seq.append(before, Seq.create(1, id)))) by {
+    Tactics.prune("Nickel.PastExact.fresh_append_is_unique");
+    Tactics.smt_sync'(1, 1)
+  }
 }
 // Make the nonempty pair domain visible without an additional policy premise.
+
 proof distinct_pair_roots_are_unique(a: Native.t_EventId, b: Native.t_EventId): unit
   takes not (a == b)
   gives unique_selection(Seq.append(Seq.create(1, a), Seq.create(1, b)))
@@ -152,13 +106,12 @@ proof fresh_stored_push_succeeds(facts: facts_vec, selected: ids_vec, id: Native
   takes not member(Alloc.Vec.impl_1__as_slice(selected), id)
   gives stored_push_result(facts, Native.push(selected, id))
 {
-  missing_stored_id_leaves_room(facts, selected, id);
-  fresh_append_is_unique(Alloc.Vec.impl_1__as_slice(selected), id);
-  selected_push_preserves(Seq.empty, fact_id_present(facts), selected, id);
-  push_result_is_exact(selected, id);
+  Nickel.EventGraphText.push_is_text_call(selected, id);
+  Nickel.PastExact.fresh_stored_push_succeeds(Nickel.EventGraphText.text_graph_ops(), Alloc.Vec.impl_1__as_slice(facts), selected, id);
   assert(stored_push_result(facts, Native.push(selected, id))) by {
     Tactics.prune("Nickel_crdt.Edit.push");
     Tactics.prune("Nickel_crdt.Event_layer.push");
+    Tactics.prune("Nickel.PastExact.fresh_stored_push_succeeds");
     Tactics.smt_sync'(1, 1)
   }
 }
@@ -167,47 +120,14 @@ proof extend_stored_selection_succeeds(facts: facts_vec, fact: Native.t_Fact, be
   takes all_ids(Alloc.Vec.impl_1__as_slice(fact.f_after), fact_id_present(facts))
   gives stored_result(facts, Native.extend_past(fact, before))
 {
-  proof each_push(selected: ids_vec, id: Native.t_EventId): unit
-    takes stored_selection(facts, selected)
-    takes fact_id_present(facts, id)
-    takes not member(Alloc.Vec.impl_1__as_slice(selected), id)
-    gives stored_push_result(facts, Native.push(selected, id))
-  {
-    fresh_stored_push_succeeds(facts, selected, id);
-    assert(stored_push_result(facts, Native.push(selected, id))) by {
-      Tactics.prune("Nickel_crdt.Edit.push");
-      Tactics.prune("Nickel_crdt.Event_layer.push");
-      Tactics.smt_sync'(1, 1)
-    }
-  };
-  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_push));
-  proof membership_boolean(ids: t_Slice(Native.t_EventId), id: Native.t_EventId): unit
-    gives Native.has_event(ids, id) == true or Native.has_event(ids, id) == false
-    hint Native.has_event(ids, id)
-  { () };
-  if Native.has_event(Alloc.Vec.impl_1__as_slice(before), fact.f_id) {
-    Nickel.LoopUtil.result_preserve_any(mk_usize(0), Alloc.Vec.impl_1__len(fact.f_after),
-      ((_: nat, selected: ids_vec) => stored_selection(facts, selected)),
-      ((selected: ids_vec) => selected), stored_selection(facts), ((_: Native.t_Error) => Prims.l_False));
-    assert(stored_result(facts, Native.extend_past(fact, before))) by {
-      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
-      Tactics.prune("Nickel.LoopUtil.step_safe");
-      Tactics.prune("Nickel.LoopUtil.output_safe");
-      Tactics.prune("Nickel_crdt.Edit.has_event");
-      Tactics.prune("Nickel_crdt.Event_layer.has_id");
-      Tactics.prune("Nickel_crdt.Edit.push");
-      Tactics.prune("Nickel_crdt.Event_layer.push");
-      Tactics.smt_sync'(1, 1)
-    }
-  } else {
-    assert(stored_result(facts, Native.extend_past(fact, before))) by {
-      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
-      Tactics.prune("Nickel_crdt.Edit.has_event");
-      Tactics.prune("Nickel_crdt.Event_layer.has_id");
-      Tactics.prune("Nickel_crdt.Edit.push");
-      Tactics.prune("Nickel_crdt.Event_layer.push");
-      Tactics.smt_sync'(1, 1)
-    }
+  text_past_ids_are_exact();
+  Nickel.EventGraphText.extend_past_is_text_call(fact, before);
+  Nickel.PastExact.extend_stored_selection_succeeds(Nickel.EventGraphText.text_graph_ops(), Alloc.Vec.impl_1__as_slice(facts), fact, before);
+  assert(stored_result(facts, Native.extend_past(fact, before))) by {
+    Tactics.prune("Nickel_crdt.Edit.extend_past");
+    Tactics.prune("Nickel_crdt.Event_layer.extend_past");
+    Tactics.prune("Nickel.PastExact.extend_stored_selection_succeeds");
+    Tactics.smt_sync'(1, 1)
   }
 }
 function history_references_present(facts: facts_vec): Type0 {
@@ -219,34 +139,13 @@ proof stored_pass_succeeds(facts: facts_vec, before: ids_vec): unit
   takes stored_selection(facts, before)
   gives stored_result(facts, Native.past_pass(Alloc.Vec.impl_1__as_slice(facts), before))
 {
-  Nickel.EventGraphText.text_graph_policy_is_exact();
-  proof each_extend(selected: ids_vec, i: usize where v(i) < Seq.length(Alloc.Vec.impl_1__as_slice(facts))): unit
-    takes stored_selection(facts, selected)
-    gives stored_result(facts, Native.extend_past(Seq.index(Alloc.Vec.impl_1__as_slice(facts), v(i)), selected))
-  {
-    extend_stored_selection_succeeds(facts, Seq.index(Alloc.Vec.impl_1__as_slice(facts), v(i)), selected);
-    assert(stored_result(facts, Native.extend_past(Seq.index(Alloc.Vec.impl_1__as_slice(facts), v(i)), selected))) by {
-    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
-    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
-    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
-      Tactics.prune("Nickel_crdt.Edit.extend_past");
-      Tactics.prune("Nickel_crdt.Event_layer.extend_past");
-      Tactics.smt_sync'(1, 1)
-    }
-  };
-  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_extend));
-  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Alloc.Vec.impl_1__len(facts),
-    ((_: nat, selected: ids_vec) => stored_selection(facts, selected)),
-    ((selected: ids_vec) => selected), stored_selection(facts), ((_: Native.t_Error) => Prims.l_False));
+  text_past_ids_are_exact();
+  Nickel.EventGraphText.past_pass_is_text_call(Alloc.Vec.impl_1__as_slice(facts), before);
+  Nickel.PastExact.stored_pass_succeeds(Nickel.EventGraphText.text_graph_ops(), Alloc.Vec.impl_1__as_slice(facts), before);
   assert(stored_result(facts, Native.past_pass(Alloc.Vec.impl_1__as_slice(facts), before))) by {
-    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
-    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
-    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
-    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
-    Tactics.prune("Nickel.LoopUtil.step_safe");
-    Tactics.prune("Nickel.LoopUtil.output_safe");
-    Tactics.prune("Nickel_crdt.Edit.extend_past");
-    Tactics.prune("Nickel_crdt.Event_layer.extend_past");
+    Tactics.prune("Nickel_crdt.Edit.past_pass");
+    Tactics.prune("Nickel_crdt.Event_layer.past_pass");
+    Tactics.prune("Nickel.PastExact.stored_pass_succeeds");
     Tactics.smt_sync'(1, 1)
   }
 }
@@ -256,40 +155,13 @@ proof fitting_closed_history_computes_past(facts: facts_vec, roots: t_Slice(Nati
   takes all_ids(roots, fact_id_present(facts))
   gives stored_result(facts, Native.past(Alloc.Vec.impl_1__as_slice(facts), roots))
 {
-  Nickel.EventGraphText.text_graph_policy_is_exact();
-  Nickel.EventGraphText.text_graph_callbacks_are_exact();
-  stored_roots_are_present(facts, roots);
-  Nickel.EditWellFormed.present_dependencies_pass_guard(Alloc.Vec.impl_1__as_slice(facts), roots);
-  assert(stored_selection(facts, Alloc.Slice.impl__to_vec(roots)));
-  proof each_pass(selected: ids_vec): unit
-    takes stored_selection(facts, selected)
-    gives stored_result(facts, Native.past_pass(Alloc.Vec.impl_1__as_slice(facts), selected))
-  {
-    stored_pass_succeeds(facts, selected);
-    assert(stored_result(facts, Native.past_pass(Alloc.Vec.impl_1__as_slice(facts), selected))) by {
-    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
-    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
-    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
-      Tactics.prune("Nickel_crdt.Edit.past_pass");
-      Tactics.prune("Nickel_crdt.Event_layer.past_pass");
-      Tactics.smt_sync'(1, 1)
-    }
-  };
-  FStar.Classical.forall_intro(FStar.Classical.move_requires(each_pass));
-  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Alloc.Vec.impl_1__len(facts),
-    ((_: nat, state: (bool, ids_vec)) => stored_selection(facts, state._2)),
-    ((state: (bool, ids_vec)) => state._2), stored_selection(facts), ((_: Native.t_Error) => Prims.l_False));
+  text_past_ids_are_exact();
+  Nickel.EventGraphText.past_is_text_call(Alloc.Vec.impl_1__as_slice(facts), roots);
+  Nickel.PastExact.fitting_closed_history_computes_past(Nickel.EventGraphText.text_graph_ops(), Alloc.Vec.impl_1__as_slice(facts), roots);
   assert(stored_result(facts, Native.past(Alloc.Vec.impl_1__as_slice(facts), roots))) by {
-    Tactics.prune("Nickel_crdt.Edit.v_TEXT_OPS");
-    Tactics.prune("Nickel_crdt.Event_layer.graph_ops");
-    Tactics.prune("Nickel_crdt.Event_layer.event_ops");
-    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
-    Tactics.prune("Nickel.LoopUtil.step_safe");
-    Tactics.prune("Nickel.LoopUtil.output_safe");
-    Tactics.prune("Nickel_crdt.Edit.past_pass");
-    Tactics.prune("Nickel_crdt.Event_layer.past_pass");
-    Tactics.prune("Nickel_crdt.Edit.validate_after");
-    Tactics.prune("Nickel_crdt.Event_layer.validate_after");
+    Tactics.prune("Nickel_crdt.Edit.past");
+    Tactics.prune("Nickel_crdt.Event_layer.past");
+    Tactics.prune("Nickel.PastExact.fitting_closed_history_computes_past");
     Tactics.smt_sync'(1, 1)
   }
 }
@@ -402,48 +274,45 @@ proof! shared_path_stays_shared(into: facts_vec, other: facts_vec, roots: t_Slic
   takes Nickel.EditCausal.causal_path(into, start, steps, finish) or Nickel.EditCausal.causal_path(other, start, steps, finish)
   gives ancestor(into, roots, finish) and ancestor(other, roots, finish)
 {
-  match steps {
-    Prims.Nil => (),
-    Prims.Cons(next, rest) => {
-      assert(Nickel.EditCausal.causal_edge(into, start, next) and Nickel.EditCausal.causal_edge(other, start, next)) by {
-        Tactics.prune("Nickel.EditPast.ancestor");
-        Tactics.smt_sync'(1, 1)
-      };
-      ancestor_follows_edge(into, roots, start, next);
-      ancestor_follows_edge(other, roots, start, next);
-      assert(ancestor(into, roots, next) and ancestor(other, roots, next) and
-        (Nickel.EditCausal.causal_path(into, next, rest, finish) or Nickel.EditCausal.causal_path(other, next, rest, finish))) by {
-        Tactics.prune("Nickel.EditPast.ancestor");
-        Tactics.prune("Nickel.EditPastTotal.shared_ancestry");
-        Tactics.smt_sync'(1, 1)
-      };
-      shared_path_stays_shared(into, other, roots, next, rest, finish);
-      assert(ancestor(into, roots, finish) and ancestor(other, roots, finish)) by {
-        Tactics.prune("Nickel.EditPast.ancestor");
-        Tactics.prune("Nickel.EditPastTotal.shared_ancestry");
-        Tactics.smt_sync'(1, 1)
-      }
-    }
+  all_shared_paths_are_text(into);
+  all_shared_paths_are_text(other);
+  text_causal_edge_is_shared(into);
+  text_causal_edge_is_shared(other);
+  assert(forall(id: Native.t_EventId) . Nickel.PastExact.ancestor(Nickel.EventGraphText.text_graph_ops(), Alloc.Vec.impl_1__as_slice(into), roots, id) <==> ancestor(into, roots, id));
+  assert(forall(id: Native.t_EventId) . Nickel.PastExact.ancestor(Nickel.EventGraphText.text_graph_ops(), Alloc.Vec.impl_1__as_slice(other), roots, id) <==> ancestor(other, roots, id));
+  Nickel.PastExact.shared_path_stays_shared(Nickel.EventGraphText.text_graph_ops(), Alloc.Vec.impl_1__as_slice(into), Alloc.Vec.impl_1__as_slice(other), roots, start, steps, finish);
+  assert(ancestor(into, roots, finish) and ancestor(other, roots, finish)) by {
+    Tactics.prune("Nickel.EditPast.ancestor");
+    Tactics.prune("Nickel.PastExact.ancestor");
+    Tactics.prune("Nickel.PastExact.shared_path_stays_shared");
+    Tactics.prune("Nickel.EditPastTotal.shared_ancestry");
+    Tactics.prune("Nickel.PastExact.shared_ancestry");
+    Tactics.prune("Nickel.EditCausal.causal_path");
+    Tactics.prune("Nickel.PastExact.causal_path");
+    Tactics.smt_sync'(1, 1)
   }
 }
 proof shared_ancestry_agrees(into: facts_vec, other: facts_vec, roots: t_Slice(Native.t_EventId)): unit
   takes shared_ancestry(into, other, roots)
   gives forall(id: Native.t_EventId) . ancestor(into, roots, id) <==> ancestor(other, roots, id)
 {
-  proof each_path(root: Native.t_EventId, steps: Prims.list(Native.t_EventId), id: Native.t_EventId): unit
-    takes member(roots, root)
-    takes Nickel.EditCausal.causal_path(into, root, steps, id) or Nickel.EditCausal.causal_path(other, root, steps, id)
-    gives ancestor(into, roots, id) and ancestor(other, roots, id)
-  {
-    assert(Nickel.EditCausal.causal_path(into, root, Prims.Nil, root));
-    assert(Nickel.EditCausal.causal_path(other, root, Prims.Nil, root));
-    shared_path_stays_shared(into, other, roots, root, steps, id);
-    assert(ancestor(into, roots, id) and ancestor(other, roots, id)) by {
-      Tactics.prune("Nickel.EditPast.ancestor");
-      Tactics.smt_sync'(1, 1)
-    }
-  };
-  FStar.Classical.forall_intro_3(FStar.Classical.move_requires_3(each_path))
+  all_shared_paths_are_text(into);
+  all_shared_paths_are_text(other);
+  text_causal_edge_is_shared(into);
+  text_causal_edge_is_shared(other);
+  assert(forall(id: Native.t_EventId) . Nickel.PastExact.ancestor(Nickel.EventGraphText.text_graph_ops(), Alloc.Vec.impl_1__as_slice(into), roots, id) <==> ancestor(into, roots, id));
+  assert(forall(id: Native.t_EventId) . Nickel.PastExact.ancestor(Nickel.EventGraphText.text_graph_ops(), Alloc.Vec.impl_1__as_slice(other), roots, id) <==> ancestor(other, roots, id));
+  Nickel.PastExact.shared_ancestry_agrees(Nickel.EventGraphText.text_graph_ops(), Alloc.Vec.impl_1__as_slice(into), Alloc.Vec.impl_1__as_slice(other), roots);
+  assert(forall(id: Native.t_EventId) . ancestor(into, roots, id) <==> ancestor(other, roots, id)) by {
+    Tactics.prune("Nickel.EditPast.ancestor");
+    Tactics.prune("Nickel.PastExact.ancestor");
+    Tactics.prune("Nickel.PastExact.shared_ancestry_agrees");
+    Tactics.prune("Nickel.EditPastTotal.shared_ancestry");
+    Tactics.prune("Nickel.PastExact.shared_ancestry");
+    Tactics.prune("Nickel.EditCausal.causal_path");
+    Tactics.prune("Nickel.PastExact.causal_path");
+    Tactics.smt_sync'(1, 1)
+  }
 }
 // Receiver-facing premise: every fact in into's past of roots is also stored in other.
 function shared_past_facts(into: facts_vec, other: facts_vec, roots: t_Slice(Native.t_EventId)): Type0 {

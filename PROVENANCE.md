@@ -158,3 +158,26 @@ proofs without strengthening their claims. It reuses the same native/hax
 translations and imported model trust, including identity-refined derived Clone.
 The additional empty-vector equation and constructor/validation-prefix contracts
 are proved in the project; they are not new imported assumptions.
+
+## Latte MCP strict native queries (text client)
+
+Latte's MCP server has two lanes. The ordinary lane (`--root proofs --fstar <Latte's 2026 F*>`)
+covers frontend inspection, emission and ordinary proofs. Strict symbol queries
+against the extracted Rust need the hax lane: Latte's own `.#hax-fstar` runtime
+(F* 2025.10.06, commit `7b347386…`; Nickel's bare upstream package reports
+`~dev` and is refused), plus a project manifest over the hax model roots and a
+freshly captured native capsule. From Nickel's locked dev shell, with an authorized
+latte-nursery checkout:
+
+```sh
+LATTE_ROOT=/path/to/latte-nursery CAPTURE_DIR=/abs/new-capture-dir node scripts/latte-hax-lane.mjs
+```
+
+It extracts the text client with `check-edit-proofs.mjs`'s exact production
+arguments and refuses unless the result is byte-identical to `proofs/generated/hax/`.
+It then writes `receipt.json` and `text.hax.json` and prints the MCP launch line;
+run that line with `NIX_REMOTE=daemon`. It changes no tracked file. The manifest
+names captured bytes, not live Rust: after a native edit, capture again into a new
+directory and use a new connection. The register client needs its own capsule and
+manifest; this one covers text only. A successful strict type query is not a
+proof receipt.

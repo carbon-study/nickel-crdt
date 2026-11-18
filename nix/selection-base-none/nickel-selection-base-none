@@ -1,0 +1,2 @@
+Sentinel for the flake input selection-base: no base commit was supplied, so
+scripts/selection-boundary.mjs selects the full register gate.
