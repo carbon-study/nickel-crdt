@@ -58,7 +58,7 @@ mod storage_comparison {
         // Both writers, unequal counters, distinct payload/delete/gap fields.
         // These are storage-level facts, not all admissible causal histories.
         let facts=(0..6).map(|i| Fact {
-            id:EventId{writer:if i%2==0 {Writer::Alice} else {Writer::Bo},counter:i+1},
+            id:EventId{writer:if i%2==0 {Writer(1)} else {Writer(2)},counter:i+1},
             after:vec![],insert:vec![65+i as u32],delete:vec![],gap:Some(i as usize),
         }).collect();
         permutations(vec![],facts);

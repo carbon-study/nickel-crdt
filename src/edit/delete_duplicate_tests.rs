@@ -4,7 +4,7 @@ fn quadratic(xs: &[BirthId]) -> bool {
     false
 }
 fn id(n: usize) -> BirthId {
-    BirthId { event: EventId { writer: if n % 2 == 0 { Writer::Alice } else { Writer::Bo }, counter: (n / 6) as u64 }, index: (n / 2) % 3 }
+    BirthId { event: EventId { writer: if n % 2 == 0 { Writer(1) } else { Writer(2) }, counter: (n / 6) as u64 }, index: (n / 2) % 3 }
 }
 fn check(xs: &[BirthId]) {
     let before = xs.to_vec();
@@ -37,10 +37,10 @@ fn heap_boundaries_extreme_identities_and_nonadjacent_duplicates() {
         if len > 1 { xs[len-1]=xs[0]; check(&xs); }
     }
     check(&[
-        BirthId {event:EventId {writer:Writer::Bo,counter:u64::MAX},index:usize::MAX},
-        BirthId {event:EventId {writer:Writer::Alice,counter:u64::MAX},index:usize::MAX},
-        BirthId {event:EventId {writer:Writer::Bo,counter:0},index:0},
-        BirthId {event:EventId {writer:Writer::Bo,counter:u64::MAX},index:0},
+        BirthId {event:EventId {writer:Writer(2),counter:u64::MAX},index:usize::MAX},
+        BirthId {event:EventId {writer:Writer(1),counter:u64::MAX},index:usize::MAX},
+        BirthId {event:EventId {writer:Writer(2),counter:0},index:0},
+        BirthId {event:EventId {writer:Writer(2),counter:u64::MAX},index:0},
     ]);
 }
 #[test]

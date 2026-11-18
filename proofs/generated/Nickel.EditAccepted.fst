@@ -470,7 +470,7 @@ let edit_authored_has_exact_contents (before: Native.t_Replica) (gap: usize) (in
   ()
 
 let event_key (id: Native.t_EventId) : nat =
-  let rank = match id.f_writer with | Native.Writer_Alice -> begin 0 end | Native.Writer_Bo -> begin 18446744073709551616 end in
+  let rank = Prims.op_Multiply (v (Native.writer_index id.f_writer)) 18446744073709551616 in
   rank + v id.f_counter
 
 let event_order_is_key_order (a: Native.t_EventId) (b: Native.t_EventId) : Lemma (ensures Native.event_lt a b == true <==> event_key a < event_key b) =
@@ -495,10 +495,10 @@ let least_next (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) (j: u
       begin choice end end end
 
 let least_extends_all (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) : Lemma (ensures forall(j: usize{v j < v (Nickel.EditIdentity.length input)}) (choice: Option.t_Option usize). least_choice input out (v j) choice ==> least_choice input out (v j + 1) (least_next input out j choice)) =
-  let each (j: usize{v j < v (Nickel.EditIdentity.length input)}) (choice: Option.t_Option usize) : Lemma (ensures least_choice input out (v j) choice ==> least_choice input out (v j + 1) (least_next input out j choice)) = if Native.has_fact out (Rust_primitives.Slice.slice_index input j).f_id then
-    begin () end
-  else
-    begin match choice with | Option.Option_None -> begin () end | Option.Option_Some k -> begin () end end in
+  let each (j: usize{v j < v (Nickel.EditIdentity.length input)}) (choice: Option.t_Option usize) : Lemma (ensures least_choice input out (v j) choice ==> least_choice input out (v j + 1) (least_next input out j choice)) = assert (least_choice input out (v j) choice ==> least_choice input out (v j + 1) (least_next input out j choice)) by (
+    Tactics.prune "Nickel.EditAccepted.event_key";
+    Tactics.smt_sync' 1 1
+  ) in
   FStar.Classical.forall_intro_2 each
 
 let selected_id_is_least (input: t_Slice Native.t_Fact) (out: t_Slice Native.t_Fact) : Lemma (ensures least_result input out (Native.choose_unseen input out)) =

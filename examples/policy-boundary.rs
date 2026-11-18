@@ -4,7 +4,7 @@ use nickel_crdt::{edit, register};
 fn main() {
     // One actual text fact crosses the old per-fact scalar, retained-birth,
     // whole-tree and ordering-link policy ceilings.
-    let author = edit::Replica::new(Some(edit::Writer::Alice)).unwrap();
+    let author = edit::Replica::new(Some(edit::Writer(1))).unwrap();
     let scalars = vec![u32::from('x'); 513];
     let (author, result) = author.edit(0, scalars.clone(), vec![]);
     let edit::Local::Authored(fact) = result.unwrap() else { panic!("counted text"); };

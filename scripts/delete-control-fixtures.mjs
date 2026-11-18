@@ -9,7 +9,7 @@ export const deleteControlFixtures = [
     "owner": "Nickel.EditDeletePermutation.sift_preserves_births",
     "root": "EditDeletePermutation",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn sift_births(",
       "before": "fn sift_births(mut values: Vec<BirthId>, start: usize, finish: usize) -> Vec<BirthId> {\n    let mut root = start;\n    for _ in 0..(usize::BITS as usize) {\n        if root >= finish / 2 { break; }\n        let mut child = root * 2 + 1;\n        if root >= values.len() || child >= values.len() { break; }\n        if child + 1 < finish && child + 1 < values.len() && birth_lt(values[child], values[child + 1]) {\n            child += 1;\n        }\n        if child >= values.len() || !birth_lt(values[root], values[child]) { break; }\n        let old = values[root];\n        values[root] = values[child];\n        values[child] = old;\n        root = child;\n    }\n    values\n}",
       "after": "fn sift_births(mut values: Vec<BirthId>, start: usize, finish: usize) -> Vec<BirthId> {\n    let mut root = start;\n    for _ in 0..(usize::BITS as usize) {\n        if root >= finish / 2 { break; }\n        let mut child = root * 2 + 1;\n        if root >= values.len() || child >= values.len() { break; }\n        if child + 1 < finish && child + 1 < values.len() && birth_lt(values[child], values[child + 1]) {\n            child += 1;\n        }\n        if child >= values.len() || !birth_lt(values[root], values[child]) { break; }\n        let old = values[root];\n        values[root] = values[child];\n        values[child] = values[root];\n        root = child;\n    }\n    values\n}"
@@ -30,7 +30,7 @@ export const deleteControlFixtures = [
     "owner": "Nickel.EditDeletePermutation.drain_preserves_births",
     "root": "EditDeletePermutation",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn drain_births(",
       "before": "fn drain_births(mut values: Vec<BirthId>, len: usize) -> Vec<BirthId> {\n    for step in 0..len {\n        let finish = len - 1 - step;\n        if values.is_empty() || finish >= values.len() { break; }\n        let old = values[0];\n        values[0] = values[finish];\n        values[finish] = old;\n        values = sift_births(values, 0, finish);\n    }\n    values\n}",
       "after": "fn drain_births(mut values: Vec<BirthId>, len: usize) -> Vec<BirthId> {\n    for step in 0..len {\n        let finish = len - 1 - step;\n        if values.is_empty() || finish >= values.len() { break; }\n        let old = values[0];\n        values[0] = values[finish];\n        values[finish] = values[0];\n        values = sift_births(values, 0, finish);\n    }\n    values\n}"
@@ -51,7 +51,7 @@ export const deleteControlFixtures = [
     "owner": "Nickel.EditDeletePermutation.heap_preserves_births",
     "root": "EditDeletePermutation",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn heap_births(",
       "before": "fn heap_births(mut values: Vec<BirthId>, len: usize) -> Vec<BirthId> {\n    for step in 0..(len / 2) {\n        if step < len / 2 {\n            values = sift_births(values, len / 2 - 1 - step, len);\n        }\n    }\n    values\n}",
       "after": "fn heap_births(mut values: Vec<BirthId>, len: usize) -> Vec<BirthId> {\n    for step in 0..(len / 2) {\n        if step < len / 2 {\n            values = sift_births(Vec::new(), len / 2 - 1 - step, len);\n        }\n    }\n    values\n}"
@@ -72,7 +72,7 @@ export const deleteControlFixtures = [
     "owner": "Nickel.EditDeletePermutation.drain_preserves_births",
     "root": "EditDeletePermutation",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn drain_births(",
       "before": "fn drain_births(mut values: Vec<BirthId>, len: usize) -> Vec<BirthId> {\n    for step in 0..len {\n        let finish = len - 1 - step;\n        if values.is_empty() || finish >= values.len() { break; }\n        let old = values[0];\n        values[0] = values[finish];\n        values[finish] = old;\n        values = sift_births(values, 0, finish);\n    }\n    values\n}",
       "after": "fn drain_births(mut values: Vec<BirthId>, len: usize) -> Vec<BirthId> {\n    for step in 0..len {\n        let finish = len - 1 - step;\n        if values.is_empty() || finish >= values.len() { break; }\n        let old = values[0];\n        values[0] = values[finish];\n        values[finish] = old;\n        values = sift_births(Vec::new(), 0, finish);\n    }\n    values\n}"
@@ -138,7 +138,7 @@ export const deleteControlFixtures = [
     "owner": null,
     "root": "EditDeletePermutation",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn duplicate_births(",
       "before": "fn duplicate_births(xs: &[BirthId]) -> bool {\n    if xs.len() < 2 { return false; }\n    if xs[0] == xs[1] { return true; }\n    let ordered = ordered_births(xs);\n    for i in 1..ordered.len() {\n        if i > 0 && i < ordered.len() && ordered[i - 1] == ordered[i] { return true; }\n    }\n    false\n}",
       "after": "fn duplicate_births(xs: &[BirthId]) -> bool {\n    if xs.len() < 2 { return false; }\n    if xs[0] == xs[1] { return true; }\n    let ordered = xs.to_vec();\n    for i in 1..ordered.len() {\n        if i > 0 && i < ordered.len() && ordered[i - 1] == ordered[i] { return true; }\n    }\n    false\n}"
@@ -234,7 +234,7 @@ export const deleteControlFixtures = [
     "owner": null,
     "root": "EditDeletePermutation",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn ordered_births(",
       "before": "fn ordered_births(xs: &[BirthId]) -> Vec<BirthId> {\n    let values = xs.to_vec();\n    let len = values.len();\n    let values = heap_births(values, len);\n    drain_births(values, len)\n}",
       "after": "fn ordered_births(xs: &[BirthId]) -> Vec<BirthId> { xs.to_vec() }"
@@ -255,7 +255,7 @@ export const deleteControlFixtures = [
     "owner": "Nickel.EditDeletePermutation.ordered_preserves_births",
     "root": "EditDeletePermutation",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn ordered_births(",
       "before": "fn ordered_births(xs: &[BirthId]) -> Vec<BirthId> {\n    let values = xs.to_vec();\n    let len = values.len();\n    let values = heap_births(values, len);\n    drain_births(values, len)\n}",
       "after": "fn ordered_births(xs: &[BirthId]) -> Vec<BirthId> {\n    let values = Vec::new();\n    let len = values.len();\n    let values = heap_births(values, len);\n    drain_births(values, len)\n}"
@@ -276,7 +276,7 @@ export const deleteControlFixtures = [
     "owner": "Nickel.EditDeleteAnswer.duplicate_answer_has_original_pair",
     "root": "EditDeleteAnswer",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn duplicate_births(",
       "before": "fn duplicate_births(xs: &[BirthId]) -> bool {\n    if xs.len() < 2 { return false; }\n    if xs[0] == xs[1] { return true; }\n    let ordered = ordered_births(xs);\n    for i in 1..ordered.len() {\n        if i > 0 && i < ordered.len() && ordered[i - 1] == ordered[i] { return true; }\n    }\n    false\n}",
       "after": "fn duplicate_births(xs: &[BirthId]) -> bool {\n    if xs.len() < 2 { return true; }\n    if xs[0] == xs[1] { return true; }\n    let ordered = ordered_births(xs);\n    for i in 1..ordered.len() {\n        if i > 0 && i < ordered.len() && ordered[i - 1] == ordered[i] { return true; }\n    }\n    false\n}"
@@ -297,7 +297,7 @@ export const deleteControlFixtures = [
     "owner": "Nickel.EditDeleteAnswer.duplicate_answer_has_original_pair",
     "root": "EditDeleteAnswer",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn duplicate_births(",
       "before": "fn duplicate_births(xs: &[BirthId]) -> bool {\n    if xs.len() < 2 { return false; }\n    if xs[0] == xs[1] { return true; }\n    let ordered = ordered_births(xs);\n    for i in 1..ordered.len() {\n        if i > 0 && i < ordered.len() && ordered[i - 1] == ordered[i] { return true; }\n    }\n    false\n}",
       "after": "fn duplicate_births(xs: &[BirthId]) -> bool {\n    if xs.len() < 2 { return false; }\n    if xs[0] != xs[1] { return true; }\n    let ordered = ordered_births(xs);\n    for i in 1..ordered.len() {\n        if i > 0 && i < ordered.len() && ordered[i - 1] == ordered[i] { return true; }\n    }\n    false\n}"
@@ -318,7 +318,7 @@ export const deleteControlFixtures = [
     "owner": "Nickel.EditDeleteAnswer.duplicate_answer_has_original_pair",
     "root": "EditDeleteAnswer",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn duplicate_births(",
       "before": "fn duplicate_births(xs: &[BirthId]) -> bool {\n    if xs.len() < 2 { return false; }\n    if xs[0] == xs[1] { return true; }\n    let ordered = ordered_births(xs);\n    for i in 1..ordered.len() {\n        if i > 0 && i < ordered.len() && ordered[i - 1] == ordered[i] { return true; }\n    }\n    false\n}",
       "after": "fn duplicate_births(xs: &[BirthId]) -> bool {\n    if xs.len() < 2 { return false; }\n    if xs[0] == xs[1] { return true; }\n    let ordered = ordered_births(xs);\n    for i in 1..ordered.len() {\n        if i > 0 && i < ordered.len() && ordered[i - 1].index == ordered[i].index { return true; }\n    }\n    false\n}"
@@ -339,7 +339,7 @@ export const deleteControlFixtures = [
     "owner": "Nickel.EditDeleteAnswer.duplicate_answer_has_original_pair",
     "root": "EditDeleteAnswer",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn duplicate_births(",
       "before": "fn duplicate_births(xs: &[BirthId]) -> bool {\n    if xs.len() < 2 { return false; }\n    if xs[0] == xs[1] { return true; }\n    let ordered = ordered_births(xs);\n    for i in 1..ordered.len() {\n        if i > 0 && i < ordered.len() && ordered[i - 1] == ordered[i] { return true; }\n    }\n    false\n}",
       "after": "fn duplicate_births(xs: &[BirthId]) -> bool {\n    if xs.len() < 2 { return false; }\n    if xs[0] == xs[1] { return true; }\n    let ordered = ordered_births(&[xs[0], xs[0]]);\n    for i in 1..ordered.len() {\n        if i > 0 && i < ordered.len() && ordered[i - 1] == ordered[i] { return true; }\n    }\n    false\n}"
@@ -360,7 +360,7 @@ export const deleteControlFixtures = [
     "owner": "Nickel.EditDeleteAnswer.distinct_delete_keeps_placement_error",
     "root": "EditDeleteAnswer",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn validate_new(",
       "before": "fn validate_new(facts: &[Fact], fact: &Fact) -> Result<(), Error> {\n        // Fact-local checks first: a fact that can never be valid must not be\n        // reported as Missing (a deferral the caller retries) while its\n        // dependencies are absent.\n        validate_scalars(&fact.insert)?;\n        if duplicate_births(&fact.delete) {\n            return Err(invalid(Invalid::DeleteDuplicate));\n        }\n        if fact.insert.is_empty() && fact.gap.is_some() {\n            return Err(invalid(Invalid::PlacementWithoutBirth));\n        }\n        if !fact.insert.is_empty() && fact.gap.is_none() {\n            return Err(invalid(Invalid::Gap));\n        }\n        let selected = crate::event_layer::validate_event(facts, fact, &TEXT_OPS)?;\n        let mut basis = Vec::new();\n        for f in facts.iter() {\n            if has_event(&selected, f.id) {\n                push(&mut basis, f.clone())?;\n            }\n        }\n        let seen = visible(&basis)?;\n        for id in fact.delete.iter() {\n            if !has_birth(&seen, *id) {\n                return Err(invalid(Invalid::DeleteNotVisible));\n            }\n        }\n        if !fact.insert.is_empty() && !matches!(fact.gap,Some(gap) if gap<=seen.len()) {\n            return Err(invalid(Invalid::Gap));\n        }\n        Ok(())\n    }",
       "after": "fn validate_new(facts: &[Fact], fact: &Fact) -> Result<(), Error> {\n        // Fact-local checks first: a fact that can never be valid must not be\n        // reported as Missing (a deferral the caller retries) while its\n        // dependencies are absent.\n        validate_scalars(&fact.insert)?;\n        if duplicate_births(&[BirthId { event: fact.id, index: 0 }, BirthId { event: fact.id, index: 0 }]) {\n            return Err(invalid(Invalid::DeleteDuplicate));\n        }\n        if fact.insert.is_empty() && fact.gap.is_some() {\n            return Err(invalid(Invalid::PlacementWithoutBirth));\n        }\n        if !fact.insert.is_empty() && fact.gap.is_none() {\n            return Err(invalid(Invalid::Gap));\n        }\n        let selected = crate::event_layer::validate_event(facts, fact, &TEXT_OPS)?;\n        let mut basis = Vec::new();\n        for f in facts.iter() {\n            if has_event(&selected, f.id) {\n                push(&mut basis, f.clone())?;\n            }\n        }\n        let seen = visible(&basis)?;\n        for id in fact.delete.iter() {\n            if !has_birth(&seen, *id) {\n                return Err(invalid(Invalid::DeleteNotVisible));\n            }\n        }\n        if !fact.insert.is_empty() && !matches!(fact.gap,Some(gap) if gap<=seen.len()) {\n            return Err(invalid(Invalid::Gap));\n        }\n        Ok(())\n    }"
@@ -471,7 +471,7 @@ export const deleteControlFixtures = [
     "owner": null,
     "root": "EditDeleteAnswer",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn duplicate_births(",
       "before": "fn duplicate_births(xs: &[BirthId]) -> bool {\n    if xs.len() < 2 { return false; }\n    if xs[0] == xs[1] { return true; }\n    let ordered = ordered_births(xs);\n    for i in 1..ordered.len() {\n        if i > 0 && i < ordered.len() && ordered[i - 1] == ordered[i] { return true; }\n    }\n    false\n}",
       "after": "fn duplicate_births(xs: &[BirthId]) -> bool {\n    if xs.len() < 2 { return false; }\n    if xs[0] == xs[1] { return true; }\n    let ordered = xs.to_vec();\n    for i in 1..ordered.len() {\n        if i > 0 && i < ordered.len() && ordered[i - 1] == ordered[i] { return true; }\n    }\n    false\n}"
@@ -492,7 +492,7 @@ export const deleteControlFixtures = [
     "owner": null,
     "root": "EditDeleteAnswer",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn duplicate_births(",
       "before": "fn duplicate_births(xs: &[BirthId]) -> bool {\n    if xs.len() < 2 { return false; }\n    if xs[0] == xs[1] { return true; }\n    let ordered = ordered_births(xs);\n    for i in 1..ordered.len() {\n        if i > 0 && i < ordered.len() && ordered[i - 1] == ordered[i] { return true; }\n    }\n    false\n}",
       "after": "fn duplicate_births(xs: &[BirthId]) -> bool { false }"
@@ -513,7 +513,7 @@ export const deleteControlFixtures = [
     "owner": "Nickel.EditDeleteComplete.duplicate_births_complete",
     "root": "EditDeleteComplete",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn duplicate_births(",
       "before": "fn duplicate_births(xs: &[BirthId]) -> bool {\n    if xs.len() < 2 { return false; }\n    if xs[0] == xs[1] { return true; }\n    let ordered = ordered_births(xs);\n    for i in 1..ordered.len() {\n        if i > 0 && i < ordered.len() && ordered[i - 1] == ordered[i] { return true; }\n    }\n    false\n}",
       "after": "fn duplicate_births(xs: &[BirthId]) -> bool { false }"
@@ -534,7 +534,7 @@ export const deleteControlFixtures = [
     "owner": "Nickel.EditDeleteComplete.duplicate_births_complete",
     "root": "EditDeleteComplete",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn duplicate_births(",
       "before": "fn duplicate_births(xs: &[BirthId]) -> bool {\n    if xs.len() < 2 { return false; }\n    if xs[0] == xs[1] { return true; }\n    let ordered = ordered_births(xs);\n    for i in 1..ordered.len() {\n        if i > 0 && i < ordered.len() && ordered[i - 1] == ordered[i] { return true; }\n    }\n    false\n}",
       "after": "fn duplicate_births(xs: &[BirthId]) -> bool {\n    if xs.len() < 2 { return false; }\n    if xs[0] == xs[1] { return true; }\n    let ordered = xs.to_vec();\n    for i in 1..ordered.len() {\n        if i > 0 && i < ordered.len() && ordered[i - 1] == ordered[i] { return true; }\n    }\n    false\n}"
@@ -555,7 +555,7 @@ export const deleteControlFixtures = [
     "owner": "Nickel.EditDeleteHeap.sift_is_model",
     "root": "EditDeleteComplete",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn sift_births(",
       "before": "fn sift_births(mut values: Vec<BirthId>, start: usize, finish: usize) -> Vec<BirthId> {\n    let mut root = start;\n    for _ in 0..(usize::BITS as usize) {\n        if root >= finish / 2 { break; }\n        let mut child = root * 2 + 1;\n        if root >= values.len() || child >= values.len() { break; }\n        if child + 1 < finish && child + 1 < values.len() && birth_lt(values[child], values[child + 1]) {\n            child += 1;\n        }\n        if child >= values.len() || !birth_lt(values[root], values[child]) { break; }\n        let old = values[root];\n        values[root] = values[child];\n        values[child] = old;\n        root = child;\n    }\n    values\n}",
       "after": "fn sift_births(mut values: Vec<BirthId>, start: usize, finish: usize) -> Vec<BirthId> {\n    let mut root = start;\n    for _ in 0..(usize::BITS as usize) {\n        if root >= 0 { break; }\n        let mut child = root * 2 + 1;\n        if root >= values.len() || child >= values.len() { break; }\n        if child + 1 < finish && child + 1 < values.len() && birth_lt(values[child], values[child + 1]) {\n            child += 1;\n        }\n        if child >= values.len() || !birth_lt(values[root], values[child]) { break; }\n        let old = values[root];\n        values[root] = values[child];\n        values[child] = old;\n        root = child;\n    }\n    values\n}"
@@ -576,7 +576,7 @@ export const deleteControlFixtures = [
     "owner": "Nickel.EditDeleteHeap.sift_is_model",
     "root": "EditDeleteComplete",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn sift_births(",
       "before": "fn sift_births(mut values: Vec<BirthId>, start: usize, finish: usize) -> Vec<BirthId> {\n    let mut root = start;\n    for _ in 0..(usize::BITS as usize) {\n        if root >= finish / 2 { break; }\n        let mut child = root * 2 + 1;\n        if root >= values.len() || child >= values.len() { break; }\n        if child + 1 < finish && child + 1 < values.len() && birth_lt(values[child], values[child + 1]) {\n            child += 1;\n        }\n        if child >= values.len() || !birth_lt(values[root], values[child]) { break; }\n        let old = values[root];\n        values[root] = values[child];\n        values[child] = old;\n        root = child;\n    }\n    values\n}",
       "after": "fn sift_births(mut values: Vec<BirthId>, start: usize, finish: usize) -> Vec<BirthId> {\n    let mut root = start;\n    for _ in 0..(usize::BITS as usize) {\n        if root >= finish / 2 { break; }\n        let mut child = root * 2 + 1;\n        if root >= values.len() || child >= values.len() { break; }\n        if child + 1 < finish && child + 1 < values.len() && birth_lt(values[child], values[child]) {\n            child += 1;\n        }\n        if child >= values.len() || !birth_lt(values[root], values[child]) { break; }\n        let old = values[root];\n        values[root] = values[child];\n        values[child] = old;\n        root = child;\n    }\n    values\n}"
@@ -597,7 +597,7 @@ export const deleteControlFixtures = [
     "owner": "Nickel.EditDeleteHeap.heap_builds",
     "root": "EditDeleteComplete",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn heap_births(",
       "before": "fn heap_births(mut values: Vec<BirthId>, len: usize) -> Vec<BirthId> {\n    for step in 0..(len / 2) {\n        if step < len / 2 {\n            values = sift_births(values, len / 2 - 1 - step, len);\n        }\n    }\n    values\n}",
       "after": "fn heap_births(mut values: Vec<BirthId>, len: usize) -> Vec<BirthId> {\n    for step in 0..(len / 2) {\n        if step < len / 2 {\n            values = sift_births(values, step, len);\n        }\n    }\n    values\n}"
@@ -618,7 +618,7 @@ export const deleteControlFixtures = [
     "owner": "Nickel.EditDeleteHeap.order_antisymmetric",
     "root": "EditDeleteComplete",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn birth_lt(",
       "before": "fn birth_lt(a: BirthId, b: BirthId) -> bool {\n    event_lt(a.event, b.event) || (a.event == b.event && a.index < b.index)\n}",
       "after": "fn birth_lt(a: BirthId, b: BirthId) -> bool {\n    a.event.counter < b.event.counter || (a.event.counter == b.event.counter && a.index < b.index)\n}"
@@ -639,7 +639,7 @@ export const deleteControlFixtures = [
     "owner": "Nickel.EditDeleteComplete.repeated_delete_rejected_before_admission",
     "root": "EditDeleteComplete",
     "rust": {
-      "hash": "df4b95b0d4139602ad817794aff245c8a5d99e9ece9a53c52580a6b5d430d9c2",
+      "hash": "aca647f198e3fcd46da72d1092ee781047883b96a27702afc5eb83160385022a",
       "scope": "fn validate_new(",
       "before": "fn validate_new(facts: &[Fact], fact: &Fact) -> Result<(), Error> {\n        // Fact-local checks first: a fact that can never be valid must not be\n        // reported as Missing (a deferral the caller retries) while its\n        // dependencies are absent.\n        validate_scalars(&fact.insert)?;\n        if duplicate_births(&fact.delete) {\n            return Err(invalid(Invalid::DeleteDuplicate));\n        }\n        if fact.insert.is_empty() && fact.gap.is_some() {\n            return Err(invalid(Invalid::PlacementWithoutBirth));\n        }\n        if !fact.insert.is_empty() && fact.gap.is_none() {\n            return Err(invalid(Invalid::Gap));\n        }\n        let selected = crate::event_layer::validate_event(facts, fact, &TEXT_OPS)?;\n        let mut basis = Vec::new();\n        for f in facts.iter() {\n            if has_event(&selected, f.id) {\n                push(&mut basis, f.clone())?;\n            }\n        }\n        let seen = visible(&basis)?;\n        for id in fact.delete.iter() {\n            if !has_birth(&seen, *id) {\n                return Err(invalid(Invalid::DeleteNotVisible));\n            }\n        }\n        if !fact.insert.is_empty() && !matches!(fact.gap,Some(gap) if gap<=seen.len()) {\n            return Err(invalid(Invalid::Gap));\n        }\n        Ok(())\n    }",
       "after": "fn validate_new(facts: &[Fact], fact: &Fact) -> Result<(), Error> {\n        // Fact-local checks first: a fact that can never be valid must not be\n        // reported as Missing (a deferral the caller retries) while its\n        // dependencies are absent.\n        validate_scalars(&fact.insert)?;\n        if duplicate_births(&[]) {\n            return Err(invalid(Invalid::DeleteDuplicate));\n        }\n        if fact.insert.is_empty() && fact.gap.is_some() {\n            return Err(invalid(Invalid::PlacementWithoutBirth));\n        }\n        if !fact.insert.is_empty() && fact.gap.is_none() {\n            return Err(invalid(Invalid::Gap));\n        }\n        let selected = crate::event_layer::validate_event(facts, fact, &TEXT_OPS)?;\n        let mut basis = Vec::new();\n        for f in facts.iter() {\n            if has_event(&selected, f.id) {\n                push(&mut basis, f.clone())?;\n            }\n        }\n        let seen = visible(&basis)?;\n        for id in fact.delete.iter() {\n            if !has_birth(&seen, *id) {\n                return Err(invalid(Invalid::DeleteNotVisible));\n            }\n        }\n        if !fact.insert.is_empty() && !matches!(fact.gap,Some(gap) if gap<=seen.len()) {\n            return Err(invalid(Invalid::Gap));\n        }\n        Ok(())\n    }"

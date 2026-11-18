@@ -6,10 +6,10 @@
 use nickel_crdt::edit::*;
 
 fn absent_dependency() -> EventId {
-    EventId { writer: Writer::Bo, counter: 1 }
+    EventId { writer: Writer(2), counter: 1 }
 }
 fn fact(insert: Vec<u32>, delete: Vec<BirthId>, gap: Option<usize>) -> Fact {
-    Fact { id: EventId { writer: Writer::Alice, counter: 1 }, after: vec![absent_dependency()], insert, delete, gap }
+    Fact { id: EventId { writer: Writer(1), counter: 1 }, after: vec![absent_dependency()], insert, delete, gap }
 }
 fn rejected(f: &Fact) -> Result<Admission, Error> {
     let r = Replica::new(None).unwrap();

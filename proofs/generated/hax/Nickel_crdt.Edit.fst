@@ -3,14 +3,11 @@ module Nickel_crdt.Edit
 open FStar.Mul
 open Core_models
 
-type t_Writer =
-  | Writer_Alice : t_Writer
-  | Writer_Bo : t_Writer
+/// Opaque 64-bit peer identity (docs/writer-identity.md A1). The caller allocates
+/// and fences each value to one producer; the engine only compares values.
+type t_Writer = | Writer : u64 -> t_Writer
 
-let writer_index (w: t_Writer) : u8 =
-  match w <: t_Writer with
-  | Writer_Alice  -> mk_u8 0
-  | Writer_Bo  -> mk_u8 1
+let writer_index (w: t_Writer) : u64 = w._0
 
 type t_EventId = {
   f_writer:t_Writer;
@@ -102,7 +99,7 @@ let impl: Core_models.Cmp.t_PartialEq t_Writer t_Writer =
     f_eq
     =
     fun (self: t_Writer) (other: t_Writer) ->
-      (writer_index self <: u8) =. (writer_index other <: u8)
+      (writer_index self <: u64) =. (writer_index other <: u64)
   }
 
 [@@ FStar.Tactics.Typeclasses.tcinstance]
@@ -133,7 +130,7 @@ let fact_equal (left right: t_Fact) : bool =
   left.f_gap =. right.f_gap
 
 let event_lt (a b: t_EventId) : bool =
-  (writer_index a.f_writer <: u8) <. (writer_index b.f_writer <: u8) ||
+  (writer_index a.f_writer <: u64) <. (writer_index b.f_writer <: u64) ||
   a.f_writer =. b.f_writer && a.f_counter <. b.f_counter
 
 let birth_lt (a b: t_BirthId) : bool =

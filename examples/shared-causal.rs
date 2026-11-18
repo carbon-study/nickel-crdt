@@ -56,7 +56,7 @@ fn main() {
     println!("batch: two fields relayed; invalid final operation left state, history and counter unchanged");
     assert_eq!(laptop.events().len(), 1);
 
-    let text = Replica::new(Some(Writer::Alice)).unwrap();
+    let text = Replica::new(Some(Writer(1))).unwrap();
     let (text, authored) = text.edit(0, "hello".chars().map(|c| c as u32).collect(), vec![]);
     let Local::Authored(fact) = authored.unwrap() else {
         panic!("missing text fact")

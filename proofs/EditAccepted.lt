@@ -632,7 +632,7 @@ proof edit_authored_has_exact_contents(before: Native.t_Replica, gap: usize, ins
 
 // Canonical fact order is event-ID order, not causal replay order or text order.
 function event_key(id: Native.t_EventId): nat {
-  const rank = match id.f_writer { Native.Writer_Alice => 0, Native.Writer_Bo => 18446744073709551616 };
+  const rank = Prims.op_Multiply(v(Native.writer_index(id.f_writer)), 18446744073709551616);
   rank + v(id.f_counter)
 }
 proof event_order_is_key_order(a: Native.t_EventId, b: Native.t_EventId): unit
@@ -673,12 +673,11 @@ proof least_extends_all(input: t_Slice(Native.t_Fact), out: t_Slice(Native.t_Fac
   proof each(j: usize where v(j) < v(Nickel.EditIdentity.length(input)), choice: Option.t_Option(usize)): unit
     gives least_choice(input, out, v(j), choice) ==> least_choice(input, out, v(j) + 1, least_next(input, out, j, choice))
   {
-    // One case per least_next branch, so each query sees one shape of the step.
-    if Native.has_fact(out, Rust_primitives.Slice.slice_index(input, j).f_id) { () } else {
-      match choice {
-        Option.Option_None => (),
-        Option.Option_Some(k) => ()
-      }
+    // This step uses only ordering of keys, not the writer/counter encoding.
+    assert(least_choice(input, out, v(j), choice) ==>
+      least_choice(input, out, v(j) + 1, least_next(input, out, j, choice))) by {
+      Tactics.prune("Nickel.EditAccepted.event_key");
+      Tactics.smt_sync'(1, 1)
     }
   };
   FStar.Classical.forall_intro_2(each)

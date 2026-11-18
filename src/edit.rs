@@ -1,15 +1,11 @@
 //! Retained facts and a rebuilt FugueMax tree. This is deliberately not an
 //! incremental index. The external caller fences each writer to one producer.
+/// Opaque 64-bit peer identity (docs/writer-identity.md A1). The caller allocates
+/// and fences each value to one producer; the engine only compares values.
 #[derive(Clone, Copy, Debug, Eq, PartialOrd, Ord)]
-pub enum Writer {
-    Alice,
-    Bo,
-}
-fn writer_index(w: Writer) -> u8 {
-    match w {
-        Writer::Alice => 0,
-        Writer::Bo => 1,
-    }
+pub struct Writer(pub u64);
+fn writer_index(w: Writer) -> u64 {
+    w.0
 }
 #[derive(Clone, Copy, Debug, Eq, PartialOrd, Ord)]
 pub struct EventId {
