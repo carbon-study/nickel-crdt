@@ -60,6 +60,8 @@ const modes=["stream-admission-skips-predecessor","stream-admission-skips-forbid
 modes.push('plan-interprets-uncanonical-call', ...["shared-plan-skips-validation","shared-plan-ignores-duplicate","shared-plan-swallows-classifier-error","identity-call-passes-empty","identity-call-ignores-payload","past-membership-call-passes-empty","scheduler-readiness-call-passes-empty","scheduler-choice-call-passes-empty"]);
 modes.push('past-guard-refuses-present','past-extension-refuses-selection');
 modes.push("past-extend-call-clears-selection","past-pass-call-skips-facts","past-call-clears-roots");
+// #107: past stops at its fixpoint and each pass scans newest-first.
+modes.push("past-closes-after-one-pass","past-pass-rescans-last");
 modes.push('text-policy-swaps-eq-lt','graph-policy-swaps-eq-lt','admission-policy-swaps-errors');
 // Contract-dependency families run after the positive chain verifies. With no
 // arguments (CI) every mode and every family runs. Development runs may select
@@ -167,6 +169,8 @@ const mutationDefinitions=[
   ["past-membership-always-false","src/event_layer.rs","fn has_id<","if id_eq(&ids[i], wanted) {","if false {"],
   ["past-skips-predecessors","src/event_layer.rs","fn extend_past<","if has_id(&selected, &id(fact), ops) {","if false {"],
   ["past-skips-passes","src/event_layer.rs","fn past<","for _ in 0..facts.len() {","for _ in 0..0usize {"],
+  ["past-closes-after-one-pass","src/event_layer.rs","fn past<","closed = selected.len() == before;","closed = true;"],
+  ["past-pass-rescans-last","src/event_layer.rs","fn past_pass<","let i = facts.len() - 1 - offset;","let i = facts.len() - 1;"],
   ["past-guard-refuses-present","src/event_layer.rs","fn validate_after<","if !has_fact(facts, &after[i], ops)","if has_fact(facts, &after[i], ops)"],
   ["past-extension-refuses-selection","src/event_layer.rs","fn extend_past<","Ok(selected)","Err(internal())"],
   ["past-refuses-closure","src/event_layer.rs","fn past<","Ok(selected)","Err((ops.1.0)())"],
@@ -262,6 +266,8 @@ const theorems={
   'past-guard-refuses-present':'PastExact.present_dependencies_pass_guard',
   'past-extension-refuses-selection':'PastExact.extend_stored_selection_succeeds',
   'past-refuses-closure':'PastExact.fitting_closed_history_computes_past',
+  'past-closes-after-one-pass':'PastExact.past_covers_bounded_predecessor_paths',
+  'past-pass-rescans-last':'PastExact.past_pass_covers_edges',
   'duplicate-scan-skips-pairs':'EditPastTotal.duplicate_scan_is_exact',
   'past-skips-passes':'EditPast.past_stays_in_closed_set',
   'past-skips-predecessors':'EditPast.extend_past_covers_predecessors',

@@ -1162,6 +1162,94 @@ let impl_Tree__whole (self: t_Tree)
           <:
           Core_models.Result.t_Result (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global) t_Error
 
+let impl_Tree__origin_order
+      (self: t_Tree)
+      (ranked: bool)
+      (origin: Core_models.Option.t_Option t_BirthId)
+    : Core_models.Result.t_Result (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global & usize) t_Error =
+  match origin <: Core_models.Option.t_Option t_BirthId with
+  | Core_models.Option.Option_Some id ->
+    (match impl_Tree__position self id <: Core_models.Result.t_Result usize t_Error with
+      | Core_models.Result.Result_Ok _ ->
+        if ~.ranked
+        then
+          Core_models.Result.Result_Ok
+          (Alloc.Vec.impl__new #t_BirthId (), Core_models.Num.impl_usize__MAX
+            <:
+            (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global & usize))
+          <:
+          Core_models.Result.t_Result (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global & usize)
+            t_Error
+        else
+          (match
+              impl_Tree__whole self
+              <:
+              Core_models.Result.t_Result (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global) t_Error
+            with
+            | Core_models.Result.Result_Ok whole ->
+              (match
+                  impl_Tree__rank (Alloc.Vec.impl_1__as_slice whole <: t_Slice t_BirthId) origin
+                  <:
+                  Core_models.Result.t_Result usize t_Error
+                with
+                | Core_models.Result.Result_Ok rank ->
+                  Core_models.Result.Result_Ok
+                  (whole, rank <: (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global & usize))
+                  <:
+                  Core_models.Result.t_Result
+                    (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global & usize) t_Error
+                | Core_models.Result.Result_Err err ->
+                  Core_models.Result.Result_Err err
+                  <:
+                  Core_models.Result.t_Result
+                    (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global & usize) t_Error)
+            | Core_models.Result.Result_Err err ->
+              Core_models.Result.Result_Err err
+              <:
+              Core_models.Result.t_Result (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global & usize)
+                t_Error)
+      | Core_models.Result.Result_Err err ->
+        Core_models.Result.Result_Err err
+        <:
+        Core_models.Result.t_Result (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global & usize) t_Error
+    )
+  | _ ->
+    if ~.ranked
+    then
+      Core_models.Result.Result_Ok
+      (Alloc.Vec.impl__new #t_BirthId (), Core_models.Num.impl_usize__MAX
+        <:
+        (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global & usize))
+      <:
+      Core_models.Result.t_Result (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global & usize) t_Error
+    else
+      match
+        impl_Tree__whole self
+        <:
+        Core_models.Result.t_Result (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global) t_Error
+      with
+      | Core_models.Result.Result_Ok whole ->
+        (match
+            impl_Tree__rank (Alloc.Vec.impl_1__as_slice whole <: t_Slice t_BirthId) origin
+            <:
+            Core_models.Result.t_Result usize t_Error
+          with
+          | Core_models.Result.Result_Ok rank ->
+            Core_models.Result.Result_Ok
+            (whole, rank <: (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global & usize))
+            <:
+            Core_models.Result.t_Result (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global & usize)
+              t_Error
+          | Core_models.Result.Result_Err err ->
+            Core_models.Result.Result_Err err
+            <:
+            Core_models.Result.t_Result (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global & usize)
+              t_Error)
+      | Core_models.Result.Result_Err err ->
+        Core_models.Result.Result_Err err
+        <:
+        Core_models.Result.t_Result (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global & usize) t_Error
+
 let impl_Tree__add (self: t_Tree) (node: t_Node)
     : (t_Tree & Core_models.Result.t_Result Prims.unit t_Error) =
   match
@@ -1209,520 +1297,85 @@ let impl_Tree__add (self: t_Tree) (node: t_Node)
   with
   | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
   | Core_models.Ops.Control_flow.ControlFlow_Continue _ ->
-    match
-      impl_Tree__whole self
-      <:
-      Core_models.Result.t_Result (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global) t_Error
-    with
-    | Core_models.Result.Result_Ok whole ->
-      (match node.f_parent <: Core_models.Option.t_Option t_BirthId with
-        | Core_models.Option.Option_Some id ->
-          (match impl_Tree__position self id <: Core_models.Result.t_Result usize t_Error with
-            | Core_models.Result.Result_Ok hoist24 ->
-              let parent:Core_models.Option.t_Option usize =
-                Core_models.Option.Option_Some hoist24 <: Core_models.Option.t_Option usize
-              in
-              (match parent <: Core_models.Option.t_Option usize with
-                | Core_models.Option.Option_Some p ->
-                  if
-                    p >=.
-                    (Alloc.Vec.impl_1__len #t_Node #Alloc.Alloc.t_Global self.f_nodes <: usize)
-                  then
-                    self,
-                    (Core_models.Result.Result_Err (Error_Internal <: t_Error)
-                      <:
-                      Core_models.Result.t_Result Prims.unit t_Error)
+    match node.f_parent <: Core_models.Option.t_Option t_BirthId with
+    | Core_models.Option.Option_Some id ->
+      (match impl_Tree__position self id <: Core_models.Result.t_Result usize t_Error with
+        | Core_models.Result.Result_Ok hoist25 ->
+          let parent:Core_models.Option.t_Option usize =
+            Core_models.Option.Option_Some hoist25 <: Core_models.Option.t_Option usize
+          in
+          (match parent <: Core_models.Option.t_Option usize with
+            | Core_models.Option.Option_Some p ->
+              if p >=. (Alloc.Vec.impl_1__len #t_Node #Alloc.Alloc.t_Global self.f_nodes <: usize)
+              then
+                self,
+                (Core_models.Result.Result_Err (Error_Internal <: t_Error)
+                  <:
+                  Core_models.Result.t_Result Prims.unit t_Error)
+                <:
+                (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+              else
+                let siblings:Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global =
+                  match node.f_side <: t_Side with
+                  | Side_Left  ->
+                    Core_models.Clone.f_clone #(Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global)
+                      #FStar.Tactics.Typeclasses.solve
+                      (self.f_nodes.[ p ] <: t_Node).f_left
+                  | Side_Right  ->
+                    Core_models.Clone.f_clone #(Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global)
+                      #FStar.Tactics.Typeclasses.solve
+                      (self.f_nodes.[ p ] <: t_Node).f_right
+                in
+                let at:usize = Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global siblings in
+                let ranked:bool =
+                  (match node.f_side <: t_Side with
+                    | Side_Right  -> true
+                    | _ -> false) &&
+                  ~.(Alloc.Vec.impl_1__is_empty #t_BirthId #Alloc.Alloc.t_Global siblings <: bool)
+                in
+                (match
+                    impl_Tree__origin_order self ranked node.f_right_origin
                     <:
-                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                  else
-                    let siblings:Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global =
-                      match node.f_side <: t_Side with
-                      | Side_Left  ->
-                        Core_models.Clone.f_clone #(Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global)
-                          #FStar.Tactics.Typeclasses.solve
-                          (self.f_nodes.[ p ] <: t_Node).f_left
-                      | Side_Right  ->
-                        Core_models.Clone.f_clone #(Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global)
-                          #FStar.Tactics.Typeclasses.solve
-                          (self.f_nodes.[ p ] <: t_Node).f_right
-                    in
-                    let at:usize =
-                      Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global siblings
-                    in
+                    Core_models.Result.t_Result
+                      (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global & usize) t_Error
+                  with
+                  | Core_models.Result.Result_Ok (whole, rank) ->
                     (match
-                        impl_Tree__rank (Alloc.Vec.impl_1__as_slice whole <: t_Slice t_BirthId)
-                          node.f_right_origin
-                        <:
-                        Core_models.Result.t_Result usize t_Error
-                      with
-                      | Core_models.Result.Result_Ok rank ->
-                        (match
-                            Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
-                              (Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global siblings
+                        Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
+                          (Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global siblings <: usize)
+                          (fun at temp_1_ ->
+                              let at:usize = at in
+                              let _:usize = temp_1_ in
+                              true)
+                          at
+                          (fun at i ->
+                              let at:usize = at in
+                              let i:usize = i in
+                              match
+                                impl_Tree__node self (siblings.[ i ] <: t_BirthId)
                                 <:
-                                usize)
-                              (fun at temp_1_ ->
-                                  let at:usize = at in
-                                  let _:usize = temp_1_ in
-                                  true)
-                              at
-                              (fun at i ->
-                                  let at:usize = at in
-                                  let i:usize = i in
+                                Core_models.Result.t_Result t_Node t_Error
+                              with
+                              | Core_models.Result.Result_Ok old ->
+                                if
+                                  match node.f_side <: t_Side with
+                                  | Side_Right  -> true
+                                  | _ -> false
+                                then
                                   match
-                                    impl_Tree__node self (siblings.[ i ] <: t_BirthId)
+                                    impl_Tree__rank (Alloc.Vec.impl_1__as_slice whole
+                                        <:
+                                        t_Slice t_BirthId)
+                                      old.f_right_origin
                                     <:
-                                    Core_models.Result.t_Result t_Node t_Error
+                                    Core_models.Result.t_Result usize t_Error
                                   with
-                                  | Core_models.Result.Result_Ok old ->
-                                    if
-                                      match node.f_side <: t_Side with
-                                      | Side_Right  -> true
-                                      | _ -> false
-                                    then
-                                      match
-                                        impl_Tree__rank (Alloc.Vec.impl_1__as_slice whole
-                                            <:
-                                            t_Slice t_BirthId)
-                                          old.f_right_origin
-                                        <:
-                                        Core_models.Result.t_Result usize t_Error
-                                      with
-                                      | Core_models.Result.Result_Ok hoist27 ->
-                                        let before:bool =
-                                          rank >. hoist27 ||
-                                          node.f_right_origin =. old.f_right_origin &&
-                                          birth_lt node.f_id old.f_id
-                                        in
-                                        if before
-                                        then
-                                          let at:usize = i in
-                                          Core_models.Ops.Control_flow.ControlFlow_Break
-                                          (Core_models.Ops.Control_flow.ControlFlow_Continue
-                                            ((), at <: (Prims.unit & usize))
-                                            <:
-                                            Core_models.Ops.Control_flow.t_ControlFlow
-                                              (t_Tree &
-                                                Core_models.Result.t_Result Prims.unit t_Error)
-                                              (Prims.unit & usize))
-                                          <:
-                                          Core_models.Ops.Control_flow.t_ControlFlow
-                                            (Core_models.Ops.Control_flow.t_ControlFlow
-                                                (t_Tree &
-                                                  Core_models.Result.t_Result Prims.unit t_Error)
-                                                (Prims.unit & usize)) usize
-                                        else
-                                          Core_models.Ops.Control_flow.ControlFlow_Continue at
-                                          <:
-                                          Core_models.Ops.Control_flow.t_ControlFlow
-                                            (Core_models.Ops.Control_flow.t_ControlFlow
-                                                (t_Tree &
-                                                  Core_models.Result.t_Result Prims.unit t_Error)
-                                                (Prims.unit & usize)) usize
-                                      | Core_models.Result.Result_Err err ->
-                                        Core_models.Ops.Control_flow.ControlFlow_Break
-                                        (Core_models.Ops.Control_flow.ControlFlow_Break
-                                          (self,
-                                            (Core_models.Result.Result_Err err
-                                              <:
-                                              Core_models.Result.t_Result Prims.unit t_Error)
-                                            <:
-                                            (t_Tree & Core_models.Result.t_Result Prims.unit t_Error
-                                            ))
-                                          <:
-                                          Core_models.Ops.Control_flow.t_ControlFlow
-                                            (t_Tree & Core_models.Result.t_Result Prims.unit t_Error
-                                            ) (Prims.unit & usize))
-                                        <:
-                                        Core_models.Ops.Control_flow.t_ControlFlow
-                                          (Core_models.Ops.Control_flow.t_ControlFlow
-                                              (t_Tree &
-                                                Core_models.Result.t_Result Prims.unit t_Error)
-                                              (Prims.unit & usize)) usize
-                                    else
-                                      let before:bool = birth_lt node.f_id old.f_id in
-                                      if before
-                                      then
-                                        let at:usize = i in
-                                        Core_models.Ops.Control_flow.ControlFlow_Break
-                                        (Core_models.Ops.Control_flow.ControlFlow_Continue
-                                          ((), at <: (Prims.unit & usize))
-                                          <:
-                                          Core_models.Ops.Control_flow.t_ControlFlow
-                                            (t_Tree & Core_models.Result.t_Result Prims.unit t_Error
-                                            ) (Prims.unit & usize))
-                                        <:
-                                        Core_models.Ops.Control_flow.t_ControlFlow
-                                          (Core_models.Ops.Control_flow.t_ControlFlow
-                                              (t_Tree &
-                                                Core_models.Result.t_Result Prims.unit t_Error)
-                                              (Prims.unit & usize)) usize
-                                      else
-                                        Core_models.Ops.Control_flow.ControlFlow_Continue at
-                                        <:
-                                        Core_models.Ops.Control_flow.t_ControlFlow
-                                          (Core_models.Ops.Control_flow.t_ControlFlow
-                                              (t_Tree &
-                                                Core_models.Result.t_Result Prims.unit t_Error)
-                                              (Prims.unit & usize)) usize
-                                  | Core_models.Result.Result_Err err ->
-                                    Core_models.Ops.Control_flow.ControlFlow_Break
-                                    (Core_models.Ops.Control_flow.ControlFlow_Break
-                                      (self,
-                                        (Core_models.Result.Result_Err err
-                                          <:
-                                          Core_models.Result.t_Result Prims.unit t_Error)
-                                        <:
-                                        (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-                                      <:
-                                      Core_models.Ops.Control_flow.t_ControlFlow
-                                        (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                                        (Prims.unit & usize))
-                                    <:
-                                    Core_models.Ops.Control_flow.t_ControlFlow
-                                      (Core_models.Ops.Control_flow.t_ControlFlow
-                                          (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                                          (Prims.unit & usize)) usize)
-                            <:
-                            Core_models.Ops.Control_flow.t_ControlFlow
-                              (t_Tree & Core_models.Result.t_Result Prims.unit t_Error) usize
-                          with
-                          | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
-                          | Core_models.Ops.Control_flow.ControlFlow_Continue at ->
-                            match parent <: Core_models.Option.t_Option usize with
-                            | Core_models.Option.Option_Some p ->
-                              if
-                                p >=.
-                                (Alloc.Vec.impl_1__len #t_Node #Alloc.Alloc.t_Global self.f_nodes
-                                  <:
-                                  usize)
-                              then
-                                self,
-                                (Core_models.Result.Result_Err (Error_Internal <: t_Error)
-                                  <:
-                                  Core_models.Result.t_Result Prims.unit t_Error)
-                                <:
-                                (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                              else
-                                (match node.f_side <: t_Side with
-                                  | Side_Left  ->
-                                    let
-                                    (tmp0: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global),
-                                    (out: Core_models.Result.t_Result Prims.unit t_Error) =
-                                      insert #t_BirthId
-                                        (self.f_nodes.[ p ] <: t_Node).f_left
-                                        at
-                                        node.f_id
+                                  | Core_models.Result.Result_Ok hoist28 ->
+                                    let before:bool =
+                                      rank >. hoist28 ||
+                                      node.f_right_origin =. old.f_right_origin &&
+                                      birth_lt node.f_id old.f_id
                                     in
-                                    let self:t_Tree =
-                                      {
-                                        self with
-                                        f_nodes
-                                        =
-                                        Alloc.Slice.impl__to_vec (Rust_primitives.Hax.Monomorphized_update_at.update_at_usize
-                                              (Alloc.Vec.impl_1__as_slice self.f_nodes
-                                                <:
-                                                t_Slice t_Node)
-                                              p
-                                              ({ (self.f_nodes.[ p ] <: t_Node) with f_left = tmp0 }
-                                                <:
-                                                t_Node)
-                                            <:
-                                            t_Slice t_Node)
-                                      }
-                                      <:
-                                      t_Tree
-                                    in
-                                    (match
-                                        out <: Core_models.Result.t_Result Prims.unit t_Error
-                                      with
-                                      | Core_models.Result.Result_Ok ok ->
-                                        let node:t_Node =
-                                          { node with f_left = Alloc.Vec.impl__new #t_BirthId () }
-                                          <:
-                                          t_Node
-                                        in
-                                        let node:t_Node =
-                                          { node with f_right = Alloc.Vec.impl__new #t_BirthId () }
-                                          <:
-                                          t_Node
-                                        in
-                                        let
-                                        (tmp0: Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global),
-                                        (out: Core_models.Result.t_Result Prims.unit t_Error) =
-                                          push #t_Node self.f_nodes node
-                                        in
-                                        let self:t_Tree = { self with f_nodes = tmp0 } <: t_Tree in
-                                        (match
-                                            out <: Core_models.Result.t_Result Prims.unit t_Error
-                                          with
-                                          | Core_models.Result.Result_Ok _ ->
-                                            let hax_temp_output:Core_models.Result.t_Result
-                                              Prims.unit t_Error =
-                                              Core_models.Result.Result_Ok (() <: Prims.unit)
-                                              <:
-                                              Core_models.Result.t_Result Prims.unit t_Error
-                                            in
-                                            self, hax_temp_output
-                                            <:
-                                            (t_Tree & Core_models.Result.t_Result Prims.unit t_Error
-                                            )
-                                          | Core_models.Result.Result_Err err ->
-                                            self,
-                                            (Core_models.Result.Result_Err err
-                                              <:
-                                              Core_models.Result.t_Result Prims.unit t_Error)
-                                            <:
-                                            (t_Tree & Core_models.Result.t_Result Prims.unit t_Error
-                                            ))
-                                      | Core_models.Result.Result_Err err ->
-                                        self,
-                                        (Core_models.Result.Result_Err err
-                                          <:
-                                          Core_models.Result.t_Result Prims.unit t_Error)
-                                        <:
-                                        (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-                                  | Side_Right  ->
-                                    let
-                                    (tmp0: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global),
-                                    (out: Core_models.Result.t_Result Prims.unit t_Error) =
-                                      insert #t_BirthId
-                                        (self.f_nodes.[ p ] <: t_Node).f_right
-                                        at
-                                        node.f_id
-                                    in
-                                    let self:t_Tree =
-                                      {
-                                        self with
-                                        f_nodes
-                                        =
-                                        Alloc.Slice.impl__to_vec (Rust_primitives.Hax.Monomorphized_update_at.update_at_usize
-                                              (Alloc.Vec.impl_1__as_slice self.f_nodes
-                                                <:
-                                                t_Slice t_Node)
-                                              p
-                                              ({
-                                                  (self.f_nodes.[ p ] <: t_Node) with
-                                                  f_right = tmp0
-                                                }
-                                                <:
-                                                t_Node)
-                                            <:
-                                            t_Slice t_Node)
-                                      }
-                                      <:
-                                      t_Tree
-                                    in
-                                    match out <: Core_models.Result.t_Result Prims.unit t_Error with
-                                    | Core_models.Result.Result_Ok ok ->
-                                      let node:t_Node =
-                                        { node with f_left = Alloc.Vec.impl__new #t_BirthId () }
-                                        <:
-                                        t_Node
-                                      in
-                                      let node:t_Node =
-                                        { node with f_right = Alloc.Vec.impl__new #t_BirthId () }
-                                        <:
-                                        t_Node
-                                      in
-                                      let
-                                      (tmp0: Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global),
-                                      (out: Core_models.Result.t_Result Prims.unit t_Error) =
-                                        push #t_Node self.f_nodes node
-                                      in
-                                      let self:t_Tree = { self with f_nodes = tmp0 } <: t_Tree in
-                                      (match
-                                          out <: Core_models.Result.t_Result Prims.unit t_Error
-                                        with
-                                        | Core_models.Result.Result_Ok _ ->
-                                          let hax_temp_output:Core_models.Result.t_Result Prims.unit
-                                            t_Error =
-                                            Core_models.Result.Result_Ok (() <: Prims.unit)
-                                            <:
-                                            Core_models.Result.t_Result Prims.unit t_Error
-                                          in
-                                          self, hax_temp_output
-                                          <:
-                                          (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                                        | Core_models.Result.Result_Err err ->
-                                          self,
-                                          (Core_models.Result.Result_Err err
-                                            <:
-                                            Core_models.Result.t_Result Prims.unit t_Error)
-                                          <:
-                                          (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-                                    | Core_models.Result.Result_Err err ->
-                                      self,
-                                      (Core_models.Result.Result_Err err
-                                        <:
-                                        Core_models.Result.t_Result Prims.unit t_Error)
-                                      <:
-                                      (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-                            | Core_models.Option.Option_None  ->
-                              let
-                              (tmp0: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global),
-                              (out: Core_models.Result.t_Result Prims.unit t_Error) =
-                                insert #t_BirthId self.f_root_right at node.f_id
-                              in
-                              let self:t_Tree = { self with f_root_right = tmp0 } <: t_Tree in
-                              match out <: Core_models.Result.t_Result Prims.unit t_Error with
-                              | Core_models.Result.Result_Ok ok ->
-                                let node:t_Node =
-                                  { node with f_left = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
-                                in
-                                let node:t_Node =
-                                  { node with f_right = Alloc.Vec.impl__new #t_BirthId () }
-                                  <:
-                                  t_Node
-                                in
-                                let
-                                (tmp0: Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global),
-                                (out: Core_models.Result.t_Result Prims.unit t_Error) =
-                                  push #t_Node self.f_nodes node
-                                in
-                                let self:t_Tree = { self with f_nodes = tmp0 } <: t_Tree in
-                                (match out <: Core_models.Result.t_Result Prims.unit t_Error with
-                                  | Core_models.Result.Result_Ok _ ->
-                                    let hax_temp_output:Core_models.Result.t_Result Prims.unit
-                                      t_Error =
-                                      Core_models.Result.Result_Ok (() <: Prims.unit)
-                                      <:
-                                      Core_models.Result.t_Result Prims.unit t_Error
-                                    in
-                                    self, hax_temp_output
-                                    <:
-                                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                                  | Core_models.Result.Result_Err err ->
-                                    self,
-                                    (Core_models.Result.Result_Err err
-                                      <:
-                                      Core_models.Result.t_Result Prims.unit t_Error)
-                                    <:
-                                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-                              | Core_models.Result.Result_Err err ->
-                                self,
-                                (Core_models.Result.Result_Err err
-                                  <:
-                                  Core_models.Result.t_Result Prims.unit t_Error)
-                                <:
-                                (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-                      | Core_models.Result.Result_Err err ->
-                        self,
-                        (Core_models.Result.Result_Err err
-                          <:
-                          Core_models.Result.t_Result Prims.unit t_Error)
-                        <:
-                        (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-                | Core_models.Option.Option_None  ->
-                  if
-                    ~.(match node.f_side <: t_Side with
-                      | Side_Right  -> true
-                      | _ -> false)
-                  then
-                    self,
-                    (Core_models.Result.Result_Err (Error_Internal <: t_Error)
-                      <:
-                      Core_models.Result.t_Result Prims.unit t_Error)
-                    <:
-                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                  else
-                    let siblings:Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global =
-                      Core_models.Clone.f_clone #(Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global)
-                        #FStar.Tactics.Typeclasses.solve
-                        self.f_root_right
-                    in
-                    let at:usize =
-                      Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global siblings
-                    in
-                    match
-                      impl_Tree__rank (Alloc.Vec.impl_1__as_slice whole <: t_Slice t_BirthId)
-                        node.f_right_origin
-                      <:
-                      Core_models.Result.t_Result usize t_Error
-                    with
-                    | Core_models.Result.Result_Ok rank ->
-                      (match
-                          Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
-                            (Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global siblings
-                              <:
-                              usize)
-                            (fun at temp_1_ ->
-                                let at:usize = at in
-                                let _:usize = temp_1_ in
-                                true)
-                            at
-                            (fun at i ->
-                                let at:usize = at in
-                                let i:usize = i in
-                                match
-                                  impl_Tree__node self (siblings.[ i ] <: t_BirthId)
-                                  <:
-                                  Core_models.Result.t_Result t_Node t_Error
-                                with
-                                | Core_models.Result.Result_Ok old ->
-                                  if
-                                    match node.f_side <: t_Side with
-                                    | Side_Right  -> true
-                                    | _ -> false
-                                  then
-                                    match
-                                      impl_Tree__rank (Alloc.Vec.impl_1__as_slice whole
-                                          <:
-                                          t_Slice t_BirthId)
-                                        old.f_right_origin
-                                      <:
-                                      Core_models.Result.t_Result usize t_Error
-                                    with
-                                    | Core_models.Result.Result_Ok hoist27 ->
-                                      let before:bool =
-                                        rank >. hoist27 ||
-                                        node.f_right_origin =. old.f_right_origin &&
-                                        birth_lt node.f_id old.f_id
-                                      in
-                                      if before
-                                      then
-                                        let at:usize = i in
-                                        Core_models.Ops.Control_flow.ControlFlow_Break
-                                        (Core_models.Ops.Control_flow.ControlFlow_Continue
-                                          ((), at <: (Prims.unit & usize))
-                                          <:
-                                          Core_models.Ops.Control_flow.t_ControlFlow
-                                            (t_Tree & Core_models.Result.t_Result Prims.unit t_Error
-                                            ) (Prims.unit & usize))
-                                        <:
-                                        Core_models.Ops.Control_flow.t_ControlFlow
-                                          (Core_models.Ops.Control_flow.t_ControlFlow
-                                              (t_Tree &
-                                                Core_models.Result.t_Result Prims.unit t_Error)
-                                              (Prims.unit & usize)) usize
-                                      else
-                                        Core_models.Ops.Control_flow.ControlFlow_Continue at
-                                        <:
-                                        Core_models.Ops.Control_flow.t_ControlFlow
-                                          (Core_models.Ops.Control_flow.t_ControlFlow
-                                              (t_Tree &
-                                                Core_models.Result.t_Result Prims.unit t_Error)
-                                              (Prims.unit & usize)) usize
-                                    | Core_models.Result.Result_Err err ->
-                                      Core_models.Ops.Control_flow.ControlFlow_Break
-                                      (Core_models.Ops.Control_flow.ControlFlow_Break
-                                        (self,
-                                          (Core_models.Result.Result_Err err
-                                            <:
-                                            Core_models.Result.t_Result Prims.unit t_Error)
-                                          <:
-                                          (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-                                        <:
-                                        Core_models.Ops.Control_flow.t_ControlFlow
-                                          (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                                          (Prims.unit & usize))
-                                      <:
-                                      Core_models.Ops.Control_flow.t_ControlFlow
-                                        (Core_models.Ops.Control_flow.t_ControlFlow
-                                            (t_Tree & Core_models.Result.t_Result Prims.unit t_Error
-                                            ) (Prims.unit & usize)) usize
-                                  else
-                                    let before:bool = birth_lt node.f_id old.f_id in
                                     if before
                                     then
                                       let at:usize = i in
@@ -1745,148 +1398,116 @@ let impl_Tree__add (self: t_Tree) (node: t_Node)
                                         (Core_models.Ops.Control_flow.t_ControlFlow
                                             (t_Tree & Core_models.Result.t_Result Prims.unit t_Error
                                             ) (Prims.unit & usize)) usize
-                                | Core_models.Result.Result_Err err ->
-                                  Core_models.Ops.Control_flow.ControlFlow_Break
-                                  (Core_models.Ops.Control_flow.ControlFlow_Break
-                                    (self,
-                                      (Core_models.Result.Result_Err err
+                                  | Core_models.Result.Result_Err err ->
+                                    Core_models.Ops.Control_flow.ControlFlow_Break
+                                    (Core_models.Ops.Control_flow.ControlFlow_Break
+                                      (self,
+                                        (Core_models.Result.Result_Err err
+                                          <:
+                                          Core_models.Result.t_Result Prims.unit t_Error)
                                         <:
-                                        Core_models.Result.t_Result Prims.unit t_Error)
+                                        (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
                                       <:
-                                      (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
+                                      Core_models.Ops.Control_flow.t_ControlFlow
+                                        (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                        (Prims.unit & usize))
                                     <:
                                     Core_models.Ops.Control_flow.t_ControlFlow
-                                      (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                                      (Prims.unit & usize))
+                                      (Core_models.Ops.Control_flow.t_ControlFlow
+                                          (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                          (Prims.unit & usize)) usize
+                                else
+                                  let before:bool = birth_lt node.f_id old.f_id in
+                                  if before
+                                  then
+                                    let at:usize = i in
+                                    Core_models.Ops.Control_flow.ControlFlow_Break
+                                    (Core_models.Ops.Control_flow.ControlFlow_Continue
+                                      ((), at <: (Prims.unit & usize))
+                                      <:
+                                      Core_models.Ops.Control_flow.t_ControlFlow
+                                        (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                        (Prims.unit & usize))
+                                    <:
+                                    Core_models.Ops.Control_flow.t_ControlFlow
+                                      (Core_models.Ops.Control_flow.t_ControlFlow
+                                          (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                          (Prims.unit & usize)) usize
+                                  else
+                                    Core_models.Ops.Control_flow.ControlFlow_Continue at
+                                    <:
+                                    Core_models.Ops.Control_flow.t_ControlFlow
+                                      (Core_models.Ops.Control_flow.t_ControlFlow
+                                          (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                          (Prims.unit & usize)) usize
+                              | Core_models.Result.Result_Err err ->
+                                Core_models.Ops.Control_flow.ControlFlow_Break
+                                (Core_models.Ops.Control_flow.ControlFlow_Break
+                                  (self,
+                                    (Core_models.Result.Result_Err err
+                                      <:
+                                      Core_models.Result.t_Result Prims.unit t_Error)
+                                    <:
+                                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
                                   <:
                                   Core_models.Ops.Control_flow.t_ControlFlow
-                                    (Core_models.Ops.Control_flow.t_ControlFlow
-                                        (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                                        (Prims.unit & usize)) usize)
-                          <:
-                          Core_models.Ops.Control_flow.t_ControlFlow
-                            (t_Tree & Core_models.Result.t_Result Prims.unit t_Error) usize
-                        with
-                        | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
-                        | Core_models.Ops.Control_flow.ControlFlow_Continue at ->
-                          match parent <: Core_models.Option.t_Option usize with
-                          | Core_models.Option.Option_Some p ->
-                            if
-                              p >=.
-                              (Alloc.Vec.impl_1__len #t_Node #Alloc.Alloc.t_Global self.f_nodes
+                                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                    (Prims.unit & usize))
                                 <:
-                                usize)
-                            then
-                              self,
-                              (Core_models.Result.Result_Err (Error_Internal <: t_Error)
-                                <:
-                                Core_models.Result.t_Result Prims.unit t_Error)
+                                Core_models.Ops.Control_flow.t_ControlFlow
+                                  (Core_models.Ops.Control_flow.t_ControlFlow
+                                      (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                      (Prims.unit & usize)) usize)
+                        <:
+                        Core_models.Ops.Control_flow.t_ControlFlow
+                          (t_Tree & Core_models.Result.t_Result Prims.unit t_Error) usize
+                      with
+                      | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
+                      | Core_models.Ops.Control_flow.ControlFlow_Continue at ->
+                        match parent <: Core_models.Option.t_Option usize with
+                        | Core_models.Option.Option_Some p ->
+                          if
+                            p >=.
+                            (Alloc.Vec.impl_1__len #t_Node #Alloc.Alloc.t_Global self.f_nodes
                               <:
-                              (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                            else
-                              (match node.f_side <: t_Side with
-                                | Side_Left  ->
-                                  let
-                                  (tmp0: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global),
-                                  (out: Core_models.Result.t_Result Prims.unit t_Error) =
-                                    insert #t_BirthId
-                                      (self.f_nodes.[ p ] <: t_Node).f_left
-                                      at
-                                      node.f_id
-                                  in
-                                  let self:t_Tree =
-                                    {
-                                      self with
-                                      f_nodes
-                                      =
-                                      Alloc.Slice.impl__to_vec (Rust_primitives.Hax.Monomorphized_update_at.update_at_usize
-                                            (Alloc.Vec.impl_1__as_slice self.f_nodes
-                                              <:
-                                              t_Slice t_Node)
-                                            p
-                                            ({ (self.f_nodes.[ p ] <: t_Node) with f_left = tmp0 }
-                                              <:
-                                              t_Node)
-                                          <:
-                                          t_Slice t_Node)
-                                    }
-                                    <:
-                                    t_Tree
-                                  in
-                                  (match out <: Core_models.Result.t_Result Prims.unit t_Error with
-                                    | Core_models.Result.Result_Ok ok ->
-                                      let node:t_Node =
-                                        { node with f_left = Alloc.Vec.impl__new #t_BirthId () }
-                                        <:
-                                        t_Node
-                                      in
-                                      let node:t_Node =
-                                        { node with f_right = Alloc.Vec.impl__new #t_BirthId () }
-                                        <:
-                                        t_Node
-                                      in
-                                      let
-                                      (tmp0: Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global),
-                                      (out: Core_models.Result.t_Result Prims.unit t_Error) =
-                                        push #t_Node self.f_nodes node
-                                      in
-                                      let self:t_Tree = { self with f_nodes = tmp0 } <: t_Tree in
-                                      (match
-                                          out <: Core_models.Result.t_Result Prims.unit t_Error
-                                        with
-                                        | Core_models.Result.Result_Ok _ ->
-                                          let hax_temp_output:Core_models.Result.t_Result Prims.unit
-                                            t_Error =
-                                            Core_models.Result.Result_Ok (() <: Prims.unit)
+                              usize)
+                          then
+                            self,
+                            (Core_models.Result.Result_Err (Error_Internal <: t_Error)
+                              <:
+                              Core_models.Result.t_Result Prims.unit t_Error)
+                            <:
+                            (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                          else
+                            (match node.f_side <: t_Side with
+                              | Side_Left  ->
+                                let
+                                (tmp0: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global),
+                                (out: Core_models.Result.t_Result Prims.unit t_Error) =
+                                  insert #t_BirthId
+                                    (self.f_nodes.[ p ] <: t_Node).f_left
+                                    at
+                                    node.f_id
+                                in
+                                let self:t_Tree =
+                                  {
+                                    self with
+                                    f_nodes
+                                    =
+                                    Alloc.Slice.impl__to_vec (Rust_primitives.Hax.Monomorphized_update_at.update_at_usize
+                                          (Alloc.Vec.impl_1__as_slice self.f_nodes <: t_Slice t_Node
+                                          )
+                                          p
+                                          ({ (self.f_nodes.[ p ] <: t_Node) with f_left = tmp0 }
                                             <:
-                                            Core_models.Result.t_Result Prims.unit t_Error
-                                          in
-                                          self, hax_temp_output
-                                          <:
-                                          (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                                        | Core_models.Result.Result_Err err ->
-                                          self,
-                                          (Core_models.Result.Result_Err err
-                                            <:
-                                            Core_models.Result.t_Result Prims.unit t_Error)
-                                          <:
-                                          (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-                                    | Core_models.Result.Result_Err err ->
-                                      self,
-                                      (Core_models.Result.Result_Err err
+                                            t_Node)
                                         <:
-                                        Core_models.Result.t_Result Prims.unit t_Error)
-                                      <:
-                                      (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-                                | Side_Right  ->
-                                  let
-                                  (tmp0: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global),
-                                  (out: Core_models.Result.t_Result Prims.unit t_Error) =
-                                    insert #t_BirthId
-                                      (self.f_nodes.[ p ] <: t_Node).f_right
-                                      at
-                                      node.f_id
-                                  in
-                                  let self:t_Tree =
-                                    {
-                                      self with
-                                      f_nodes
-                                      =
-                                      Alloc.Slice.impl__to_vec (Rust_primitives.Hax.Monomorphized_update_at.update_at_usize
-                                            (Alloc.Vec.impl_1__as_slice self.f_nodes
-                                              <:
-                                              t_Slice t_Node)
-                                            p
-                                            ({ (self.f_nodes.[ p ] <: t_Node) with f_right = tmp0 }
-                                              <:
-                                              t_Node)
-                                          <:
-                                          t_Slice t_Node)
-                                    }
-                                    <:
-                                    t_Tree
-                                  in
-                                  match out <: Core_models.Result.t_Result Prims.unit t_Error with
+                                        t_Slice t_Node)
+                                  }
+                                  <:
+                                  t_Tree
+                                in
+                                (match out <: Core_models.Result.t_Result Prims.unit t_Error with
                                   | Core_models.Result.Result_Ok ok ->
                                     let node:t_Node =
                                       { node with f_left = Alloc.Vec.impl__new #t_BirthId () }
@@ -1931,38 +1552,69 @@ let impl_Tree__add (self: t_Tree) (node: t_Node)
                                       Core_models.Result.t_Result Prims.unit t_Error)
                                     <:
                                     (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-                          | Core_models.Option.Option_None  ->
-                            let
-                            (tmp0: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global),
-                            (out: Core_models.Result.t_Result Prims.unit t_Error) =
-                              insert #t_BirthId self.f_root_right at node.f_id
-                            in
-                            let self:t_Tree = { self with f_root_right = tmp0 } <: t_Tree in
-                            match out <: Core_models.Result.t_Result Prims.unit t_Error with
-                            | Core_models.Result.Result_Ok ok ->
-                              let node:t_Node =
-                                { node with f_left = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
-                              in
-                              let node:t_Node =
-                                { node with f_right = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
-                              in
-                              let
-                              (tmp0: Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global),
-                              (out: Core_models.Result.t_Result Prims.unit t_Error) =
-                                push #t_Node self.f_nodes node
-                              in
-                              let self:t_Tree = { self with f_nodes = tmp0 } <: t_Tree in
-                              (match out <: Core_models.Result.t_Result Prims.unit t_Error with
-                                | Core_models.Result.Result_Ok _ ->
-                                  let hax_temp_output:Core_models.Result.t_Result Prims.unit t_Error
-                                  =
-                                    Core_models.Result.Result_Ok (() <: Prims.unit)
-                                    <:
-                                    Core_models.Result.t_Result Prims.unit t_Error
-                                  in
-                                  self, hax_temp_output
+                              | Side_Right  ->
+                                let
+                                (tmp0: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global),
+                                (out: Core_models.Result.t_Result Prims.unit t_Error) =
+                                  insert #t_BirthId
+                                    (self.f_nodes.[ p ] <: t_Node).f_right
+                                    at
+                                    node.f_id
+                                in
+                                let self:t_Tree =
+                                  {
+                                    self with
+                                    f_nodes
+                                    =
+                                    Alloc.Slice.impl__to_vec (Rust_primitives.Hax.Monomorphized_update_at.update_at_usize
+                                          (Alloc.Vec.impl_1__as_slice self.f_nodes <: t_Slice t_Node
+                                          )
+                                          p
+                                          ({ (self.f_nodes.[ p ] <: t_Node) with f_right = tmp0 }
+                                            <:
+                                            t_Node)
+                                        <:
+                                        t_Slice t_Node)
+                                  }
                                   <:
-                                  (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                  t_Tree
+                                in
+                                match out <: Core_models.Result.t_Result Prims.unit t_Error with
+                                | Core_models.Result.Result_Ok ok ->
+                                  let node:t_Node =
+                                    { node with f_left = Alloc.Vec.impl__new #t_BirthId () }
+                                    <:
+                                    t_Node
+                                  in
+                                  let node:t_Node =
+                                    { node with f_right = Alloc.Vec.impl__new #t_BirthId () }
+                                    <:
+                                    t_Node
+                                  in
+                                  let
+                                  (tmp0: Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global),
+                                  (out: Core_models.Result.t_Result Prims.unit t_Error) =
+                                    push #t_Node self.f_nodes node
+                                  in
+                                  let self:t_Tree = { self with f_nodes = tmp0 } <: t_Tree in
+                                  (match out <: Core_models.Result.t_Result Prims.unit t_Error with
+                                    | Core_models.Result.Result_Ok _ ->
+                                      let hax_temp_output:Core_models.Result.t_Result Prims.unit
+                                        t_Error =
+                                        Core_models.Result.Result_Ok (() <: Prims.unit)
+                                        <:
+                                        Core_models.Result.t_Result Prims.unit t_Error
+                                      in
+                                      self, hax_temp_output
+                                      <:
+                                      (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                    | Core_models.Result.Result_Err err ->
+                                      self,
+                                      (Core_models.Result.Result_Err err
+                                        <:
+                                        Core_models.Result.t_Result Prims.unit t_Error)
+                                      <:
+                                      (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
                                 | Core_models.Result.Result_Err err ->
                                   self,
                                   (Core_models.Result.Result_Err err
@@ -1970,59 +1622,90 @@ let impl_Tree__add (self: t_Tree) (node: t_Node)
                                     Core_models.Result.t_Result Prims.unit t_Error)
                                   <:
                                   (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-                            | Core_models.Result.Result_Err err ->
-                              self,
-                              (Core_models.Result.Result_Err err
+                        | Core_models.Option.Option_None  ->
+                          let
+                          (tmp0: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global),
+                          (out: Core_models.Result.t_Result Prims.unit t_Error) =
+                            insert #t_BirthId self.f_root_right at node.f_id
+                          in
+                          let self:t_Tree = { self with f_root_right = tmp0 } <: t_Tree in
+                          match out <: Core_models.Result.t_Result Prims.unit t_Error with
+                          | Core_models.Result.Result_Ok ok ->
+                            let node:t_Node =
+                              { node with f_left = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
+                            in
+                            let node:t_Node =
+                              { node with f_right = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
+                            in
+                            let
+                            (tmp0: Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global),
+                            (out: Core_models.Result.t_Result Prims.unit t_Error) =
+                              push #t_Node self.f_nodes node
+                            in
+                            let self:t_Tree = { self with f_nodes = tmp0 } <: t_Tree in
+                            (match out <: Core_models.Result.t_Result Prims.unit t_Error with
+                              | Core_models.Result.Result_Ok _ ->
+                                let hax_temp_output:Core_models.Result.t_Result Prims.unit t_Error =
+                                  Core_models.Result.Result_Ok (() <: Prims.unit)
+                                  <:
+                                  Core_models.Result.t_Result Prims.unit t_Error
+                                in
+                                self, hax_temp_output
                                 <:
-                                Core_models.Result.t_Result Prims.unit t_Error)
+                                (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                              | Core_models.Result.Result_Err err ->
+                                self,
+                                (Core_models.Result.Result_Err err
+                                  <:
+                                  Core_models.Result.t_Result Prims.unit t_Error)
+                                <:
+                                (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
+                          | Core_models.Result.Result_Err err ->
+                            self,
+                            (Core_models.Result.Result_Err err
                               <:
-                              (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-                    | Core_models.Result.Result_Err err ->
-                      self,
-                      (Core_models.Result.Result_Err err
-                        <:
-                        Core_models.Result.t_Result Prims.unit t_Error)
+                              Core_models.Result.t_Result Prims.unit t_Error)
+                            <:
+                            (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
+                  | Core_models.Result.Result_Err err ->
+                    self,
+                    (Core_models.Result.Result_Err err
                       <:
-                      (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-            | Core_models.Result.Result_Err err ->
-              self,
-              (Core_models.Result.Result_Err err <: Core_models.Result.t_Result Prims.unit t_Error)
-              <:
-              (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-        | Core_models.Option.Option_None  ->
-          let parent:Core_models.Option.t_Option usize =
-            Core_models.Option.Option_None <: Core_models.Option.t_Option usize
-          in
-          match parent <: Core_models.Option.t_Option usize with
-          | Core_models.Option.Option_Some p ->
-            if p >=. (Alloc.Vec.impl_1__len #t_Node #Alloc.Alloc.t_Global self.f_nodes <: usize)
-            then
-              self,
-              (Core_models.Result.Result_Err (Error_Internal <: t_Error)
-                <:
-                Core_models.Result.t_Result Prims.unit t_Error)
-              <:
-              (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-            else
-              let siblings:Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global =
-                match node.f_side <: t_Side with
-                | Side_Left  ->
-                  Core_models.Clone.f_clone #(Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global)
-                    #FStar.Tactics.Typeclasses.solve
-                    (self.f_nodes.[ p ] <: t_Node).f_left
-                | Side_Right  ->
-                  Core_models.Clone.f_clone #(Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global)
-                    #FStar.Tactics.Typeclasses.solve
-                    (self.f_nodes.[ p ] <: t_Node).f_right
-              in
-              let at:usize = Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global siblings in
-              (match
-                  impl_Tree__rank (Alloc.Vec.impl_1__as_slice whole <: t_Slice t_BirthId)
-                    node.f_right_origin
+                      Core_models.Result.t_Result Prims.unit t_Error)
+                    <:
+                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
+            | Core_models.Option.Option_None  ->
+              if
+                ~.(match node.f_side <: t_Side with
+                  | Side_Right  -> true
+                  | _ -> false)
+              then
+                self,
+                (Core_models.Result.Result_Err (Error_Internal <: t_Error)
                   <:
-                  Core_models.Result.t_Result usize t_Error
+                  Core_models.Result.t_Result Prims.unit t_Error)
+                <:
+                (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+              else
+                let siblings:Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global =
+                  Core_models.Clone.f_clone #(Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global)
+                    #FStar.Tactics.Typeclasses.solve
+                    self.f_root_right
+                in
+                let at:usize = Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global siblings in
+                let ranked:bool =
+                  (match node.f_side <: t_Side with
+                    | Side_Right  -> true
+                    | _ -> false) &&
+                  ~.(Alloc.Vec.impl_1__is_empty #t_BirthId #Alloc.Alloc.t_Global siblings <: bool)
+                in
+                match
+                  impl_Tree__origin_order self ranked node.f_right_origin
+                  <:
+                  Core_models.Result.t_Result
+                    (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global & usize) t_Error
                 with
-                | Core_models.Result.Result_Ok rank ->
+                | Core_models.Result.Result_Ok (whole, rank) ->
                   (match
                       Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
                         (Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global siblings <: usize)
@@ -2053,9 +1736,9 @@ let impl_Tree__add (self: t_Tree) (node: t_Node)
                                   <:
                                   Core_models.Result.t_Result usize t_Error
                                 with
-                                | Core_models.Result.Result_Ok hoist27 ->
+                                | Core_models.Result.Result_Ok hoist28 ->
                                   let before:bool =
-                                    rank >. hoist27 ||
+                                    rank >. hoist28 ||
                                     node.f_right_origin =. old.f_right_origin &&
                                     birth_lt node.f_id old.f_id
                                   in
@@ -2347,110 +2030,86 @@ let impl_Tree__add (self: t_Tree) (node: t_Node)
                     Core_models.Result.t_Result Prims.unit t_Error)
                   <:
                   (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-          | Core_models.Option.Option_None  ->
-            if
-              ~.(match node.f_side <: t_Side with
-                | Side_Right  -> true
-                | _ -> false)
-            then
-              self,
-              (Core_models.Result.Result_Err (Error_Internal <: t_Error)
-                <:
-                Core_models.Result.t_Result Prims.unit t_Error)
+        | Core_models.Result.Result_Err err ->
+          self,
+          (Core_models.Result.Result_Err err <: Core_models.Result.t_Result Prims.unit t_Error)
+          <:
+          (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
+    | Core_models.Option.Option_None  ->
+      let parent:Core_models.Option.t_Option usize =
+        Core_models.Option.Option_None <: Core_models.Option.t_Option usize
+      in
+      match parent <: Core_models.Option.t_Option usize with
+      | Core_models.Option.Option_Some p ->
+        if p >=. (Alloc.Vec.impl_1__len #t_Node #Alloc.Alloc.t_Global self.f_nodes <: usize)
+        then
+          self,
+          (Core_models.Result.Result_Err (Error_Internal <: t_Error)
+            <:
+            Core_models.Result.t_Result Prims.unit t_Error)
+          <:
+          (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+        else
+          let siblings:Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global =
+            match node.f_side <: t_Side with
+            | Side_Left  ->
+              Core_models.Clone.f_clone #(Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global)
+                #FStar.Tactics.Typeclasses.solve
+                (self.f_nodes.[ p ] <: t_Node).f_left
+            | Side_Right  ->
+              Core_models.Clone.f_clone #(Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global)
+                #FStar.Tactics.Typeclasses.solve
+                (self.f_nodes.[ p ] <: t_Node).f_right
+          in
+          let at:usize = Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global siblings in
+          let ranked:bool =
+            (match node.f_side <: t_Side with
+              | Side_Right  -> true
+              | _ -> false) &&
+            ~.(Alloc.Vec.impl_1__is_empty #t_BirthId #Alloc.Alloc.t_Global siblings <: bool)
+          in
+          (match
+              impl_Tree__origin_order self ranked node.f_right_origin
               <:
-              (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-            else
-              let siblings:Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global =
-                Core_models.Clone.f_clone #(Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global)
-                  #FStar.Tactics.Typeclasses.solve
-                  self.f_root_right
-              in
-              let at:usize = Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global siblings in
-              match
-                impl_Tree__rank (Alloc.Vec.impl_1__as_slice whole <: t_Slice t_BirthId)
-                  node.f_right_origin
-                <:
-                Core_models.Result.t_Result usize t_Error
-              with
-              | Core_models.Result.Result_Ok rank ->
-                (match
-                    Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
-                      (Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global siblings <: usize)
-                      (fun at temp_1_ ->
-                          let at:usize = at in
-                          let _:usize = temp_1_ in
-                          true)
-                      at
-                      (fun at i ->
-                          let at:usize = at in
-                          let i:usize = i in
-                          match
-                            impl_Tree__node self (siblings.[ i ] <: t_BirthId)
-                            <:
-                            Core_models.Result.t_Result t_Node t_Error
-                          with
-                          | Core_models.Result.Result_Ok old ->
-                            if
-                              match node.f_side <: t_Side with
-                              | Side_Right  -> true
-                              | _ -> false
-                            then
-                              match
-                                impl_Tree__rank (Alloc.Vec.impl_1__as_slice whole
-                                    <:
-                                    t_Slice t_BirthId)
-                                  old.f_right_origin
-                                <:
-                                Core_models.Result.t_Result usize t_Error
-                              with
-                              | Core_models.Result.Result_Ok hoist27 ->
-                                let before:bool =
-                                  rank >. hoist27 ||
-                                  node.f_right_origin =. old.f_right_origin &&
-                                  birth_lt node.f_id old.f_id
-                                in
-                                if before
-                                then
-                                  let at:usize = i in
-                                  Core_models.Ops.Control_flow.ControlFlow_Break
-                                  (Core_models.Ops.Control_flow.ControlFlow_Continue
-                                    ((), at <: (Prims.unit & usize))
-                                    <:
-                                    Core_models.Ops.Control_flow.t_ControlFlow
-                                      (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                                      (Prims.unit & usize))
-                                  <:
-                                  Core_models.Ops.Control_flow.t_ControlFlow
-                                    (Core_models.Ops.Control_flow.t_ControlFlow
-                                        (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                                        (Prims.unit & usize)) usize
-                                else
-                                  Core_models.Ops.Control_flow.ControlFlow_Continue at
-                                  <:
-                                  Core_models.Ops.Control_flow.t_ControlFlow
-                                    (Core_models.Ops.Control_flow.t_ControlFlow
-                                        (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                                        (Prims.unit & usize)) usize
-                              | Core_models.Result.Result_Err err ->
-                                Core_models.Ops.Control_flow.ControlFlow_Break
-                                (Core_models.Ops.Control_flow.ControlFlow_Break
-                                  (self,
-                                    (Core_models.Result.Result_Err err
-                                      <:
-                                      Core_models.Result.t_Result Prims.unit t_Error)
-                                    <:
-                                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-                                  <:
-                                  Core_models.Ops.Control_flow.t_ControlFlow
-                                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                                    (Prims.unit & usize))
-                                <:
-                                Core_models.Ops.Control_flow.t_ControlFlow
-                                  (Core_models.Ops.Control_flow.t_ControlFlow
-                                      (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                                      (Prims.unit & usize)) usize
-                            else
-                              let before:bool = birth_lt node.f_id old.f_id in
+              Core_models.Result.t_Result (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global & usize)
+                t_Error
+            with
+            | Core_models.Result.Result_Ok (whole, rank) ->
+              (match
+                  Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
+                    (Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global siblings <: usize)
+                    (fun at temp_1_ ->
+                        let at:usize = at in
+                        let _:usize = temp_1_ in
+                        true)
+                    at
+                    (fun at i ->
+                        let at:usize = at in
+                        let i:usize = i in
+                        match
+                          impl_Tree__node self (siblings.[ i ] <: t_BirthId)
+                          <:
+                          Core_models.Result.t_Result t_Node t_Error
+                        with
+                        | Core_models.Result.Result_Ok old ->
+                          if
+                            match node.f_side <: t_Side with
+                            | Side_Right  -> true
+                            | _ -> false
+                          then
+                            match
+                              impl_Tree__rank (Alloc.Vec.impl_1__as_slice whole <: t_Slice t_BirthId
+                                )
+                                old.f_right_origin
+                              <:
+                              Core_models.Result.t_Result usize t_Error
+                            with
+                            | Core_models.Result.Result_Ok hoist28 ->
+                              let before:bool =
+                                rank >. hoist28 ||
+                                node.f_right_origin =. old.f_right_origin &&
+                                birth_lt node.f_id old.f_id
+                              in
                               if before
                               then
                                 let at:usize = i in
@@ -2473,132 +2132,109 @@ let impl_Tree__add (self: t_Tree) (node: t_Node)
                                   (Core_models.Ops.Control_flow.t_ControlFlow
                                       (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
                                       (Prims.unit & usize)) usize
-                          | Core_models.Result.Result_Err err ->
-                            Core_models.Ops.Control_flow.ControlFlow_Break
-                            (Core_models.Ops.Control_flow.ControlFlow_Break
-                              (self,
-                                (Core_models.Result.Result_Err err
+                            | Core_models.Result.Result_Err err ->
+                              Core_models.Ops.Control_flow.ControlFlow_Break
+                              (Core_models.Ops.Control_flow.ControlFlow_Break
+                                (self,
+                                  (Core_models.Result.Result_Err err
+                                    <:
+                                    Core_models.Result.t_Result Prims.unit t_Error)
                                   <:
-                                  Core_models.Result.t_Result Prims.unit t_Error)
+                                  (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
                                 <:
-                                (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
+                                Core_models.Ops.Control_flow.t_ControlFlow
+                                  (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                  (Prims.unit & usize))
                               <:
                               Core_models.Ops.Control_flow.t_ControlFlow
-                                (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                                (Prims.unit & usize))
+                                (Core_models.Ops.Control_flow.t_ControlFlow
+                                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                    (Prims.unit & usize)) usize
+                          else
+                            let before:bool = birth_lt node.f_id old.f_id in
+                            if before
+                            then
+                              let at:usize = i in
+                              Core_models.Ops.Control_flow.ControlFlow_Break
+                              (Core_models.Ops.Control_flow.ControlFlow_Continue
+                                ((), at <: (Prims.unit & usize))
+                                <:
+                                Core_models.Ops.Control_flow.t_ControlFlow
+                                  (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                  (Prims.unit & usize))
+                              <:
+                              Core_models.Ops.Control_flow.t_ControlFlow
+                                (Core_models.Ops.Control_flow.t_ControlFlow
+                                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                    (Prims.unit & usize)) usize
+                            else
+                              Core_models.Ops.Control_flow.ControlFlow_Continue at
+                              <:
+                              Core_models.Ops.Control_flow.t_ControlFlow
+                                (Core_models.Ops.Control_flow.t_ControlFlow
+                                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                    (Prims.unit & usize)) usize
+                        | Core_models.Result.Result_Err err ->
+                          Core_models.Ops.Control_flow.ControlFlow_Break
+                          (Core_models.Ops.Control_flow.ControlFlow_Break
+                            (self,
+                              (Core_models.Result.Result_Err err
+                                <:
+                                Core_models.Result.t_Result Prims.unit t_Error)
+                              <:
+                              (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
                             <:
                             Core_models.Ops.Control_flow.t_ControlFlow
-                              (Core_models.Ops.Control_flow.t_ControlFlow
-                                  (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                                  (Prims.unit & usize)) usize)
-                    <:
-                    Core_models.Ops.Control_flow.t_ControlFlow
-                      (t_Tree & Core_models.Result.t_Result Prims.unit t_Error) usize
-                  with
-                  | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
-                  | Core_models.Ops.Control_flow.ControlFlow_Continue at ->
-                    match parent <: Core_models.Option.t_Option usize with
-                    | Core_models.Option.Option_Some p ->
-                      if
-                        p >=.
-                        (Alloc.Vec.impl_1__len #t_Node #Alloc.Alloc.t_Global self.f_nodes <: usize)
-                      then
-                        self,
-                        (Core_models.Result.Result_Err (Error_Internal <: t_Error)
+                              (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                              (Prims.unit & usize))
                           <:
-                          Core_models.Result.t_Result Prims.unit t_Error)
+                          Core_models.Ops.Control_flow.t_ControlFlow
+                            (Core_models.Ops.Control_flow.t_ControlFlow
+                                (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                (Prims.unit & usize)) usize)
+                  <:
+                  Core_models.Ops.Control_flow.t_ControlFlow
+                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error) usize
+                with
+                | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
+                | Core_models.Ops.Control_flow.ControlFlow_Continue at ->
+                  match parent <: Core_models.Option.t_Option usize with
+                  | Core_models.Option.Option_Some p ->
+                    if
+                      p >=.
+                      (Alloc.Vec.impl_1__len #t_Node #Alloc.Alloc.t_Global self.f_nodes <: usize)
+                    then
+                      self,
+                      (Core_models.Result.Result_Err (Error_Internal <: t_Error)
                         <:
-                        (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                      else
-                        (match node.f_side <: t_Side with
-                          | Side_Left  ->
-                            let
-                            (tmp0: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global),
-                            (out: Core_models.Result.t_Result Prims.unit t_Error) =
-                              insert #t_BirthId (self.f_nodes.[ p ] <: t_Node).f_left at node.f_id
-                            in
-                            let self:t_Tree =
-                              {
-                                self with
-                                f_nodes
-                                =
-                                Alloc.Slice.impl__to_vec (Rust_primitives.Hax.Monomorphized_update_at.update_at_usize
-                                      (Alloc.Vec.impl_1__as_slice self.f_nodes <: t_Slice t_Node)
-                                      p
-                                      ({ (self.f_nodes.[ p ] <: t_Node) with f_left = tmp0 }
-                                        <:
-                                        t_Node)
-                                    <:
-                                    t_Slice t_Node)
-                              }
-                              <:
-                              t_Tree
-                            in
-                            (match out <: Core_models.Result.t_Result Prims.unit t_Error with
-                              | Core_models.Result.Result_Ok ok ->
-                                let node:t_Node =
-                                  { node with f_left = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
-                                in
-                                let node:t_Node =
-                                  { node with f_right = Alloc.Vec.impl__new #t_BirthId () }
+                        Core_models.Result.t_Result Prims.unit t_Error)
+                      <:
+                      (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                    else
+                      (match node.f_side <: t_Side with
+                        | Side_Left  ->
+                          let
+                          (tmp0: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global),
+                          (out: Core_models.Result.t_Result Prims.unit t_Error) =
+                            insert #t_BirthId (self.f_nodes.[ p ] <: t_Node).f_left at node.f_id
+                          in
+                          let self:t_Tree =
+                            {
+                              self with
+                              f_nodes
+                              =
+                              Alloc.Slice.impl__to_vec (Rust_primitives.Hax.Monomorphized_update_at.update_at_usize
+                                    (Alloc.Vec.impl_1__as_slice self.f_nodes <: t_Slice t_Node)
+                                    p
+                                    ({ (self.f_nodes.[ p ] <: t_Node) with f_left = tmp0 } <: t_Node
+                                    )
                                   <:
-                                  t_Node
-                                in
-                                let
-                                (tmp0: Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global),
-                                (out: Core_models.Result.t_Result Prims.unit t_Error) =
-                                  push #t_Node self.f_nodes node
-                                in
-                                let self:t_Tree = { self with f_nodes = tmp0 } <: t_Tree in
-                                (match out <: Core_models.Result.t_Result Prims.unit t_Error with
-                                  | Core_models.Result.Result_Ok _ ->
-                                    let hax_temp_output:Core_models.Result.t_Result Prims.unit
-                                      t_Error =
-                                      Core_models.Result.Result_Ok (() <: Prims.unit)
-                                      <:
-                                      Core_models.Result.t_Result Prims.unit t_Error
-                                    in
-                                    self, hax_temp_output
-                                    <:
-                                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
-                                  | Core_models.Result.Result_Err err ->
-                                    self,
-                                    (Core_models.Result.Result_Err err
-                                      <:
-                                      Core_models.Result.t_Result Prims.unit t_Error)
-                                    <:
-                                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-                              | Core_models.Result.Result_Err err ->
-                                self,
-                                (Core_models.Result.Result_Err err
-                                  <:
-                                  Core_models.Result.t_Result Prims.unit t_Error)
-                                <:
-                                (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-                          | Side_Right  ->
-                            let
-                            (tmp0: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global),
-                            (out: Core_models.Result.t_Result Prims.unit t_Error) =
-                              insert #t_BirthId (self.f_nodes.[ p ] <: t_Node).f_right at node.f_id
-                            in
-                            let self:t_Tree =
-                              {
-                                self with
-                                f_nodes
-                                =
-                                Alloc.Slice.impl__to_vec (Rust_primitives.Hax.Monomorphized_update_at.update_at_usize
-                                      (Alloc.Vec.impl_1__as_slice self.f_nodes <: t_Slice t_Node)
-                                      p
-                                      ({ (self.f_nodes.[ p ] <: t_Node) with f_right = tmp0 }
-                                        <:
-                                        t_Node)
-                                    <:
-                                    t_Slice t_Node)
-                              }
-                              <:
-                              t_Tree
-                            in
-                            match out <: Core_models.Result.t_Result Prims.unit t_Error with
+                                  t_Slice t_Node)
+                            }
+                            <:
+                            t_Tree
+                          in
+                          (match out <: Core_models.Result.t_Result Prims.unit t_Error with
                             | Core_models.Result.Result_Ok ok ->
                               let node:t_Node =
                                 { node with f_left = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
@@ -2637,37 +2273,60 @@ let impl_Tree__add (self: t_Tree) (node: t_Node)
                                 Core_models.Result.t_Result Prims.unit t_Error)
                               <:
                               (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-                    | Core_models.Option.Option_None  ->
-                      let
-                      (tmp0: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global),
-                      (out: Core_models.Result.t_Result Prims.unit t_Error) =
-                        insert #t_BirthId self.f_root_right at node.f_id
-                      in
-                      let self:t_Tree = { self with f_root_right = tmp0 } <: t_Tree in
-                      match out <: Core_models.Result.t_Result Prims.unit t_Error with
-                      | Core_models.Result.Result_Ok ok ->
-                        let node:t_Node =
-                          { node with f_left = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
-                        in
-                        let node:t_Node =
-                          { node with f_right = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
-                        in
-                        let
-                        (tmp0: Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global),
-                        (out: Core_models.Result.t_Result Prims.unit t_Error) =
-                          push #t_Node self.f_nodes node
-                        in
-                        let self:t_Tree = { self with f_nodes = tmp0 } <: t_Tree in
-                        (match out <: Core_models.Result.t_Result Prims.unit t_Error with
-                          | Core_models.Result.Result_Ok _ ->
-                            let hax_temp_output:Core_models.Result.t_Result Prims.unit t_Error =
-                              Core_models.Result.Result_Ok (() <: Prims.unit)
-                              <:
-                              Core_models.Result.t_Result Prims.unit t_Error
-                            in
-                            self, hax_temp_output
+                        | Side_Right  ->
+                          let
+                          (tmp0: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global),
+                          (out: Core_models.Result.t_Result Prims.unit t_Error) =
+                            insert #t_BirthId (self.f_nodes.[ p ] <: t_Node).f_right at node.f_id
+                          in
+                          let self:t_Tree =
+                            {
+                              self with
+                              f_nodes
+                              =
+                              Alloc.Slice.impl__to_vec (Rust_primitives.Hax.Monomorphized_update_at.update_at_usize
+                                    (Alloc.Vec.impl_1__as_slice self.f_nodes <: t_Slice t_Node)
+                                    p
+                                    ({ (self.f_nodes.[ p ] <: t_Node) with f_right = tmp0 }
+                                      <:
+                                      t_Node)
+                                  <:
+                                  t_Slice t_Node)
+                            }
                             <:
-                            (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                            t_Tree
+                          in
+                          match out <: Core_models.Result.t_Result Prims.unit t_Error with
+                          | Core_models.Result.Result_Ok ok ->
+                            let node:t_Node =
+                              { node with f_left = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
+                            in
+                            let node:t_Node =
+                              { node with f_right = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
+                            in
+                            let
+                            (tmp0: Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global),
+                            (out: Core_models.Result.t_Result Prims.unit t_Error) =
+                              push #t_Node self.f_nodes node
+                            in
+                            let self:t_Tree = { self with f_nodes = tmp0 } <: t_Tree in
+                            (match out <: Core_models.Result.t_Result Prims.unit t_Error with
+                              | Core_models.Result.Result_Ok _ ->
+                                let hax_temp_output:Core_models.Result.t_Result Prims.unit t_Error =
+                                  Core_models.Result.Result_Ok (() <: Prims.unit)
+                                  <:
+                                  Core_models.Result.t_Result Prims.unit t_Error
+                                in
+                                self, hax_temp_output
+                                <:
+                                (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                              | Core_models.Result.Result_Err err ->
+                                self,
+                                (Core_models.Result.Result_Err err
+                                  <:
+                                  Core_models.Result.t_Result Prims.unit t_Error)
+                                <:
+                                (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
                           | Core_models.Result.Result_Err err ->
                             self,
                             (Core_models.Result.Result_Err err
@@ -2675,6 +2334,373 @@ let impl_Tree__add (self: t_Tree) (node: t_Node)
                               Core_models.Result.t_Result Prims.unit t_Error)
                             <:
                             (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
+                  | Core_models.Option.Option_None  ->
+                    let
+                    (tmp0: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global),
+                    (out: Core_models.Result.t_Result Prims.unit t_Error) =
+                      insert #t_BirthId self.f_root_right at node.f_id
+                    in
+                    let self:t_Tree = { self with f_root_right = tmp0 } <: t_Tree in
+                    match out <: Core_models.Result.t_Result Prims.unit t_Error with
+                    | Core_models.Result.Result_Ok ok ->
+                      let node:t_Node =
+                        { node with f_left = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
+                      in
+                      let node:t_Node =
+                        { node with f_right = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
+                      in
+                      let
+                      (tmp0: Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global),
+                      (out: Core_models.Result.t_Result Prims.unit t_Error) =
+                        push #t_Node self.f_nodes node
+                      in
+                      let self:t_Tree = { self with f_nodes = tmp0 } <: t_Tree in
+                      (match out <: Core_models.Result.t_Result Prims.unit t_Error with
+                        | Core_models.Result.Result_Ok _ ->
+                          let hax_temp_output:Core_models.Result.t_Result Prims.unit t_Error =
+                            Core_models.Result.Result_Ok (() <: Prims.unit)
+                            <:
+                            Core_models.Result.t_Result Prims.unit t_Error
+                          in
+                          self, hax_temp_output
+                          <:
+                          (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                        | Core_models.Result.Result_Err err ->
+                          self,
+                          (Core_models.Result.Result_Err err
+                            <:
+                            Core_models.Result.t_Result Prims.unit t_Error)
+                          <:
+                          (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
+                    | Core_models.Result.Result_Err err ->
+                      self,
+                      (Core_models.Result.Result_Err err
+                        <:
+                        Core_models.Result.t_Result Prims.unit t_Error)
+                      <:
+                      (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
+            | Core_models.Result.Result_Err err ->
+              self,
+              (Core_models.Result.Result_Err err <: Core_models.Result.t_Result Prims.unit t_Error)
+              <:
+              (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
+      | Core_models.Option.Option_None  ->
+        if
+          ~.(match node.f_side <: t_Side with
+            | Side_Right  -> true
+            | _ -> false)
+        then
+          self,
+          (Core_models.Result.Result_Err (Error_Internal <: t_Error)
+            <:
+            Core_models.Result.t_Result Prims.unit t_Error)
+          <:
+          (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+        else
+          let siblings:Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global =
+            Core_models.Clone.f_clone #(Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global)
+              #FStar.Tactics.Typeclasses.solve
+              self.f_root_right
+          in
+          let at:usize = Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global siblings in
+          let ranked:bool =
+            (match node.f_side <: t_Side with
+              | Side_Right  -> true
+              | _ -> false) &&
+            ~.(Alloc.Vec.impl_1__is_empty #t_BirthId #Alloc.Alloc.t_Global siblings <: bool)
+          in
+          match
+            impl_Tree__origin_order self ranked node.f_right_origin
+            <:
+            Core_models.Result.t_Result (Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global & usize)
+              t_Error
+          with
+          | Core_models.Result.Result_Ok (whole, rank) ->
+            (match
+                Rust_primitives.Hax.Folds.fold_range_return (mk_usize 0)
+                  (Alloc.Vec.impl_1__len #t_BirthId #Alloc.Alloc.t_Global siblings <: usize)
+                  (fun at temp_1_ ->
+                      let at:usize = at in
+                      let _:usize = temp_1_ in
+                      true)
+                  at
+                  (fun at i ->
+                      let at:usize = at in
+                      let i:usize = i in
+                      match
+                        impl_Tree__node self (siblings.[ i ] <: t_BirthId)
+                        <:
+                        Core_models.Result.t_Result t_Node t_Error
+                      with
+                      | Core_models.Result.Result_Ok old ->
+                        if
+                          match node.f_side <: t_Side with
+                          | Side_Right  -> true
+                          | _ -> false
+                        then
+                          match
+                            impl_Tree__rank (Alloc.Vec.impl_1__as_slice whole <: t_Slice t_BirthId)
+                              old.f_right_origin
+                            <:
+                            Core_models.Result.t_Result usize t_Error
+                          with
+                          | Core_models.Result.Result_Ok hoist28 ->
+                            let before:bool =
+                              rank >. hoist28 ||
+                              node.f_right_origin =. old.f_right_origin &&
+                              birth_lt node.f_id old.f_id
+                            in
+                            if before
+                            then
+                              let at:usize = i in
+                              Core_models.Ops.Control_flow.ControlFlow_Break
+                              (Core_models.Ops.Control_flow.ControlFlow_Continue
+                                ((), at <: (Prims.unit & usize))
+                                <:
+                                Core_models.Ops.Control_flow.t_ControlFlow
+                                  (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                  (Prims.unit & usize))
+                              <:
+                              Core_models.Ops.Control_flow.t_ControlFlow
+                                (Core_models.Ops.Control_flow.t_ControlFlow
+                                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                    (Prims.unit & usize)) usize
+                            else
+                              Core_models.Ops.Control_flow.ControlFlow_Continue at
+                              <:
+                              Core_models.Ops.Control_flow.t_ControlFlow
+                                (Core_models.Ops.Control_flow.t_ControlFlow
+                                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                    (Prims.unit & usize)) usize
+                          | Core_models.Result.Result_Err err ->
+                            Core_models.Ops.Control_flow.ControlFlow_Break
+                            (Core_models.Ops.Control_flow.ControlFlow_Break
+                              (self,
+                                (Core_models.Result.Result_Err err
+                                  <:
+                                  Core_models.Result.t_Result Prims.unit t_Error)
+                                <:
+                                (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
+                              <:
+                              Core_models.Ops.Control_flow.t_ControlFlow
+                                (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                (Prims.unit & usize))
+                            <:
+                            Core_models.Ops.Control_flow.t_ControlFlow
+                              (Core_models.Ops.Control_flow.t_ControlFlow
+                                  (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                  (Prims.unit & usize)) usize
+                        else
+                          let before:bool = birth_lt node.f_id old.f_id in
+                          if before
+                          then
+                            let at:usize = i in
+                            Core_models.Ops.Control_flow.ControlFlow_Break
+                            (Core_models.Ops.Control_flow.ControlFlow_Continue
+                              ((), at <: (Prims.unit & usize))
+                              <:
+                              Core_models.Ops.Control_flow.t_ControlFlow
+                                (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                (Prims.unit & usize))
+                            <:
+                            Core_models.Ops.Control_flow.t_ControlFlow
+                              (Core_models.Ops.Control_flow.t_ControlFlow
+                                  (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                  (Prims.unit & usize)) usize
+                          else
+                            Core_models.Ops.Control_flow.ControlFlow_Continue at
+                            <:
+                            Core_models.Ops.Control_flow.t_ControlFlow
+                              (Core_models.Ops.Control_flow.t_ControlFlow
+                                  (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                                  (Prims.unit & usize)) usize
+                      | Core_models.Result.Result_Err err ->
+                        Core_models.Ops.Control_flow.ControlFlow_Break
+                        (Core_models.Ops.Control_flow.ControlFlow_Break
+                          (self,
+                            (Core_models.Result.Result_Err err
+                              <:
+                              Core_models.Result.t_Result Prims.unit t_Error)
+                            <:
+                            (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
+                          <:
+                          Core_models.Ops.Control_flow.t_ControlFlow
+                            (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                            (Prims.unit & usize))
+                        <:
+                        Core_models.Ops.Control_flow.t_ControlFlow
+                          (Core_models.Ops.Control_flow.t_ControlFlow
+                              (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                              (Prims.unit & usize)) usize)
+                <:
+                Core_models.Ops.Control_flow.t_ControlFlow
+                  (t_Tree & Core_models.Result.t_Result Prims.unit t_Error) usize
+              with
+              | Core_models.Ops.Control_flow.ControlFlow_Break ret -> ret
+              | Core_models.Ops.Control_flow.ControlFlow_Continue at ->
+                match parent <: Core_models.Option.t_Option usize with
+                | Core_models.Option.Option_Some p ->
+                  if
+                    p >=.
+                    (Alloc.Vec.impl_1__len #t_Node #Alloc.Alloc.t_Global self.f_nodes <: usize)
+                  then
+                    self,
+                    (Core_models.Result.Result_Err (Error_Internal <: t_Error)
+                      <:
+                      Core_models.Result.t_Result Prims.unit t_Error)
+                    <:
+                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                  else
+                    (match node.f_side <: t_Side with
+                      | Side_Left  ->
+                        let
+                        (tmp0: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global),
+                        (out: Core_models.Result.t_Result Prims.unit t_Error) =
+                          insert #t_BirthId (self.f_nodes.[ p ] <: t_Node).f_left at node.f_id
+                        in
+                        let self:t_Tree =
+                          {
+                            self with
+                            f_nodes
+                            =
+                            Alloc.Slice.impl__to_vec (Rust_primitives.Hax.Monomorphized_update_at.update_at_usize
+                                  (Alloc.Vec.impl_1__as_slice self.f_nodes <: t_Slice t_Node)
+                                  p
+                                  ({ (self.f_nodes.[ p ] <: t_Node) with f_left = tmp0 } <: t_Node)
+                                <:
+                                t_Slice t_Node)
+                          }
+                          <:
+                          t_Tree
+                        in
+                        (match out <: Core_models.Result.t_Result Prims.unit t_Error with
+                          | Core_models.Result.Result_Ok ok ->
+                            let node:t_Node =
+                              { node with f_left = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
+                            in
+                            let node:t_Node =
+                              { node with f_right = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
+                            in
+                            let
+                            (tmp0: Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global),
+                            (out: Core_models.Result.t_Result Prims.unit t_Error) =
+                              push #t_Node self.f_nodes node
+                            in
+                            let self:t_Tree = { self with f_nodes = tmp0 } <: t_Tree in
+                            (match out <: Core_models.Result.t_Result Prims.unit t_Error with
+                              | Core_models.Result.Result_Ok _ ->
+                                let hax_temp_output:Core_models.Result.t_Result Prims.unit t_Error =
+                                  Core_models.Result.Result_Ok (() <: Prims.unit)
+                                  <:
+                                  Core_models.Result.t_Result Prims.unit t_Error
+                                in
+                                self, hax_temp_output
+                                <:
+                                (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                              | Core_models.Result.Result_Err err ->
+                                self,
+                                (Core_models.Result.Result_Err err
+                                  <:
+                                  Core_models.Result.t_Result Prims.unit t_Error)
+                                <:
+                                (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
+                          | Core_models.Result.Result_Err err ->
+                            self,
+                            (Core_models.Result.Result_Err err
+                              <:
+                              Core_models.Result.t_Result Prims.unit t_Error)
+                            <:
+                            (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
+                      | Side_Right  ->
+                        let
+                        (tmp0: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global),
+                        (out: Core_models.Result.t_Result Prims.unit t_Error) =
+                          insert #t_BirthId (self.f_nodes.[ p ] <: t_Node).f_right at node.f_id
+                        in
+                        let self:t_Tree =
+                          {
+                            self with
+                            f_nodes
+                            =
+                            Alloc.Slice.impl__to_vec (Rust_primitives.Hax.Monomorphized_update_at.update_at_usize
+                                  (Alloc.Vec.impl_1__as_slice self.f_nodes <: t_Slice t_Node)
+                                  p
+                                  ({ (self.f_nodes.[ p ] <: t_Node) with f_right = tmp0 } <: t_Node)
+                                <:
+                                t_Slice t_Node)
+                          }
+                          <:
+                          t_Tree
+                        in
+                        match out <: Core_models.Result.t_Result Prims.unit t_Error with
+                        | Core_models.Result.Result_Ok ok ->
+                          let node:t_Node =
+                            { node with f_left = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
+                          in
+                          let node:t_Node =
+                            { node with f_right = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
+                          in
+                          let
+                          (tmp0: Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global),
+                          (out: Core_models.Result.t_Result Prims.unit t_Error) =
+                            push #t_Node self.f_nodes node
+                          in
+                          let self:t_Tree = { self with f_nodes = tmp0 } <: t_Tree in
+                          (match out <: Core_models.Result.t_Result Prims.unit t_Error with
+                            | Core_models.Result.Result_Ok _ ->
+                              let hax_temp_output:Core_models.Result.t_Result Prims.unit t_Error =
+                                Core_models.Result.Result_Ok (() <: Prims.unit)
+                                <:
+                                Core_models.Result.t_Result Prims.unit t_Error
+                              in
+                              self, hax_temp_output
+                              <:
+                              (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                            | Core_models.Result.Result_Err err ->
+                              self,
+                              (Core_models.Result.Result_Err err
+                                <:
+                                Core_models.Result.t_Result Prims.unit t_Error)
+                              <:
+                              (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
+                        | Core_models.Result.Result_Err err ->
+                          self,
+                          (Core_models.Result.Result_Err err
+                            <:
+                            Core_models.Result.t_Result Prims.unit t_Error)
+                          <:
+                          (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
+                | Core_models.Option.Option_None  ->
+                  let
+                  (tmp0: Alloc.Vec.t_Vec t_BirthId Alloc.Alloc.t_Global),
+                  (out: Core_models.Result.t_Result Prims.unit t_Error) =
+                    insert #t_BirthId self.f_root_right at node.f_id
+                  in
+                  let self:t_Tree = { self with f_root_right = tmp0 } <: t_Tree in
+                  match out <: Core_models.Result.t_Result Prims.unit t_Error with
+                  | Core_models.Result.Result_Ok ok ->
+                    let node:t_Node =
+                      { node with f_left = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
+                    in
+                    let node:t_Node =
+                      { node with f_right = Alloc.Vec.impl__new #t_BirthId () } <: t_Node
+                    in
+                    let
+                    (tmp0: Alloc.Vec.t_Vec t_Node Alloc.Alloc.t_Global),
+                    (out: Core_models.Result.t_Result Prims.unit t_Error) =
+                      push #t_Node self.f_nodes node
+                    in
+                    let self:t_Tree = { self with f_nodes = tmp0 } <: t_Tree in
+                    (match out <: Core_models.Result.t_Result Prims.unit t_Error with
+                      | Core_models.Result.Result_Ok _ ->
+                        let hax_temp_output:Core_models.Result.t_Result Prims.unit t_Error =
+                          Core_models.Result.Result_Ok (() <: Prims.unit)
+                          <:
+                          Core_models.Result.t_Result Prims.unit t_Error
+                        in
+                        self, hax_temp_output
+                        <:
+                        (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
                       | Core_models.Result.Result_Err err ->
                         self,
                         (Core_models.Result.Result_Err err
@@ -2682,16 +2708,18 @@ let impl_Tree__add (self: t_Tree) (node: t_Node)
                           Core_models.Result.t_Result Prims.unit t_Error)
                         <:
                         (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-              | Core_models.Result.Result_Err err ->
-                self,
-                (Core_models.Result.Result_Err err <: Core_models.Result.t_Result Prims.unit t_Error
-                )
-                <:
-                (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
-    | Core_models.Result.Result_Err err ->
-      self, (Core_models.Result.Result_Err err <: Core_models.Result.t_Result Prims.unit t_Error)
-      <:
-      (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
+                  | Core_models.Result.Result_Err err ->
+                    self,
+                    (Core_models.Result.Result_Err err
+                      <:
+                      Core_models.Result.t_Result Prims.unit t_Error)
+                    <:
+                    (t_Tree & Core_models.Result.t_Result Prims.unit t_Error))
+          | Core_models.Result.Result_Err err ->
+            self,
+            (Core_models.Result.Result_Err err <: Core_models.Result.t_Result Prims.unit t_Error)
+            <:
+            (t_Tree & Core_models.Result.t_Result Prims.unit t_Error)
 
 let impl_Tree__insert
       (self: t_Tree)
@@ -2868,9 +2896,9 @@ let impl_Tree__insert
                       (t_Tree & Core_models.Result.t_Result t_Node t_Error))
               | Core_models.Option.Option_Some x ->
                 match impl_Tree__node self x <: Core_models.Result.t_Result t_Node t_Error with
-                | Core_models.Result.Result_Ok hoist38 ->
+                | Core_models.Result.Result_Ok hoist39 ->
                   let has_right:bool =
-                    ~.(Alloc.Vec.impl_1__is_empty #t_BirthId #Alloc.Alloc.t_Global hoist38.f_right
+                    ~.(Alloc.Vec.impl_1__is_empty #t_BirthId #Alloc.Alloc.t_Global hoist39.f_right
                       <:
                       bool)
                   in
@@ -3040,11 +3068,11 @@ let impl_Tree__insert
                           (t_Tree & Core_models.Result.t_Result t_Node t_Error))
                   | Core_models.Option.Option_Some x ->
                     match impl_Tree__node self x <: Core_models.Result.t_Result t_Node t_Error with
-                    | Core_models.Result.Result_Ok hoist38 ->
+                    | Core_models.Result.Result_Ok hoist39 ->
                       let has_right:bool =
                         ~.(Alloc.Vec.impl_1__is_empty #t_BirthId
                             #Alloc.Alloc.t_Global
-                            hoist38.f_right
+                            hoist39.f_right
                           <:
                           bool)
                       in
@@ -3414,8 +3442,8 @@ let replay_author
               <:
               Core_models.Result.t_Result t_Tree t_Error
             with
-            | Core_models.Result.Result_Ok hoist47 ->
-              let author:t_Tree = hoist47 in
+            | Core_models.Result.Result_Ok hoist48 ->
+              let author:t_Tree = hoist48 in
               Core_models.Ops.Control_flow.ControlFlow_Continue author
               <:
               Core_models.Ops.Control_flow.t_ControlFlow
@@ -3530,13 +3558,13 @@ let interpret_event
                       let index:usize = index in
                       let id:t_BirthId = { f_event = event.f_id; f_index = index } <: t_BirthId in
                       match add gap index <: Core_models.Result.t_Result usize t_Error with
-                      | Core_models.Result.Result_Ok hoist48 ->
+                      | Core_models.Result.Result_Ok hoist49 ->
                         let (tmp0: t_Tree), (out: Core_models.Result.t_Result t_Node t_Error) =
                           impl_Tree__insert author
                             id
                             (event.f_insert.[ index ] <: u32)
                             (Alloc.Vec.impl_1__as_slice seen <: t_Slice t_BirthId)
-                            hoist48
+                            hoist49
                         in
                         let author:t_Tree = tmp0 in
                         (match out <: Core_models.Result.t_Result t_Node t_Error with
@@ -4123,8 +4151,8 @@ let plan_prepare (_: Prims.unit) (next: t_Replica) (fact: t_Fact)
         <:
         Core_models.Result.t_Result (Alloc.Vec.t_Vec t_Fact Alloc.Alloc.t_Global) t_Error
       with
-      | Core_models.Result.Result_Ok hoist65 ->
-        let next:t_Replica = { next with f_facts = hoist65 } <: t_Replica in
+      | Core_models.Result.Result_Ok hoist66 ->
+        let next:t_Replica = { next with f_facts = hoist66 } <: t_Replica in
         Core_models.Result.Result_Ok next <: Core_models.Result.t_Result t_Replica t_Error
       | Core_models.Result.Result_Err err ->
         Core_models.Result.Result_Err err <: Core_models.Result.t_Result t_Replica t_Error)

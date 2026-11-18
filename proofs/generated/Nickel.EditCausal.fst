@@ -98,6 +98,7 @@ let receive_preserves_causal_rank (before: Native.t_Replica) (fact: Native.t_Fac
   receive_added_has_direct_dependencies before fact;
   Nickel.EditIdentity.receive_added_has_fresh_event_id before fact;
   match Native.impl_Replica__receive before fact with | (next, Result.Result_Ok Native.Admission_Added) -> begin assert (Prims.l_and (Prims.l_and (fact_dependencies_present (Alloc.Vec.impl_1__as_slice before.f_facts) fact) (appended_contents before.f_facts fact next.f_facts)) (Nickel.EditIdentity.prefix_absent (Alloc.Vec.impl_1__as_slice before.f_facts) fact.f_id (mk_usize 0) (Nickel.EditIdentity.length (Alloc.Vec.impl_1__as_slice before.f_facts)))) by (
+    Tactics.prune "Nickel.EditWellFormed.fact_dependencies_present";
     Tactics.prune "Nickel.EditIdentity.prefix_absent";
     Tactics.prune "Nickel_crdt.Edit.impl_Replica__receive";
     Tactics.prune "Nickel_crdt.Event_shell.receive";

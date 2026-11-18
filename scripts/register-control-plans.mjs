@@ -32,7 +32,7 @@ export function registerControlPlans({source,graphSource,view,loopView,canonical
   // History invariant (receive half): an Added offer's parents are stored only because past checks them.
   ['past-skips-parent-check','fn past<','    validate_after(facts, after_ids, ops)?;\n','','RegisterHistory.past_checked_parents'],
   // Exact past directions (#97 obligation 1): each native fault breaks only its own direction.
-  ['past-pass-skips-input','fn past_pass<','for i in 0..facts.len() {','for i in 0..0usize {','PastExact.past_pass_covers_edges'],
+  ['past-pass-skips-input','fn past_pass<','for offset in 0..facts.len() {','for offset in 0..0usize {','PastExact.past_pass_covers_edges'],
   ['past-extend-never-pushes','fn extend_past<','if !has_id(&selected, &predecessor, ops) {','if false && !has_id(&selected, &predecessor, ops) {','PastExact.extend_past_covers_predecessors'],
   ['past-extend-unselected','fn extend_past<','if has_id(&selected, &id(fact), ops) {','if true {','PastExact.extend_past_preserves'],
   ['canonical-chooses-largest','fn choose_unseen<','id_lt(&id(&facts[j]), &id(&facts[k]))','id_lt(&id(&facts[k]), &id(&facts[j]))','Canonical.choose_is_least'],

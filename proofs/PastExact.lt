@@ -158,6 +158,26 @@ proof initial_selection_is_valid<it: eqtype>(roots: t_Slice(it), p: it => Type0)
   gives selection_ok(roots, p, Alloc.Slice.impl__to_vec(roots))
 { () }
 
+// past's loop state is (closed, selected): once a pass adds nothing, later
+// iterations keep the selection unchanged. Soundness holds for every bound, so a
+// pass-count fault belongs to the completeness owner, not to this foundation.
+function closed_state<it: eqtype>(roots: t_Slice(it), p: it => Type0, at: nat, state: (bool, Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global))): Type0 {
+  selection_ok(roots, p, state._2)
+}
+function state_selection<it: eqtype>(state: (bool, Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global))): Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global) { state._2 }
+proof closed_set_any_bound<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et), roots: t_Slice(it), p: it => Type0, finish: usize): unit
+  gives forall(inv: Nickel.LoopUtil.invariant((bool, Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)), mk_usize(0), finish),
+      initial: (bool, Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)),
+      f: Nickel.LoopUtil.callback((bool, Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)), Result.t_Result(Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), et), mk_usize(0), finish)) .
+    (closed_state(roots, p, 0, initial) and
+     (forall(s: (bool, Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)), i: Nickel.LoopUtil.position(mk_usize(0), finish)) . closed_state(roots, p, v(i), s) ==>
+       Nickel.LoopUtil.result_step(closed_state(roots, p), state_selection, selection_ok(roots, p), ((_: et) => Prims.l_True), v(i), f(s, i))) and
+     (forall(s: (bool, Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global))) . closed_state(roots, p, v(finish), s) ==> selection_ok(roots, p, state_selection(s)))) ==>
+      Nickel.LoopUtil.result_safe(selection_ok(roots, p), ((_: et) => Prims.l_True),
+        Nickel.LoopUtil.result_finish(state_selection, Rust_primitives.Hax.Folds.fold_range_return(mk_usize(0), finish, inv, initial, f)))
+{
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), finish, closed_state(roots, p), state_selection, selection_ok(roots, p), ((_: et) => Prims.l_True))
+}
 // Source-linked soundness and root retention for ANY id set p that contains the
 // roots and is closed under this history's direct edges.
 proof past_stays_in_closed_set<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et), facts: t_Slice(ft), roots: t_Slice(it), p: it => Type0): unit
@@ -173,14 +193,7 @@ proof past_stays_in_closed_set<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.Eve
     gives selection_result(roots, p, Shared.past_pass(facts, selected, ops))
   { past_pass_preserves(ops, roots, p, facts, selected) };
   FStar.Classical.forall_intro(FStar.Classical.move_requires(each_pass));
-  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
-    ((_: nat, selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => selection_ok(roots, p, selected)),
-    ((selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => selected), selection_ok(roots, p), ((_: et) => Prims.l_True));
-  // Control-routing instance: the zero-pass mutant still satisfies soundness.
-  // It must reach the completeness owner instead of failing this true foundation.
-  Nickel.LoopUtil.result_preserve_any(mk_usize(0), mk_usize(0),
-    ((_: nat, selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => selection_ok(roots, p, selected)),
-    ((selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => selected), selection_ok(roots, p), ((_: et) => Prims.l_True));
+  FStar.Classical.forall_intro(((finish: usize) => closed_set_any_bound(ops, roots, p, finish)));
   assert(selection_result(roots, p, Shared.past(facts, roots, ops))) by {
     Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
     Tactics.prune("Nickel_crdt.Event_layer.past_pass");
@@ -273,10 +286,15 @@ proof retains_member<it: eqtype>(before: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Globa
   takes member(Alloc.Vec.impl_1__as_slice(before), id)
   gives member(Alloc.Vec.impl_1__as_slice(next), id)
 { () }
+// The pass scans from the last fact down: after k steps the final k facts are expanded.
+function pass_from<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et), facts: t_Slice(ft), before: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), start: int, next: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)): Type0 {
+  retains(Alloc.Vec.impl_1__as_slice(before), next) and
+  (forall(i: usize where v(i) < Seq.length(facts)) . start <= v(i) ==> expansion_ok(ops, Seq.index(facts, v(i)), before, next))
+}
 proof expansion_composes<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et), facts: t_Slice(ft), before: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), at: usize where v(at) < Seq.length(facts), selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), next: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)): unit
-  takes pass_prefix(ops, facts, before, v(at), selected)
+  takes pass_from(ops, facts, before, v(at) + 1, selected)
   takes expansion_ok(ops, Seq.index(facts, v(at)), selected, next)
-  gives pass_prefix(ops, facts, before, v(at) + 1, next)
+  gives pass_from(ops, facts, before, v(at), next)
 {
   proof each_id(id: it): unit
     takes member(Alloc.Vec.impl_1__as_slice(selected), id)
@@ -293,20 +311,21 @@ proof past_pass_covers_edges<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.Event
   takes ids_exact(ops)
   gives pass_result(ops, facts, before, Shared.past_pass(facts, before, ops))
 {
-  proof each_extend(selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), at: usize where v(at) < Seq.length(facts)): unit
-    takes pass_prefix(ops, facts, before, v(at), selected)
-    gives (match Shared.extend_past(Seq.index(facts, v(at)), selected, ops) {
-      Result.Result_Ok(next) => pass_prefix(ops, facts, before, v(at) + 1, next), _ => Prims.l_True
+  proof each_extend(selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), offset: usize where v(offset) < Seq.length(facts)): unit
+    takes pass_from(ops, facts, before, Seq.length(facts) - v(offset), selected)
+    gives (match Shared.extend_past(Seq.index(facts, Seq.length(facts) - 1 - v(offset)), selected, ops) {
+      Result.Result_Ok(next) => pass_from(ops, facts, before, Seq.length(facts) - 1 - v(offset), next), _ => Prims.l_True
     } : Type0)
   {
+    const at = mk_usize(Seq.length(facts) - 1 - v(offset));
     extend_past_covers_predecessors(ops, Seq.index(facts, v(at)), selected);
     proof each_next(next: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)): unit
       takes expansion_ok(ops, Seq.index(facts, v(at)), selected, next)
-      gives pass_prefix(ops, facts, before, v(at) + 1, next)
+      gives pass_from(ops, facts, before, v(at), next)
     { expansion_composes(ops, facts, before, at, selected, next) };
     FStar.Classical.forall_intro(FStar.Classical.move_requires(each_next));
-    assert((match Shared.extend_past(Seq.index(facts, v(at)), selected, ops) {
-      Result.Result_Ok(next) => pass_prefix(ops, facts, before, v(at) + 1, next), _ => Prims.l_True
+    assert((match Shared.extend_past(Seq.index(facts, Seq.length(facts) - 1 - v(offset)), selected, ops) {
+      Result.Result_Ok(next) => pass_from(ops, facts, before, Seq.length(facts) - 1 - v(offset), next), _ => Prims.l_True
     } : Type0)) by {
       Tactics.prune("Nickel_crdt.Event_layer.extend_past");
       Tactics.smt_sync'(1, 1)
@@ -314,7 +333,7 @@ proof past_pass_covers_edges<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.Event
   };
   FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_extend));
   Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
-    pass_prefix(ops, facts, before), ((selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => selected),
+    ((done: nat, selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => pass_from(ops, facts, before, Seq.length(facts) - done, selected)), ((selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => selected),
     ((next: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => pass_prefix(ops, facts, before, Seq.length(facts), next)), ((_: et) => Prims.l_True));
   assert(pass_result(ops, facts, before, Shared.past_pass(facts, before, ops))) by {
     Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
@@ -382,43 +401,163 @@ proof pass_covers_next_depth<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.Event
 function depth_result<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et), facts: t_Slice(ft), roots: t_Slice(it), depth: nat, result: Result.t_Result(Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), et)): Type0 {
   match result { Result.Result_Ok(selected) => covers_depth(ops, facts, roots, depth, selected), _ => Prims.l_True }
 }
+// A pass only appends: its input stays a prefix of its successful output.
+function prefix_of<it: eqtype>(before: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), next: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)): Type0 {
+  Seq.length(Alloc.Vec.impl_1__as_slice(before)) <= Seq.length(Alloc.Vec.impl_1__as_slice(next)) and
+  (forall(i: nat where i < Seq.length(Alloc.Vec.impl_1__as_slice(before)) and i < Seq.length(Alloc.Vec.impl_1__as_slice(next))) .
+    Seq.index(Alloc.Vec.impl_1__as_slice(next), i) == Seq.index(Alloc.Vec.impl_1__as_slice(before), i))
+}
+function prefix_result<it: eqtype, et: Type0>(before: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), result: Result.t_Result(Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), et)): Type0 {
+  match result { Result.Result_Ok(next) => prefix_of(before, next), _ => Prims.l_True }
+}
+proof prefix_trans<it: eqtype>(a: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), b: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), c: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)): unit
+  takes prefix_of(a, b)
+  takes prefix_of(b, c)
+  gives prefix_of(a, c)
+{ () }
+function push_prefix_result<it: eqtype, et: Type0>(before: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), outcome: (Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), Result.t_Result(unit, et))): Type0 {
+  match outcome { (next, Result.Result_Ok(_)) => prefix_of(before, next), _ => Prims.l_True }
+}
+proof extend_past_appends<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et), fact: ft, before: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)): unit
+  gives prefix_result(before, Shared.extend_past(fact, before, ops))
+{
+  ops_shape(ops);
+  proof each_push(selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), id: it): unit
+    takes prefix_of(before, selected)
+    gives push_prefix_result(before, Shared.push(selected, id, ops._2._1))
+  {
+    Nickel.Canonical.push_is_exact(selected, id, ops._2._1);
+    assert(push_prefix_result(before, Shared.push(selected, id, ops._2._1))) by {
+      Tactics.prune("Nickel_crdt.Event_layer.push");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_push));
+  if Shared.has_id(Alloc.Vec.impl_1__as_slice(before), ops._1._1(fact), ops) {
+    Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(ops._1._2(fact)),
+      ((_: nat, selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => prefix_of(before, selected)),
+      ((selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => selected), prefix_of(before), ((_: et) => Prims.l_True));
+    assert(prefix_result(before, Shared.extend_past(fact, before, ops))) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.prune("Nickel_crdt.Event_layer.has_id");
+      Tactics.prune("Nickel_crdt.Event_layer.push");
+      Tactics.smt_sync'(1, 1)
+    }
+  } else {
+    assert(prefix_result(before, Shared.extend_past(fact, before, ops))) by {
+      Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+      Tactics.prune("Nickel_crdt.Event_layer.has_id");
+      Tactics.prune("Nickel_crdt.Event_layer.push");
+      Tactics.smt_sync'(1, 1)
+    }
+  }
+}
+proof past_pass_appends<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et), facts: t_Slice(ft), before: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)): unit
+  gives prefix_result(before, Shared.past_pass(facts, before, ops))
+{
+  proof each_extend(selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), at: usize where v(at) < Seq.length(facts)): unit
+    takes prefix_of(before, selected)
+    gives prefix_result(before, Shared.extend_past(Seq.index(facts, v(at)), selected, ops))
+  {
+    extend_past_appends(ops, Seq.index(facts, v(at)), selected);
+    proof each_next(next: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)): unit
+      takes prefix_of(selected, next)
+      gives prefix_of(before, next)
+    { prefix_trans(before, selected, next) };
+    FStar.Classical.forall_intro(FStar.Classical.move_requires(each_next));
+    assert(prefix_result(before, Shared.extend_past(Seq.index(facts, v(at)), selected, ops))) by {
+      Tactics.prune("Nickel_crdt.Event_layer.extend_past");
+      Tactics.smt_sync'(1, 1)
+    }
+  };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_extend));
+  Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
+    ((_: nat, selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => prefix_of(before, selected)), ((selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => selected),
+    prefix_of(before), ((_: et) => Prims.l_True));
+  assert(prefix_result(before, Shared.past_pass(facts, before, ops))) by {
+    Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
+    Tactics.prune("Nickel_crdt.Event_layer.extend_past");
+    Tactics.smt_sync'(1, 1)
+  }
+}
+// past's loop state is (closed, selected); closed means the last pass added nothing.
+function closed_depth<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et), facts: t_Slice(ft), roots: t_Slice(it), depth: nat, state: (bool, Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global))): Type0 {
+  covers_depth(ops, facts, roots, depth, state._2) and
+  (state._1 == true ==> pass_prefix(ops, facts, state._2, Seq.length(facts), state._2))
+}
+function open_pass_ok<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et), facts: t_Slice(ft), roots: t_Slice(it), depth: nat, selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), result: Result.t_Result(Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), et)): Type0 {
+  match result {
+    Result.Result_Ok(next) => covers_depth(ops, facts, roots, depth + 1, next) and
+      (v(Alloc.Vec.impl_1__len(next)) == v(Alloc.Vec.impl_1__len(selected)) ==>
+        pass_prefix(ops, facts, next, Seq.length(facts), next)),
+    _ => Prims.l_True
+  }
+}
+proof open_pass_covers<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et), facts: t_Slice(ft), roots: t_Slice(it), depth: nat, selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)): unit
+  takes ids_exact(ops)
+  takes covers_depth(ops, facts, roots, depth, selected)
+  gives open_pass_ok(ops, facts, roots, depth, selected, Shared.past_pass(facts, selected, ops))
+{
+  past_pass_covers_edges(ops, facts, selected);
+  past_pass_appends(ops, facts, selected);
+  match Shared.past_pass(facts, selected, ops) {
+    Result.Result_Ok(next) => {
+      // Each contract is read as an atom from its own result, before any other
+      // quantified fact is in scope: a missing link fails here, ordinarily.
+      assert(pass_prefix(ops, facts, selected, Seq.length(facts), next)) by {
+        Tactics.prune("Nickel_crdt.Event_layer.past_pass");
+        Tactics.prune("Nickel.PastExact.pass_prefix");
+        Tactics.smt_sync'(1, 1)
+      };
+      assert(prefix_of(selected, next)) by {
+        Tactics.prune("Nickel_crdt.Event_layer.past_pass");
+        Tactics.prune("Nickel.PastExact.prefix_of");
+        Tactics.smt_sync'(1, 1)
+      };
+      // A same-length appending pass returned its input, so that input is closed;
+      // SMT derives this from the prefix and pass facts above.
+      pass_covers_next_depth(ops, facts, roots, depth, selected, next);
+      assert(open_pass_ok(ops, facts, roots, depth, selected, Shared.past_pass(facts, selected, ops))) by {
+        Tactics.prune("Nickel_crdt.Event_layer.past_pass");
+        Tactics.smt_sync'(1, 1)
+      }
+    },
+    Result.Result_Err(_) => ()
+  }
+}
+proof closed_pass_covers<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et), facts: t_Slice(ft), roots: t_Slice(it), depth: nat, selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)): unit
+  takes covers_depth(ops, facts, roots, depth, selected)
+  takes pass_prefix(ops, facts, selected, Seq.length(facts), selected)
+  gives covers_depth(ops, facts, roots, depth + 1, selected)
+{
+  pass_covers_next_depth(ops, facts, roots, depth, selected, selected);
+  assert(covers_depth(ops, facts, roots, depth + 1, selected))
+}
 proof past_covers_bounded_predecessor_paths<ft: Type0, it: eqtype, et: Type0>(ops: Nickel.EventGraph.graph_ops(ft, it, et), facts: t_Slice(ft), roots: t_Slice(it)): unit
   takes ids_exact(ops)
   gives depth_result(ops, facts, roots, Seq.length(facts), Shared.past(facts, roots, ops))
 {
   ops_shape(ops);
-  proof each_pass(selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), at: usize where v(at) < Seq.length(facts)): unit
-    takes covers_depth(ops, facts, roots, v(at), selected)
-    gives depth_result(ops, facts, roots, v(at) + 1, Shared.past_pass(facts, selected, ops))
-  {
-    past_pass_covers_edges(ops, facts, selected);
-    assert(pass_result(ops, facts, selected, Shared.past_pass(facts, selected, ops))) by {
-      Tactics.prune("Nickel_crdt.Event_layer.past_pass");
-      Tactics.prune("Nickel.PastExact.past_pass_covers_edges");
-      Tactics.smt_sync'(1, 1)
-    };
-    match Shared.past_pass(facts, selected, ops) {
-      Result.Result_Ok(next) => {
-        pass_covers_next_depth(ops, facts, roots, v(at), selected, next);
-        assert(depth_result(ops, facts, roots, v(at) + 1, Shared.past_pass(facts, selected, ops))) by {
-          Tactics.prune("Nickel_crdt.Event_layer.past_pass"); Tactics.smt_sync'(1, 1)
-        }
-      },
-      Result.Result_Err(_) => {
-        assert(depth_result(ops, facts, roots, v(at) + 1, Shared.past_pass(facts, selected, ops))) by {
-          Tactics.prune("Nickel_crdt.Event_layer.past_pass"); Tactics.smt_sync'(1, 1)
-        }
-      }
-    }
-  };
-  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_pass));
+  proof each_open(selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), at: nat): unit
+    takes covers_depth(ops, facts, roots, at, selected)
+    gives open_pass_ok(ops, facts, roots, at, selected, Shared.past_pass(facts, selected, ops))
+  { open_pass_covers(ops, facts, roots, at, selected) };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_open));
+  proof each_closed(selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global), at: nat): unit
+    takes covers_depth(ops, facts, roots, at, selected)
+    takes pass_prefix(ops, facts, selected, Seq.length(facts), selected)
+    gives covers_depth(ops, facts, roots, at + 1, selected)
+  { closed_pass_covers(ops, facts, roots, at, selected) };
+  FStar.Classical.forall_intro_2(FStar.Classical.move_requires_2(each_closed));
   Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
-    covers_depth(ops, facts, roots), ((selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => selected),
+    closed_depth(ops, facts, roots), ((state: (bool, Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global))) => state._2),
     covers_depth(ops, facts, roots, Seq.length(facts)), ((_: et) => Prims.l_True));
   assert(depth_result(ops, facts, roots, Seq.length(facts), Shared.past(facts, roots, ops))) by {
     Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
     Tactics.prune("Nickel_crdt.Event_layer.past_pass");
     Tactics.prune("Nickel_crdt.Event_layer.validate_after");
+    // Consume the step lemmas' closed-selection facts; do not re-derive pass_prefix here.
+    Tactics.prune("Nickel.PastExact.pass_prefix");
     Tactics.smt_sync'(1, 1)
   }
 }
@@ -1096,9 +1235,10 @@ proof fitting_closed_history_computes_past<ft: Type0, it: eqtype, et: Type0>(ops
     }
   };
   FStar.Classical.forall_intro(FStar.Classical.move_requires(each_pass));
+  // past's loop state is (closed, selected); a closed iteration keeps the selection.
   Nickel.LoopUtil.result_preserve_any(mk_usize(0), Core_models.Slice.impl__len(facts),
-    ((_: nat, selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => stored_selection(ops, facts, selected)),
-    ((selected: Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global)) => selected), stored_selection(ops, facts), ((_: et) => Prims.l_False));
+    ((_: nat, state: (bool, Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global))) => stored_selection(ops, facts, state._2)),
+    ((state: (bool, Alloc.Vec.t_Vec(it, Alloc.Alloc.t_Global))) => state._2), stored_selection(ops, facts), ((_: et) => Prims.l_False));
   assert(stored_result(ops, facts, Shared.past(facts, roots, ops))) by {
     Tactics.prune("Rust_primitives.Hax.Folds.fold_range_return");
     Tactics.prune("Nickel.LoopUtil.step_safe");

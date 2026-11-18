@@ -47,9 +47,19 @@ export async function checkPastContracts({proof,output,fstar,models,modelCache,s
     ['past-ancestors-without-source-contract',
       /  past_stays_in_closed_set[^\n]+\n/,
       'Nickel.PastExact.past_has_only_ancestors_and_keeps_roots', '  ()\n'],
+    // Owner migration (#107): past's (closed, selected) loop consumes the pass
+    // contract through open_pass_covers, not directly in the depth theorem.
     ['past-depth-without-pass-contract',
-      /    past_pass_covers_edges[^\n]+;\n/,
-      'Nickel.PastExact.past_covers_bounded_predecessor_paths'],
+      /  past_pass_covers_edges ops facts selected;\n/,
+      'Nickel.PastExact.open_pass_covers', '', 'open_pass_covers'],
+    // Early exit: a pass that adds no ID marks the selection closed. Each link
+    // from the append law to the bounded-depth theorem is load-bearing.
+    ['past-open-pass-without-append-law', /  past_pass_appends ops facts selected;\n/, 'Nickel.PastExact.open_pass_covers', '', 'open_pass_covers'],
+    ['past-closed-pass-without-depth-step', /  pass_covers_next_depth ops facts roots depth selected selected;\n/, 'Nickel.PastExact.closed_pass_covers', '', 'closed_pass_covers'],
+    ['past-depth-without-closed-step', /  FStar\.Classical\.forall_intro_2 \(FStar\.Classical\.move_requires_2 each_closed\);\n/, 'Nickel.PastExact.past_covers_bounded_predecessor_paths', '', 'past_covers_bounded_predecessor_paths'],
+    ['past-depth-without-open-step', /  FStar\.Classical\.forall_intro_2 \(FStar\.Classical\.move_requires_2 each_open\);\n/, 'Nickel.PastExact.past_covers_bounded_predecessor_paths', '', 'past_covers_bounded_predecessor_paths'],
+    ['past-pass-append-without-extend-append', /    extend_past_appends ops \(Seq\.index facts \(v at\)\) selected;\n/, 'Nickel.PastExact.past_pass_appends', '', 'past_pass_appends'],
+    ['past-closed-set-without-any-bound', /  FStar\.Classical\.forall_intro \(fun \(finish: usize\) -> closed_set_any_bound ops roots p finish\);\n/, 'Nickel.PastExact.past_stays_in_closed_set', '', 'past_stays_in_closed_set'],
     ['past-paths-without-depth-contract',
       /  past_covers_bounded_predecessor_paths[^\n]+;\n/,
       'Nickel.PastExact.past_contains_short_paths'],

@@ -6,9 +6,9 @@
     "src/lib.rs": "9d08bb7063022d1952e97b3f20f7fd3f4cf45ed5f7927860d91fcd973ad1d30c",
     "src/register.rs": "299943ec584622028ef729f2972f114056f9a4bc1324f1a3836c9ab96b0b9dda",
     "src/causal.rs": "0107c0e75077dfea2cb1996451b66b84758121a5010f12cd4667b81f64fde111",
-    "src/event_layer.rs": "6e03959fdd80ecfa9c75f360810fc3b18b2391780fd03ce6a7b27204420f8efd",
+    "src/event_layer.rs": "746ea09345e9c492a82be3e4badc246e8b9ef15286e6c37552c1e042539873c3",
     "src/event_shell.rs": "7b17301f48ec69d026f2a7b71ad0fcee9c63ff3900fe6f84db13b1c4c9cd7e38",
-    "proofs/Register.lt": "d1ee4c33cc3a31979df813aa9bc635be0b4808b370d502bc7730f9e907af85e9",
+    "proofs/Register.lt": "6f2b21a817524d697c3ccc73be4895c817864949a7b8fe5bdbaba033f6f54ff0",
     "proofs/Canonical.lt": "eb9dd3c30da5b5093d9ff1cc049a70db8934c125cec94b8b85479f5b65cb96d7",
     "proofs/Vector.lt": "9e6b1afbadff2c05c39bc5f822d8c1fe0539007b14f2db4aea1b9505e818f0d8",
     "proofs/EventGraph.lt": "f2cc57d94a113aa2a791e2a17aaf873ac44ff0371386d8e1b8e1092a49de1528",
@@ -23,10 +23,10 @@
     "proofs/generated/Nickel.EventShell.fst": "678325d0710011da5364d00737b51175a1b4510d7f996c6ca558a59ce0fbcac7",
     "proofs/causal-envelope-view/Nickel.CausalEnvelope.fst": "348e2ebf43693f8920f9869b6db068d91eb3a679a5c0c82ab12e26669cf18181",
     "proofs/register-view/Nickel.Canonical.fst": "23f520ccdb79203564c21f52d6d3014cae61f126f80b44c8497e8ee222e78630",
-    "proofs/register-view/Nickel.Register.fst": "a034f75090fd751a44a8d37c160e64066a29f699c525b4ca358fe16cf8852a17",
+    "proofs/register-view/Nickel.Register.fst": "fbc2e821d5955826510f882c8ed3726dec4747dfedcd81f10ef4900fca82cf69",
     "proofs/register-view/Nickel_crdt.Register.fst": "5094a6aec114445c2fc3887f46b7190a5280f7f1f02f88a177f39f37e94aae14",
     "proofs/register-view/Nickel_crdt.Causal.fst": "f687dc18bc368c9c06035ca27297e766a0f5d88e8d321c10eefa5a321d014bce",
-    "proofs/register-view/Nickel_crdt.Event_layer.fst": "cde2b73aa3198c7370de5588b57ab614cb1f895bb8abe74dc355c8ba585e0f9b",
+    "proofs/register-view/Nickel_crdt.Event_layer.fst": "1ebc3ffbae51471a9346ba840b3d78b5f98ca250bd7d739f8256ab5190c8a32d",
     "proofs/register-view/Nickel_crdt.Event_shell.fst": "4eb7b1f6ef8de126cdb799864c2073b6086e5af4d91fa4ade2b6ce38d8f37d8c",
     "proofs/RegisterPast.lt": "221becd9d4705988f030f8391f08b21d3b443344cd83bd0e4f432dbc22b0494b",
     "proofs/RegisterHistory.lt": "c4b6672bb6e2c15772f9a43c75188b890f99cb438f83196f43a59ecea8394cb6",
@@ -38,9 +38,9 @@
     "proofs/RegisterPublic.lt": "483f7375c403a78ba6f8208e3f51baaa6a8c2c2713fa769eb6d248a72ddb742e",
     "proofs/register-view/Nickel.RegisterValid.fst": "01c1d957d2f79fbfdd71741878538414d81b75cfb15aa655d30895a666bb70bc",
     "proofs/register-view/Nickel.RegisterPublic.fst": "a7735ba20a1e803f198dae89d9e11ba3f4efdd10f02401a0f49be62f68bda0c5",
-    "proofs/RegisterFrontier.lt": "4c97d9b7e596d89abc2ac1dbf6cc88957cf3f1e5f22352704744d75d7f57df78",
-    "proofs/register-view/Nickel.RegisterFrontier.fst": "e8a49186f54e9ab238d271d8f2d4e8901c0f2a62795c6df0afbfede5bc33fd47",
-    "proofs/PastExact.lt": "b3b1d95578406d241f117db59384346122df7d18cdf2bd911febcf4d0162dc08",
-    "proofs/generated/Nickel.PastExact.fst": "a7d849e0ca77774b3533f579629af3245b48d59fd3937c9db23615dbbf63e050"
+    "proofs/RegisterFrontier.lt": "800b0bf607a10743769d9a582b8d2ff6af918c34f988650a3b2219c66596c9b4",
+    "proofs/register-view/Nickel.RegisterFrontier.fst": "1fe3ce3b61f41d0b6b133211e9000b990ff91b3fec94ead3031c724000efd32e",
+    "proofs/PastExact.lt": "a4fb4d03eed5edfccb26a63525930a8305cba3eeed0052494f179e2332ab65ac",
+    "proofs/generated/Nickel.PastExact.fst": "ecb89fe805c59cd0bb186142a118313785d914816dcfbc77cfa2def392165cbe"
   }
 }

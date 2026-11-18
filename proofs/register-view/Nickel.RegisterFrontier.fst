@@ -201,6 +201,7 @@ let added_basis_at (before: Native.t_Replica) (authored: Nickel.Register.fact) (
   receive_added_basis_is_exact_ancestry before authored;
   assert (exact_selected_basis before authored) by (
     Tactics.prune "Nickel_crdt.Register.impl_Replica__receive";
+    Tactics.prune "Nickel_crdt.Register.planned";
     Tactics.prune "Nickel.RegisterHistory.receive_added_basis_is_exact_ancestry";
     Tactics.prune "Nickel.RegisterHistory.exact_selected_basis";
     Tactics.smt_sync' 1 1
