@@ -32,16 +32,21 @@ export const BUNDLES = Object.freeze({
 export const SELECTION_PATHS = Object.freeze(['scripts/select-affected.mjs', 'scripts/selection-boundary.mjs',
   'scripts/register-control-plans.mjs', 'flake.nix', 'nix/gate-scripts.json']);
 
-// The exact evaluation, recorded verbatim. stdout and stderr are kept apart.
-export const EVAL_ARGS = Object.freeze(['eval', '--raw', '--no-write-lock-file']);
+// The exact resolution, recorded verbatim. stdout and stderr are kept apart. `nix path-info --derivation`
+// resolves the flake output as an installable, the way `nix build` does, so an output that is not a
+// buildable derivation (e.g. a bare set carrying a drvPath field) is refused here as it would be there;
+// reading `.drvPath` would only look up a field (Lynn, #195 review).
+export const RESOLVE_ARGS = Object.freeze(['path-info', '--derivation', '--no-write-lock-file']);
 const SHA = /^[0-9a-f]{40}$/;
 const DRV = /^\/nix\/store\/[0-9a-z]{32}-[^/\s]+\.drv$/;
 
-/** One evaluation result {status, stdout, stderr} -> a drv path, or why it does not count. */
+/** One resolution result {status, stdout, stderr} -> a drv path, or why it does not count. stdout must be
+ *  exactly one store path ending in .drv, optionally followed by one newline. */
 export function checkEval(r) {
   if (!r || r.status !== 0) return { ok: false, why: `exit ${r ? r.status : 'none'}`, stderr: tail(r?.stderr) };
-  if (typeof r.stdout !== 'string' || !DRV.test(r.stdout)) return { ok: false, why: 'stdout is not exactly one .drv store path', stdout: tail(r.stdout), stderr: tail(r.stderr) };
-  return { ok: true, drv: r.stdout };
+  const out = typeof r.stdout === 'string' && r.stdout.endsWith('\n') ? r.stdout.slice(0, -1) : r.stdout;
+  if (typeof out !== 'string' || !DRV.test(out)) return { ok: false, why: 'stdout is not exactly one .drv store path', stdout: tail(r.stdout), stderr: tail(r.stderr) };
+  return { ok: true, drv: out };
 }
 const tail = (s) => (typeof s === 'string' ? s.slice(-600) : null);
 
@@ -49,12 +54,12 @@ export const flakeRef = (repo, rev) => `git+file://${repo}?rev=${rev}&shallow=1`
 
 /**
  * The decision and its record. `changedPaths` is the list of paths changed between base and head
- * (both sides of a rename or deletion), or null if it could not be read. `evaluate(rev, attr)` returns
+ * (both sides of a rename or deletion), or null if it could not be read. `evaluate(rev, attr)` resolves the installable and returns
  * {status, stdout, stderr}. Nothing here throws on bad input: every doubt is a "run" with its reason.
  */
 export function decide({ job, event, baseSha, headSha, checkedHead, changedPaths, evaluate, repo = '.', nixVersion = null }) {
   const record = { schema: 1, job, event, base: baseSha ?? null, head: headSha ?? null, checkedHead: checkedHead ?? null,
-    system: SYSTEM, nixVersion, evalCommand: ['nix', ...EVAL_ARGS, `${flakeRef(repo, '<rev>')}#<attr>.drvPath`],
+    system: SYSTEM, nixVersion, evalCommand: ['nix', ...RESOLVE_ARGS, `${flakeRef(repo, '<rev>')}#<attr>`],
     targets: [], decision: 'run', reasons: [] };
   const run = (why) => { record.decision = 'run'; record.reasons.push(why); return record; };
   const bundle = BUNDLES[job];

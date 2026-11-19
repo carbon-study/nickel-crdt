@@ -6,7 +6,8 @@
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { BUNDLES, EVAL_ARGS, decide, flakeRef } from './skip-plan.mjs';
+import { BUNDLES, decide } from './skip-plan.mjs';
+import { resolveDrv } from './skip-plan-nix.mjs';
 
 const [mode, job, out] = process.argv.slice(2);
 if (mode === 'bundle') {
@@ -30,7 +31,7 @@ try {
   const nix = sh('nix', ['--version']);
   record = decide({ job, event, baseSha, headSha, checkedHead, changedPaths, repo,
     nixVersion: nix.status === 0 ? nix.stdout.trim() : null,
-    evaluate: (rev, attr) => sh('nix', [...EVAL_ARGS, `${flakeRef(repo, rev)}#${attr}.drvPath`]) });
+    evaluate: (rev, attr) => resolveDrv(repo, rev, attr) });
 } catch (e) {
   record = { schema: 1, job, decision: 'run', reasons: [`planner error: ${String(e?.stack ?? e).slice(0, 500)}`] };
 }
