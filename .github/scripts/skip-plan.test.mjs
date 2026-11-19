@@ -1,7 +1,11 @@
 // Controls for skip-plan.mjs (#194). Runs in well under a second; CI runs it in every scaffold job
 // before the plan. Every doubt must run the job; only a complete bundle of identical, valid drv paths skips.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { resolveDrv } from './skip-plan-nix.mjs';
 import { BUNDLES, SELECTION_PATHS, SYSTEM, checkEval, decide } from './skip-plan.mjs';
 
 const B = 'b'.repeat(40), H = 'c'.repeat(40);
@@ -39,11 +43,12 @@ t('base failure, head failure, thrown evaluation', () => {
   runs(pr({ evaluate: () => { throw new Error('spawn'); } }), /evaluation threw/);
 });
 t('malformed stdout is never a drv path', () => {
-  for (const s of [drv('x') + '\n', `${drv('x')}\n${drv('y')}`, '/nix/store/short-x.drv', `${drv('x')}.extra`, '', 'warning: x', '/tmp/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-x.drv']) {
+  for (const s of [drv('x') + '\n\n', `${drv('x')}\n${drv('y')}`, `${drv('x')}\n${drv('y')}\n`, ' ' + drv('x'), '/nix/store/short-x.drv', `${drv('x')}.extra`, '', 'warning: x', '/tmp/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-x.drv']) {
     assert.equal(checkEval(ok(s)).ok, false, JSON.stringify(s));
     runs(pr({ evaluate: () => ok(s) }), /not exactly one .drv store path/);
   }
   assert.equal(checkEval(ok(drv('x'))).ok, true);
+  assert.deepEqual(checkEval(ok(drv('x') + '\n')), { ok: true, drv: drv('x') }, 'one trailing newline (path-info) is accepted and stripped');
 });
 t('identity of the run: event, shas, checked-out head, changed paths', () => {
   runs(pr({ event: 'push' }), /always full/);
@@ -66,26 +71,66 @@ t('selection machinery runs register shards only, even with identical full shard
 });
 t('unknown job runs', () => { runs(pr({ job: 'nope' }), /unknown job/); });
 
-// The bundles must be exactly what ci.yml builds.
-const ci = readFileSync(new URL('../workflows/ci.yml', import.meta.url), 'utf8');
-t('bundles cover every scaffold build in ci.yml', () => {
-  const matrix = ci.match(/^\s+target: \[([^\]]+)\]/m)[1].split(',').map((s) => s.trim());
-  assert.deepEqual([...matrix].sort(), Object.keys(BUNDLES).sort(), 'matrix targets == bundle jobs');
-  const step = (name) => { const i = ci.indexOf(`- name: ${name}`); assert.ok(i >= 0, name); const j = ci.indexOf('\n      - name:', i + 1); return ci.slice(i, j < 0 ? undefined : j); };
-  const tokens = (s) => [...s.matchAll(/\.#((?:packages|checks)\.aarch64-linux\.(?:\$\{\{ [^}]+ \}\}|[\w$.\-]+))/g)].map((m) => m[1]);
-  const build = step('build ${{ matrix.target }}');
-  const nativeLine = build.split('\n').find((l) => l.includes('check.sh native'));
-  assert.deepEqual(tokens(nativeLine), BUNDLES.native, 'native builds exactly its bundle');
-  assert.ok(build.includes('.#packages.aarch64-linux.${{ matrix.target }}'), 'other targets build packages.<target>');
-  for (const [job, b] of Object.entries(BUNDLES)) if (job !== 'native') assert.equal(b[0], `packages.${SYSTEM}.${job}`, job);
-  assert.deepEqual(tokens(step('register shard coverage')), [BUNDLES['proofs-core-a'][1]], 'core-a coverage step builds its bundle member');
-  // Every other installable in the workflow is either a bundle member or the register PR route, which
-  // the plan never compares (selected wrappers and the boundary).
-  const allowed = new Set([...Object.values(BUNDLES).flat(), 'packages.aarch64-linux.${{ matrix.target }}',
-    'packages.aarch64-linux.register-selection', 'packages.aarch64-linux.register-proofs-selected-shard-$i']);
-  for (const tok of tokens(ci)) assert.ok(allowed.has(tok), `unaccounted build in ci.yml: ${tok}`);
-  for (const s of ['shard coverage', 'build ${{ matrix.target }}']) assert.ok(step(s).length > 0);
-  assert.match(step('register shard coverage'), /steps\.plan\.outputs\.decision != 'skip'/);
-  assert.match(build, /if: steps\.plan\.outputs\.decision != 'skip'/);
+// Lynn's witness (#195 review): a flake output that is a bare set carrying a drvPath field. Reading
+// .drvPath would return a valid-looking path; resolving the installable must refuse it, as nix build does.
+t('installable resolution refuses a non-derivation output (real nix)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skip-plan-witness-'));
+  try {
+    writeFileSync(join(dir, 'flake.nix'), `{ outputs = { self }: let real = derivation { name = "real"; system = "${SYSTEM}"; builder = "/bin/sh"; args = [ "-c" "echo > $out" ]; }; in {
+      packages.${SYSTEM}.real = real;
+      packages.${SYSTEM}.fake = { drvPath = real.drvPath; };
+    }; }\n`);
+    const git = (...a) => { const r = spawnSync('git', ['-C', dir, ...a], { encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim(); };
+    git('init', '-q'); git('add', 'flake.nix'); git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'witness');
+    const rev = git('rev-parse', 'HEAD');
+    const real = checkEval(resolveDrv(dir, rev, `packages.${SYSTEM}.real`));
+    assert.ok(real.ok, JSON.stringify(real));
+    const fake = checkEval(resolveDrv(dir, rev, `packages.${SYSTEM}.fake`));
+    assert.equal(fake.ok, false, 'a bare set with a drvPath field must not resolve');
+    // Through the planner: identical "drvPath" at both revisions must still run.
+    const r = decide({ job: 'shared-native', event: 'pull_request', baseSha: B, headSha: H, checkedHead: H, changedPaths: ['x'],
+      evaluate: () => resolveDrv(dir, rev, `packages.${SYSTEM}.fake`) });
+    runs(r, /base exit 1, head exit 1/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
-console.log(`PASS skip plan: ${n} control groups (identical bundles skip; changed member, failed/thrown/malformed evaluation, non-PR, bad shas, head mismatch, unreadable diff, .github and selection-machinery changes run; bundles match ci.yml)`);
+
+// The bundles must be exactly what each job builds in ci.yml, per job: every command that builds
+// something matches exactly one rule with an exact target list, and each job's bundle is derived from
+// the rules that apply to it (Lynn, #195 review: a global allow-list let core-b build shared-proofs).
+const ci = readFileSync(new URL('../workflows/ci.yml', import.meta.url), 'utf8');
+t('bundles are exactly what each job builds in ci.yml', () => {
+  const matrix = ci.match(/^\s+target: \[([^\]]+)\]/m)[1].split(',').map((x) => x.trim());
+  assert.deepEqual([...matrix].sort(), Object.keys(BUNDLES).sort(), 'matrix targets == bundle jobs');
+  const tokens = (x) => [...x.matchAll(/\.#((?:packages|checks)\.aarch64-linux\.(?:\$\{\{ [^}]+ \}\}|[\w$.\-]+))/g)].map((m) => m[1]);
+  const stepOf = (pos) => { const k = ci.lastIndexOf('- name: ', pos); return ci.slice(k + 8, ci.indexOf('\n', k)).trim(); };
+  // Physical lines joined across shell continuations, each with the step it belongs to.
+  const lines = []; let at = 0;
+  for (const raw of ci.split(/(?<!\\)\n/)) { lines.push({ text: raw.replace(/\\\n\s*/g, ' '), step: stepOf(at) }); at += raw.length + 1; }
+  const P = (x) => `packages.${SYSTEM}.${x}`, GENERIC = 'packages.aarch64-linux.${{ matrix.target }}';
+  const BUILD = 'build ${{ matrix.target }}', COVER = 'register shard coverage';
+  const rules = [
+    { name: 'native', step: BUILD, when: (l) => l.includes('check.sh native'), want: BUNDLES.native },
+    { name: 'generic', step: BUILD, when: (l) => l.includes('check.sh ${{ matrix.target }}'), want: [GENERIC] },
+    { name: 'register boundary (PR route, never compared)', step: BUILD, when: (l) => l.includes('"$TARGET-selection"'), want: [P('register-selection')] },
+    { name: 'register selected (PR route, never compared)', step: BUILD, when: (l) => l.includes('check.sh "$TARGET" 9000'), want: [P('register-proofs-selected-shard-$i')] },
+    { name: 'core-a coverage', step: COVER, when: () => true, want: [BUNDLES['proofs-core-a'][1]] },
+  ];
+  const hits = new Map(rules.map((r) => [r.name, 0]));
+  for (const { text, step } of lines) {
+    const tk = tokens(text); if (!tk.length) continue;
+    const match = rules.filter((r) => r.step === step && r.when(text));
+    assert.equal(match.length, 1, `build command in step "${step}" matches ${match.length} rules: ${text.trim()}`);
+    assert.deepEqual(tk, match[0].want, `${match[0].name}: builds exactly ${match[0].want.join(' ')}`);
+    hits.set(match[0].name, hits.get(match[0].name) + 1);
+  }
+  for (const [name, k] of hits) assert.equal(k, 1, `rule "${name}" matched ${k} commands`);
+  // Per job: native builds only its own branch; core-a the generic package plus coverage; every
+  // other job only the generic package (register shards' PR route is the boundary, compared as the full shard).
+  for (const job of Object.keys(BUNDLES)) {
+    const want = job === 'native' ? BUNDLES.native : job === 'proofs-core-a' ? [P(job), BUNDLES['proofs-core-a'][1]] : [P(job)];
+    assert.deepEqual(BUNDLES[job], want, `${job}: bundle == what the job builds`);
+  }
+  assert.match(ci.slice(ci.indexOf(`- name: ${COVER}`)), /^\s+if: matrix\.target == 'proofs-core-a' && steps\.plan\.outputs\.decision != 'skip'/m);
+  assert.match(ci.slice(ci.indexOf(`- name: ${BUILD}`)), /^\s+if: steps\.plan\.outputs\.decision != 'skip'/m);
+});
+console.log(`PASS skip plan: ${n} control groups (identical bundles skip; changed member, failed/thrown/malformed evaluation, non-PR, bad shas, head mismatch, unreadable diff, .github and selection-machinery changes run; non-derivation outputs refused by real nix; bundles match each job's builds in ci.yml)`);
