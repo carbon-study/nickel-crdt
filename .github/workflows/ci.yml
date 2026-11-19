@@ -98,6 +98,35 @@ jobs:
             nix-scaffold-${{ runner.os }}-${{ runner.arch }}-
       - name: wrapper self-test
         run: .github/scripts/check.test.sh
+      # Pull-request job skipping (#194, .github/scripts/skip-plan.mjs). A job skips its builds only
+      # when every derivation it builds is identical at the exact PR base and the merge head: identical
+      # declared recipes under Nix's input-addressing contract, not a proof run and not a claim of an
+      # identical outcome. A skipped job reports "not affected", never "passed". Non-PR events, any
+      # .github/ change, a register shard whose selection machinery changed, and every evaluation doubt
+      # run the job in full. The record is uploaded either way.
+      - name: skip-plan self-test
+        run: node .github/scripts/skip-plan.test.mjs
+      - name: skip plan
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          TARGET: ${{ matrix.target }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          # The base commit is needed for the diff and its evaluation; a failed fetch leaves the planner
+          # unable to read it, which runs the job in full.
+          if [ "$EVENT" = pull_request ] && [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            git fetch --no-tags --depth=1 origin "$BASE_SHA" || echo "base fetch failed: the job runs in full"
+          fi
+          node .github/scripts/skip-plan-run.mjs decide "$TARGET" skip-plan/record.json
+      - name: keep skip plan
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: skip-plan-${{ matrix.target }}
+          path: skip-plan/
+          if-no-files-found: warn
       # Public checks verify the committed F* views; Latte emission is private
       # and not regenerated here (proofs/README.md).
       - name: shard coverage
@@ -106,13 +135,15 @@ jobs:
           shards=$(nix eval --json .#packages.aarch64-linux --apply 'p: builtins.length (builtins.filter (n: builtins.match "proofs-shard-[0-9]+" n != null) (builtins.attrNames p))')
           test "$shards" = 3 || { echo "flake exposes $shards proof shards; ci.yml lists 3"; exit 1; }
       - name: register shard coverage
-        # Runs on an independent job, so omitting any register shard cannot skip this check.
-        if: matrix.target == 'proofs-core-a'
+        # Runs on an independent job, so omitting any register shard cannot skip this check. Part of
+        # proofs-core-a's skip bundle: it is skipped only when its own derivation is identical.
+        if: matrix.target == 'proofs-core-a' && steps.plan.outputs.decision != 'skip'
         run: |
           # The coverage derivation checks the gate's partition for registerShards and that this
           # file's matrix lists exactly register-proofs-shard-0..registerShards-1, each once.
           nix build -L --no-link .#packages.aarch64-linux.register-proofs-shard-coverage
       - name: build ${{ matrix.target }}
+        if: steps.plan.outputs.decision != 'skip'
         env:
           EVENT: ${{ github.event_name }}
           TARGET: ${{ matrix.target }}
