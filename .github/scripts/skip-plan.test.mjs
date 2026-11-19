@@ -94,43 +94,143 @@ t('installable resolution refuses a non-derivation output (real nix)', () => {
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-// The bundles must be exactly what each job builds in ci.yml, per job: every command that builds
-// something matches exactly one rule with an exact target list, and each job's bundle is derived from
-// the rules that apply to it (Lynn, #195 review: a global allow-list let core-b build shared-proofs).
+// The bundles must be exactly what each job builds in ci.yml (Lynn, #195 review r2). Recognizing some
+// target spellings is not enough: an unrecognized argument would silently mean "builds nothing". So the
+// scaffold job is accounted for line by line: every run command (continuations joined), uses, env and
+// with entry must be one of the reviewed lines below, unknown step or job keys are refused, and every
+// argument of every nix command must be a known flag, the overrides array, or a .#(packages|checks)
+// installable. Bundles are then derived from the parsed build targets of each job's branch.
+export function scaffoldAccount(text) {
+  const start = text.indexOf('\n  scaffold:\n'); assert.ok(start >= 0, 'scaffold job');
+  const body = text.slice(start + 1); const end = body.slice(1).search(/\n {2}[A-Za-z][\w-]*:/);
+  const lines = (end < 0 ? body : body.slice(0, end + 1)).split('\n');
+  const jobKeys = new Set(), stepKeys = new Set(), items = [], steps = [];
+  let step = null;
+  for (let k = 1; k < lines.length; k++) {
+    const l = lines[k]; if (!l.trim() || l.trim().startsWith('#')) continue;
+    const ind = l.search(/\S/);
+    if (ind === 4) { jobKeys.add(l.trim().split(':')[0]); continue; }
+    if (ind === 6 && !l.trim().startsWith('- ')) continue; // strategy contents (matrix checked separately)
+    if (ind === 8 && !lines.slice(0, k).some((x) => x.startsWith('    steps:'))) continue; // matrix entries
+    let m = l.match(/^ {6}- ([\w-]+):\s?(.*)$/) ?? l.match(/^ {8}([\w-]+):\s?(.*)$/);
+    if (l.startsWith('      - ')) { step = { name: null, if: null, items: [] }; steps.push(step); }
+    assert.ok(m && step, `unparsed scaffold line: ${l}`);
+    const [, key, val] = m; stepKeys.add(key);
+    if (key === 'name') step.name = val.trim(); else if (key === 'if') step.if = val.trim(); else if (key === 'id') step.id = val.trim();
+    else if (key === 'uses') { items.push(`uses: ${val.trim()}`); step.items.push(`uses: ${val.trim()}`); }
+    else if (key === 'env' || key === 'with') {
+      assert.equal(val.trim(), '', `${key} must be a block`);
+      for (k++; k < lines.length && (lines[k].trim() === '' || lines[k].search(/\S/) >= 10); k++) {
+        if (!lines[k].trim() || lines[k].trim().startsWith('#')) continue;
+        const e = `${key}.${lines[k].trim().replace(/\s+/g, ' ')}`; items.push(e); step.items.push(e);
+      }
+      k--;
+    } else if (key === 'run') {
+      const cmds = [];
+      if (val.trim() !== '|') cmds.push(val.trim());
+      else {
+        const blk = []; for (k++; k < lines.length && (lines[k].trim() === '' || lines[k].search(/\S/) >= 10); k++) blk.push(lines[k]); k--;
+        for (const c of blk.join('\n').replace(/\\\n\s*/g, ' ').split('\n')) { const t = c.trim().replace(/\s+/g, ' '); if (t && !t.startsWith('#')) cmds.push(t); }
+      }
+      for (const c of cmds) { items.push(`run: ${c}`); step.items.push(`run: ${c}`); }
+    } else assert.fail(`unsupported step key "${key}" in scaffold step ${step.name}`);
+  }
+  return { jobKeys, stepKeys, items, steps };
+}
+// Shell words of one nix command after its subcommand; every word must be understood.
+export function nixTargets(cmd) {
+  const at = cmd.search(/(?:^|\s)nix\s/); if (at < 0) return null;
+  // The workflow expression is one word to the shell (expanded before it runs); keep it whole.
+  const MT = '\u0000MATRIX_TARGET\u0000';
+  const words = cmd.slice(at).trim().replaceAll('${{ matrix.target }}', MT).match(/"[^"]*"|'[^']*'|\S+/g).map((x) => x.replaceAll(MT, '${{ matrix.target }}'));
+  assert.equal(words[0], 'nix');
+  const sub = words[1], targets = [];
+  const FLAGS = new Set(['-L', '--no-link', '--no-write-lock-file', '--json']);
+  for (let w = 2; w < words.length; w++) {
+    const word = words[w];
+    if (FLAGS.has(word)) continue;
+    if (word === '--out-link' || word === '--apply') { w++; continue; }
+    if (word === '"${overrides[@]}"') continue;
+    const m = word.replace(/^"(.*)"$/, '$1').match(/^\.#((?:packages|checks)\.aarch64-linux(?:\.(?:\$\{\{ matrix\.target \}\}|[\w$-]+))?)$/);
+    assert.ok(m, `unsupported nix argument ${JSON.stringify(word)} in: ${cmd}`);
+    targets.push(m[1]);
+  }
+  return { sub, targets };
+}
+// The reviewed scaffold lines. Any workflow change to the scaffold job must update this list, which
+// makes every new command or argument an explicit, reviewed accounting decision.
+const SCAFFOLD = [
+  'uses: actions/checkout@v6', 'with.persist-credentials: false', 'uses: nixbuild/nix-quick-install-action@v35',
+  "run: echo \"prefix=nix-scaffold-$RUNNER_OS-$RUNNER_ARCH-${{ hashFiles('**/*.nix', '**/flake.lock') }}\" >> \"$GITHUB_OUTPUT\"",
+  'uses: nix-community/cache-nix-action/restore@v7', 'with.primary-key: ${{ steps.key.outputs.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}',
+  'with.restore-prefixes-first-match: |', 'with.${{ steps.key.outputs.prefix }}-', 'with.nix-scaffold-${{ runner.os }}-${{ runner.arch }}-',
+  'run: .github/scripts/check.test.sh', 'run: node .github/scripts/skip-plan.test.mjs',
+  'env.EVENT: ${{ github.event_name }}', 'env.TARGET: ${{ matrix.target }}', 'env.BASE_SHA: ${{ github.event.pull_request.base.sha }}', 'env.HEAD_SHA: ${{ github.sha }}',
+  'run: if [ "$EVENT" = pull_request ] && [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then',
+  'run: git fetch --no-tags --depth=1 origin "$BASE_SHA" || echo "base fetch failed: the job runs in full"', 'run: fi',
+  'run: node .github/scripts/skip-plan-run.mjs decide "$TARGET" skip-plan/record.json',
+  'uses: actions/upload-artifact@v4', 'with.name: skip-plan-${{ matrix.target }}', 'with.path: skip-plan/', 'with.if-no-files-found: warn',
+  "run: shards=$(nix eval --json .#packages.aarch64-linux --apply 'p: builtins.length (builtins.filter (n: builtins.match \"proofs-shard-[0-9]+\" n != null) (builtins.attrNames p))')",
+  'run: test "$shards" = 3 || { echo "flake exposes $shards proof shards; ci.yml lists 3"; exit 1; }',
+  'run: nix build -L --no-link .#packages.aarch64-linux.register-proofs-shard-coverage',
+  'env.EVENT: ${{ github.event_name }}', 'env.TARGET: ${{ matrix.target }}', 'env.BASE_SHA: ${{ github.event.pull_request.base.sha }}',
+  'run: if [ "${{ matrix.target }}" = native ]; then',
+  'run: .github/scripts/check.sh native 9000 nix build -L --no-link .#checks.aarch64-linux.native .#checks.aarch64-linux.edit-reference .#checks.aarch64-linux.gate-inputs',
+  'run: elif [ "$EVENT" = pull_request ] && [[ "$TARGET" =~ ^register-proofs-shard-([0-9]+)$ ]]; then',
+  'run: i="${BASH_REMATCH[1]}"',
+  'run: [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "pull_request base sha missing or malformed: $BASE_SHA"; exit 1; }',
+  'run: [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] || { echo "checkout HEAD is not GITHUB_SHA"; exit 1; }',
+  'run: overrides=(--override-input selection-head "git+file://$PWD?rev=$GITHUB_SHA&shallow=1"',
+  'run: --override-input selection-base "github:carbon-study/nickel-crdt/$BASE_SHA")',
+  'run: mkdir -p selection-evidence',
+  'run: .github/scripts/check.sh "$TARGET-selection" 1800 nix build -L --no-write-lock-file --out-link selection-result .#packages.aarch64-linux.register-selection "${overrides[@]}"',
+  'run: cp selection-result/identity.json selection-result/mode selection-evidence/',
+  'run: if [ -e selection-result/selection.json ]; then cp selection-result/selection.json selection-evidence/; fi',
+  'run: .github/scripts/check.sh "$TARGET" 9000 nix build -L --no-write-lock-file --out-link selected-result ".#packages.aarch64-linux.register-proofs-selected-shard-$i" "${overrides[@]}"',
+  'run: else', 'run: .github/scripts/check.sh ${{ matrix.target }} 9000 nix build -L --no-link .#packages.aarch64-linux.${{ matrix.target }}', 'run: fi',
+  'env.TARGET: ${{ matrix.target }}', 'run: mkdir -p selection-evidence',
+  'run: for f in "/tmp/$TARGET-selection.log" "/tmp/$TARGET.log"; do if [ -e "$f" ]; then cp "$f" selection-evidence/; fi; done',
+  'run: for f in selection-identity.json planned.json results.json; do if [ -e "selected-result/$f" ]; then cp "selected-result/$f" selection-evidence/; fi; done',
+  'run: ls -la selection-evidence',
+  'uses: actions/upload-artifact@v4', 'with.name: register-selection-${{ matrix.target }}', 'with.path: selection-evidence/', 'with.if-no-files-found: warn',
+  'uses: nix-community/cache-nix-action/save@v7', 'with.primary-key: ${{ steps.key.outputs.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}',
+];
 const ci = readFileSync(new URL('../workflows/ci.yml', import.meta.url), 'utf8');
-t('bundles are exactly what each job builds in ci.yml', () => {
+t('scaffold job is accounted for line by line; bundles are exactly what each job builds', () => {
   const matrix = ci.match(/^\s+target: \[([^\]]+)\]/m)[1].split(',').map((x) => x.trim());
   assert.deepEqual([...matrix].sort(), Object.keys(BUNDLES).sort(), 'matrix targets == bundle jobs');
-  const tokens = (x) => [...x.matchAll(/\.#((?:packages|checks)\.aarch64-linux\.(?:\$\{\{ [^}]+ \}\}|[\w$.\-]+))/g)].map((m) => m[1]);
-  const stepOf = (pos) => { const k = ci.lastIndexOf('- name: ', pos); return ci.slice(k + 8, ci.indexOf('\n', k)).trim(); };
-  // Physical lines joined across shell continuations, each with the step it belongs to.
-  const lines = []; let at = 0;
-  for (const raw of ci.split(/(?<!\\)\n/)) { lines.push({ text: raw.replace(/\\\n\s*/g, ' '), step: stepOf(at) }); at += raw.length + 1; }
+  const acc = scaffoldAccount(ci);
+  assert.deepEqual([...acc.jobKeys].sort(), ['name', 'runs-on', 'steps', 'strategy', 'timeout-minutes'], 'scaffold job keys');
+  for (const k of acc.stepKeys) assert.ok(['name', 'id', 'if', 'run', 'uses', 'with', 'env'].includes(k), `step key ${k}`);
+  assert.deepEqual(acc.items, SCAFFOLD, 'every scaffold command, action, env and with entry is a reviewed line');
+  // Every nix command, parsed word by word; only builds contribute targets.
   const P = (x) => `packages.${SYSTEM}.${x}`, GENERIC = 'packages.aarch64-linux.${{ matrix.target }}';
-  const BUILD = 'build ${{ matrix.target }}', COVER = 'register shard coverage';
-  const rules = [
-    { name: 'native', step: BUILD, when: (l) => l.includes('check.sh native'), want: BUNDLES.native },
-    { name: 'generic', step: BUILD, when: (l) => l.includes('check.sh ${{ matrix.target }}'), want: [GENERIC] },
-    { name: 'register boundary (PR route, never compared)', step: BUILD, when: (l) => l.includes('"$TARGET-selection"'), want: [P('register-selection')] },
-    { name: 'register selected (PR route, never compared)', step: BUILD, when: (l) => l.includes('check.sh "$TARGET" 9000'), want: [P('register-proofs-selected-shard-$i')] },
-    { name: 'core-a coverage', step: COVER, when: () => true, want: [BUNDLES['proofs-core-a'][1]] },
-  ];
-  const hits = new Map(rules.map((r) => [r.name, 0]));
-  for (const { text, step } of lines) {
-    const tk = tokens(text); if (!tk.length) continue;
-    const match = rules.filter((r) => r.step === step && r.when(text));
-    assert.equal(match.length, 1, `build command in step "${step}" matches ${match.length} rules: ${text.trim()}`);
-    assert.deepEqual(tk, match[0].want, `${match[0].name}: builds exactly ${match[0].want.join(' ')}`);
-    hits.set(match[0].name, hits.get(match[0].name) + 1);
+  const builds = [];
+  for (const st of acc.steps) for (const it of st.items) {
+    if (!it.startsWith('run: ')) continue;
+    const parsed = nixTargets(it.slice(5)); if (!parsed) continue;
+    if (parsed.sub === 'build') builds.push({ step: st, cmd: it, targets: parsed.targets });
+    else assert.deepEqual([parsed.sub, parsed.targets], ['eval', ['packages.aarch64-linux']], `only the shard-count eval may be a non-build nix command: ${it}`);
   }
-  for (const [name, k] of hits) assert.equal(k, 1, `rule "${name}" matched ${k} commands`);
-  // Per job: native builds only its own branch; core-a the generic package plus coverage; every
-  // other job only the generic package (register shards' PR route is the boundary, compared as the full shard).
+  const by = (pred) => { const b = builds.filter(pred); assert.equal(b.length, 1, 'exactly one matching build command'); return b[0]; };
+  const build = acc.steps.find((x) => x.name === 'build ${{ matrix.target }}'), cover = acc.steps.find((x) => x.name === 'register shard coverage');
+  assert.equal(builds.length, 5, 'five build commands');
+  assert.deepEqual(by((b) => b.cmd.includes('check.sh native')).targets, BUNDLES.native);
+  assert.deepEqual(by((b) => b.cmd.includes('check.sh ${{ matrix.target }}')).targets, [GENERIC]);
+  assert.deepEqual(by((b) => b.step === cover).targets, [BUNDLES['proofs-core-a'][1]]);
+  assert.deepEqual(by((b) => b.cmd.includes('"$TARGET-selection"')).targets, [P('register-selection')]);
+  assert.deepEqual(by((b) => b.cmd.includes('check.sh "$TARGET" 9000')).targets, [P('register-proofs-selected-shard-$i')]);
+  for (const b of builds) assert.ok(b.step === build || b.step === cover, `build outside the guarded steps: ${b.cmd}`);
   for (const job of Object.keys(BUNDLES)) {
     const want = job === 'native' ? BUNDLES.native : job === 'proofs-core-a' ? [P(job), BUNDLES['proofs-core-a'][1]] : [P(job)];
     assert.deepEqual(BUNDLES[job], want, `${job}: bundle == what the job builds`);
   }
-  assert.match(ci.slice(ci.indexOf(`- name: ${COVER}`)), /^\s+if: matrix\.target == 'proofs-core-a' && steps\.plan\.outputs\.decision != 'skip'/m);
-  assert.match(ci.slice(ci.indexOf(`- name: ${BUILD}`)), /^\s+if: steps\.plan\.outputs\.decision != 'skip'/m);
+  assert.equal(cover.if, "matrix.target == 'proofs-core-a' && steps.plan.outputs.decision != 'skip'");
+  assert.equal(build.if, "steps.plan.outputs.decision != 'skip'");
 });
-console.log(`PASS skip plan: ${n} control groups (identical bundles skip; changed member, failed/thrown/malformed evaluation, non-PR, bad shas, head mismatch, unreadable diff, .github and selection-machinery changes run; non-derivation outputs refused by real nix; bundles match each job's builds in ci.yml)`);
+t('nixTargets refuses every unsupported argument shape', () => {
+  for (const w of ['./#packages.aarch64-linux.shared-proofs', 'path:.#packages.aarch64-linux.x', '.#packages.x86_64-linux.x', 'github:o/r#packages.aarch64-linux.x', '--file', 'nixpkgs#hello', '.'])
+    assert.throws(() => nixTargets(`nix build -L --no-link .#packages.aarch64-linux.ok ${w}`), /unsupported nix argument/, w);
+  assert.deepEqual(nixTargets('nix build -L --no-link .#packages.aarch64-linux.a ".#checks.aarch64-linux.b"').targets, ['packages.aarch64-linux.a', 'checks.aarch64-linux.b']);
+});
+console.log(`PASS skip plan: ${n} control groups (identical bundles skip; changed member, failed/thrown/malformed evaluation, non-PR, bad shas, head mismatch, unreadable diff, .github and selection-machinery changes run; non-derivation outputs refused by real nix; scaffold job accounted line by line, unsupported nix arguments refused, bundles == each job's builds)`);
