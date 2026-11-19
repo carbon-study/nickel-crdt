@@ -36,3 +36,4 @@ with Oracle('fugue') as oracle:
   assert count==case['orders'],case['name']
   orders+=count
 print(json.dumps(dict(cases=len(cases),causal_orders=orders,reference='actual Combined/Doc + FugueMax',native_authored=True),sort_keys=True))
+# #194 selective-run demonstration only (draft PR, never merged).
