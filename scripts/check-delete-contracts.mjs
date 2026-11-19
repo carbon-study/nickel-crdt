@@ -1,6 +1,7 @@
 // Actual duplicate-check contracts and retained weaker-root scope witnesses.
 // Called inside the text gate's inherited permanent lock. No private compiler.
 import assert from 'node:assert/strict';
+import {replaceUniqueInFstarDeclaration} from './fstar-mutation-scope.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -11,19 +12,13 @@ import {deleteControlFixtures} from './delete-control-fixtures.mjs';
 export const deleteExtractionIncludes = '+nickel_crdt::edit::sift_births +nickel_crdt::edit::heap_births +nickel_crdt::edit::drain_births +nickel_crdt::edit::ordered_births +nickel_crdt::edit::duplicate_births';
 export const editProofHaxArgs=out=>['-C','--offline','--locked','-p','nickel-crdt',';','into','--output-dir',out,'-i',`-** ${deleteExtractionIncludes} +nickel_crdt::edit::**::receive +nickel_crdt::edit::**::edit +nickel_crdt::edit::**::new +nickel_crdt::edit::**::validate_new +nickel_crdt::edit::fact_equal +nickel_crdt::edit::push +nickel_crdt::edit::duplicate_events +nickel_crdt::edit::has_event +nickel_crdt::edit::has_fact +nickel_crdt::edit::choose_unseen +nickel_crdt::edit::clone_selected_fact +nickel_crdt::edit::canonical_step +nickel_crdt::edit::canonical +nickel_crdt::edit::ready +nickel_crdt::edit::choose_ready +nickel_crdt::edit::frontier +nickel_crdt::edit::validate_after +nickel_crdt::edit::extend_past +nickel_crdt::edit::past_pass +nickel_crdt::edit::past +nickel_crdt::edit::select_basis +nickel_crdt::edit::event_basis +nickel_crdt::edit::interpret_scheduled`,'fstar'];
 const root=fileURLToPath(new URL('..',import.meta.url));
-function declaration(source,name) {
-  const matches=[...source.matchAll(new RegExp('^let (?:rec )?'+name+'(?: |\\n)','gm'))];
-  assert.equal(matches.length,1,'one F* declaration required: '+name);
-  const a=matches[0].index,rest=source.slice(a+matches[0][0].length),next=/\nlet (?:rec )?\w+(?: |\n)/.exec(rest);
-  return[a,next?a+matches[0][0].length+next.index:source.length];
-}
 export function prepareDeleteMutation(c,source) {
   const patch=c.rust??c.view;
   assert.equal(digest(source),patch.hash,'delete control source drift: '+c.name);
   assert(patch.before.length>0&&patch.before!==patch.after,'nonempty changed anchor required');
   let at;
   if(c.rust){const[a,b]=itemSpan(source,patch.scope,c.name);assert.equal(source.slice(a,b),patch.before,'exact Rust item required');at=a;}
-  else {const[a,b]=declaration(source,patch.scope),body=source.slice(a,b);assert.equal(body.split(patch.before).length,2,'one scoped F* anchor: '+c.name);at=a+body.indexOf(patch.before);}
+  else return replaceUniqueInFstarDeclaration(source,patch.scope,patch.before,patch.after,c.name);
   return source.slice(0,at)+patch.after+source.slice(at+patch.before.length);
 }
 export async function checkDeletePreparation(tree=root) {

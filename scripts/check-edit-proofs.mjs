@@ -1,3 +1,4 @@
+import {checkFstarMutationScope} from './check-fstar-mutation-scope.mjs';
 import {checkDeleteContracts,checkDeletePreparation,editProofHaxArgs} from './check-delete-contracts.mjs';
 import {checkEventContracts} from './check-event-contracts.mjs';
 import {checkOperationContracts} from './check-operation-contracts.mjs';
@@ -403,6 +404,7 @@ for(const mode of ['native-push-discards-value','plan-skips-validation']) {
 
 await checkDeletePreparation(root);
 checkMutationScopeControls(prepareMutation,original['src/edit.rs'],'scalar-refuses-valid','fn validate_scalars(','Ok(())','fn validate_new(');
+checkFstarMutationScope();
 console.log('PASS mutation scopes: every registered mode resolves to one in-scope anchor; moved/duplicate/comment-only anchor, missing/comment/string/duplicated header, literal braces, C raw strings across items and unsupported-lexeme controls');
 if(args.length===1&&args[0]==='gatepreflight')process.exit(0);
 const {NICKEL_HAX_BIN:hax,NICKEL_PROOF_FSTAR:fstar,NICKEL_HAX_SOURCE:models,NICKEL_FSTAR_MODEL_CACHE:modelCache}=process.env;

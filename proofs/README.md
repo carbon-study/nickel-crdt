@@ -1818,3 +1818,24 @@ predecessor checking, forbidden checking, forbidden argument order and the actua
 text predecessor-policy argument. The older `causal-validator-passes-empty`
 control now rejects first in `successful_validation_has_stream_checks`; its
 original direct-dependency statement and contract-removal controls remain.
+
+## scoped F* mutation edits
+
+Accepted, Remaining and Delete controls share `scripts/fstar-mutation-scope.mjs`.
+It locates exactly one emitted top-level `let`/`let rec` declaration, stops
+before the next supported declaration, and preserves source offsets
+while ignoring strings and nested F* comments during declaration discovery.
+Unsupported unindented syntax (including column-0 directives/attributes) and
+missing/duplicate declarations refuse rather than truncate a call enumeration. Literal
+anchor edits additionally require one changed, nonempty in-scope occurrence
+starting in code. The Remaining family's explicitly indexed repeated-call
+controls retain their existing selection logic inside that shared scope.
+
+This is a bounded mutation locator, not an F* parser or theorem checker. Other
+families and native mode routing are outside this extraction. The ordinary
+rejection classifier, owner selection, proof roots, limits and model pins are
+unchanged. Scope/refusal tests run in text gate preflight and can run alone:
+
+```sh
+node scripts/check-fstar-mutation-scope.mjs
+```
