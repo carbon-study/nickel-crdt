@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import {fileURLToPath} from 'node:url';
 import {fstarDeclaration,replaceUniqueInFstarDeclaration} from './fstar-mutation-scope.mjs';
 
 export function checkFstarMutationScope() {
@@ -41,4 +40,4 @@ export function checkFstarMutationScope() {
   console.log('PASS F* mutation scope: unique declarations/anchors, boundaries, comments, UTF-16 offsets and refusal controls');
 }
 
-if(process.argv[1]===fileURLToPath(import.meta.url))checkFstarMutationScope();
+if(import.meta.main)checkFstarMutationScope();
