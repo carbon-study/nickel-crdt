@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 
 // Preserve offsets/newlines while excluding strings and nested F* comments from
 // declaration discovery. Apostrophes are identifier characters, not Rust chars.
-function declarationCode(source) {
+// Also used by Remaining's call locator, so its calls are found in code only.
+export function declarationCode(source) {
   const out=source.split('');
   let block=0,string=false,line=false;
   for(let i=0;i<source.length;i++) {

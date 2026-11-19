@@ -15,7 +15,7 @@ import {mkdirSync} from 'node:fs';
 import {digest,holdLock,runAsync,verify,put} from './proof-cache.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
 import {checkProofReform} from './proof-reform.mjs';
-import {checkRemainingContracts} from './check-remaining-contracts.mjs';
+import {checkRemainingCallLocator,checkRemainingContracts} from './check-remaining-contracts.mjs';
 import {checkPushContracts} from './check-push-contracts.mjs';
 import {checkVectorContracts} from './check-vector-contracts.mjs';
 import {checkIdentityContracts} from './check-identity-contracts.mjs';
@@ -405,6 +405,8 @@ for(const mode of ['native-push-discards-value','plan-skips-validation']) {
 await checkDeletePreparation(root);
 checkMutationScopeControls(prepareMutation,original['src/edit.rs'],'scalar-refuses-valid','fn validate_scalars(','Ok(())','fn validate_new(');
 checkFstarMutationScope();
+checkRemainingCallLocator();
+console.log('PASS remaining call locator: calls only in code (line/nested comments, strings), code-only occurrence indexing, inline fallback unhidden, comment/string-only callee refused, mixed call lines refused');
 console.log('PASS mutation scopes: every registered mode resolves to one in-scope anchor; moved/duplicate/comment-only anchor, missing/comment/string/duplicated header, literal braces, C raw strings across items and unsupported-lexeme controls');
 if(args.length===1&&args[0]==='gatepreflight')process.exit(0);
 const {NICKEL_HAX_BIN:hax,NICKEL_PROOF_FSTAR:fstar,NICKEL_HAX_SOURCE:models,NICKEL_FSTAR_MODEL_CACHE:modelCache}=process.env;
