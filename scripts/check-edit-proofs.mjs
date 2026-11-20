@@ -9,10 +9,14 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {mkdirSync,appendFileSync,readFileSync,existsSync,writeFileSync} from 'node:fs';
 import {register} from 'node:module';
+import {spawnSync} from 'node:child_process';
+import {tmpdir} from 'node:os';
+import {mkdtempSync,rmSync} from 'node:fs';
 import {digest,holdLock,runAsync,verify,put} from './proof-cache.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
 import {sourceFiles,modes,mutationDefinitions,definitionByMode,prepareMutation as prepareMutationIn,theorems,mutationOwners,positiveBaselines,cargoBase,nativeArgs as nativeArgsOf,proofRoot,verifyRoots,positivePlan,nativeModePlans,identityControlPlan,auditUnits,checkAuditControls,TEXT_PLAN_INPUTS} from './edit-native-plans.mjs';
 import {checkProofReform} from './proof-reform.mjs';
+import {nativeCodeClosure,checkNativeCodeRecord,checkNativeCodeControls,checkHeadInputs,checkHeadInputControls} from './text-native-code.mjs';
 import {checkNegativeProofEvidence} from './check-negative-proof-evidence.mjs';
 const root=fileURLToPath(new URL('..',import.meta.url));
 // Runtime load audit (#197). A selected shard run records every module it loads after this point (the static imports
@@ -20,12 +24,6 @@ const root=fileURLToPath(new URL('..',import.meta.url));
 // the selector's recorded native-code set, so "family modules are not native inputs" is checked, not assumed.
 const selectionArg=process.argv.slice(3).find(arg=>arg.startsWith('selection:'));
 const loadLog=selectionArg&&process.argv[2]?path.join(process.argv[2],'loaded-modules.log'):null;
-if(loadLog){
-  mkdirSync(process.argv[2],{recursive:true});writeFileSync(loadLog,'');
-  const hooks='import {appendFileSync} from "node:fs";let log;export function initialize(d){log=d.log;}'+
-    'export async function resolve(s,c,n){const r=await n(s,c);if(r.url.startsWith("file:"))appendFileSync(log,r.url+"\\n");return r;}';
-  register('data:text/javascript,'+encodeURIComponent(hooks),{parentURL:import.meta.url,data:{log:loadLog}});
-}
 // One invocation per checkout. Mode workspaces (.cache/edit-proofs), Cargo targets
 // (target/edit-proof-check) and the positive seed are shared mutable state, so an
 // overlapping invocation is rejected before it writes any of them. This process
@@ -43,6 +41,15 @@ if(!holdLock(lock)) {
   process.exit(75);
 }
 }
+// Selected-run output and the load hook are set up only once this invocation owns the checkout lock, so a refused
+// overlapping invocation (exit 75 above) never truncates an active run's evidence.
+if(loadLog){
+  mkdirSync(process.argv[2],{recursive:true});writeFileSync(loadLog,'');
+  const hooks='import {appendFileSync} from "node:fs";let log;export function initialize(d){log=d.log;}'+
+    'export async function resolve(s,c,n){const r=await n(s,c);if(r.url.startsWith("file:"))appendFileSync(log,r.url+"\\n");return r;}';
+  register('data:text/javascript,'+encodeURIComponent(hooks),{parentURL:import.meta.url,data:{log:loadLog}});
+}
+
 // Self-checks run once the lock is held.
 await import('./check-proof-reform.mjs');
 checkNegativeProofEvidence();
@@ -122,6 +129,22 @@ checkFstarMutationScope();
 if(familyRuns.has('remaining')||args.includes('gatepreflight')){(await familiesModule()).checkRemainingCallLocator();
 console.log('PASS remaining call locator: calls only in code (line/nested comments, strings), code-only occurrence indexing, inline fallback unhidden, comment/string-only callee refused, mixed call lines refused');}
 checkAuditControls(original);
+checkNativeCodeControls();
+checkHeadInputControls();
+console.log('PASS head input controls: added, changed, deleted declared (file and directory member) and declaration-hidden deletion refused; undeclared absence counted');
+// Lock order control: while this invocation owns the checkout lock, an overlapping selected invocation must be refused
+// (75) before it touches its output, so an existing load log (an active run's evidence) survives byte for byte.
+if(!exportOnly){
+  const tmp=mkdtempSync(path.join(tmpdir(),'edit-lock-order-')),out=path.join(tmp,'out'),sentinel=path.join(out,'loaded-modules.log');
+  try{
+    mkdirSync(out,{recursive:true});writeFileSync(sentinel,'sentinel: an active run\'s load log\n');
+    const r=spawnSync(process.execPath,[fileURLToPath(import.meta.url),out,'selection:'+path.join(tmp,'absent.json'),'shard:0/3'],{encoding:'utf8',env:process.env});
+    assert.equal(r.status,75,'an overlapping selected invocation must be refused by the checkout lock: '+(r.stderr||'').slice(-300));
+    assert.equal(readFileSync(sentinel,'utf8'),'sentinel: an active run\'s load log\n','a refused invocation must not touch an existing load log');
+    console.log('PASS lock order: an overlapping selected invocation is refused (75) before touching an existing load log');
+  }finally{rmSync(tmp,{recursive:true,force:true});}
+}
+console.log('PASS native code record controls: complete set accepted; omitted static helper, extra entry, wrong digest and runner-only set refused');
 console.log('PASS exact-tuple audit controls: hidden unit, unexecuted plan, changed roots, wrong expectation (both kinds), mutation digest, cargo arguments, baselines and owner each refused');
 console.log('PASS mutation scopes: every registered mode resolves to one in-scope anchor; moved/duplicate/comment-only anchor, missing/comment/string/duplicated header, literal braces, C raw strings across items and unsupported-lexeme controls');
 if(args.length===1&&args[0]==='gatepreflight')process.exit(0);
@@ -156,17 +179,31 @@ if(selectionArg){
   const t=rec.text;assert(t&&typeof t==='object'&&!Array.isArray(t),'selection record text entry');
   if(rec.full===true||t.run==='full'){assert.deepEqual(Object.keys(t),['run'],'a full text selection carries only run');assert.equal(t.run,'full');textSelection={run:'full'};}
   else{
-    const tkeys=['run','positive','modes','why','removed','total','headPlans','basePlans','nativeCode'];
+    const tkeys=['run','positive','modes','why','removed','total','headPlans','basePlans','nativeCode','headInputs'];
     assert(Object.keys(t).length===tkeys.length&&tkeys.every(k=>Object.hasOwn(t,k)),'selection record text entry has an unrecognised shape');
     assert.equal(t.headPlans,digest(await exportText()),'selection record was not made for this tree (head text plan export differs)');
     const natives=modes.filter(mode=>mode!=='positive');
     assert(Array.isArray(t.modes)&&t.modes.every(m=>natives.includes(m)),'selection names unknown native modes');
     assert.equal(new Set(t.modes).size,t.modes.length,'selection names a mode twice');
     assert.equal(t.total,natives.length,'selection record counts a different plan total');
-    assert(t.nativeCode&&typeof t.nativeCode==='object'&&!Array.isArray(t.nativeCode)&&Object.hasOwn(t.nativeCode,'scripts/check-edit-proofs.mjs'),'selection record native code set');
-    // Bind the record to this tree's native code: every recorded file must exist here with the recorded digest.
-    for(const [f,h] of Object.entries(t.nativeCode)){assert(/^scripts\/[a-z0-9-]+\.mjs$/.test(f)&&/^[0-9a-f]{64}$/.test(h??''),'malformed native code entry '+f);
-      assert.equal(digest(await fs.readFile(path.join(root,f))),h,'selection record was not made for this tree (native code differs: '+f+')');}
+    // Bind the record to this tree's native code: its entries must be exactly this tree's own closure (computed here,
+    // so an omitted input cannot pass), each with this tree's digest. Checked before the no-work exit.
+    const closure=await nativeCodeClosure(async f=>{try{return await fs.readFile(path.join(root,'scripts',f),'utf8');}catch{return null;}});
+    checkNativeCodeRecord(t.nativeCode,closure,f=>digest(readFileSync(path.join(root,f))));
+    // Bind the decision to this tree's selection-relevant content: every file this tree holds under those roots must be
+    // recorded with this digest (a changed or added proof, crate or script file refuses). Recorded files this
+    // packaged tree does not hold cannot be read by any unit run here; they are counted, not checked.
+    {
+      assert(t.headInputs&&typeof t.headInputs==='object'&&!Array.isArray(t.headInputs),'selection record head inputs');
+      const present=[];const walk=async rel=>{let st;try{st=await fs.lstat(path.join(root,rel));}catch{return;}
+        if(st.isDirectory()){for(const e of (await fs.readdir(path.join(root,rel))).sort())await walk(rel+'/'+e);}else if(st.isFile())present.push(rel);};
+      for(const r of ['proofs','src','tests','proof-smoke','scripts','Cargo.toml','Cargo.lock','nix/text-inputs.json','nix/gate-scripts.json'])await walk(r);
+      const decl=JSON.parse(readFileSync(path.join(root,'nix/text-inputs.json'),'utf8')),gates=JSON.parse(readFileSync(path.join(root,'nix/gate-scripts.json'),'utf8'));
+      assert(Array.isArray(decl.paths)&&decl.paths.every(p=>typeof p==='string')&&Array.isArray(gates.text),'packaged input declarations');
+      // The declarations themselves are bound (they are present inputs), so a deletion cannot be hidden by editing them.
+      const undeclared=checkHeadInputs(t.headInputs,present,f=>digest(readFileSync(path.join(root,f))),[...decl.paths,...gates.text.map(n=>'scripts/'+n)]);
+      console.log('selection inputs: '+present.length+' files of this tree bound to the record; '+undeclared+' recorded files outside the declared packaged inputs');
+    }
     assert(t.run==='selected'?t.modes.length>0:t.run==='none'&&t.modes.length===0,'selection run and modes agree');
     const mine=natives.filter((mode,k)=>k%n===i&&t.modes.includes(mode));
     textSelection={run:t.run,mine,nativeCode:new Set(Object.keys(t.nativeCode))};

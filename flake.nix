@@ -53,13 +53,11 @@
         ${modelEnv}
         node ${proofTools}/build-proof-models.mjs "$out"
       '';
+      # The text gate's packaged inputs are declared once in nix/text-inputs.json (also read by the selection consumer).
+      textInputs = builtins.fromJSON (builtins.readFile ./nix/text-inputs.json);
       proofSource = pkgs.lib.fileset.toSource {
         root = ./.;
-        fileset = pkgs.lib.fileset.unions [
-          ./Cargo.toml ./Cargo.lock ./src ./tests ./proof-smoke
-          ./proofs/generated ./proofs/EditDeletePermutation.lt ./proofs/EditDeleteAnswer.lt ./proofs/EditDeleteHeap.lt ./proofs/EditDeleteComplete.lt ./proofs/register-view/Nickel.Canonical.fst ./proofs/PastExact.lt ./proofs/Canonical.lt ./proofs/EventGraph.lt ./proofs/EventGraphText.lt ./proofs/EventShell.lt ./proofs/EventClassifier.lt ./proofs/LoopEquality.lt ./proofs/Prelude.lt ./proofs/LoopUtil.lt ./proofs/Vector.lt ./proofs/Smoke.lt ./proofs/EditAtomic.lt ./proofs/EditCommit.lt ./proofs/EditIdentity.lt ./proofs/EditAccepted.lt ./proofs/EditWellFormed.lt ./proofs/Spec.lt ./proofs/EditCausal.lt ./proofs/EditPast.lt ./proofs/EditPastTotal.lt ./proofs/EditSchedule.lt ./proofs/EditBasis.lt ./proofs/EditReplay.lt
-          (scriptsFor "text")
-        ];
+        fileset = pkgs.lib.fileset.unions ((map (p: ./. + "/${p}") textInputs.paths) ++ [ (scriptsFor "text") ]);
       };
       # One proof derivation per argument list. The full gate (no arguments) stays
       # the local `nix flake check`; CI builds the core and mode shards in parallel.
@@ -243,7 +241,8 @@ ${extra}        node scripts/check-register-proofs.mjs "$out"${pkgs.lib.optional
           mode="$(cat ${textSelection}/mode)"
           case "$mode" in
             full) node scripts/check-edit-proofs.mjs "$out/edit" ${shardArg} ;;
-            selected) node scripts/check-edit-proofs.mjs "$out/edit" "selection:${textSelection}/selection.json" ${shardArg} ;;
+            # The consumer recomputes its native-code closure with node's module parser (--experimental-vm-modules).
+            selected) node --experimental-vm-modules --no-warnings scripts/check-edit-proofs.mjs "$out/edit" "selection:${textSelection}/selection.json" ${shardArg} ;;
             *) echo "unknown selection mode: $mode" >&2; exit 1 ;;
           esac
           cp ${textSelection}/identity.json "$out/selection-identity.json"

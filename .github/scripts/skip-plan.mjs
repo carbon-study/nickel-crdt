@@ -31,7 +31,7 @@ export const BUNDLES = Object.freeze({
 // inputs are outside the full shard's derivation, so a change to any of them must run the boundary.
 // check-gate-inputs.mjs is the selector's import parser; edit-native-plans.mjs is the text plan export.
 export const SELECTION_PATHS = Object.freeze(['scripts/select-affected.mjs', 'scripts/selection-boundary.mjs',
-  'scripts/register-control-plans.mjs', 'scripts/check-gate-inputs.mjs', 'scripts/edit-native-plans.mjs', 'flake.nix', 'nix/gate-scripts.json']);
+  'scripts/register-control-plans.mjs', 'scripts/check-gate-inputs.mjs', 'scripts/gate-imports.mjs', 'scripts/text-native-code.mjs', 'scripts/edit-native-plans.mjs', 'flake.nix', 'nix/gate-scripts.json']);
 
 // The exact resolution, recorded verbatim. stdout and stderr are kept apart. `nix path-info --derivation`
 // resolves the flake output as an installable, the way `nix build` does, so an output that is not a
