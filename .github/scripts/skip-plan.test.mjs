@@ -63,11 +63,13 @@ t('.github changes always run, before any evaluation', () => {
   runs(pr({ changedPaths: ['src/lib.rs', '.github/scripts/skip-plan.mjs'], evaluate: () => { evaluated++; return ok(drv('x')); } }), /workflow\/skip machinery changed/);
   assert.equal(evaluated, 0);
 });
-t('selection machinery runs register and text shards only, even with identical full shard drvs', () => {
+t('selection machinery runs register shards, text shards and core-b only, even with identical full drvs', () => {
   for (const p of SELECTION_PATHS) {
     runs(pr({ job: 'register-proofs-shard-2', changedPaths: [p] }), /selection machinery changed/);
     runs(pr({ job: 'proofs-shard-1', changedPaths: [p] }), /selection machinery changed/);
+    runs(pr({ job: 'proofs-core-b', changedPaths: [p] }), /selection machinery changed/);
     assert.equal(pr({ job: 'shared-native', changedPaths: [p] }).decision, 'skip', `${p} alone does not force shared-native`);
+    assert.equal(pr({ job: 'proofs-core-a', changedPaths: [p] }).decision, 'skip', `${p} alone does not force core-a (not selected, #198)`);
   }
 });
 t('unknown job runs', () => { runs(pr({ job: 'nope' }), /unknown job/); });
@@ -203,8 +205,8 @@ const SCAFFOLD = [
   "run: cp selection-result/identity.json selection-result/mode selection-evidence/",
   "run: if [ -e selection-result/selection.json ]; then cp selection-result/selection.json selection-evidence/; fi",
   "run: .github/scripts/check.sh \"$TARGET\" 9000 nix build -L --no-write-lock-file --out-link selected-result \".#packages.aarch64-linux.register-proofs-selected-shard-$i\" \"${overrides[@]}\"",
-  "run: elif [ \"$EVENT\" = pull_request ] && [[ \"$TARGET\" =~ ^proofs-shard-([0-9]+)$ ]]; then",
-  "run: i=\"${BASH_REMATCH[1]}\"",
+  "run: elif [ \"$EVENT\" = pull_request ] && [[ \"$TARGET\" =~ ^proofs-(shard-[0-9]+|core-b)$ ]]; then",
+  "run: job=\"${BASH_REMATCH[1]}\"",
   "run: [[ \"$BASE_SHA\" =~ ^[0-9a-f]{40}$ ]] || { echo \"pull_request base sha missing or malformed: $BASE_SHA\"; exit 1; }",
   "run: [ \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\" ] || { echo \"checkout HEAD is not GITHUB_SHA\"; exit 1; }",
   "run: overrides=(--override-input selection-head \"git+file://$PWD?rev=$GITHUB_SHA&shallow=1\"",
@@ -213,7 +215,7 @@ const SCAFFOLD = [
   "run: .github/scripts/check.sh \"$TARGET-selection\" 1800 nix build -L --no-write-lock-file --out-link text-selection-result .#packages.aarch64-linux.text-selection \"${overrides[@]}\"",
   "run: cp text-selection-result/identity.json text-selection-result/mode text-selection-evidence/",
   "run: if [ -e text-selection-result/selection.json ]; then cp text-selection-result/selection.json text-selection-evidence/; fi",
-  "run: .github/scripts/check.sh \"$TARGET\" 9000 nix build -L --no-write-lock-file --out-link text-selected-result \".#packages.aarch64-linux.proofs-selected-shard-$i\" \"${overrides[@]}\"",
+  "run: .github/scripts/check.sh \"$TARGET\" 9000 nix build -L --no-write-lock-file --out-link text-selected-result \".#packages.aarch64-linux.proofs-selected-$job\" \"${overrides[@]}\"",
   "run: else",
   "run: .github/scripts/check.sh ${{ matrix.target }} 9000 nix build -L --no-link .#packages.aarch64-linux.${{ matrix.target }}",
   "run: fi",
@@ -264,7 +266,7 @@ t('scaffold job is accounted for line by line; bundles are exactly what each job
   assert.deepEqual(by((b) => b.cmd.includes('--out-link selection-result')).targets, [P('register-selection')]);
   assert.deepEqual(by((b) => b.cmd.includes('check.sh "$TARGET" 9000') && b.cmd.includes('--out-link selected-result')).targets, [P('register-proofs-selected-shard-$i')]);
   assert.deepEqual(by((b) => b.cmd.includes('--out-link text-selection-result')).targets, [P('text-selection')]);
-  assert.deepEqual(by((b) => b.cmd.includes('--out-link text-selected-result')).targets, [P('proofs-selected-shard-$i')]);
+  assert.deepEqual(by((b) => b.cmd.includes('--out-link text-selected-result')).targets, [P('proofs-selected-$job')]);
   for (const b of builds) assert.ok(b.step === build || b.step === cover, `build outside the guarded steps: ${b.cmd}`);
   for (const job of Object.keys(BUNDLES)) {
     const want = job === 'native' ? BUNDLES.native : job === 'proofs-core-a' ? [P(job), BUNDLES['proofs-core-a'][1]] : [P(job)];

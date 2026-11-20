@@ -16,8 +16,9 @@ import {digest,holdLock,runAsync,verify,put} from './proof-cache.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
 import {sourceFiles,modes,mutationDefinitions,definitionByMode,prepareMutation as prepareMutationIn,theorems,mutationOwners,positiveBaselines,cargoBase,nativeArgs as nativeArgsOf,proofRoot,verifyRoots,positivePlan,nativeModePlans,identityControlPlan,auditUnits,checkAuditControls,TEXT_PLAN_INPUTS} from './edit-native-plans.mjs';
 import {checkProofReform} from './proof-reform.mjs';
-import {nativeCodeClosure,checkNativeCodeRecord,checkNativeCodeControls,checkHeadInputs,checkHeadInputControls} from './text-native-code.mjs';
+import {nativeCodeClosure,checkNativeCodeRecord,checkNativeCodeControls,checkHeadInputs,checkHeadInputControls,familyCodeClosure,checkFamilyCodeRecord,checkFamilyCodeControls} from './text-native-code.mjs';
 import {checkNegativeProofEvidence} from './check-negative-proof-evidence.mjs';
+import {POSITIVE_VIEWS,viewSource,retainedWorkspaceFile,familyPlanDigest,checkFamilyAuditControls} from './text-family-run.mjs';
 const root=fileURLToPath(new URL('..',import.meta.url));
 // Runtime load audit (#197). A selected shard run records every module it loads after this point (the static imports
 // above are native code inputs by construction); the consumer refuses the run if any loaded gate script lies outside
@@ -66,8 +67,16 @@ const original=Object.fromEntries(await Promise.all(sourceFiles.map(async name=>
 // also picks up any family added later. `jobs:<n>` (default 1) checks up to n
 // selected mutation modes concurrently, after the positive chain and its
 // families; it selects nothing by itself.
-// Family names in execution order; the modules themselves live in text-families.mjs, loaded only when needed.
+// Family names in execution order; the modules themselves live in text-families.mjs (checked to agree), loaded only when needed.
 const FAMILY_NAMES=["delete","event","operation","replay","basis","schedule","past","remaining","counter","push","vector","scalar","identity","writer","plan","containment","accepted","spec","private","shared","commit"];
+// Readers for the family enumeration (#199). retainedRead serves the positive workspace from the retained files it is
+// installed from (the positive chain asserts its fresh extraction equals the retained one); repoRead reads the checkout.
+// Both record what they read, so a family plan export names the source files it was built from.
+const familySources={};
+const recordRead=(rel,bytes)=>{const d=digest(bytes);assert(familySources[rel]===undefined||familySources[rel]===d,'family source changed while reading '+rel);familySources[rel]=d;return bytes.toString('utf8');};
+const retainedRead=file=>{const rel=retainedWorkspaceFile(file);assert(rel,'not a positive workspace file: '+file);return recordRead(rel,readFileSync(path.join(root,rel)));};
+const repoRead=file=>recordRead(file,readFileSync(path.join(root,file)));
+async function familyPlansOf(names){const fm=await familiesModule();const out=[];for(const n of names){if(fm.UNCONVERTED.includes(n))continue;for(const u of await fm.familyUnits(n,retainedRead,repoRead))out.push(u.plan);}return out;}
 let familyModule=null;
 const familiesModule=async()=>familyModule??=await import('./text-families.mjs');
 const jobArgs=process.argv.slice(3).filter(arg=>arg.startsWith('jobs:')),args=process.argv.slice(3).filter(arg=>!arg.startsWith('jobs:'));
@@ -126,10 +135,11 @@ await checkDeletePreparation(root);
 checkMutationScopeControls(prepareMutation,original['src/edit.rs'],'scalar-refuses-valid','fn validate_scalars(','Ok(())','fn validate_new(');
 checkFstarMutationScope();
 // The Remaining locator controls belong to the Remaining family: they run with it, and in gatepreflight.
-if(familyRuns.has('remaining')||args.includes('gatepreflight')){(await familiesModule()).checkRemainingCallLocator();
+if(familyRuns.has('remaining')||args.includes('gatepreflight')){await (await familiesModule()).checkRemainingCallLocator();
 console.log('PASS remaining call locator: calls only in code (line/nested comments, strings), code-only occurrence indexing, inline fallback unhidden, comment/string-only callee refused, mixed call lines refused');}
 checkAuditControls(original);
 checkNativeCodeControls();
+checkFamilyCodeControls();
 checkHeadInputControls();
 console.log('PASS head input controls: added, changed, deleted declared (file and directory member) and declaration-hidden deletion refused; undeclared absence counted');
 // Lock order control: while this invocation owns the checkout lock, an overlapping selected invocation must be refused
@@ -145,32 +155,53 @@ if(!exportOnly){
   }finally{rmSync(tmp,{recursive:true,force:true});}
 }
 console.log('PASS native code record controls: complete set accepted; omitted static helper, extra entry, wrong digest and runner-only set refused');
+console.log('PASS family code record controls: complete closures accepted; omitted family helper, extra entry, wrong digest and a family left out refused');
 console.log('PASS exact-tuple audit controls: hidden unit, unexecuted plan, changed roots, wrong expectation (both kinds), mutation digest, cargo arguments, baselines and owner each refused');
 console.log('PASS mutation scopes: every registered mode resolves to one in-scope anchor; moved/duplicate/comment-only anchor, missing/comment/string/duplicated header, literal braces, C raw strings across items and unsupported-lexeme controls');
-if(args.length===1&&args[0]==='gatepreflight')process.exit(0);
+if(args.length===1&&args[0]==='gatepreflight'){
+  // Every converted family enumerates from the retained workspace, and the family audit controls hold on real tuples.
+  const plans=await familyPlansOf(FAMILY_NAMES);checkFamilyAuditControls(auditUnits,plans);
+  console.log('PASS family enumeration: '+plans.length+' family control plans from '+new Set(plans.map(p=>p.family)).size+' converted families; family audit controls refused hidden, unexecuted, changed-root, wrong-expectation, digest, owner and native-input tuples');
+  process.exit(0);
+}
 // Source identity: the files the native and positive units are built from, so a selector can check an export
 // against the commit it claims to describe, and a consumer can check a record against its own tree.
 async function exportText(){
   const sources={};for(const f of TEXT_PLAN_INPUTS)sources[f]=digest(await fs.readFile(path.join(root,f)));
   return JSON.stringify({schema:1,gate:'text',sources,plans:[positivePlan(),...nativeModePlans(original),identityControlPlan()]},null,1)+'\n';
 }
+// Family plans (#199) go to a separate file: computing them loads the family modules, which a selected shard run must
+// not load, so the native export above stays loadable without them.
+async function exportFamilies(){
+  const fm=await familiesModule();
+  assert.deepEqual(fm.FAMILY_ORDER,FAMILY_NAMES,'family table and names agree');
+  const plans=await familyPlansOf(FAMILY_NAMES);
+  const sources=Object.fromEntries(Object.entries(familySources).sort(([a],[b])=>a<b?-1:a>b?1:0));
+  return JSON.stringify({schema:1,gate:'text-families',sources,order:fm.FAMILY_ORDER,modules:fm.FAMILY_MODULES,unconverted:fm.UNCONVERTED,plans},null,1)+'\n';
+}
 if(exportPlans){
   const out=process.argv[2];assert(out,'output directory required');
   await fs.mkdir(out,{recursive:true});
   await fs.writeFile(path.join(out,'plans.json'),await exportText());
-  console.log('exported '+(modes.length-1)+' native-mode plans, the positive and the identity control to '+path.join(out,'plans.json'));
+  const families=await exportFamilies();
+  await fs.writeFile(path.join(out,'family-plans.json'),families);
+  console.log('exported '+(modes.length-1)+' native-mode plans, the positive and the identity control to '+path.join(out,'plans.json')+
+    '; '+JSON.parse(families).plans.length+' family control plans to '+path.join(out,'family-plans.json'));
   process.exit(0);
 }
-// Selection consumer (#197). `selection:<file> shard:<i>/<n>` runs what a selector record chose for this shard. The
-// record is refused unless it was made from exactly this tree's text plans (its headPlans digest equals this
-// runner's own export) and is not diagnostic. full runs the plain shard; none runs nothing; selected runs this
-// shard's share of the selected native modes plus this job's own positive seed (only when it runs a mode).
-let textSelection=null;
+// Selection consumer (#197, #199). `selection:<file> shard:<i>/<n>` runs what a selector record chose for this shard;
+// `selection:<file> contracts-except:<…>` (core-b) runs what it chose for that job's contract families. The record is
+// refused unless it was made from exactly this tree's text plans (its headPlans digest equals this runner's own
+// export), native code, inputs and (for a family job) family code and selected family plans, and is not diagnostic.
+// full runs the plain job; none runs nothing; selected runs this shard's share of the selected native modes, or this
+// job's selected families (each complete), plus this job's own positive seed (only when it runs anything).
+let textSelection=null,familyDigests=null;
 if(selectionArg){
   const file=selectionArg.slice('selection:'.length);assert(file.length>0,'selection needs a record path');
-  const shardArgs=args.filter(arg=>arg.startsWith('shard:'));
-  assert(shardArgs.length===1&&args.length===2,'selection combines only with exactly one shard');
-  const [i,n]=shardArgs[0].slice(6).split('/').map(Number);
+  // A selected job is either one native shard (#197) or one contract-family job (#199), never both.
+  const shardArgs=args.filter(arg=>arg.startsWith('shard:')),familyArgs=args.filter(arg=>arg.startsWith('contracts-except:')||arg.startsWith('contracts:'));
+  assert(args.length===2&&(shardArgs.length===1)!==(familyArgs.length>=1)&&shardArgs.length+familyArgs.length===1,'selection combines only with exactly one shard, or with the contract families of one job');
+  const familyJob=familyArgs.length===1;
   let rec;try{rec=JSON.parse(await fs.readFile(file,'utf8'));}catch(e){assert.fail('selection record unreadable: '+e.message);}
   const keys=['schema','base','head','diagnosticOnly','basePlans','headPlans','full','reasons','affected','register','text','shared'];
   assert(rec&&typeof rec==='object'&&!Array.isArray(rec)&&Object.keys(rec).length===keys.length&&keys.every(k=>Object.hasOwn(rec,k)),'selection record has an unrecognised shape');
@@ -179,7 +210,7 @@ if(selectionArg){
   const t=rec.text;assert(t&&typeof t==='object'&&!Array.isArray(t),'selection record text entry');
   if(rec.full===true||t.run==='full'){assert.deepEqual(Object.keys(t),['run'],'a full text selection carries only run');assert.equal(t.run,'full');textSelection={run:'full'};}
   else{
-    const tkeys=['run','positive','modes','why','removed','total','headPlans','basePlans','nativeCode','headInputs'];
+    const tkeys=['run','positive','modes','why','removed','total','headPlans','basePlans','nativeCode','headInputs','families'];
     assert(Object.keys(t).length===tkeys.length&&tkeys.every(k=>Object.hasOwn(t,k)),'selection record text entry has an unrecognised shape');
     assert.equal(t.headPlans,digest(await exportText()),'selection record was not made for this tree (head text plan export differs)');
     const natives=modes.filter(mode=>mode!=='positive');
@@ -188,7 +219,8 @@ if(selectionArg){
     assert.equal(t.total,natives.length,'selection record counts a different plan total');
     // Bind the record to this tree's native code: its entries must be exactly this tree's own closure (computed here,
     // so an omitted input cannot pass), each with this tree's digest. Checked before the no-work exit.
-    const closure=await nativeCodeClosure(async f=>{try{return await fs.readFile(path.join(root,'scripts',f),'utf8');}catch{return null;}});
+    const readScript=async f=>{try{return await fs.readFile(path.join(root,'scripts',f),'utf8');}catch{return null;}};
+    const closure=await nativeCodeClosure(readScript);
     checkNativeCodeRecord(t.nativeCode,closure,f=>digest(readFileSync(path.join(root,f))));
     // Bind the decision to this tree's selection-relevant content: every file this tree holds under those roots must be
     // recorded with this digest (a changed or added proof, crate or script file refuses). Recorded files this
@@ -205,16 +237,47 @@ if(selectionArg){
       console.log('selection inputs: '+present.length+' files of this tree bound to the record; '+undeclared+' recorded files outside the declared packaged inputs');
     }
     assert(t.run==='selected'?t.modes.length>0:t.run==='none'&&t.modes.length===0,'selection run and modes agree');
-    const mine=natives.filter((mode,k)=>k%n===i&&t.modes.includes(mode));
-    textSelection={run:t.run,mine,nativeCode:new Set(Object.keys(t.nativeCode))};
-    // This job runs exactly its share: no families, no cache-safety, its own positive seed iff it runs a mode.
-    mutations.length=0;mutations.push(...mine);wantPositive=mine.length>0;cacheSafety=false;familyRuns.clear();
-    console.log('selection '+t.run+': '+mine.length+' of '+t.modes.length+' selected native modes in shard '+i+'/'+n+(wantPositive?' plus this job\'s positive seed':''));
-    if(!mine.length){
-      const out=process.argv[2];await fs.mkdir(out,{recursive:true});
+    const out=process.argv[2];
+    const nothing=async what=>{await fs.mkdir(out,{recursive:true});
       await fs.writeFile(path.join(out,'planned.json'),'[]\n');await fs.writeFile(path.join(out,'results.json'),'[]\n');
-      console.log('selection runs nothing in this job: not affected (no build of these units ran; no result is claimed)');
-      process.exit(0);
+      console.log('selection runs nothing in this job: not affected (no build of these '+what+' ran; no result is claimed)');process.exit(0);};
+    if(!familyJob){
+      const [i,n]=shardArgs[0].slice(6).split('/').map(Number);
+      const mine=natives.filter((mode,k)=>k%n===i&&t.modes.includes(mode));
+      textSelection={run:t.run,mine,allowed:new Set(Object.keys(t.nativeCode))};
+      // This job runs exactly its share: no families, no cache-safety, its own positive seed iff it runs a mode.
+      mutations.length=0;mutations.push(...mine);wantPositive=mine.length>0;cacheSafety=false;familyRuns.clear();
+      console.log('selection '+t.run+': '+mine.length+' of '+t.modes.length+' selected native modes in shard '+i+'/'+n+(wantPositive?' plus this job\'s positive seed':''));
+      if(!mine.length)await nothing('units');
+    }else{
+      // Contract-family job (#199). A full family route runs this job's families as named; otherwise the record must
+      // also be bound to this tree's family code (every converted family's closure, parsed here without loading it).
+      const f=t.families;assert(f&&typeof f==='object'&&!Array.isArray(f),'selection record family entry');
+      if(f.run==='full'){assert.deepEqual(Object.keys(f),['run'],'a full family selection carries only run');textSelection={run:'full'};}
+      else{
+        const fkeys=['run','selected','why','removed','total','headPlans','basePlans','digests','familyCode'];
+        assert(Object.keys(f).length===fkeys.length&&fkeys.every(k=>Object.hasOwn(f,k)),'selection record family entry has an unrecognised shape');
+        const fm=await familiesModule();
+        const converted=FAMILY_NAMES.filter(n=>!fm.UNCONVERTED.includes(n));
+        const closures={};for(const n of converted)closures[n]=await familyCodeClosure(readScript,fm.FAMILY_MODULES[n]);
+        checkFamilyCodeRecord(f.familyCode,closures,p=>digest(readFileSync(path.join(root,p))));
+        assert(Array.isArray(f.selected)&&f.selected.every(n=>converted.includes(n))&&new Set(f.selected).size===f.selected.length,'selection names unknown, unconverted or repeated families');
+        assert(f.run==='selected'?f.selected.length>0:f.run==='none'&&f.selected.length===0,'family selection run and families agree');
+        assert(f.digests&&typeof f.digests==='object'&&Object.keys(f.digests).sort().join()===[...converted].sort().join(),'selection record family plan digests');
+        // Only converted families can be selected; a job holding an unconverted family is never selected.
+        const job=[...familyRuns];assert(job.every(n=>converted.includes(n)),'a selected family job holds unconverted families: '+job.filter(n=>!converted.includes(n)).join(','));
+        const mine=FAMILY_NAMES.filter(n=>familyRuns.has(n)&&f.selected.includes(n));
+        familyDigests=f.digests;
+        // Each family this job will run must have exactly the recorded plans, recomputed here from this tree (loading
+        // only that family's module). Unselected families' plans are not loaded; their code and inputs are bound above.
+        for(const n of mine)assert.equal(familyPlanDigest((await fm.familyUnits(n,retainedRead,repoRead)).map(u=>u.plan)),f.digests[n],'selection record was not made for this tree (family '+n+' plans differ)');
+        const allowed=new Set([...Object.keys(t.nativeCode),'scripts/text-families.mjs',...mine.flatMap(n=>closures[n].map(x=>'scripts/'+x))]);
+        textSelection={run:f.run,mine,allowed};
+        // This job runs exactly its selected families, each complete, after its own positive seed; nothing else.
+        mutations.length=0;wantPositive=mine.length>0;cacheSafety=false;familyRuns.clear();for(const n of mine)familyRuns.add(n);
+        console.log('family selection '+f.run+': '+mine.length+' of this job\'s '+job.length+' families selected ('+(mine.join(',')||'none')+')'+(wantPositive?' plus this job\'s positive seed':''));
+        if(!mine.length)await nothing('families');
+      }
     }
   }
 }
@@ -226,8 +289,8 @@ await fs.writeFile(path.join(output,'mutation-owners.json'),JSON.stringify(mutat
 const identity=JSON.parse(await fs.readFile(path.join(modelCache,'identity.json'),'utf8'));
 assert.equal(identity.models,models);assert.equal(identity.fstar,fstar);
 const views=new Map();
-for(const name of ['EditDeletePermutation','EditDeleteAnswer','EditDeleteHeap','EditDeleteComplete','PastExact','Canonical','Prelude','LoopUtil','LoopEquality','EventGraph','EventGraphText','EventShell','EventClassifier','Vector','EditAtomic','EditCommit','EditIdentity','EditAccepted','EditWellFormed','Spec','EditCausal','EditPast','EditPastTotal','EditSchedule','EditBasis','EditReplay']) {
-  const source=`proofs/${name}.lt`,view=name==='Canonical'?'proofs/register-view/Nickel.Canonical.fst':`proofs/generated/Nickel.${name}.fst`;
+for(const name of POSITIVE_VIEWS) {
+  const source=`proofs/${name}.lt`,view=viewSource(name);
   const code=await fs.readFile(path.join(root,view),'utf8');
   const receipt=(await fs.readFile(path.join(root,`proofs/generated/${name}.sha256`),'utf8')).trim().split('\n');
   assert.deepEqual(receipt,[digest(await fs.readFile(path.join(root,source)))+'  '+source,digest(code)+'  '+view]);
@@ -266,7 +329,7 @@ let positive,positiveProof;
 // Exact-tuple audit (#197): every executed unit records what it actually ran (roots passed to the
 // verifier, cargo arguments and baselines, the mutated file it wrote, the owner it judged and the
 // expected outcome it asserted). At the end these must equal the planned tuples field for field.
-const executed=new Map();
+const executed=new Map(),familyPlanned=[];
 const nativeIndex=new Map(modes.filter(mode=>mode!=='positive').map((mode,index)=>[mode,index]));
 async function check(mode) {
   const work=path.join(root,'.cache','edit-proofs',mode),crate=path.join(work,'crate'),proof=path.join(work,'proof');
@@ -350,13 +413,23 @@ async function check(mode) {
     // Each family edits its own copy of the verified positive workspace, so the
     // positive cache stays clean and families cannot see each other's probes.
     // The family module loads only when a family runs (native-only runs never load it; selected runs audit that).
-    const {families}=familyRuns.size?await familiesModule():{families:{}};
-    if(familyRuns.size)assert.deepEqual(Object.keys(families),FAMILY_NAMES,'family table and names agree');
-    for(const [name,check] of Object.entries(families))if(familyRuns.has(name)) {
+    const fm=familyRuns.size?await familiesModule():null;
+    if(fm)assert.deepEqual(fm.FAMILY_ORDER,FAMILY_NAMES,'family table and names agree');
+    for(const name of FAMILY_NAMES)if(familyRuns.has(name)) {
       const copy=path.join(root,'.cache','edit-proofs','contracts-'+name,'proof');
       await fs.rm(copy,{recursive:true,force:true});
       await fs.cp(proof,copy,{recursive:true,preserveTimestamps:true});
-      await check({proof:copy,output,fstar,models,modelCache});
+      const ctx={proof:copy,output,fstar,models,modelCache};
+      if(fm.UNCONVERTED.includes(name)){await fm.runFamily(name,ctx);continue;}
+      // A converted family runs its complete inventory, enumerated from its actual workspace copy; the planned tuples
+      // come from the same enumeration over the retained files, and the audit compares the two field for field.
+      const planned=(await fm.familyUnits(name,retainedRead,repoRead)).map(u=>u.plan);
+      if(familyDigests)assert.equal(familyPlanDigest(planned),familyDigests[name],'selection record was not made for this tree (family '+name+' plans differ)');
+      // Audit controls on the first family this run executes (its own real tuples; no other family is loaded).
+      if(!familyPlanned.length){checkFamilyAuditControls(auditUnits,planned);console.log('PASS family audit controls ('+name+' tuples): hidden control, unexecuted plan, changed roots, wrong expectation, mutation digest, owner and native inputs each refused');}
+      familyPlanned.push(...planned);
+      const units=await fm.familyUnits(name,file=>readFileSync(path.join(copy,file),'utf8'),repoRead);
+      await fm.runFamily(name,ctx,{units,record:ran=>{assert(!executed.has(ran.id),'unit executed twice: '+ran.id);executed.set(ran.id,ran);}});
     }
     if(cacheSafety)await (await familiesModule()).checkCacheSafety({positiveProof:proof,workRoot:path.join(root,'.cache','edit-proofs'),output,fstar,models,modelCache});
     for(const name of inventory)await fs.copyFile(path.join(proof,name),path.join(output,name));
@@ -406,18 +479,18 @@ if(failure)throw failure.error;
 // Planned units for this invocation, from the shared enumeration; executed units must equal them exactly.
 {
   const native=nativeModePlans(original).filter(plan=>queue.includes(plan.id));
-  const planned=[...(wantPositive?[positivePlan()]:[]),...native,...(queue.length?[identityControlPlan()]:[])];
+  const planned=[...(wantPositive?[positivePlan()]:[]),...native,...(queue.length?[identityControlPlan()]:[]),...familyPlanned];
   await fs.writeFile(path.join(output,'planned.json'),JSON.stringify(planned,null,1)+'\n');
   const ran=[...executed.values()];
   await fs.writeFile(path.join(output,'results.json'),JSON.stringify(ran,null,1)+'\n');
   auditUnits(planned,executed);
-  console.log('PASS exact-tuple audit: '+planned.length+' planned units executed exactly as planned (ids, expectations, roots, mutations, cargo arguments, baselines, owners)');
+  console.log('PASS exact-tuple audit: '+planned.length+' planned units executed exactly as planned (ids, expectations, roots, mutations, cargo arguments, baselines, owners)'+(familyPlanned.length?'; '+familyPlanned.length+' of them family controls':''));
 }
 if(textSelection&&textSelection.run!=='full'){
   const loaded=[...new Set(readFileSync(loadLog,'utf8').split('\n').filter(Boolean).map(url=>fileURLToPath(url)))]
     .filter(f=>f.startsWith(path.join(root,'scripts')+path.sep)).map(f=>'scripts/'+path.relative(path.join(root,'scripts'),f)).sort();
   await fs.writeFile(path.join(output,'loaded-modules.json'),JSON.stringify(loaded,null,1)+'\n');
-  const outside=loaded.filter(f=>!textSelection.nativeCode.has(f));
-  assert.deepEqual(outside,[],'a selected shard loaded gate scripts outside the recorded native code set: '+outside.join(', '));
-  console.log('PASS load audit: '+loaded.length+' gate scripts loaded after startup, all inside the recorded native code set');
+  const outside=loaded.filter(f=>!textSelection.allowed.has(f));
+  assert.deepEqual(outside,[],'a selected run loaded gate scripts outside the recorded native code and selected family code: '+outside.join(', '));
+  console.log('PASS load audit: '+loaded.length+' gate scripts loaded after startup, all inside the recorded native code'+(textSelection.mine&&familyDigests?' and the selected families\' code':'')+' set');
 }

@@ -1,11 +1,8 @@
 // Ordered selected-group replay, error propagation and actual context composition.
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import {put,verify} from './proof-cache.mjs';
-import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
-export async function checkReplayContracts({proof,output,fstar,models,modelCache}) {
-  const name='Nickel.EditReplay.fst', original=await fs.readFile(path.join(proof,name),'utf8');
+import {viewUnits} from './text-family-run.mjs';
+export function replayUnits(read) {
+  const name='Nickel.EditReplay.fst', original=read(name);
   const controls=[
     ['replay-result-without-induction',/author_prefix_is_deterministic operations selected \(finish - 1\) previous_left previous_right;/,'author_prefix_is_deterministic','author_prefix_is_deterministic','();'],
     ['replay-nodes-without-loop',/  Nickel\.LoopUtil\.result_preserve_any [^\n]+;\n/,'actual_nodes_replay_in_order','actual_nodes_replay_in_order'],
@@ -16,6 +13,7 @@ export async function checkReplayContracts({proof,output,fstar,models,modelCache
     ['replay-context-without-basis',/  closed_event_basis_is_exact facts event;\n/,'closed_author_context_is_exact','closed_author_context_is_exact'],
     ['replay-context-without-author',/actual_author_replays_selected_groups operations \(Alloc\.Vec\.impl_1__as_slice selected\)/,'closed_author_context_is_exact','closed_author_context_is_exact','()'],
   ];
+  const units=[];
   for(const [control,pattern,owner,scope,replacement=''] of controls) {
     let start=0,end=original.length;
     if(scope) {
@@ -26,12 +24,9 @@ export async function checkReplayContracts({proof,output,fstar,models,modelCache
     }
     const body=original.slice(start,end);
     assert.equal([...body.matchAll(new RegExp(pattern.source,'g'))].length,1,control+' anchor');
-    const dir=path.join(path.dirname(proof),control);await fs.rm(dir,{recursive:true,force:true});
-    await fs.cp(proof,dir,{recursive:true,preserveTimestamps:true});
-    const view=original.slice(0,start)+body.replace(pattern,replacement)+original.slice(end);await put(path.join(dir,name),view);
-    const r=await verify({dir,roots:[path.join(dir,name)],fstar,models,modelCache});
-    await fs.writeFile(path.join(output,control+'.proof.log'),r.log);
-    assert(hasOrdinaryTheoremRejection({status:r.status,log:r.log,theorem:'Nickel.EditReplay.'+owner,view}),control+': '+r.log);
-    console.log('PASS '+control+': ordinary owning rejection');
+    const view=original.slice(0,start)+body.replace(pattern,replacement)+original.slice(end);
+    units.push({name:control,files:{[name]:view},roots:[name],theorem:'Nickel.EditReplay.'+owner,inPlace:false,
+      log:control+'.proof.log',pass:control+': ordinary owning rejection',failure:control});
   }
+  return viewUnits('replay',units,read);
 }

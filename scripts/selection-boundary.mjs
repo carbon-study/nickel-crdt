@@ -1,5 +1,5 @@
 // Declared-nix selection boundary for the register gate, and with --gate=text for the text gate's native
-// mutation shards (#197).
+// mutation shards (#197) and its core-b contract families (#199).
 // usage: node selection-boundary.mjs <out> <head-tree> <base-tree> <head-rev> <base-rev> [--gate=text]
 // Writes <out>/mode ("full" or "selected"), <out>/identity.json and, when selected,
 // <out>/selection.json for check-register-proofs.mjs selection:<file>. Every doubt selects full:
@@ -54,13 +54,18 @@ const load=(tree,msg)=>{for(const e of fs.readdirSync(repo))if(e!=='.git')fs.rmS
 const b=load(base,'base '+baseRev),h=load(head,'head '+headRev);
 // The selector parses gate imports with node's module parser, which needs --experimental-vm-modules.
 const sel=run('selector','node',['--experimental-vm-modules','--no-warnings',path.join(head,'scripts/select-affected.mjs'),b,h,'--repo',repo,
-  ...(gate==='text'?['--text-base-plans',exp.base,'--text-head-plans',exp.head]:['--base-plans',exp.base,'--head-plans',exp.head])]);
+  // The text gate also passes each tree's family export (#199); a tree without one (a base before #199) makes the
+  // selector route the family jobs full, which it records.
+  ...(gate==='text'?['--text-base-plans',exp.base,'--text-head-plans',exp.head,
+    '--text-base-family-plans',path.join(path.dirname(exp.base),'family-plans.json'),'--text-head-family-plans',path.join(path.dirname(exp.head),'family-plans.json')]
+   :['--base-plans',exp.base,'--head-plans',exp.head])]);
 if(sel.status!==0)finish('full','selector failed');
 let record;try{record=JSON.parse(sel.stdout);}catch{finish('full','selector output unreadable');}
 if(record.diagnosticOnly!==false)finish('full','diagnostic record');
 if(gate==='register'&&(record.full===true||record.register?.run==='full'))finish('full','selector chose the full register gate');
 if(gate==='text'&&(record.full===true||record.text?.run==='full'))finish('full','selector chose the full text shards');
 fs.writeFileSync(path.join(out,'selection.json'),sel.stdout);
-identity.selection=gate==='text'?{digest:sha(sel.stdout),run:record.text.run,modes:record.text.modes.length,removed:record.text.removed,headPlans:record.text.headPlans}
+identity.selection=gate==='text'?{digest:sha(sel.stdout),run:record.text.run,modes:record.text.modes.length,removed:record.text.removed,headPlans:record.text.headPlans,
+   families:record.text.families.run==='full'?{run:'full'}:{run:record.text.families.run,selected:record.text.families.selected,removed:record.text.families.removed,headPlans:record.text.families.headPlans}}
   :{digest:sha(sel.stdout),run:record.register.run,modes:record.register.modes.length,removed:record.register.removed,headPlans:record.headPlans};
 finish('selected');

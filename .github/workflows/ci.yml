@@ -169,11 +169,12 @@ jobs:
             if [ -e selection-result/selection.json ]; then cp selection-result/selection.json selection-evidence/; fi
             .github/scripts/check.sh "$TARGET" 9000 nix build -L --no-write-lock-file --out-link selected-result \
               ".#packages.aarch64-linux.register-proofs-selected-shard-$i" "${overrides[@]}"
-          elif [ "$EVENT" = pull_request ] && [[ "$TARGET" =~ ^proofs-shard-([0-9]+)$ ]]; then
-            # Pull-request text shards go through the text selection boundary (#197; flake.nix text-selection,
-            # scripts/selection-boundary.mjs --gate=text): same identity rules as the register route above. The
-            # consumer runs only this shard's selected native modes, plus its own positive seed when it runs one.
-            i="${BASH_REMATCH[1]}"
+          elif [ "$EVENT" = pull_request ] && [[ "$TARGET" =~ ^proofs-(shard-[0-9]+|core-b)$ ]]; then
+            # Pull-request text shards and core-b go through the text selection boundary (#197, #199; flake.nix
+            # text-selection, scripts/selection-boundary.mjs --gate=text): same identity rules as the register route
+            # above. A shard runs only its selected native modes, core-b only its selected contract families (each
+            # complete), each plus its own positive seed when it runs anything.
+            job="${BASH_REMATCH[1]}"
             [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "pull_request base sha missing or malformed: $BASE_SHA"; exit 1; }
             [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] || { echo "checkout HEAD is not GITHUB_SHA"; exit 1; }
             overrides=(--override-input selection-head "git+file://$PWD?rev=$GITHUB_SHA&shallow=1"
@@ -184,7 +185,7 @@ jobs:
             cp text-selection-result/identity.json text-selection-result/mode text-selection-evidence/
             if [ -e text-selection-result/selection.json ]; then cp text-selection-result/selection.json text-selection-evidence/; fi
             .github/scripts/check.sh "$TARGET" 9000 nix build -L --no-write-lock-file --out-link text-selected-result \
-              ".#packages.aarch64-linux.proofs-selected-shard-$i" "${overrides[@]}"
+              ".#packages.aarch64-linux.proofs-selected-$job" "${overrides[@]}"
           else
             .github/scripts/check.sh ${{ matrix.target }} 9000 nix build -L --no-link .#packages.aarch64-linux.${{ matrix.target }}
           fi
@@ -209,9 +210,9 @@ jobs:
           path: selection-evidence/
           if-no-files-found: warn
       # Identity (exact base/head, toolchain digests, route), planned and executed tuples, and the modules a selected
-      # text shard loaded (#197). Collected whether or not the build passed.
+      # text shard or core-b run loaded (#197, #199). Collected whether or not the build passed.
       - name: collect text selection evidence
-        if: always() && github.event_name == 'pull_request' && startsWith(matrix.target, 'proofs-shard-')
+        if: always() && github.event_name == 'pull_request' && (startsWith(matrix.target, 'proofs-shard-') || matrix.target == 'proofs-core-b')
         env:
           TARGET: ${{ matrix.target }}
         run: |
@@ -220,7 +221,7 @@ jobs:
           for f in selection-identity.json edit/planned.json edit/results.json edit/loaded-modules.json; do if [ -e "text-selected-result/$f" ]; then cp "text-selected-result/$f" text-selection-evidence/; fi; done
           ls -la text-selection-evidence
       - name: keep text selection evidence
-        if: always() && github.event_name == 'pull_request' && startsWith(matrix.target, 'proofs-shard-')
+        if: always() && github.event_name == 'pull_request' && (startsWith(matrix.target, 'proofs-shard-') || matrix.target == 'proofs-core-b')
         uses: actions/upload-artifact@v4
         with:
           name: text-selection-${{ matrix.target }}

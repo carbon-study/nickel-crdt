@@ -35,33 +35,46 @@ export async function checkDeletePreparation(tree=root) {
   }
   console.log('PASS delete preparation: 48 scoped cases, source drift/missing scope/missing anchor refuse');
 }
-// Called under check-edit-proofs' inherited permanent-file lock.
-export async function checkDeleteContracts({proof,output,fstar,models,modelCache,selected}) {
-  const cases=selected?selected.map(n=>{const c=deleteControlFixtures.find(c=>c.name===n);assert(c,'unknown delete control '+n);return c;}):deleteControlFixtures;
+// The delete family's units (#199): one per fixture, from the same fixtures and preparation execution uses. A Rust case
+// mutates src/edit.rs (repo(file) reads the checkout) and runs its native tests and a fresh extraction; a view case
+// mutates one authored view of the positive workspace (read(file)). Weaker-root positives expect "verify".
+const deleteOwnerFile=c=>c.owner?c.owner.slice(0,c.owner.lastIndexOf('.'))+'.fst':'Nickel.'+c.root+'.fst';
+export function deleteUnits(read,repo) {
+  return deleteControlFixtures.map(c=>{
+    const file=c.rust?'src/edit.rs':c.view.file,text=prepareDeleteMutation(c,c.rust?repo('src/edit.rs'):read(c.view.file));
+    return {plan:{id:'delete:'+c.name,kind:'family-control',family:'delete',owner:c.owner,expect:c.positive?'verify':'reject',roots:[deleteOwnerFile(c)],
+      mutation:[{file,sha256:digest(text)}],native:c.rust?{cargoArgs:[...c.tests],baselines:[],extraction:true}:null},control:c,text};
+  });
+}
+// Called under check-edit-proofs' inherited permanent-file lock. record(ran) receives what each case actually did.
+export async function runDeleteUnits(units,{proof,output,fstar,models,modelCache},record) {
+  const cases=units.map(u=>u.control);
   assert.equal(new Set(cases.map(c=>c.name)).size,cases.length,'duplicate selected delete controls');
   const work=path.dirname(proof),rows=[];
   await fs.mkdir(output,{recursive:true});
   await fs.writeFile(path.join(output,'delete-planned.json'),JSON.stringify(cases.map(c=>({name:c.name,positive:c.positive,owner:c.owner})),null,2));
   await fs.writeFile(path.join(output,'delete-results.json'),'[]');
   console.log('DELETE-PLAN '+JSON.stringify(cases.map(c=>({name:c.name,positive:c.positive,owner:c.owner}))));
-  for(const c of cases){const out=path.join(output,c.name),dir=path.join(work,c.name),p=path.join(dir,'proof');await fs.mkdir(out,{recursive:true});await fs.cp(proof,p,{recursive:true,preserveTimestamps:true});
+  for(const {plan,control:c,text} of units){const out=path.join(output,c.name),dir=path.join(work,c.name),p=path.join(dir,'proof');await fs.mkdir(out,{recursive:true});await fs.cp(proof,p,{recursive:true,preserveTimestamps:true});
+    const ran={id:plan.id,kind:'family-control',family:'delete',owner:null,expect:null,roots:null,mutation:null,native:null};
     if(c.rust){const crate=path.join(dir,'crate');await fs.mkdir(crate,{recursive:true});for(const n of ['Cargo.toml','Cargo.lock','src','tests','proof-smoke'])await fs.cp(path.join(root,n),path.join(crate,n),{recursive:true});
-      const source=await fs.readFile(path.join(root,'src/edit.rs'),'utf8');await fs.writeFile(path.join(crate,'src/edit.rs'),prepareDeleteMutation(c,source));
+      await fs.writeFile(path.join(crate,'src/edit.rs'),text);ran.mutation=[{file:'src/edit.rs',sha256:digest(await fs.readFile(path.join(crate,'src/edit.rs')))}];
       // A private target per source is essential: hax metadata is package-named.
       const env={...process.env,CARGO_TARGET_DIR:path.join(dir,'target')};
-      const test=await runAsync(c.name+' native','cargo',c.tests,crate,{env});await fs.writeFile(path.join(out,'native.log'),test.log);assert.equal(test.status,101,test.log);assert.match(test.log,/test result: FAILED/,'require test failure, not compilation failure');assert.match(test.log,/assertion [^\n]*failed/,'require actual native assertion failure');
+      const test=await runAsync(c.name+' native','cargo',c.tests,crate,{env});ran.native={cargoArgs:[...c.tests],baselines:[],extraction:false};await fs.writeFile(path.join(out,'native.log'),test.log);assert.equal(test.status,101,test.log);assert.match(test.log,/test result: FAILED/,'require test failure, not compilation failure');assert.match(test.log,/assertion [^\n]*failed/,'require actual native assertion failure');
       const extract=path.join(dir,'extract'),hax=process.env.NICKEL_HAX_BIN;assert(hax,'locked hax required');
-      const ex=await runAsync(c.name+' hax',hax,editProofHaxArgs(extract),crate,{env});await fs.writeFile(path.join(out,'hax.log'),ex.log);assert.equal(ex.status,0,ex.log);
+      const ex=await runAsync(c.name+' hax',hax,editProofHaxArgs(extract),crate,{env});ran.native.extraction=true;await fs.writeFile(path.join(out,'hax.log'),ex.log);assert.equal(ex.status,0,ex.log);
       const names=(await fs.readdir(extract)).filter(n=>/\.fsti?$/.test(n)).sort();assert.deepEqual(names,['Nickel_crdt.Edit.fst','Nickel_crdt.Event_layer.fst','Nickel_crdt.Event_shell.fst']);
       let changed=false;const inventory=[];for(const n of names){const bytes=await fs.readFile(path.join(extract,n));assert(!/\b(?:admit|assume|admit_smt_queries)\b/.test(bytes.toString()),'no extracted admissions');if(digest(bytes)!==digest(await fs.readFile(path.join(proof,n))))changed=true;await put(path.join(p,n),bytes);inventory.push([n,digest(bytes)]);}
       assert(changed,'native fault must change fresh extraction');await fs.writeFile(path.join(out,'extraction.json'),JSON.stringify(inventory,null,2));console.log('DELETE-EXTRACTION '+JSON.stringify({name:c.name,inventory}));
-    }else{const source=await fs.readFile(path.join(proof,c.view.file),'utf8');await put(path.join(p,c.view.file),prepareDeleteMutation(c,source));}
+    }else{await put(path.join(p,c.view.file),text);ran.mutation=[{file:c.view.file,sha256:digest(await fs.readFile(path.join(p,c.view.file)))}];}
     // Positive witnesses deliberately query weaker components. Other cases must
     // fail in their exact named owner; an earlier unrelated failure never counts.
-    const ownerFile=c.owner?c.owner.slice(0,c.owner.lastIndexOf('.'))+'.fst':'Nickel.'+c.root+'.fst';
+    const ownerFile=deleteOwnerFile(c);ran.roots=[ownerFile];
     const result=await verify({label:c.name,dir:p,roots:[path.join(p,ownerFile)],fstar,models,modelCache});await fs.writeFile(path.join(out,'proof.log'),result.log);await fs.writeFile(path.join(out,'result.json'),JSON.stringify(result,null,2));
     assert(result.modules.includes(ownerFile),'must actually check owner, not reuse it');if(c.rust)assert(result.modules.includes('Nickel_crdt.Edit.fst'),'changed Native must be rechecked');
-    if(c.positive)assert.equal(result.status,0,result.log);else assert(hasOrdinaryTheoremRejection({status:result.status,log:result.log,theorem:c.owner,view:await fs.readFile(path.join(p,ownerFile),'utf8')}),result.log);
+    if(c.positive){assert.equal(result.status,0,result.log);ran.expect='verify';}else{assert(hasOrdinaryTheoremRejection({status:result.status,log:result.log,theorem:c.owner,view:await fs.readFile(path.join(p,ownerFile),'utf8')}),result.log);ran.expect='reject';ran.owner=c.owner;}
+    record(ran);
     rows.push({name:c.name,owner:c.owner,positive:c.positive,status:result.status,root:ownerFile});await fs.writeFile(path.join(output,'delete-results.json'),JSON.stringify(rows,null,2));console.log('PASS '+c.name+(c.positive?' (weaker-root scope witness)':''));
   }
   assert.deepEqual(rows.map(r=>r.name),cases.map(c=>c.name),'planned and executed delete inventory');

@@ -81,7 +81,8 @@
       # roughly equal halves; the second takes every family the first omits.
       proofCoreFamilies = [ "remaining" "spec" "accepted" ];
       proofCoreA = mkProofCheck "core-a" true ([ "cache-safety" ] ++ map (f: "contracts:${f}") proofCoreFamilies);
-      proofCoreB = mkProofCheck "core-b" false [ "contracts-except:${builtins.concatStringsSep "," proofCoreFamilies}" ];
+      coreBArgs = [ "contracts-except:${builtins.concatStringsSep "," proofCoreFamilies}" ];
+      proofCoreB = mkProofCheck "core-b" false coreBArgs;
       proofShardChecks = builtins.listToAttrs (builtins.genList (i: {
         name = "proofs-shard-${toString i}";
         value = mkProofCheck "shard-${toString i}" false [ "shard:${toString i}/${toString proofShards}" ];
@@ -248,6 +249,29 @@ ${extra}        node scripts/check-register-proofs.mjs "$out"${pkgs.lib.optional
           cp ${textSelection}/identity.json "$out/selection-identity.json"
         '';
       }) proofShards);
+      # Selected core-b (#199): the same text selection record; "selected" runs only this job's selected contract
+      # families (each complete) after its own positive seed, or nothing. The runner refuses a record that is not
+      # bound to this tree's plans, native and family code, and inputs.
+      proofSelectedCoreB = pkgs.runCommand "nickel-proof-selected-core-b" {
+        nativeBuildInputs = tools;
+      } ''
+        export HOME="$TMPDIR/home"
+        mkdir -p "$HOME"
+        cp -r ${proofSource} work
+        chmod -R u+w work
+        cd work
+        ${modelEnv}
+        export NICKEL_HAX_BIN="${haxBin}/bin/cargo-hax"
+        export NICKEL_FSTAR_MODEL_CACHE="${models}"
+        mode="$(cat ${textSelection}/mode)"
+        case "$mode" in
+          full) node scripts/check-edit-proofs.mjs "$out/edit" ${pkgs.lib.escapeShellArgs coreBArgs} ;;
+          # The consumer recomputes native and family code closures with node's module parser (--experimental-vm-modules).
+          selected) node --experimental-vm-modules --no-warnings scripts/check-edit-proofs.mjs "$out/edit" "selection:${textSelection}/selection.json" ${pkgs.lib.escapeShellArgs coreBArgs} ;;
+          *) echo "unknown selection mode: $mode" >&2; exit 1 ;;
+        esac
+        cp ${textSelection}/identity.json "$out/selection-identity.json"
+      '';
       editReferenceSource = pkgs.lib.fileset.toSource {
         root = ./.;
         fileset = pkgs.lib.fileset.unions [
@@ -301,6 +325,7 @@ ${extra}        node scripts/check-register-proofs.mjs "$out"${pkgs.lib.optional
         register-proofs-shard-coverage = registerShardCoverage;
         register-selection = registerSelection;
         text-selection = textSelection;
+        proofs-selected-core-b = proofSelectedCoreB;
       } // proofShardChecks // registerShardChecks // registerSelectedChecks // proofSelectedShardChecks;
       checks.${system} = { inherit native; gate-inputs = gateInputs; register-native = registerNative; register-proofs = registerProof; shared-native = sharedNative; shared-proofs = sharedProof; proofs = proofCheck; edit-reference = editReference; };
       devShells.${system} = {

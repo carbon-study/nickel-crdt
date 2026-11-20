@@ -1,15 +1,12 @@
 // These are proof-dependency controls, separate from actual-Rust mutations.
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import {put, verify} from './proof-cache.mjs';
-import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
+import {viewUnits} from './text-family-run.mjs';
 
-export async function checkVectorContracts({proof, output, fstar, models, modelCache}) {
-  const vectorFile = path.join(proof, 'Nickel.Vector.fst');
-  const acceptedFile = path.join(proof, 'Nickel.EditAccepted.fst');
-  const vector = await fs.readFile(vectorFile, 'utf8');
-  const accepted = await fs.readFile(acceptedFile, 'utf8');
+export function vectorUnits(read) {
+  const vectorFile = 'Nickel.Vector.fst';
+  const acceptedFile = 'Nickel.EditAccepted.fst';
+  const vector = read(vectorFile);
+  const accepted = read(acceptedFile);
   const callerStart = accepted.indexOf('let append_fresh_preserves_unique ');
   const callerEnd = accepted.indexOf('\nlet ', callerStart + 4);
   const anchor = 'Tactics.prune "Alloc.Vec.impl_1__as_slice";';
@@ -57,18 +54,8 @@ export async function checkVectorContracts({proof, output, fstar, models, modelC
     cases.push({name: 'vector-without-from-seq-' + name, file: acceptedFile,
       source: withoutFromSeq, theorem: 'Nickel.EditAccepted.' + name, view: withoutFromSeq});
   }
-  for (const test of cases) {
-    try {
-      await put(test.file, test.source);
-      const result = await verify({dir: proof, roots: [acceptedFile], fstar, models, modelCache});
-      await fs.writeFile(path.join(output, test.name + '.proof.log'), result.log);
-      assert(hasOrdinaryTheoremRejection({status: result.status, log: result.log,
-        theorem: test.theorem, view: test.view}),
-        'require ordinary vector-contract dependency rejection (' + test.name + '): ' + result.log);
-      console.log('PASS ' + test.name + ': ordinary rejection at ' + test.theorem);
-    } finally {
-      await put(vectorFile, vector);
-      await put(acceptedFile, accepted);
-    }
-  }
+  // Each owner is judged against Nickel.EditAccepted.fst as verified (test.view is that module's text).
+  return viewUnits('vector', cases.map((test) => ({name: test.name, files: {[test.file]: test.source}, roots: [acceptedFile],
+    theorem: test.theorem, inPlace: true, log: test.name + '.proof.log', pass: test.name + ': ordinary rejection at ' + test.theorem,
+    failure: 'require ordinary vector-contract dependency rejection (' + test.name + ')'})), read);
 }

@@ -1,14 +1,11 @@
 // Separate constructor information from the planner's duplicate/error prefix.
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import {put,verify} from './proof-cache.mjs';
-import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
-export async function checkPlanContracts({proof,output,fstar,models,modelCache}) {
-  const atomicFile=path.join(proof,'Nickel.EditAtomic.fst');
-  const identityFile=path.join(proof,'Nickel.EditIdentity.fst');
-  const atomic=await fs.readFile(atomicFile,'utf8');
-  const identity=await fs.readFile(identityFile,'utf8');
+import {viewUnits} from './text-family-run.mjs';
+export function planUnits(read) {
+  const atomicFile='Nickel.EditAtomic.fst';
+  const identityFile='Nickel.EditIdentity.fst';
+  const atomic=read(atomicFile);
+  const identity=read(identityFile);
   const needle='Tactics.prune "Nickel_crdt.Edit.impl_Replica__plan";';
   const pattern=' [SMTPat (Native.impl_Replica__plan before fact)]';
   assert.equal(atomic.split(pattern).length,3);
@@ -39,15 +36,7 @@ export async function checkPlanContracts({proof,output,fstar,models,modelCache})
     const view=identity.slice(0,start)+body.replace(needle,needle+'\n    Tactics.prune "Nickel.EditAtomic.plan_preserves_duplicate_result";')+identity.slice(end);
     cases.push(['plan-without-prefix-'+name,identityFile,view,identityFile,'Nickel.EditIdentity.'+name]);
   }
-  for(const [name,file,view,root,theorem]of cases) {
-    try {
-      await put(file,view);
-      const result=await verify({dir:proof,roots:[root],fstar,models,modelCache});
-      await fs.writeFile(path.join(output,name+'.proof.log'),result.log);
-      const owner=file===root?view:identity;
-      assert(hasOrdinaryTheoremRejection({status:result.status,log:result.log,theorem,view:owner}),
-        'require ordinary plan-contract dependency rejection: '+result.log);
-      console.log('PASS '+name+': actual caller requires the selected plan contract');
-    }finally{await put(atomicFile,atomic);await put(identityFile,identity);}
-  }
+  // The owner is judged against its module as verified (the mutated file, or the unchanged identity module).
+  return viewUnits('plan',cases.map(([name,file,view,root,theorem])=>({name,files:{[file]:view},roots:[root],theorem,inPlace:true,
+    log:name+'.proof.log',pass:name+': actual caller requires the selected plan contract',failure:'require ordinary plan-contract dependency rejection'})),read);
 }
