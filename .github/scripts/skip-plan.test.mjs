@@ -63,13 +63,13 @@ t('.github changes always run, before any evaluation', () => {
   runs(pr({ changedPaths: ['src/lib.rs', '.github/scripts/skip-plan.mjs'], evaluate: () => { evaluated++; return ok(drv('x')); } }), /workflow\/skip machinery changed/);
   assert.equal(evaluated, 0);
 });
-t('selection machinery runs register shards, text shards and core-b only, even with identical full drvs', () => {
+t('selection machinery runs register shards, text shards, core-b and core-a only, even with identical full drvs', () => {
   for (const p of SELECTION_PATHS) {
     runs(pr({ job: 'register-proofs-shard-2', changedPaths: [p] }), /selection machinery changed/);
     runs(pr({ job: 'proofs-shard-1', changedPaths: [p] }), /selection machinery changed/);
     runs(pr({ job: 'proofs-core-b', changedPaths: [p] }), /selection machinery changed/);
     assert.equal(pr({ job: 'shared-native', changedPaths: [p] }).decision, 'skip', `${p} alone does not force shared-native`);
-    assert.equal(pr({ job: 'proofs-core-a', changedPaths: [p] }).decision, 'skip', `${p} alone does not force core-a (not selected, #198)`);
+    runs(pr({ job: 'proofs-core-a', changedPaths: [p] }), /selection machinery changed/);
   }
 });
 t('unknown job runs', () => { runs(pr({ job: 'nope' }), /unknown job/); });
@@ -205,7 +205,7 @@ const SCAFFOLD = [
   "run: cp selection-result/identity.json selection-result/mode selection-evidence/",
   "run: if [ -e selection-result/selection.json ]; then cp selection-result/selection.json selection-evidence/; fi",
   "run: .github/scripts/check.sh \"$TARGET\" 9000 nix build -L --no-write-lock-file --out-link selected-result \".#packages.aarch64-linux.register-proofs-selected-shard-$i\" \"${overrides[@]}\"",
-  "run: elif [ \"$EVENT\" = pull_request ] && [[ \"$TARGET\" =~ ^proofs-(shard-[0-9]+|core-b)$ ]]; then",
+  "run: elif [ \"$EVENT\" = pull_request ] && [[ \"$TARGET\" =~ ^proofs-(shard-[0-9]+|core-b|core-a)$ ]]; then",
   "run: job=\"${BASH_REMATCH[1]}\"",
   "run: [[ \"$BASE_SHA\" =~ ^[0-9a-f]{40}$ ]] || { echo \"pull_request base sha missing or malformed: $BASE_SHA\"; exit 1; }",
   "run: [ \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\" ] || { echo \"checkout HEAD is not GITHUB_SHA\"; exit 1; }",
@@ -231,7 +231,7 @@ const SCAFFOLD = [
   "env.TARGET: ${{ matrix.target }}",
   "run: mkdir -p text-selection-evidence",
   "run: for f in \"/tmp/$TARGET-selection.log\" \"/tmp/$TARGET.log\"; do if [ -e \"$f\" ]; then cp \"$f\" text-selection-evidence/; fi; done",
-  "run: for f in selection-identity.json edit/planned.json edit/results.json edit/loaded-modules.json; do if [ -e \"text-selected-result/$f\" ]; then cp \"text-selected-result/$f\" text-selection-evidence/; fi; done",
+  "run: for f in selection-identity.json edit/planned.json edit/results.json edit/loaded-modules.json smoke-planned.json smoke-results.json; do if [ -e \"text-selected-result/$f\" ]; then cp \"text-selected-result/$f\" text-selection-evidence/; fi; done",
   "run: ls -la text-selection-evidence",
   "uses: actions/upload-artifact@v4",
   "with.name: text-selection-${{ matrix.target }}",

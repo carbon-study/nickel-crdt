@@ -169,11 +169,12 @@ jobs:
             if [ -e selection-result/selection.json ]; then cp selection-result/selection.json selection-evidence/; fi
             .github/scripts/check.sh "$TARGET" 9000 nix build -L --no-write-lock-file --out-link selected-result \
               ".#packages.aarch64-linux.register-proofs-selected-shard-$i" "${overrides[@]}"
-          elif [ "$EVENT" = pull_request ] && [[ "$TARGET" =~ ^proofs-(shard-[0-9]+|core-b)$ ]]; then
-            # Pull-request text shards and core-b go through the text selection boundary (#197, #199; flake.nix
-            # text-selection, scripts/selection-boundary.mjs --gate=text): same identity rules as the register route
-            # above. A shard runs only its selected native modes, core-b only its selected contract families (each
-            # complete), each plus its own positive seed when it runs anything.
+          elif [ "$EVENT" = pull_request ] && [[ "$TARGET" =~ ^proofs-(shard-[0-9]+|core-b|core-a)$ ]]; then
+            # Pull-request text shards, core-b and core-a go through the text selection boundary (#197, #199, #198;
+            # flake.nix text-selection, scripts/selection-boundary.mjs --gate=text): same identity rules as the register
+            # route above. A shard runs only its selected native modes; core-b and core-a only their selected unit groups
+            # (each complete), each plus its own positive seed when it runs anything; core-a also runs the positive
+            # whenever that obligation is selected, and smoke whenever smoke is.
             job="${BASH_REMATCH[1]}"
             [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "pull_request base sha missing or malformed: $BASE_SHA"; exit 1; }
             [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] || { echo "checkout HEAD is not GITHUB_SHA"; exit 1; }
@@ -210,18 +211,18 @@ jobs:
           path: selection-evidence/
           if-no-files-found: warn
       # Identity (exact base/head, toolchain digests, route), planned and executed tuples, and the modules a selected
-      # text shard or core-b run loaded (#197, #199). Collected whether or not the build passed.
+      # text shard, core-b or core-a run loaded, and core-a's smoke tuples (#197, #199, #198). Collected whether or not the build passed.
       - name: collect text selection evidence
-        if: always() && github.event_name == 'pull_request' && (startsWith(matrix.target, 'proofs-shard-') || matrix.target == 'proofs-core-b')
+        if: always() && github.event_name == 'pull_request' && (startsWith(matrix.target, 'proofs-shard-') || matrix.target == 'proofs-core-b' || matrix.target == 'proofs-core-a')
         env:
           TARGET: ${{ matrix.target }}
         run: |
           mkdir -p text-selection-evidence
           for f in "/tmp/$TARGET-selection.log" "/tmp/$TARGET.log"; do if [ -e "$f" ]; then cp "$f" text-selection-evidence/; fi; done
-          for f in selection-identity.json edit/planned.json edit/results.json edit/loaded-modules.json; do if [ -e "text-selected-result/$f" ]; then cp "text-selected-result/$f" text-selection-evidence/; fi; done
+          for f in selection-identity.json edit/planned.json edit/results.json edit/loaded-modules.json smoke-planned.json smoke-results.json; do if [ -e "text-selected-result/$f" ]; then cp "text-selected-result/$f" text-selection-evidence/; fi; done
           ls -la text-selection-evidence
       - name: keep text selection evidence
-        if: always() && github.event_name == 'pull_request' && (startsWith(matrix.target, 'proofs-shard-') || matrix.target == 'proofs-core-b')
+        if: always() && github.event_name == 'pull_request' && (startsWith(matrix.target, 'proofs-shard-') || matrix.target == 'proofs-core-b' || matrix.target == 'proofs-core-a')
         uses: actions/upload-artifact@v4
         with:
           name: text-selection-${{ matrix.target }}

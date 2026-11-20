@@ -4,6 +4,11 @@
 // cache-safety or gatepreflight. Shared by the selector (at base and head) and the selection consumer (its own tree).
 import assert from 'node:assert/strict';
 import {dependencies} from './gate-imports.mjs';
+import {UNIT_GROUPS,UNIT_MODULES} from './text-unit-groups.mjs';
+import {readFileSync as readFileSyncTI} from 'node:fs';
+import {lstat as lstatTI,readdir as readdirTI} from 'node:fs/promises';
+import {join as joinTI} from 'node:path';
+import {createHash as createHashTI} from 'node:crypto';
 export const TEXT_RUNNER='check-edit-proofs.mjs',TEXT_FAMILIES='text-families.mjs';
 /** read(name) returns the module source, or null if absent. Returns the sorted script names (without "scripts/"). */
 export async function nativeCodeClosure(read){
@@ -100,4 +105,46 @@ export function checkFamilyCodeControls(){
   assert.throws(()=>checkFamilyCodeRecord({...rec,past:{...rec.past,'scripts/check-past-contracts.mjs':'0'.repeat(64)}},closures,d),/code of family past differs/,'wrong family digest');
   const {past:__,...onlyDelete}=rec;
   assert.throws(()=>checkFamilyCodeRecord(onlyDelete,closures,d),/other families/,'a family left out of the record');
+}
+
+// ---------------------------------------------------------------- shared record binding (#198)
+/** The roots of the files a text decision depends on (the selector records every head file under them). */
+export const TEXT_INPUT_ROOTS=['proofs','src','tests','proof-smoke','scripts','Cargo.toml','Cargo.lock','nix/text-inputs.json','nix/gate-scripts.json'];
+const fileDigest=(root,f)=>createHashTI('sha256').update(readFileSyncTI(joinTI(root,f))).digest('hex');
+/** Binds a record's headInputs to this tree: every present file under the roots recorded with its digest, every
+ *  recorded declared packaged input present. Returns how many recorded files are undeclared. */
+export async function bindHeadInputs(root,headInputs){
+  assert(headInputs&&typeof headInputs==='object'&&!Array.isArray(headInputs),'selection record head inputs');
+  const present=[];const walk=async rel=>{let st;try{st=await lstatTI(joinTI(root,rel));}catch{return;}
+    if(st.isDirectory()){for(const e of (await readdirTI(joinTI(root,rel))).sort())await walk(rel+'/'+e);}else if(st.isFile())present.push(rel);};
+  for(const r of TEXT_INPUT_ROOTS)await walk(r);
+  const decl=JSON.parse(readFileSyncTI(joinTI(root,'nix/text-inputs.json'),'utf8')),gates=JSON.parse(readFileSyncTI(joinTI(root,'nix/gate-scripts.json'),'utf8'));
+  assert(Array.isArray(decl.paths)&&decl.paths.every(p=>typeof p==='string')&&Array.isArray(gates.text),'packaged input declarations');
+  const undeclared=checkHeadInputs(headInputs,present,f=>fileDigest(root,f),[...decl.paths,...gates.text.map(n=>'scripts/'+n)]);
+  return {present:present.length,undeclared};
+}
+/** The smoke gate's selection decision (#198). The record must be a non-diagnostic text record; a full text or unit-group
+ *  route runs smoke. Otherwise it is bound to this tree's inputs, every unit group's code closure and the smoke plan
+ *  digest (computed by the caller from this tree), and smoke runs iff it is selected. */
+export async function checkSmokeSelection(root,file,smokeDigest){
+  let rec;try{rec=JSON.parse(readFileSyncTI(file,'utf8'));}catch(e){assert.fail('selection record unreadable: '+e.message);}
+  const keys=['schema','base','head','diagnosticOnly','basePlans','headPlans','full','reasons','affected','register','text','shared'];
+  assert(rec&&typeof rec==='object'&&!Array.isArray(rec)&&Object.keys(rec).length===keys.length&&keys.every(k=>Object.hasOwn(rec,k)),'selection record has an unrecognised shape');
+  assert.equal(rec.schema,1,'selection record schema');assert.equal(rec.diagnosticOnly,false,'a diagnostic selection record cannot be consumed');
+  const t=rec.text;assert(t&&typeof t==='object'&&!Array.isArray(t),'selection record text entry');
+  if(rec.full===true||t.run==='full'){assert.deepEqual(Object.keys(t),['run'],'a full text selection carries only run');assert.equal(t.run,'full');return {run:true,why:'full text route'};}
+  const f=t.families;assert(f&&typeof f==='object'&&!Array.isArray(f),'selection record family entry');
+  if(f.run==='full'){assert.deepEqual(Object.keys(f),['run'],'a full family selection carries only run');return {run:true,why:'full unit-group route'};}
+  const fkeys=['run','selected','why','removed','total','headPlans','basePlans','digests','familyCode'];
+  assert(Object.keys(f).length===fkeys.length&&fkeys.every(k=>Object.hasOwn(f,k)),'selection record family entry has an unrecognised shape');
+  const bound=await bindHeadInputs(root,t.headInputs);
+  const readScript=async n=>{try{return readFileSyncTI(joinTI(root,'scripts',n),'utf8');}catch{return null;}};
+  const closures={};for(const n of UNIT_GROUPS)closures[n]=await familyCodeClosure(readScript,UNIT_MODULES[n]);
+  checkFamilyCodeRecord(f.familyCode,closures,p=>fileDigest(root,p));
+  assert(Array.isArray(f.selected)&&f.selected.every(n=>UNIT_GROUPS.includes(n))&&new Set(f.selected).size===f.selected.length,'selection names unknown or repeated unit groups');
+  assert(f.run==='selected'?f.selected.length>0:f.run==='none'&&f.selected.length===0,'family selection run and families agree');
+  assert(f.digests&&typeof f.digests==='object'&&Object.keys(f.digests).sort().join()===[...UNIT_GROUPS].sort().join(),'selection record unit-group plan digests');
+  assert.equal(smokeDigest,f.digests.smoke,'selection record was not made for this tree (smoke plans differ)');
+  const run=f.selected.includes('smoke');
+  return {run,why:(run?'selected ('+f.why.smoke+')':'not selected')+'; '+bound.present+' files of this tree bound to the record'};
 }

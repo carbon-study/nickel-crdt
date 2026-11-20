@@ -37,9 +37,11 @@
     "negative-proof-evidence.mjs",
     "proof-cache.mjs",
     "proof-reform.mjs",
+    "smoke-units.mjs",
     "text-families.mjs",
     "text-family-run.mjs",
-    "text-native-code.mjs"
+    "text-native-code.mjs",
+    "text-unit-groups.mjs"
   ],
   "shared": [
     "check-causal-envelope.mjs",

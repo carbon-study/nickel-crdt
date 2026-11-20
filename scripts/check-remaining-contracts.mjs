@@ -2,10 +2,7 @@
 // edits one declaration and requires its own ordinary semantic rejection.
 import assert from 'node:assert/strict';
 import {declarationCode,fstarDeclaration,replaceUniqueInFstarDeclaration} from './fstar-mutation-scope.mjs';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import {put,verify} from './proof-cache.mjs';
-import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
+import {viewUnits} from './text-family-run.mjs';
 const cases=[];
 function calls(module,owner,callees) {
   for(const callee of callees)cases.push({module,owner,callee});
@@ -77,10 +74,10 @@ export function remainingCallSites(source,module,owner,callee) {
   });
 }
 
-export async function checkRemainingContracts({proof,output,fstar,models,modelCache,select=()=>true}) {
-  const originals=new Map();
-  for(const {module}of cases)if(!originals.has(module))originals.set(module,await fs.readFile(path.join(proof,'Nickel.'+module+'.fst'),'utf8'));
-  for(const c of cases.filter(select)) {
+export function remainingUnits(read) {
+  const originals=new Map(),units=[];
+  for(const {module}of cases)if(!originals.has(module))originals.set(module,read('Nickel.'+module+'.fst'));
+  for(const c of cases) {
     const {module,owner,callee}=c,original=originals.get(module),{start:a,end:b}=fstarDeclaration(original,owner);
     const body=original.slice(a,b);
     for(const {name,index,length,replacement} of remainingCallSites(original,module,owner,callee)){
@@ -92,15 +89,9 @@ export async function checkRemainingContracts({proof,output,fstar,models,modelCa
         assert.equal(changed.split(anchor).length,2,'classification callee-prune anchor');
         changed=changed.replace(anchor,anchor+'\n    Tactics.prune "Nickel.EventClassifier.classification_is_exact";');
       }
-      const view=original.slice(0,a)+changed+original.slice(b),file=path.join(proof,'Nickel.'+module+'.fst');
-      try {
-        await put(file,view);
-        const r=await verify({dir:proof,roots:[file],fstar,models,modelCache});
-        await fs.writeFile(path.join(output,name+'.proof.log'),r.log);
-        assert(hasOrdinaryTheoremRejection({status:r.status,log:r.log,theorem:'Nickel.'+module+'.'+owner,view}),
-          name+': require ordinary named rejection (see retained log)');
-        console.log('PASS '+name);
-      }finally{await put(file,original);}
+      const view=original.slice(0,a)+changed+original.slice(b),file='Nickel.'+module+'.fst';
+      units.push({name,files:{[file]:view},roots:[file],theorem:'Nickel.'+module+'.'+owner,inPlace:true,
+        log:name+'.proof.log',pass:name,failure:name+': require ordinary named rejection (see retained log)'});
     }
   }
 
@@ -109,12 +100,9 @@ export async function checkRemainingContracts({proof,output,fstar,models,modelCa
   for(const [module,owner] of [['EditWellFormed','dependency_validation_is_sound'],['EditWellFormed','present_dependencies_pass_guard'],['EditCausal','present_id_rank_bound']]){
     const original=originals.get(module),needle='Tactics.prune "Nickel_crdt.Edit.has_fact";';
     const view=replaceUniqueInFstarDeclaration(original,owner,needle,needle+'\n    Tactics.prune "Nickel.EditWellFormed.membership_result_is_exact";');
-    const file=path.join(proof,'Nickel.'+module+'.fst');
-    try{await put(file,view);const r=await verify({dir:proof,roots:[file],fstar,models,modelCache});
-      await fs.writeFile(path.join(output,owner+'-without-membership.proof.log'),r.log);
-      assert(hasOrdinaryTheoremRejection({status:r.status,log:r.log,theorem:'Nickel.'+module+'.'+owner,view}),'ordinary membership contract dependency required');
-      console.log('PASS '+owner+': constructor-complete membership contract required');
-    }finally{await put(file,original);}
+    const file='Nickel.'+module+'.fst';
+    units.push({name:owner,files:{[file]:view},roots:[file],theorem:'Nickel.'+module+'.'+owner,inPlace:true,
+      log:owner+'-without-membership.proof.log',pass:owner+': constructor-complete membership contract required',failure:'ordinary membership contract dependency required'});
   }
   const causal=originals.get('EditCausal');
   for(const [name,from,to,owner]of[
@@ -122,13 +110,11 @@ export async function checkRemainingContracts({proof,output,fstar,models,modelCa
     ['causal-erased-edges',/let causal_edge ([\s\S]*?): Type0 =\n  [^\n]+/,'let causal_edge $1: Type0 =\n  Prims.l_False','actual_reference_is_edge']
   ]){
     const view=causal.replace(from,to);assert.notEqual(view,causal);
-    const file=path.join(proof,'Nickel.EditCausal.fst');
-    try{await put(file,view);const r=await verify({dir:proof,roots:[file],fstar,models,modelCache});
-      await fs.writeFile(path.join(output,name+'.proof.log'),r.log);
-      assert(hasOrdinaryTheoremRejection({status:r.status,log:r.log,theorem:'Nickel.EditCausal.'+owner,view}),'ordinary ghost-law rejection required');
-      console.log('PASS '+name+': ghost-only control, no native mutation claimed');
-    }finally{await put(file,causal);}
+    const file='Nickel.EditCausal.fst';
+    units.push({name,files:{[file]:view},roots:[file],theorem:'Nickel.EditCausal.'+owner,inPlace:true,
+      log:name+'.proof.log',pass:name+': ghost-only control, no native mutation claimed',failure:'ordinary ghost-law rejection required'});
   }
+  return viewUnits('remaining',units,read);
 }
 
 // Pure locator controls (#158): calls count only in code, occurrence indexing

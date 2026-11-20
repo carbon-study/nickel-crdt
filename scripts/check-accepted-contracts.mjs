@@ -2,12 +2,9 @@
 // when the contract it composes is withheld too.
 import assert from 'node:assert/strict';
 import {fstarDeclaration,replaceUniqueInFstarDeclaration} from './fstar-mutation-scope.mjs';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import {put,verify} from './proof-cache.mjs';
-import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
-export async function checkAcceptedContracts({proof,output,fstar,models,modelCache,select=()=>true}) {
-  const file=path.join(proof,'Nickel.EditAccepted.fst'),original=await fs.readFile(file,'utf8');
+import {viewUnits} from './text-family-run.mjs';
+export function acceptedUnits(read) {
+  const file='Nickel.EditAccepted.fst',original=read(file);
   const declaration=theorem=>fstarDeclaration(original,theorem);
   const withhold=(theorem,needle,replacement)=>replaceUniqueInFstarDeclaration(original,theorem,needle,replacement);
   const step=' [SMTPat (Native.canonical_step input out)]',tree=' [SMTPat (Native.impl_Replica__with_tree state tree)]';
@@ -55,28 +52,24 @@ export async function checkAcceptedContracts({proof,output,fstar,models,modelCac
     assert.equal(calls.length,1,owner+': one source-frame call');
     cases.push(['accepted-loop-without-source-frame-'+owner,owner,calls[0][0],'  ();']);
   }
-  for(const[name,scope,needle,replacement,owner=scope]of cases.filter(([name])=>select(name))) {
-    const view=withhold(scope,needle,replacement),theorem=owner;
-    try {await put(file,view);const result=await verify({dir:proof,roots:[file],fstar,models,modelCache});
-      await fs.writeFile(path.join(output,name+'.proof.log'),result.log);
-      assert(hasOrdinaryTheoremRejection({status:result.status,log:result.log,theorem:'Nickel.EditAccepted.'+theorem,view}),'require ordinary accepted dependency rejection: '+result.log);
-      console.log('PASS '+name+': caller needs its checked contract');
-    }finally{await put(file,original);}
-  }
-  await checkCanonicalFrameControls({proof,output,fstar,models,modelCache,select});
+  const units=cases.map(([name,scope,needle,replacement,owner=scope])=>({name,files:{[file]:withhold(scope,needle,replacement)},roots:[file],
+    theorem:'Nickel.EditAccepted.'+owner,inPlace:true,log:name+'.proof.log',pass:name+': caller needs its checked contract',failure:'require ordinary accepted dependency rejection'}));
+  return viewUnits('accepted',[...units,...canonicalFrameControls(read)],read);
 }
 
 // Test-only semantic faults in the ghost loop frame. The production proof and
 // native translation remain unchanged; the false trust cut must never escape
 // this family's disposable workspace or be counted as positive proof evidence.
-export async function checkCanonicalFrameControls({proof,output,fstar,models,modelCache,select=()=>true}) {
+// The healthy frame is an explicit expect "verify" unit (#198): it must verify with the test-only trust cut, and it is
+// neither a rejection nor production proof evidence. Every unit here runs in place in the family's disposable workspace
+// copy, which is restored after each unit; the extracted native program is checked unchanged before and after each.
+export function canonicalFrameControls(read) {
   const cases=[
     ['accepted-frame-refuses','Result.Result_Err Native.Error_Internal','canonical_succeeds_for_unique_ids'],
     ['accepted-frame-drops-facts','Result.Result_Ok (Alloc.Vec.impl__new ())','canonical_selects_whole_facts'],
-  ].filter(([name])=>select(name));
-  if(cases.length===0)return;
-  const file=path.join(proof,'Nickel.EditAccepted.fst'),nativeFile=path.join(proof,'Nickel_crdt.Edit.fst');
-  const original=await fs.readFile(file,'utf8'),native=await fs.readFile(nativeFile,'utf8');
+  ];
+  const file='Nickel.EditAccepted.fst',nativeFile='Nickel_crdt.Edit.fst';
+  const original=read(file);
   const bounds=(view,name)=>{const {start,end}=fstarDeclaration(view,name);return [start,end];};
   const[a,b]=bounds(original,'canonical_uses_complete_range');
   assert.equal(original.slice(a,b).split('\n')[0],'let canonical_uses_complete_range (input: t_Slice Native.t_Fact) : Lemma (ensures Native.canonical input == canonical_loop_result input) =');
@@ -86,24 +79,11 @@ export async function checkCanonicalFrameControls({proof,output,fstar,models,mod
   const healthy=original.slice(0,a)+trustCut+original.slice(b);
   const[c,d]=bounds(healthy,'canonical_loop_result'),header=healthy.slice(c,d).split('\n')[0];
   assert.equal(header,'let canonical_loop_result (input: t_Slice Native.t_Fact) : Result.t_Result facts_vec Native.t_Error =');
-  try {
-    await put(file,healthy);
-    const positive=await verify({dir:proof,roots:[file],fstar,models,modelCache});
-    await fs.writeFile(path.join(output,'accepted-frame-healthy.proof.log'),positive.log);
-    assert.equal(positive.status,0,'the healthy frame must still verify with this test-only trust cut: '+positive.log);
-    console.log('PASS accepted-frame-healthy: test-only trust cut preserves the healthy consumer checks');
-    for(const[name,result,owner]of cases) {
-      const view=healthy.slice(0,c)+header+'\n  '+result+'\n'+healthy.slice(d);
-      await put(file,view);
-      assert.equal(await fs.readFile(nativeFile,'utf8'),native,'ghost fault must not mutate the extracted native program');
-      const checked=await verify({dir:proof,roots:[file],fstar,models,modelCache});
-      await fs.writeFile(path.join(output,name+'.proof.log'),checked.log);
-      assert(hasOrdinaryTheoremRejection({status:checked.status,log:checked.log,theorem:'Nickel.EditAccepted.'+owner,view}),'require ordinary public frame rejection: '+checked.log);
-      console.log('PASS '+name+': unchanged '+owner+' rejects independently of transcription');
-    }
-  } finally {
-    await put(file,original);
-    assert.equal(await fs.readFile(file,'utf8'),original,'restore production frame proof after every fault');
-    assert.equal(await fs.readFile(nativeFile,'utf8'),native,'native program remains unchanged');
-  }
+  return [
+    {name:'accepted-frame-healthy',expect:'verify',files:{[file]:healthy},roots:[file],inPlace:true,unchanged:[nativeFile],
+      log:'accepted-frame-healthy.proof.log',pass:'accepted-frame-healthy: test-only trust cut preserves the healthy consumer checks',failure:'the healthy frame must still verify with this test-only trust cut'},
+    ...cases.map(([name,result,owner])=>({name,files:{[file]:healthy.slice(0,c)+header+'\n  '+result+'\n'+healthy.slice(d)},roots:[file],
+      theorem:'Nickel.EditAccepted.'+owner,inPlace:true,unchanged:[nativeFile],log:name+'.proof.log',
+      pass:name+': unchanged '+owner+' rejects independently of transcription',failure:'require ordinary public frame rejection'})),
+  ];
 }

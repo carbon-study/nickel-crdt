@@ -18,7 +18,7 @@ import {sourceFiles,modes,mutationDefinitions,definitionByMode,prepareMutation a
 import {checkProofReform} from './proof-reform.mjs';
 import {nativeCodeClosure,checkNativeCodeRecord,checkNativeCodeControls,checkHeadInputs,checkHeadInputControls,familyCodeClosure,checkFamilyCodeRecord,checkFamilyCodeControls} from './text-native-code.mjs';
 import {checkNegativeProofEvidence} from './check-negative-proof-evidence.mjs';
-import {POSITIVE_VIEWS,viewSource,retainedWorkspaceFile,familyPlanDigest,checkFamilyAuditControls} from './text-family-run.mjs';
+import {POSITIVE_VIEWS,viewSource,retainedWorkspaceFile,familyPlanDigest,checkFamilyAuditControls,checkVerifyUnitAuditControls} from './text-family-run.mjs';
 const root=fileURLToPath(new URL('..',import.meta.url));
 // Runtime load audit (#197). A selected shard run records every module it loads after this point (the static imports
 // above are native code inputs by construction); the consumer refuses the run if any loaded gate script lies outside
@@ -89,7 +89,7 @@ const mutations=[];
 const exportPlans=args.includes('export-plans');
 assert(!exportPlans||args.length===1,'export-plans is exclusive');
 for(const arg of args) {
-  if(arg==='gatepreflight'||arg==='export-plans'||arg.startsWith('selection:')){}
+  if(arg==='gatepreflight'||arg==='export-plans'||arg.startsWith('selection:')||arg==='positive-obligation'){}
   else if(arg==='positive'){wantPositive=true;for(const name of FAMILY_NAMES)familyRuns.add(name);}
   else if(arg==='positive-only')wantPositive=true;
   else if(arg==='cache-safety'){wantPositive=true;cacheSafety=true;}
@@ -105,6 +105,9 @@ for(const arg of args) {
   else {assert(modes.includes(arg),'unknown mode '+arg);if(arg.startsWith('basis-')||arg.startsWith('replay-')||arg==='scheduler-forgets-completed-tree')wantPositive=true;mutations.push(arg);}
 }
 assert(!args.includes('gatepreflight')||args.length===1,'gatepreflight is an exclusive preparation-only mode');
+// positive-obligation (#198) marks the selected job that owns the standalone positive tuple (core-a); it only means
+// something to the selection consumer.
+assert(!args.includes('positive-obligation')||selectionArg,'positive-obligation is a selection consumer argument');
 if(args.length===0){for(const name of FAMILY_NAMES)familyRuns.add(name);mutations.push(...modes.filter(mode=>mode!=='positive'));}
 
 // Registration consistency: every selected mutation must have an anchored edit and a
@@ -160,8 +163,13 @@ console.log('PASS exact-tuple audit controls: hidden unit, unexecuted plan, chan
 console.log('PASS mutation scopes: every registered mode resolves to one in-scope anchor; moved/duplicate/comment-only anchor, missing/comment/string/duplicated header, literal braces, C raw strings across items and unsupported-lexeme controls');
 if(args.length===1&&args[0]==='gatepreflight'){
   // Every converted family enumerates from the retained workspace, and the family audit controls hold on real tuples.
-  const plans=await familyPlansOf(FAMILY_NAMES);checkFamilyAuditControls(auditUnits,plans);
-  console.log('PASS family enumeration: '+plans.length+' family control plans from '+new Set(plans.map(p=>p.family)).size+' converted families; family audit controls refused hidden, unexecuted, changed-root, wrong-expectation, digest, owner and native-input tuples');
+  const plans=await familyPlansOf((await familiesModule()).UNIT_GROUPS);checkFamilyAuditControls(auditUnits,plans);
+  // accepted's healthy test-only frame (and every other verify unit) is an explicit tuple: hiding it or flipping its
+  // expectation fails the audit.
+  const accepted=plans.filter(p=>p.family==='accepted');assert(accepted.some(p=>p.id==='accepted:accepted-frame-healthy'&&p.expect==='verify'&&p.owner===null),'accepted healthy frame is an explicit verify unit');
+  const verifyChecked=checkVerifyUnitAuditControls(auditUnits,accepted)+checkVerifyUnitAuditControls(auditUnits,plans.filter(p=>p.family!=='accepted'));
+  console.log('PASS verify-unit audit controls: '+verifyChecked+' explicit verify units (accepted healthy frame, cache-safety, delete witnesses, smoke); hidden unit, wrong expectation and owner each refused');
+  console.log('PASS family enumeration: '+plans.length+' unit plans from '+new Set(plans.map(p=>p.family)).size+' unit groups (families, cache-safety, smoke); family audit controls refused hidden, unexecuted, changed-root, wrong-expectation, digest, owner and native-input tuples');
   process.exit(0);
 }
 // Source identity: the files the native and positive units are built from, so a selector can check an export
@@ -175,9 +183,9 @@ async function exportText(){
 async function exportFamilies(){
   const fm=await familiesModule();
   assert.deepEqual(fm.FAMILY_ORDER,FAMILY_NAMES,'family table and names agree');
-  const plans=await familyPlansOf(FAMILY_NAMES);
+  const plans=await familyPlansOf(fm.UNIT_GROUPS);
   const sources=Object.fromEntries(Object.entries(familySources).sort(([a],[b])=>a<b?-1:a>b?1:0));
-  return JSON.stringify({schema:1,gate:'text-families',sources,order:fm.FAMILY_ORDER,modules:fm.FAMILY_MODULES,unconverted:fm.UNCONVERTED,plans},null,1)+'\n';
+  return JSON.stringify({schema:1,gate:'text-families',sources,order:fm.UNIT_GROUPS,modules:fm.UNIT_MODULES,unconverted:fm.UNCONVERTED,plans},null,1)+'\n';
 }
 if(exportPlans){
   const out=process.argv[2];assert(out,'output directory required');
@@ -189,8 +197,10 @@ if(exportPlans){
     '; '+JSON.parse(families).plans.length+' family control plans to '+path.join(out,'family-plans.json'));
   process.exit(0);
 }
-// Selection consumer (#197, #199). `selection:<file> shard:<i>/<n>` runs what a selector record chose for this shard;
-// `selection:<file> contracts-except:<…>` (core-b) runs what it chose for that job's contract families. The record is
+// Selection consumer (#197, #199, #198). `selection:<file> shard:<i>/<n>` runs what a selector record chose for this
+// shard; `selection:<file> <unit groups…>` (core-b: contracts-except:…; core-a: positive-obligation cache-safety
+// contracts:…) runs what it chose for that job's unit groups, and core-a also runs the positive whenever that obligation
+// is selected (text.positive), even with no selected group. The record is
 // refused unless it was made from exactly this tree's text plans (its headPlans digest equals this runner's own
 // export), native code, inputs and (for a family job) family code and selected family plans, and is not diagnostic.
 // full runs the plain job; none runs nothing; selected runs this shard's share of the selected native modes, or this
@@ -198,10 +208,14 @@ if(exportPlans){
 let textSelection=null,familyDigests=null;
 if(selectionArg){
   const file=selectionArg.slice('selection:'.length);assert(file.length>0,'selection needs a record path');
-  // A selected job is either one native shard (#197) or one contract-family job (#199), never both.
-  const shardArgs=args.filter(arg=>arg.startsWith('shard:')),familyArgs=args.filter(arg=>arg.startsWith('contracts-except:')||arg.startsWith('contracts:'));
-  assert(args.length===2&&(shardArgs.length===1)!==(familyArgs.length>=1)&&shardArgs.length+familyArgs.length===1,'selection combines only with exactly one shard, or with the contract families of one job');
-  const familyJob=familyArgs.length===1;
+  // A selected job is either one native shard (#197) or one unit-group job (#199 core-b, #198 core-a: contract families,
+  // cache-safety and, for the job owning it, the positive obligation), never both.
+  const jobArgs=args.filter(arg=>!arg.startsWith('selection:'));
+  const shardArgs=jobArgs.filter(arg=>arg.startsWith('shard:'));
+  const groupArg=arg=>arg.startsWith('contracts-except:')||arg.startsWith('contracts:')||arg==='cache-safety'||arg==='positive-obligation';
+  const familyJob=shardArgs.length===0;
+  assert(familyJob?jobArgs.length>0&&jobArgs.every(groupArg)&&jobArgs.some(a=>a!=='positive-obligation'):shardArgs.length===1&&jobArgs.length===1,
+    'selection combines only with exactly one shard, or with the unit groups of one job');
   let rec;try{rec=JSON.parse(await fs.readFile(file,'utf8'));}catch(e){assert.fail('selection record unreadable: '+e.message);}
   const keys=['schema','base','head','diagnosticOnly','basePlans','headPlans','full','reasons','affected','register','text','shared'];
   assert(rec&&typeof rec==='object'&&!Array.isArray(rec)&&Object.keys(rec).length===keys.length&&keys.every(k=>Object.hasOwn(rec,k)),'selection record has an unrecognised shape');
@@ -258,25 +272,30 @@ if(selectionArg){
         const fkeys=['run','selected','why','removed','total','headPlans','basePlans','digests','familyCode'];
         assert(Object.keys(f).length===fkeys.length&&fkeys.every(k=>Object.hasOwn(f,k)),'selection record family entry has an unrecognised shape');
         const fm=await familiesModule();
-        const converted=FAMILY_NAMES.filter(n=>!fm.UNCONVERTED.includes(n));
-        const closures={};for(const n of converted)closures[n]=await familyCodeClosure(readScript,fm.FAMILY_MODULES[n]);
+        const converted=fm.UNIT_GROUPS.filter(n=>!fm.UNCONVERTED.includes(n));
+        const closures={};for(const n of converted)closures[n]=await familyCodeClosure(readScript,fm.UNIT_MODULES[n]);
         checkFamilyCodeRecord(f.familyCode,closures,p=>digest(readFileSync(path.join(root,p))));
         assert(Array.isArray(f.selected)&&f.selected.every(n=>converted.includes(n))&&new Set(f.selected).size===f.selected.length,'selection names unknown, unconverted or repeated families');
         assert(f.run==='selected'?f.selected.length>0:f.run==='none'&&f.selected.length===0,'family selection run and families agree');
         assert(f.digests&&typeof f.digests==='object'&&Object.keys(f.digests).sort().join()===[...converted].sort().join(),'selection record family plan digests');
         // Only converted families can be selected; a job holding an unconverted family is never selected.
-        const job=[...familyRuns];assert(job.every(n=>converted.includes(n)),'a selected family job holds unconverted families: '+job.filter(n=>!converted.includes(n)).join(','));
-        const mine=FAMILY_NAMES.filter(n=>familyRuns.has(n)&&f.selected.includes(n));
+        const job=[...FAMILY_NAMES.filter(n=>familyRuns.has(n)),...(cacheSafety?['cache-safety']:[])];
+        assert(job.every(n=>converted.includes(n)),'a selected job holds unconverted unit groups: '+job.filter(n=>!converted.includes(n)).join(','));
+        const mine=job.filter(n=>f.selected.includes(n));
+        // The positive tuple is a standalone obligation of the job that owns it, selected by its own inputs even with no
+        // selected negative; any other job runs its positive only as the seed its selected groups need.
+        const obligation=args.includes('positive-obligation')&&t.positive!==null;
         familyDigests=f.digests;
         // Each family this job will run must have exactly the recorded plans, recomputed here from this tree (loading
         // only that family's module). Unselected families' plans are not loaded; their code and inputs are bound above.
         for(const n of mine)assert.equal(familyPlanDigest((await fm.familyUnits(n,retainedRead,repoRead)).map(u=>u.plan)),f.digests[n],'selection record was not made for this tree (family '+n+' plans differ)');
         const allowed=new Set([...Object.keys(t.nativeCode),'scripts/text-families.mjs',...mine.flatMap(n=>closures[n].map(x=>'scripts/'+x))]);
         textSelection={run:f.run,mine,allowed};
-        // This job runs exactly its selected families, each complete, after its own positive seed; nothing else.
-        mutations.length=0;wantPositive=mine.length>0;cacheSafety=false;familyRuns.clear();for(const n of mine)familyRuns.add(n);
-        console.log('family selection '+f.run+': '+mine.length+' of this job\'s '+job.length+' families selected ('+(mine.join(',')||'none')+')'+(wantPositive?' plus this job\'s positive seed':''));
-        if(!mine.length)await nothing('families');
+        // This job runs exactly its selected groups, each complete, after its own positive; nothing else.
+        mutations.length=0;wantPositive=mine.length>0||obligation;cacheSafety=mine.includes('cache-safety');familyRuns.clear();for(const n of mine)if(n!=='cache-safety')familyRuns.add(n);
+        console.log('family selection '+f.run+': '+mine.length+' of this job\'s '+job.length+' unit groups selected ('+(mine.join(',')||'none')+')'+
+          (obligation?'; positive obligation selected ('+t.positive+')':'')+(wantPositive?(obligation?'':' plus this job\'s positive seed'):''));
+        if(!wantPositive)await nothing('units');
       }
     }
   }
@@ -427,11 +446,20 @@ async function check(mode) {
       if(familyDigests)assert.equal(familyPlanDigest(planned),familyDigests[name],'selection record was not made for this tree (family '+name+' plans differ)');
       // Audit controls on the first family this run executes (its own real tuples; no other family is loaded).
       if(!familyPlanned.length){checkFamilyAuditControls(auditUnits,planned);console.log('PASS family audit controls ('+name+' tuples): hidden control, unexecuted plan, changed roots, wrong expectation, mutation digest, owner and native inputs each refused');}
+      if(planned.some(p=>p.expect==='verify'))checkVerifyUnitAuditControls(auditUnits,planned);
       familyPlanned.push(...planned);
       const units=await fm.familyUnits(name,file=>readFileSync(path.join(copy,file),'utf8'),repoRead);
       await fm.runFamily(name,ctx,{units,record:ran=>{assert(!executed.has(ran.id),'unit executed twice: '+ran.id);executed.set(ran.id,ran);}});
     }
-    if(cacheSafety)await (await familiesModule()).checkCacheSafety({positiveProof:proof,workRoot:path.join(root,'.cache','edit-proofs'),output,fstar,models,modelCache});
+    if(cacheSafety){
+      // Cache-safety units (#198): planned from the retained workspace, executed on copies of this verified positive.
+      const cm=await familiesModule(),planned=(await cm.familyUnits('cache-safety',retainedRead,repoRead)).map(u=>u.plan);
+      if(familyDigests)assert.equal(familyPlanDigest(planned),familyDigests['cache-safety'],'selection record was not made for this tree (cache-safety plans differ)');
+      familyPlanned.push(...planned);
+      const units=await cm.familyUnits('cache-safety',file=>readFileSync(path.join(proof,file),'utf8'),repoRead);
+      await cm.runFamily('cache-safety',{positiveProof:proof,workRoot:path.join(root,'.cache','edit-proofs'),output,fstar,models,modelCache},
+        {units,record:ran=>{assert(!executed.has(ran.id),'unit executed twice: '+ran.id);executed.set(ran.id,ran);}});
+    }
     for(const name of inventory)await fs.copyFile(path.join(proof,name),path.join(output,name));
   } else {
     assert.equal(checked.status,2,'require ordinary proof rejection, not extraction failure/timeout');

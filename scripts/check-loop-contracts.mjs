@@ -1,9 +1,5 @@
 // Dependency controls for the plain-loop contracts; no Rust changes here.
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import {put,verify} from './proof-cache.mjs';
-import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
 import {viewUnits} from './text-family-run.mjs';
 function declaration(view,name) {
   const match=new RegExp('^let (?:rec )?'+name+' ','m').exec(view);assert(match,'missing declaration '+name);
@@ -16,9 +12,11 @@ function removeCall(view,name,needle) {
   assert.equal(body.split(needle).length,2,'control anchor must occur once in '+name);
   return view.slice(0,a)+body.replace(needle,needle.endsWith(';')?'':'()')+view.slice(b);
 }
-export async function checkLoopContracts({proof,output,fstar,models,modelCache}) {
+// Smoke's loop-contract controls (#198), as units on the smoke positive workspace (read serves it). In place; each
+// unit restores the workspace.
+export function loopUnits(read) {
   const loop='Nickel.LoopUtil.fst',smoke='Nickel.Smoke.fst';
-  const originals=new Map(await Promise.all([loop,smoke].map(async name=>[name,await fs.readFile(path.join(proof,name),'utf8')])));
+  const originals=new Map([loop,smoke].map(name=>[name,read(name)]));
   const cases=[
     ['result-no-return-rule',loop,'result_preserve_any','preserve_any start finish p (fun (s: state) -> successful (done s)) (result_safe successful failed);'],
     ['return-no-step',loop,'preserve','unroll start finish inv value f;'],
@@ -39,34 +37,18 @@ export async function checkLoopContracts({proof,output,fstar,models,modelCache})
     ['native-no-interpret',smoke,'flip_bridge','Nickel.LoopUtil.plain_interpret_any (mk_usize 0) n (flip_next n) keep identity;'],
     ['native-no-invariant-rule',smoke,'flip_exact',"Nickel.LoopUtil.plain_preserve_any (mk_usize 0) n (fun at s -> parity s (v n - at) == parity value (v n)) (fun s -> s == parity value (v n));"],
   ];
-  for(const [name,file,lemma,needle] of cases) {
-    const view=removeCall(originals.get(file),lemma,needle);
-    try {
-      await put(path.join(proof,file),view);
-      const result=await verify({dir:proof,roots:[path.join(proof,file)],fstar,models,modelCache});
-      await fs.writeFile(path.join(output,name+'.proof.log'),result.log);
-      assert(hasOrdinaryTheoremRejection({status:result.status,log:result.log,theorem:file.slice(0,-4)+'.'+lemma,view}),
-        'require ordinary named rejection after removing loop contract: '+result.log);
-      console.log('PASS '+name+': contract dependency is load-bearing');
-    } finally {
-      await put(path.join(proof,file),originals.get(file));
-    }
-  }
+  return viewUnits('smoke',cases.map(([name,file,lemma,needle])=>({name,files:{[file]:removeCall(originals.get(file),lemma,needle)},roots:[file],
+    theorem:file.slice(0,-4)+'.'+lemma,inPlace:true,log:name+'.proof.log',pass:name+': contract dependency is load-bearing',
+    failure:'require ordinary named rejection after removing loop contract'})),read);
 }
-// Keep the original bridge control, and independently check the direct parity
-// caller without making the old bridge available as a lemma.
-export async function checkDirectLoop({proof,output,fstar,models,modelCache,mode}) {
-  const file=path.join(proof,'Nickel.Smoke.fst'),original=await fs.readFile(file,'utf8');
+// The direct parity caller without the legacy bridge: it must verify on the healthy extraction (mode "positive") and be
+// rejected at flip_exact on the wrong-loop extraction. Same mutated view in both workspaces.
+export function directParityUnits(read,mode) {
+  const file='Nickel.Smoke.fst',original=read(file);
   const [a,b]=declaration(original,'flip_bridge'),view=original.slice(0,a)+original.slice(b);
-  try {
-    await put(file,view);
-    const result=await verify({dir:proof,roots:[file],fstar,models,modelCache});
-    await fs.writeFile(path.join(output,'direct-parity-'+mode+'.proof.log'),result.log);
-    if(mode==='positive')assert.equal(result.status,0,result.log);
-    else assert(hasOrdinaryTheoremRejection({status:result.status,log:result.log,theorem:'Nickel.Smoke.flip_exact',view}),
-      'require ordinary direct-parity rejection of the actual wrong Rust body: '+result.log);
-    console.log('PASS direct parity '+mode+' without the legacy bridge');
-  } finally { await put(file,original); }
+  const c={name:'direct-parity-'+mode,files:{[file]:view},roots:[file],inPlace:true,log:'direct-parity-'+mode+'.proof.log',pass:'direct parity '+mode+' without the legacy bridge'};
+  return viewUnits('smoke',[mode==='positive'?{...c,expect:'verify',failure:'direct parity positive must verify'}
+    :{...c,theorem:'Nickel.Smoke.flip_exact',failure:'require ordinary direct-parity rejection of the actual wrong Rust body'}],read);
 }
 
 // Actual scalar validator boundaries must use the fallible invariant rule.
