@@ -225,3 +225,5 @@ proof equal_candidate_contents_give_same_rebuild(left: Native.t_Replica, left_fa
     Tactics.smt_sync'(1, 1)
   }
 }
+
+// #198 selective activation demo only (never merge): comment, view unchanged
