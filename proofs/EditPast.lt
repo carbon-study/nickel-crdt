@@ -525,3 +525,5 @@ proof successful_past_is_exact_closure(facts: facts_vec, roots: t_Slice(Native.t
     }
   }
 }
+
+// #199 selective activation demo only (never merge): comment, view unchanged
