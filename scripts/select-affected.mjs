@@ -18,8 +18,9 @@
 //   selects the full suite. Gate script ownership is read from nix/gate-scripts.json at both refs.
 // - Module dependencies are read statically from the committed F* files at BOTH base and head; the
 //   affected set is the reverse closure over the union of both graphs.
-// - Text: native modes (#197) and core-b's contract families (#199) are selected from each ref's own text plan and
-//   family plan exports (below); core-a's families are not selected (#198). Shared gates always run in full.
+// - Text: native modes (#197) and every unit group (core-b's families #199; core-a's remaining/spec/accepted,
+//   cache-safety and smoke #198) are selected from each ref's own text plan and family plan exports (below); the text
+//   positive is its own obligation (record text.positive). Shared gates always run in full.
 // --test-ignore-full-paths is a diagnostic aid only: it reports module-level selection with the
 // full-forcing paths ignored; its record carries diagnosticOnly:true and a consumer must reject it.
 import {execFileSync} from 'node:child_process';
@@ -247,7 +248,9 @@ function readTextPlans(file,label,ref){
 // changed and the family has native tuples; its code (its module's literal import closure, at either ref) changed; or
 // the family index changed. Unreadable or malformed family exports, or an owner outside its roots' closure, select
 // every family job in full. Shared machinery and the runner already select all text work in full.
-const FAMILY_KEYS='expect,family,id,kind,mutation,native,owner,roots';
+// Tuple kinds (#199, #198): family-control (a view or native control), cache-safety (a verify unit with its
+// compiled/reused checks and module budget) and smoke-native (a smoke native chain; the healthy one mutates nothing).
+const FAMILY_KEYS='expect,family,id,kind,mutation,native,owner,roots',CACHE_KEYS='checks,expect,family,id,kind,mutation,native,owner,roots';
 function readFamilyPlans(file,label,ref){
   if(!file)return {error:label+' family plan export not supplied'};
   let bytes,j;try{bytes=readFileSync(file);j=JSON.parse(bytes.toString('utf8'));}catch(e){return {error:label+' family plan export unreadable: '+e.message};}
@@ -261,11 +264,17 @@ function readFamilyPlans(file,label,ref){
   const converted=j.order.filter(n=>!j.unconverted.includes(n)),byId=new Map(),byFamily=new Map(converted.map(n=>[n,[]]));
   const strings=a=>Array.isArray(a)&&a.every(x=>typeof x==='string');
   for(const p of j.plans){
-    if(!p||typeof p!=='object'||Object.keys(p).sort().join()!==FAMILY_KEYS||p.kind!=='family-control')return bad('has a malformed family tuple');
+    const kinds={'family-control':FAMILY_KEYS,'cache-safety':CACHE_KEYS,'smoke-native':FAMILY_KEYS};
+    if(!p||typeof p!=='object'||!Object.hasOwn(kinds,p.kind)||Object.keys(p).sort().join()!==kinds[p.kind])return bad('has a malformed unit tuple');
+    if(p.kind==='cache-safety'&&!(p.family==='cache-safety'&&p.expect==='verify'&&p.native===null&&p.checks&&Object.keys(p.checks).sort().join()==='compiled,moduleSeconds,reused'
+      &&strings(p.checks.compiled)&&strings(p.checks.reused)&&(p.checks.moduleSeconds===null||Number.isSafeInteger(p.checks.moduleSeconds))))return bad('has a malformed cache-safety tuple '+String(p.id));
+    if(p.kind==='smoke-native'&&!(p.family==='smoke'&&p.native!==null))return bad('has a malformed smoke native tuple '+String(p.id));
     if(!byFamily.has(p.family)||typeof p.id!=='string'||!p.id.startsWith(p.family+':')||byId.has(p.id))return bad('has a malformed, repeated or unconverted-family id '+String(p.id));
     if(!(p.expect==='reject'&&typeof p.owner==='string'&&/^(Nickel|Nickel_crdt)\.[A-Za-z_0-9]+\.[A-Za-z_0-9']+$/.test(p.owner))&&!(p.expect==='verify'&&p.owner===null))return bad('has a malformed expectation or owner for '+p.id);
     if(!strings(p.roots)||!p.roots.length||!p.roots.every(r=>MODFILE.test(r)))return bad('has malformed roots for '+p.id);
-    if(!Array.isArray(p.mutation)||!p.mutation.length||!p.mutation.every(m=>m&&Object.keys(m).sort().join()==='file,sha256'&&typeof m.file==='string'&&HEX.test(m.sha256)))return bad('has a malformed mutation for '+p.id);
+    // Only cache-safety's unchanged/options cases and the healthy smoke chain write no file.
+    const mayBeEmpty=p.kind==='cache-safety'||(p.kind==='smoke-native'&&p.expect==='verify');
+    if(!Array.isArray(p.mutation)||(!p.mutation.length&&!mayBeEmpty)||!p.mutation.every(m=>m&&Object.keys(m).sort().join()==='file,sha256'&&typeof m.file==='string'&&HEX.test(m.sha256)))return bad('has a malformed mutation for '+p.id);
     if(p.native!==null&&(!p.native||Object.keys(p.native).sort().join()!=='baselines,cargoArgs,extraction'||!strings(p.native.cargoArgs)||!Array.isArray(p.native.baselines)||p.native.baselines.length!==0||p.native.extraction!==true))return bad('has malformed native inputs for '+p.id);
     byId.set(p.id,p);byFamily.get(p.family).push(p);
   }
@@ -284,7 +293,8 @@ async function selectFamilies(){
   const depsClosure=mods=>{const seen=new Set(),stack=[...mods];while(stack.length){const m=stack.pop();if(seen.has(m))continue;seen.add(m);for(const d of graphs[1].get(m)??[])stack.push(d);}return seen;};
   const outside=[...fh.byId.values()].filter(p=>p.owner!==null&&!depsClosure(p.roots.map(rootModule)).has(theoremModule(p.owner))).map(p=>p.id);
   if(outside.length){reasons.push({textFamiliesFull:'family owner module outside its roots\' dependency closure (graph incomplete)',why:outside.slice(0,5).join(',')});return {run:'full'};}
-  const changed=new Set(changes),crate=changes.some(p=>CRATE.test(p)),index=changed.has(TEXT_FAMILIES);
+  // The family index and the unit-group table (#198) define every group: a change to either selects all of them.
+  const changed=new Set(changes),crate=changes.some(p=>CRATE.test(p)),indexPath=[TEXT_FAMILIES,'scripts/text-unit-groups.mjs'].find(p=>changed.has(p)),index=Boolean(indexPath);
   const why={};
   for(const n of fh.converted){
     const hp=fh.byFamily.get(n),bp=fb.byFamily.get(n);
@@ -292,7 +302,7 @@ async function selectFamilies(){
     let r=null;
     if(!bp)r='new or newly converted family';
     else if(JSON.stringify(bp)!==JSON.stringify(hp))r='family tuples changed (new, changed or removed controls)';
-    else if(index)r='family index changed ('+TEXT_FAMILIES+')';
+    else if(index)r='family index changed ('+indexPath+')';
     else if(codeHit.length)r='family code changed: '+codeHit.join(',');
     else if(crate&&hp.some(p=>p.native!==null))r='crate or test input changed and the family has native tuples';
     else{const p=hp.find(p=>p.roots.some(x=>affected.has(rootModule(x)))||(p.owner!==null&&affected.has(theoremModule(p.owner))));

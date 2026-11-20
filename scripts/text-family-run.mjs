@@ -30,7 +30,9 @@ export function viewPlan(family,c,read){
   assert(typeof c.name==='string'&&c.name.length>0,family+': control name');
   const files=Object.keys(c.files).sort();assert(files.length>0,c.name+': a control writes at least one file');
   for(const f of files)assert.notEqual(c.files[f],read(f),c.name+': '+f+' must differ from the positive workspace');
-  return {id:family+':'+c.name,kind:'family-control',family,owner:c.theorem,expect:'reject',roots:[...c.roots],
+  // expect "verify" (#198): a test-only healthy unit that must verify; it has no owner and is never a rejection.
+  const expect=c.expect??'reject';assert(expect==='reject'?typeof c.theorem==='string':expect==='verify'&&c.theorem===undefined,c.name+': explicit expectation and owner');
+  return {id:family+':'+c.name,kind:'family-control',family,owner:expect==='reject'?c.theorem:null,expect,roots:[...c.roots],
     mutation:files.map(file=>({file,sha256:digest(c.files[file])})),native:null};
 }
 export function viewUnits(family,controls,read){
@@ -46,20 +48,29 @@ export async function runViewUnits(units,{proof,output,fstar,models,modelCache},
     const dir=c.inPlace?proof:path.join(path.dirname(proof),c.name);
     const files=Object.keys(c.files).sort();
     const originals=c.inPlace?Object.fromEntries(await Promise.all(files.map(async f=>[f,await fs.readFile(path.join(proof,f),'utf8')]))):null;
+    // Files a unit must leave untouched (e.g. the extracted native program under a ghost-only fault), checked before
+    // verification and again after an in-place unit restores its workspace.
+    const keep=c.unchanged??[],kept=Object.fromEntries(await Promise.all(keep.map(async f=>[f,await fs.readFile(path.join(proof,f),'utf8')])));
     const ran={id:plan.id,kind:'family-control',family:plan.family,owner:null,expect:null,roots:null,mutation:null,native:null};
     try{
       if(!c.inPlace){await fs.rm(dir,{recursive:true,force:true});await fs.cp(proof,dir,{recursive:true,preserveTimestamps:true});}
       for(const f of files)await put(path.join(dir,f),c.files[f]);
       ran.mutation=await Promise.all(files.map(async file=>({file,sha256:digest(await fs.readFile(path.join(dir,file)))})));
+      for(const k of keep)assert.equal(await fs.readFile(path.join(dir,k),'utf8'),kept[k],c.name+': '+k+' must stay unchanged');
       ran.roots=[...c.roots];
       const result=await verify({dir,roots:c.roots.map(r=>path.join(dir,r)),fstar,models,modelCache});
       await fs.writeFile(path.join(output,c.log),result.log);
-      // The rejection is judged against the owner's module as verified.
-      const ownerFile=c.theorem.split('.').slice(0,-1).join('.')+'.fst';
-      const view=await fs.readFile(path.join(dir,ownerFile),'utf8');
-      assert(hasOrdinaryTheoremRejection({status:result.status,log:result.log,theorem:c.theorem,view}),c.failure+': '+result.log);
-      ran.owner=c.theorem;ran.expect='reject';
-    }finally{if(originals)for(const f of files)await put(path.join(proof,f),originals[f]);}
+      if((c.expect??'reject')==='verify'){assert.equal(result.status,0,c.failure+': '+result.log);ran.expect='verify';}
+      else{
+        // The rejection is judged against the owner's module as verified.
+        const ownerFile=c.theorem.split('.').slice(0,-1).join('.')+'.fst';
+        const view=await fs.readFile(path.join(dir,ownerFile),'utf8');
+        assert(hasOrdinaryTheoremRejection({status:result.status,log:result.log,theorem:c.theorem,view}),c.failure+': '+result.log);
+        ran.owner=c.theorem;ran.expect='reject';
+      }
+    }finally{if(originals){for(const f of files)await put(path.join(proof,f),originals[f]);
+      for(const f of files)assert.equal(await fs.readFile(path.join(proof,f),'utf8'),originals[f],c.name+': restore '+f+' after the unit');
+      for(const k of keep)assert.equal(await fs.readFile(path.join(proof,k),'utf8'),kept[k],c.name+': '+k+' remains unchanged');}}
     record(ran);
     console.log('PASS '+c.pass);
   }
@@ -78,4 +89,20 @@ export function checkFamilyAuditControls(auditUnits,plans){
   for(const [what,f] of [['changed roots',u=>{u.roots=[...u.roots,'Nickel.EditAtomic.fst'];}],['wrong expectation',u=>{u.expect=u.expect==='reject'?'verify':'reject';}],
     ['mutation digest',u=>{u.mutation[0].sha256='0'.repeat(64);}],['owner',u=>{u.owner=(u.owner??'Nickel.X.y')+'_other';}],['native inputs',u=>{u.native=u.native?null:{cargoArgs:['test'],baselines:[],extraction:true};}]])
     assert.throws(()=>auditUnits(two,tweak(f)),/executed unit differs from its plan/,what);
+}
+/** Audit controls for explicit expect "verify" units (#198), on real tuples: for each such unit, an execution that runs
+ *  it while the plan omits it (a hidden healthy unit), or that records it as a rejection or with an owner (a wrong
+ *  expectation), must be refused. Returns how many verify units were exercised. */
+export function checkVerifyUnitAuditControls(auditUnits,plans){
+  const verifyUnits=plans.filter(p=>p.expect==='verify');
+  const copy=x=>structuredClone(x);
+  for(const v of verifyUnits){
+    const others=plans.filter(p=>p.id!==v.id);
+    assert.throws(()=>auditUnits(others,plans.map(copy)),/hidden unit executed without a plan/,'hidden verify unit '+v.id);
+    const wrong=plans.map(p=>p.id===v.id?{...copy(p),expect:'reject'}:copy(p));
+    assert.throws(()=>auditUnits(plans,wrong),/executed unit differs from its plan/,'wrong expectation '+v.id);
+    const owned=plans.map(p=>p.id===v.id?{...copy(p),owner:'Nickel.EditAccepted.canonical_succeeds_for_unique_ids'}:copy(p));
+    assert.throws(()=>auditUnits(plans,owned),/executed unit differs from its plan/,'owner on a verify unit '+v.id);
+  }
+  return verifyUnits.length;
 }

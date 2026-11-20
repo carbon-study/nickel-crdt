@@ -80,7 +80,8 @@
       # Smoke, the positive chain, every contract family and cache safety, in two
       # roughly equal halves; the second takes every family the first omits.
       proofCoreFamilies = [ "remaining" "spec" "accepted" ];
-      proofCoreA = mkProofCheck "core-a" true ([ "cache-safety" ] ++ map (f: "contracts:${f}") proofCoreFamilies);
+      coreAArgs = [ "cache-safety" ] ++ map (f: "contracts:${f}") proofCoreFamilies;
+      proofCoreA = mkProofCheck "core-a" true coreAArgs;
       coreBArgs = [ "contracts-except:${builtins.concatStringsSep "," proofCoreFamilies}" ];
       proofCoreB = mkProofCheck "core-b" false coreBArgs;
       proofShardChecks = builtins.listToAttrs (builtins.genList (i: {
@@ -272,6 +273,32 @@ ${extra}        node scripts/check-register-proofs.mjs "$out"${pkgs.lib.optional
         esac
         cp ${textSelection}/identity.json "$out/selection-identity.json"
       '';
+      # Selected core-a (#198): smoke (check-proofs.mjs) and the edit runner each consume the same text selection
+      # record. core-a owns the standalone positive obligation; each runner refuses a record not bound to this tree.
+      proofSelectedCoreA = pkgs.runCommand "nickel-proof-selected-core-a" {
+        nativeBuildInputs = tools;
+      } ''
+        export HOME="$TMPDIR/home"
+        mkdir -p "$HOME"
+        cp -r ${proofSource} work
+        chmod -R u+w work
+        cd work
+        ${modelEnv}
+        export NICKEL_HAX_BIN="${haxBin}/bin/cargo-hax"
+        export NICKEL_FSTAR_MODEL_CACHE="${models}"
+        mode="$(cat ${textSelection}/mode)"
+        case "$mode" in
+          full)
+            node scripts/check-proofs.mjs "$out"
+            node scripts/check-edit-proofs.mjs "$out/edit" ${pkgs.lib.escapeShellArgs coreAArgs} ;;
+          # Both consumers recompute code closures with node's module parser (--experimental-vm-modules).
+          selected)
+            node --experimental-vm-modules --no-warnings scripts/check-proofs.mjs "$out" "selection:${textSelection}/selection.json"
+            node --experimental-vm-modules --no-warnings scripts/check-edit-proofs.mjs "$out/edit" "selection:${textSelection}/selection.json" positive-obligation ${pkgs.lib.escapeShellArgs coreAArgs} ;;
+          *) echo "unknown selection mode: $mode" >&2; exit 1 ;;
+        esac
+        cp ${textSelection}/identity.json "$out/selection-identity.json"
+      '';
       editReferenceSource = pkgs.lib.fileset.toSource {
         root = ./.;
         fileset = pkgs.lib.fileset.unions [
@@ -326,6 +353,7 @@ ${extra}        node scripts/check-register-proofs.mjs "$out"${pkgs.lib.optional
         register-selection = registerSelection;
         text-selection = textSelection;
         proofs-selected-core-b = proofSelectedCoreB;
+        proofs-selected-core-a = proofSelectedCoreA;
       } // proofShardChecks // registerShardChecks // registerSelectedChecks // proofSelectedShardChecks;
       checks.${system} = { inherit native; gate-inputs = gateInputs; register-native = registerNative; register-proofs = registerProof; shared-native = sharedNative; shared-proofs = sharedProof; proofs = proofCheck; edit-reference = editReference; };
       devShells.${system} = {

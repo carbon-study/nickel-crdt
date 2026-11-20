@@ -1,17 +1,13 @@
 // The text gate's contract families (#197, #199). Each family is loaded by its own literal dynamic import, only when
 // that family is enumerated or run, so a run that executes some families never loads the others' modules (selected
 // runs audit that at runtime). check-edit-proofs.mjs loads this index only for families, cache-safety or gatepreflight.
-// A converted family exports units(read, repo): its complete control inventory from the shared enumeration that both
-// export-plans and execution consume. remaining, spec and accepted (core-a, #198) are not converted: they keep their
-// opaque check functions, export no plans, and are never selected (they run whenever their job runs).
+// Every family, cache-safety and smoke export units(read, repo): their complete inventory from the shared enumeration
+// that both export-plans and execution consume (all converted as of #198). smoke is executed by check-proofs.mjs.
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {runViewUnits} from './text-family-run.mjs';
-// Execution order.
-export const FAMILY_ORDER=['delete','event','operation','replay','basis','schedule','past','remaining','counter','push','vector','scalar','identity','writer','plan','containment','accepted','spec','private','shared','commit'];
-export const UNCONVERTED=['remaining','accepted','spec'];
-// Each family's module (its code input is that module's import closure) and its loader.
-export const FAMILY_MODULES={delete:'check-delete-contracts.mjs',event:'check-event-contracts.mjs',operation:'check-operation-contracts.mjs',replay:'check-replay-contracts.mjs',basis:'check-basis-contracts.mjs',schedule:'check-schedule-contracts.mjs',past:'check-past-contracts.mjs',remaining:'check-remaining-contracts.mjs',counter:'check-counter-contracts.mjs',push:'check-push-contracts.mjs',vector:'check-vector-contracts.mjs',scalar:'check-loop-contracts.mjs',identity:'check-identity-contracts.mjs',writer:'check-writer-contracts.mjs',plan:'check-plan-contracts.mjs',containment:'check-containment-contracts.mjs',accepted:'check-accepted-contracts.mjs',spec:'check-spec-contracts.mjs',private:'check-private-contracts.mjs',shared:'check-shared-contracts.mjs',commit:'check-commit-contracts.mjs'};
+import {FAMILY_ORDER,UNCONVERTED,UNIT_GROUPS,FAMILY_MODULES,UNIT_MODULES} from './text-unit-groups.mjs';
+export {FAMILY_ORDER,UNCONVERTED,UNIT_GROUPS,FAMILY_MODULES,UNIT_MODULES};
 const load={
   delete:async()=>{const m=await import('./check-delete-contracts.mjs');return {units:m.deleteUnits,run:m.runDeleteUnits};},
   event:async()=>({units:(await import('./check-event-contracts.mjs')).eventUnits}),
@@ -20,7 +16,7 @@ const load={
   basis:async()=>({units:(await import('./check-basis-contracts.mjs')).basisUnits}),
   schedule:async()=>({units:(await import('./check-schedule-contracts.mjs')).scheduleUnits}),
   past:async()=>({units:(await import('./check-past-contracts.mjs')).pastUnits}),
-  remaining:async()=>({check:(await import('./check-remaining-contracts.mjs')).checkRemainingContracts}),
+  remaining:async()=>({units:(await import('./check-remaining-contracts.mjs')).remainingUnits}),
   counter:async()=>({units:(await import('./check-counter-contracts.mjs')).counterUnits}),
   push:async()=>({units:(await import('./check-push-contracts.mjs')).pushUnits}),
   vector:async()=>({units:(await import('./check-vector-contracts.mjs')).vectorUnits}),
@@ -29,11 +25,14 @@ const load={
   writer:async()=>({units:(await import('./check-writer-contracts.mjs')).writerUnits}),
   plan:async()=>({units:(await import('./check-plan-contracts.mjs')).planUnits}),
   containment:async()=>({units:(await import('./check-containment-contracts.mjs')).containmentUnits}),
-  accepted:async()=>({check:(await import('./check-accepted-contracts.mjs')).checkAcceptedContracts}),
-  spec:async()=>({check:(await import('./check-spec-contracts.mjs')).checkSpecContracts}),
+  accepted:async()=>({units:(await import('./check-accepted-contracts.mjs')).acceptedUnits}),
+  spec:async()=>({units:(await import('./check-spec-contracts.mjs')).specUnits}),
   private:async()=>({units:(await import('./check-private-contracts.mjs')).privateUnits}),
   shared:async()=>({units:(await import('./check-shared-contracts.mjs')).sharedUnits}),
   commit:async()=>({units:(await import('./check-commit-contracts.mjs')).commitUnits}),
+  'cache-safety':async()=>{const m=await import('./check-cache-safety.mjs');return {units:m.cacheSafetyUnits,run:m.runCacheSafetyUnits};},
+  // smoke is enumerated here (export) but executed by check-proofs.mjs, never by runFamily.
+  smoke:async()=>{const m=await import('./smoke-units.mjs');return {units:m.smokeGroupUnits};},
 };
 export async function loadFamily(name){
   if(!Object.hasOwn(load,name))throw Error('unknown contract family '+name);
@@ -55,4 +54,3 @@ export async function runFamily(name,ctx,{units,record=()=>{},repo}={}){
   return (f.run??runViewUnits)(list,ctx,record);
 }
 export async function checkRemainingCallLocator(){return (await import('./check-remaining-contracts.mjs')).checkRemainingCallLocator();}
-export async function checkCacheSafety(ctx){return (await import('./check-cache-safety.mjs')).checkCacheSafety(ctx);}
