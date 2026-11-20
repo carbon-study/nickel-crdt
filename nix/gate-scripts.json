@@ -32,11 +32,13 @@
     "delete-control-fixtures.mjs",
     "edit-native-plans.mjs",
     "fstar-mutation-scope.mjs",
+    "gate-imports.mjs",
     "mutation-scope.mjs",
     "negative-proof-evidence.mjs",
     "proof-cache.mjs",
     "proof-reform.mjs",
-    "text-families.mjs"
+    "text-families.mjs",
+    "text-native-code.mjs"
   ],
   "shared": [
     "check-causal-envelope.mjs",

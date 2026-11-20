@@ -89,18 +89,14 @@ if(gateScripts.some(j=>j===null))forceFull('unreadable nix/gate-scripts.json at 
 const TEXT_RUNNER='scripts/check-edit-proofs.mjs',TEXT_FAMILIES='scripts/text-families.mjs';
 const TEXT_SHARED=new Set([TEXT_RUNNER,'scripts/proof-cache.mjs','scripts/negative-proof-evidence.mjs','scripts/mutation-scope.mjs',
   'scripts/fstar-mutation-scope.mjs','scripts/proof-reform.mjs','nix/gate-scripts.json','flake.nix']);
-// One parser for gate imports: check-gate-inputs.mjs's dependencies() (every static form, literal dynamic imports;
-// anything else refuses). It needs node --experimental-vm-modules; if it is unavailable or refuses, text runs full.
-let dependencies=null;try{({dependencies}=await import('./check-gate-inputs.mjs'));}catch{}
-const nativeCode=new Set();let nativeCodeError=dependencies?null:'import parser unavailable (run the selector with node --experimental-vm-modules)';
-for(const ref of [base,head]){
-  const stack=[TEXT_RUNNER];const seen=new Set();
-  while(stack.length){const f=stack.pop();if(seen.has(f)||f===TEXT_FAMILIES)continue;seen.add(f);const text=show(ref,f);
-    if(text===null){if(f===TEXT_RUNNER&&ref===base)continue;nativeCodeError=ref+':'+f+' unreadable';break;}
-    nativeCode.add(f);let deps;try{deps=dependencies(text,f);}catch(e){nativeCodeError=ref+':'+f+': '+String(e?.message??e).slice(0,160);break;}
-    for(const name of deps)stack.push('scripts/'+name);}
-  if(nativeCodeError)break;
-}
+// The closure itself is text-native-code.mjs (shared with the consumer; check-gate-inputs' parser, which needs node
+// --experimental-vm-modules). Change detection uses the union of base and head; the record carries the head closure.
+let nativeCodeClosure=null;try{({nativeCodeClosure}=await import('./text-native-code.mjs'));}catch{}
+const nativeCode=new Set();let nativeCodeError=nativeCodeClosure?null:'native code closure unavailable (run the selector with node --experimental-vm-modules)';
+let headNativeCode=[];
+for(const ref of [base,head]){if(nativeCodeError)break;
+  try{const names=await nativeCodeClosure(async f=>show(ref,'scripts/'+f));for(const n of names)nativeCode.add('scripts/'+n);if(ref===head)headNativeCode=names.map(n=>'scripts/'+n);}
+  catch(e){nativeCodeError=ref+': '+String(e?.message??e).slice(0,200);}}
 
 // ---------------------------------------------------------------- changed paths
 const NATIVE={'src/register.rs':'Nickel_crdt.Register','src/event_layer.rs':'Nickel_crdt.Event_layer','src/edit.rs':'Nickel_crdt.Edit',
@@ -212,6 +208,8 @@ if(!registerFull){
 }
 
 // ---------------------------------------------------------------- text native plans (#197)
+// Roots of the files a text decision depends on (and the text consumer's packaged tree is drawn from).
+const TEXT_INPUT_ROOTS=['proofs','src','tests','proof-smoke','scripts','Cargo.toml','Cargo.lock','nix/text-inputs.json','nix/gate-scripts.json'];
 const TEXT_PLAN_INPUTS=['scripts/edit-native-plans.mjs','scripts/mutation-scope.mjs','src/edit.rs','src/event_layer.rs','src/event_shell.rs'];
 const MODFILE=/^(Nickel|Nickel_crdt)\.[A-Za-z_0-9]+\.fst$/;
 function readTextPlans(file,label,ref){
@@ -267,7 +265,10 @@ let text={run:'none'};
     const hp=th.byId.get('positive'),bp=tb.byId.get('positive');
     const positive=textNativeAll?'crate, test or native-path code input changed':semantic(hp)!==semantic(bp)?'positive tuple changed':hp.roots.some(r=>affected.has(rootModule(r)))?'positive root affected':null;
     if(outside.length){reasons.push({textFull:'owner module outside its roots\' dependency closure (graph incomplete)',why:outside.slice(0,5).join(',')});text={run:'full'};}
-    else text={run:sel.length?'selected':'none',positive,modes:sel.map(([n])=>n),why:Object.fromEntries(sel),removed,total:th.natives.length,headPlans:th.digest,basePlans:tb.digest,nativeCode:Object.fromEntries([...nativeCode].sort().map(f=>[f,blob(head,f)===null?null:sha(blob(head,f))]))};
+    else text={run:sel.length?'selected':'none',positive,modes:sel.map(([n])=>n),why:Object.fromEntries(sel),removed,total:th.natives.length,headPlans:th.digest,basePlans:tb.digest,nativeCode:Object.fromEntries(headNativeCode.map(f=>[f,sha(blob(head,f))])),
+      // Every head file under the selection-relevant roots, so a consumer refuses a record made for other proof, crate
+      // or script content (a stale record replayed on a changed tree), not only other plans or native code.
+      headInputs:Object.fromEntries(git('ls-tree','-r','--name-only',head,'--',...TEXT_INPUT_ROOTS).split('\n').filter(Boolean).sort().map(f=>[f,sha(blob(head,f))]))};
   }
 }
 
