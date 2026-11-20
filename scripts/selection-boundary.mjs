@@ -1,5 +1,6 @@
-// Declared-nix selection boundary for the register gate (not wired into CI).
-// usage: node selection-boundary.mjs <out> <head-tree> <base-tree> <head-rev> <base-rev>
+// Declared-nix selection boundary for the register gate, and with --gate=text for the text gate's native
+// mutation shards (#197).
+// usage: node selection-boundary.mjs <out> <head-tree> <base-tree> <head-rev> <base-rev> [--gate=text]
 // Writes <out>/mode ("full" or "selected"), <out>/identity.json and, when selected,
 // <out>/selection.json for check-register-proofs.mjs selection:<file>. Every doubt selects full:
 // the default base (nix/selection-base-none), a missing head or base revision (no selection-head
@@ -11,13 +12,14 @@
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import fs from 'node:fs';import path from 'node:path';
-const [out,head,base,headRev,baseRev]=process.argv.slice(2);
-if(!out||!head||!base||headRev===undefined||baseRev===undefined){console.error('usage: selection-boundary.mjs <out> <head-tree> <base-tree> <head-rev> <base-rev>');process.exit(2);}
+const [out,head,base,headRev,baseRev,gateArg]=process.argv.slice(2);
+if(!out||!head||!base||headRev===undefined||baseRev===undefined||process.argv.length>8||(gateArg!==undefined&&gateArg!=='--gate=text')){console.error('usage: selection-boundary.mjs <out> <head-tree> <base-tree> <head-rev> <base-rev> [--gate=text]');process.exit(2);}
+const gate=gateArg?'text':'register';
 fs.mkdirSync(out,{recursive:true});
 const sha=b=>createHash('sha256').update(b).digest('hex');
 const fileSha=f=>fs.existsSync(f)?sha(fs.readFileSync(f)):null;
 const rev=/^[0-9a-f]{40}$/;
-const identity={schema:1,head:headRev||null,base:baseRev||null,
+const identity={schema:1,gate,head:headRev||null,base:baseRev||null,
   toolchain:{headFlakeLock:fileSha(path.join(head,'flake.lock')),baseFlakeLock:fileSha(path.join(base,'flake.lock')),
    headFlake:fileSha(path.join(head,'flake.nix')),baseFlake:fileSha(path.join(base,'flake.nix'))},
   mode:null,reasons:[],selection:null};
@@ -37,7 +39,7 @@ if(!t.headFlakeLock||t.headFlakeLock!==t.baseFlakeLock||t.headFlake!==t.baseFlak
 // each tree exports its own plans with its own runner
 const exp={};
 for(const [side,tree] of [['base',base],['head',head]]){
-  const dir=path.join(out,side+'-export');const r=run(side+'-export','node',[path.join(tree,'scripts/check-register-proofs.mjs'),dir,'export-plans']);
+  const dir=path.join(out,side+'-export');const r=run(side+'-export','node',[path.join(tree,gate==='text'?'scripts/check-edit-proofs.mjs':'scripts/check-register-proofs.mjs'),dir,'export-plans']);
   if(r.status!==0||!fs.existsSync(path.join(dir,'plans.json')))finish('full',side+' plan export failed');
   exp[side]=path.join(dir,'plans.json');
 }
@@ -50,11 +52,15 @@ git('init','-q');
 const load=(tree,msg)=>{for(const e of fs.readdirSync(repo))if(e!=='.git')fs.rmSync(path.join(repo,e),{recursive:true,force:true});
   fs.cpSync(tree,repo,{recursive:true});spawnSync('chmod',['-R','u+w',repo]);git('add','-A');git('commit','-q','--allow-empty','-m',msg);return git('rev-parse','HEAD');};
 const b=load(base,'base '+baseRev),h=load(head,'head '+headRev);
-const sel=run('selector','node',[path.join(head,'scripts/select-affected.mjs'),b,h,'--repo',repo,'--base-plans',exp.base,'--head-plans',exp.head]);
+// The selector parses gate imports with node's module parser, which needs --experimental-vm-modules.
+const sel=run('selector','node',['--experimental-vm-modules','--no-warnings',path.join(head,'scripts/select-affected.mjs'),b,h,'--repo',repo,
+  ...(gate==='text'?['--text-base-plans',exp.base,'--text-head-plans',exp.head]:['--base-plans',exp.base,'--head-plans',exp.head])]);
 if(sel.status!==0)finish('full','selector failed');
 let record;try{record=JSON.parse(sel.stdout);}catch{finish('full','selector output unreadable');}
 if(record.diagnosticOnly!==false)finish('full','diagnostic record');
-if(record.full===true||record.register?.run==='full')finish('full','selector chose the full register gate');
+if(gate==='register'&&(record.full===true||record.register?.run==='full'))finish('full','selector chose the full register gate');
+if(gate==='text'&&(record.full===true||record.text?.run==='full'))finish('full','selector chose the full text shards');
 fs.writeFileSync(path.join(out,'selection.json'),sel.stdout);
-identity.selection={digest:sha(sel.stdout),run:record.register.run,modes:record.register.modes.length,removed:record.register.removed,headPlans:record.headPlans};
+identity.selection=gate==='text'?{digest:sha(sel.stdout),run:record.text.run,modes:record.text.modes.length,removed:record.text.removed,headPlans:record.text.headPlans}
+  :{digest:sha(sel.stdout),run:record.register.run,modes:record.register.modes.length,removed:record.register.removed,headPlans:record.headPlans};
 finish('selected');

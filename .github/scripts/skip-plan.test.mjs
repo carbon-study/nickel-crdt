@@ -63,9 +63,10 @@ t('.github changes always run, before any evaluation', () => {
   runs(pr({ changedPaths: ['src/lib.rs', '.github/scripts/skip-plan.mjs'], evaluate: () => { evaluated++; return ok(drv('x')); } }), /workflow\/skip machinery changed/);
   assert.equal(evaluated, 0);
 });
-t('selection machinery runs register shards only, even with identical full shard drvs', () => {
+t('selection machinery runs register and text shards only, even with identical full shard drvs', () => {
   for (const p of SELECTION_PATHS) {
     runs(pr({ job: 'register-proofs-shard-2', changedPaths: [p] }), /selection machinery changed/);
+    runs(pr({ job: 'proofs-shard-1', changedPaths: [p] }), /selection machinery changed/);
     assert.equal(pr({ job: 'shared-native', changedPaths: [p] }).decision, 'skip', `${p} alone does not force shared-native`);
   }
 });
@@ -160,40 +161,82 @@ export function nixTargets(cmd) {
 // The reviewed scaffold lines. Any workflow change to the scaffold job must update this list, which
 // makes every new command or argument an explicit, reviewed accounting decision.
 const SCAFFOLD = [
-  'uses: actions/checkout@v6', 'with.persist-credentials: false', 'uses: nixbuild/nix-quick-install-action@v35',
+  "uses: actions/checkout@v6",
+  "with.persist-credentials: false",
+  "uses: nixbuild/nix-quick-install-action@v35",
   "run: echo \"prefix=nix-scaffold-$RUNNER_OS-$RUNNER_ARCH-${{ hashFiles('**/*.nix', '**/flake.lock') }}\" >> \"$GITHUB_OUTPUT\"",
-  'uses: nix-community/cache-nix-action/restore@v7', 'with.primary-key: ${{ steps.key.outputs.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}',
-  'with.restore-prefixes-first-match: |', 'with.${{ steps.key.outputs.prefix }}-', 'with.nix-scaffold-${{ runner.os }}-${{ runner.arch }}-',
-  'run: .github/scripts/check.test.sh', 'run: node .github/scripts/skip-plan.test.mjs',
-  'env.EVENT: ${{ github.event_name }}', 'env.TARGET: ${{ matrix.target }}', 'env.BASE_SHA: ${{ github.event.pull_request.base.sha }}', 'env.HEAD_SHA: ${{ github.sha }}',
-  'run: if [ "$EVENT" = pull_request ] && [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then',
-  'run: git fetch --no-tags --depth=1 origin "$BASE_SHA" || echo "base fetch failed: the job runs in full"', 'run: fi',
-  'run: node .github/scripts/skip-plan-run.mjs decide "$TARGET" skip-plan/record.json',
-  'uses: actions/upload-artifact@v4', 'with.name: skip-plan-${{ matrix.target }}', 'with.path: skip-plan/', 'with.if-no-files-found: warn',
+  "uses: nix-community/cache-nix-action/restore@v7",
+  "with.primary-key: ${{ steps.key.outputs.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}",
+  "with.restore-prefixes-first-match: |",
+  "with.${{ steps.key.outputs.prefix }}-",
+  "with.nix-scaffold-${{ runner.os }}-${{ runner.arch }}-",
+  "run: .github/scripts/check.test.sh",
+  "run: node .github/scripts/skip-plan.test.mjs",
+  "env.EVENT: ${{ github.event_name }}",
+  "env.TARGET: ${{ matrix.target }}",
+  "env.BASE_SHA: ${{ github.event.pull_request.base.sha }}",
+  "env.HEAD_SHA: ${{ github.sha }}",
+  "run: if [ \"$EVENT\" = pull_request ] && [[ \"$BASE_SHA\" =~ ^[0-9a-f]{40}$ ]]; then",
+  "run: git fetch --no-tags --depth=1 origin \"$BASE_SHA\" || echo \"base fetch failed: the job runs in full\"",
+  "run: fi",
+  "run: node .github/scripts/skip-plan-run.mjs decide \"$TARGET\" skip-plan/record.json",
+  "uses: actions/upload-artifact@v4",
+  "with.name: skip-plan-${{ matrix.target }}",
+  "with.path: skip-plan/",
+  "with.if-no-files-found: warn",
   "run: shards=$(nix eval --json .#packages.aarch64-linux --apply 'p: builtins.length (builtins.filter (n: builtins.match \"proofs-shard-[0-9]+\" n != null) (builtins.attrNames p))')",
-  'run: test "$shards" = 3 || { echo "flake exposes $shards proof shards; ci.yml lists 3"; exit 1; }',
-  'run: nix build -L --no-link .#packages.aarch64-linux.register-proofs-shard-coverage',
-  'env.EVENT: ${{ github.event_name }}', 'env.TARGET: ${{ matrix.target }}', 'env.BASE_SHA: ${{ github.event.pull_request.base.sha }}',
-  'run: if [ "${{ matrix.target }}" = native ]; then',
-  'run: .github/scripts/check.sh native 9000 nix build -L --no-link .#checks.aarch64-linux.native .#checks.aarch64-linux.edit-reference .#checks.aarch64-linux.gate-inputs',
-  'run: elif [ "$EVENT" = pull_request ] && [[ "$TARGET" =~ ^register-proofs-shard-([0-9]+)$ ]]; then',
-  'run: i="${BASH_REMATCH[1]}"',
-  'run: [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "pull_request base sha missing or malformed: $BASE_SHA"; exit 1; }',
-  'run: [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] || { echo "checkout HEAD is not GITHUB_SHA"; exit 1; }',
-  'run: overrides=(--override-input selection-head "git+file://$PWD?rev=$GITHUB_SHA&shallow=1"',
-  'run: --override-input selection-base "github:carbon-study/nickel-crdt/$BASE_SHA")',
-  'run: mkdir -p selection-evidence',
-  'run: .github/scripts/check.sh "$TARGET-selection" 1800 nix build -L --no-write-lock-file --out-link selection-result .#packages.aarch64-linux.register-selection "${overrides[@]}"',
-  'run: cp selection-result/identity.json selection-result/mode selection-evidence/',
-  'run: if [ -e selection-result/selection.json ]; then cp selection-result/selection.json selection-evidence/; fi',
-  'run: .github/scripts/check.sh "$TARGET" 9000 nix build -L --no-write-lock-file --out-link selected-result ".#packages.aarch64-linux.register-proofs-selected-shard-$i" "${overrides[@]}"',
-  'run: else', 'run: .github/scripts/check.sh ${{ matrix.target }} 9000 nix build -L --no-link .#packages.aarch64-linux.${{ matrix.target }}', 'run: fi',
-  'env.TARGET: ${{ matrix.target }}', 'run: mkdir -p selection-evidence',
-  'run: for f in "/tmp/$TARGET-selection.log" "/tmp/$TARGET.log"; do if [ -e "$f" ]; then cp "$f" selection-evidence/; fi; done',
-  'run: for f in selection-identity.json planned.json results.json; do if [ -e "selected-result/$f" ]; then cp "selected-result/$f" selection-evidence/; fi; done',
-  'run: ls -la selection-evidence',
-  'uses: actions/upload-artifact@v4', 'with.name: register-selection-${{ matrix.target }}', 'with.path: selection-evidence/', 'with.if-no-files-found: warn',
-  'uses: nix-community/cache-nix-action/save@v7', 'with.primary-key: ${{ steps.key.outputs.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}',
+  "run: test \"$shards\" = 3 || { echo \"flake exposes $shards proof shards; ci.yml lists 3\"; exit 1; }",
+  "run: nix build -L --no-link .#packages.aarch64-linux.register-proofs-shard-coverage",
+  "env.EVENT: ${{ github.event_name }}",
+  "env.TARGET: ${{ matrix.target }}",
+  "env.BASE_SHA: ${{ github.event.pull_request.base.sha }}",
+  "run: if [ \"${{ matrix.target }}\" = native ]; then",
+  "run: .github/scripts/check.sh native 9000 nix build -L --no-link .#checks.aarch64-linux.native .#checks.aarch64-linux.edit-reference .#checks.aarch64-linux.gate-inputs",
+  "run: elif [ \"$EVENT\" = pull_request ] && [[ \"$TARGET\" =~ ^register-proofs-shard-([0-9]+)$ ]]; then",
+  "run: i=\"${BASH_REMATCH[1]}\"",
+  "run: [[ \"$BASE_SHA\" =~ ^[0-9a-f]{40}$ ]] || { echo \"pull_request base sha missing or malformed: $BASE_SHA\"; exit 1; }",
+  "run: [ \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\" ] || { echo \"checkout HEAD is not GITHUB_SHA\"; exit 1; }",
+  "run: overrides=(--override-input selection-head \"git+file://$PWD?rev=$GITHUB_SHA&shallow=1\"",
+  "run: --override-input selection-base \"github:carbon-study/nickel-crdt/$BASE_SHA\")",
+  "run: mkdir -p selection-evidence",
+  "run: .github/scripts/check.sh \"$TARGET-selection\" 1800 nix build -L --no-write-lock-file --out-link selection-result .#packages.aarch64-linux.register-selection \"${overrides[@]}\"",
+  "run: cp selection-result/identity.json selection-result/mode selection-evidence/",
+  "run: if [ -e selection-result/selection.json ]; then cp selection-result/selection.json selection-evidence/; fi",
+  "run: .github/scripts/check.sh \"$TARGET\" 9000 nix build -L --no-write-lock-file --out-link selected-result \".#packages.aarch64-linux.register-proofs-selected-shard-$i\" \"${overrides[@]}\"",
+  "run: elif [ \"$EVENT\" = pull_request ] && [[ \"$TARGET\" =~ ^proofs-shard-([0-9]+)$ ]]; then",
+  "run: i=\"${BASH_REMATCH[1]}\"",
+  "run: [[ \"$BASE_SHA\" =~ ^[0-9a-f]{40}$ ]] || { echo \"pull_request base sha missing or malformed: $BASE_SHA\"; exit 1; }",
+  "run: [ \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\" ] || { echo \"checkout HEAD is not GITHUB_SHA\"; exit 1; }",
+  "run: overrides=(--override-input selection-head \"git+file://$PWD?rev=$GITHUB_SHA&shallow=1\"",
+  "run: --override-input selection-base \"github:carbon-study/nickel-crdt/$BASE_SHA\")",
+  "run: mkdir -p text-selection-evidence",
+  "run: .github/scripts/check.sh \"$TARGET-selection\" 1800 nix build -L --no-write-lock-file --out-link text-selection-result .#packages.aarch64-linux.text-selection \"${overrides[@]}\"",
+  "run: cp text-selection-result/identity.json text-selection-result/mode text-selection-evidence/",
+  "run: if [ -e text-selection-result/selection.json ]; then cp text-selection-result/selection.json text-selection-evidence/; fi",
+  "run: .github/scripts/check.sh \"$TARGET\" 9000 nix build -L --no-write-lock-file --out-link text-selected-result \".#packages.aarch64-linux.proofs-selected-shard-$i\" \"${overrides[@]}\"",
+  "run: else",
+  "run: .github/scripts/check.sh ${{ matrix.target }} 9000 nix build -L --no-link .#packages.aarch64-linux.${{ matrix.target }}",
+  "run: fi",
+  "env.TARGET: ${{ matrix.target }}",
+  "run: mkdir -p selection-evidence",
+  "run: for f in \"/tmp/$TARGET-selection.log\" \"/tmp/$TARGET.log\"; do if [ -e \"$f\" ]; then cp \"$f\" selection-evidence/; fi; done",
+  "run: for f in selection-identity.json planned.json results.json; do if [ -e \"selected-result/$f\" ]; then cp \"selected-result/$f\" selection-evidence/; fi; done",
+  "run: ls -la selection-evidence",
+  "uses: actions/upload-artifact@v4",
+  "with.name: register-selection-${{ matrix.target }}",
+  "with.path: selection-evidence/",
+  "with.if-no-files-found: warn",
+  "env.TARGET: ${{ matrix.target }}",
+  "run: mkdir -p text-selection-evidence",
+  "run: for f in \"/tmp/$TARGET-selection.log\" \"/tmp/$TARGET.log\"; do if [ -e \"$f\" ]; then cp \"$f\" text-selection-evidence/; fi; done",
+  "run: for f in selection-identity.json edit/planned.json edit/results.json edit/loaded-modules.json; do if [ -e \"text-selected-result/$f\" ]; then cp \"text-selected-result/$f\" text-selection-evidence/; fi; done",
+  "run: ls -la text-selection-evidence",
+  "uses: actions/upload-artifact@v4",
+  "with.name: text-selection-${{ matrix.target }}",
+  "with.path: text-selection-evidence/",
+  "with.if-no-files-found: warn",
+  "uses: nix-community/cache-nix-action/save@v7",
+  "with.primary-key: ${{ steps.key.outputs.prefix }}-${{ github.run_id }}-${{ github.run_attempt }}",
 ];
 const ci = readFileSync(new URL('../workflows/ci.yml', import.meta.url), 'utf8');
 t('scaffold job is accounted for line by line; bundles are exactly what each job builds', () => {
@@ -214,12 +257,14 @@ t('scaffold job is accounted for line by line; bundles are exactly what each job
   }
   const by = (pred) => { const b = builds.filter(pred); assert.equal(b.length, 1, 'exactly one matching build command'); return b[0]; };
   const build = acc.steps.find((x) => x.name === 'build ${{ matrix.target }}'), cover = acc.steps.find((x) => x.name === 'register shard coverage');
-  assert.equal(builds.length, 5, 'five build commands');
+  assert.equal(builds.length, 7, 'seven build commands');
   assert.deepEqual(by((b) => b.cmd.includes('check.sh native')).targets, BUNDLES.native);
   assert.deepEqual(by((b) => b.cmd.includes('check.sh ${{ matrix.target }}')).targets, [GENERIC]);
   assert.deepEqual(by((b) => b.step === cover).targets, [BUNDLES['proofs-core-a'][1]]);
-  assert.deepEqual(by((b) => b.cmd.includes('"$TARGET-selection"')).targets, [P('register-selection')]);
-  assert.deepEqual(by((b) => b.cmd.includes('check.sh "$TARGET" 9000')).targets, [P('register-proofs-selected-shard-$i')]);
+  assert.deepEqual(by((b) => b.cmd.includes('--out-link selection-result')).targets, [P('register-selection')]);
+  assert.deepEqual(by((b) => b.cmd.includes('check.sh "$TARGET" 9000') && b.cmd.includes('--out-link selected-result')).targets, [P('register-proofs-selected-shard-$i')]);
+  assert.deepEqual(by((b) => b.cmd.includes('--out-link text-selection-result')).targets, [P('text-selection')]);
+  assert.deepEqual(by((b) => b.cmd.includes('--out-link text-selected-result')).targets, [P('proofs-selected-shard-$i')]);
   for (const b of builds) assert.ok(b.step === build || b.step === cover, `build outside the guarded steps: ${b.cmd}`);
   for (const job of Object.keys(BUNDLES)) {
     const want = job === 'native' ? BUNDLES.native : job === 'proofs-core-a' ? [P(job), BUNDLES['proofs-core-a'][1]] : [P(job)];

@@ -30,7 +30,7 @@ import assert from 'node:assert/strict';
 const args=process.argv.slice(2);
 const opt=name=>{const i=args.indexOf(name);return i>=0?args[i+1]:null;};
 const repo=opt('--repo')??process.cwd();
-const valued=new Set(['--repo','--base-plans','--head-plans']);
+const valued=new Set(['--repo','--base-plans','--head-plans','--text-base-plans','--text-head-plans']);
 const positional=args.filter((a,i)=>!a.startsWith('--')&&!valued.has(args[i-1]));
 const [baseRef,headRef]=positional;
 assert(baseRef&&headRef&&positional.length===2,'usage: select-affected.mjs <base-ref> <head-ref> [--repo dir] [--base-plans f --head-plans f]');
@@ -80,14 +80,41 @@ const scriptGates=new Map();
 for(const j of gateScripts)if(j)for(const [gate,files] of Object.entries(j))for(const f of files){if(!scriptGates.has(f))scriptGates.set(f,new Set());scriptGates.get(f).add(gate);}
 if(gateScripts.some(j=>j===null))forceFull('unreadable nix/gate-scripts.json at base or head','nix/gate-scripts.json');
 
+// ---------------------------------------------------------------- text native path code inputs (base and head)
+// The native mutation path's code is check-edit-proofs.mjs plus everything it loads by a literal import
+// (static `from '…'` or `import('…')`), transitively, at either ref. Family modules load by name only when
+// their family runs: the runner imports scripts/text-families.mjs only for families, cache-safety or gatepreflight,
+// so that one named module (and what only it reaches) is not a native code input. Selected shard runs audit the
+// modules they actually load against this set. Shared machinery and the runner itself force full.
+const TEXT_RUNNER='scripts/check-edit-proofs.mjs',TEXT_FAMILIES='scripts/text-families.mjs';
+const TEXT_SHARED=new Set([TEXT_RUNNER,'scripts/proof-cache.mjs','scripts/negative-proof-evidence.mjs','scripts/mutation-scope.mjs',
+  'scripts/fstar-mutation-scope.mjs','scripts/proof-reform.mjs','nix/gate-scripts.json','flake.nix']);
+// One parser for gate imports: check-gate-inputs.mjs's dependencies() (every static form, literal dynamic imports;
+// anything else refuses). It needs node --experimental-vm-modules; if it is unavailable or refuses, text runs full.
+let dependencies=null;try{({dependencies}=await import('./check-gate-inputs.mjs'));}catch{}
+const nativeCode=new Set();let nativeCodeError=dependencies?null:'import parser unavailable (run the selector with node --experimental-vm-modules)';
+for(const ref of [base,head]){
+  const stack=[TEXT_RUNNER];const seen=new Set();
+  while(stack.length){const f=stack.pop();if(seen.has(f)||f===TEXT_FAMILIES)continue;seen.add(f);const text=show(ref,f);
+    if(text===null){if(f===TEXT_RUNNER&&ref===base)continue;nativeCodeError=ref+':'+f+' unreadable';break;}
+    nativeCode.add(f);let deps;try{deps=dependencies(text,f);}catch(e){nativeCodeError=ref+':'+f+': '+String(e?.message??e).slice(0,160);break;}
+    for(const name of deps)stack.push('scripts/'+name);}
+  if(nativeCodeError)break;
+}
+
 // ---------------------------------------------------------------- changed paths
 const NATIVE={'src/register.rs':'Nickel_crdt.Register','src/event_layer.rs':'Nickel_crdt.Event_layer','src/edit.rs':'Nickel_crdt.Edit',
   'src/causal.rs':'Nickel_crdt.Causal','src/event_shell.rs':'Nickel_crdt.Event_shell'};
 const changes=git('diff','--name-only','--no-renames',base,head).split('\n').filter(Boolean);
-const seeds=new Set(),changedNative=new Set();let receiptChanged=false;
+const seeds=new Set(),changedNative=new Set();let receiptChanged=false,textNativeAll=false;
+if(nativeCodeError){textFull=true;reasons.push({textFull:'native-path code inputs unreadable',why:nativeCodeError});}
+// Crate, test and native inputs of the native mutation path: any change runs every native tuple.
+const CRATE=/^(src\/|tests\/|proof-smoke\/|Cargo\.(toml|lock)$)/;
 const seed=(mod,why)=>{seeds.add(mod);reasons.push({module:mod,why});};
 for(const path of changes){
   let m;
+  if(CRATE.test(path)){textNativeAll=true;reasons.push({textNative:'crate/test/native input changed: every native tuple runs',why:path});}
+  if(path==='flake.nix'||path==='flake.lock'){textFull=true;reasons.push({textFull:'toolchain or flake changed',why:path});}
   if((m=/^proofs\/([A-Za-z]+)\.lt$/.exec(path)))seed('Nickel.'+m[1],path);
   else if(moduleOfFile(path)&&path.startsWith('proofs/'))seed(moduleOfFile(path),path);
   else if((m=/^proofs\/generated\/([A-Za-z]+)\.sha256$/.exec(path)))seed('Nickel.'+m[1],path);
@@ -97,7 +124,12 @@ for(const path of changes){
   else if((m=/^scripts\/([A-Za-z0-9_.-]+)$/.exec(path))&&scriptGates.has(m[1])){
     const gates=scriptGates.get(m[1]);
     if(gates.has('register')&&ignoreFull)reasons.push({ignoredForTest:'would force register full',why:path});else if(gates.has('register')){registerFull=true;reasons.push({registerFull:'register execution infrastructure changed',why:path});}
-    if(gates.has('text')&&ignoreFull)reasons.push({ignoredForTest:'would force text full',why:path});else if(gates.has('text')){textFull=true;reasons.push({textFull:'text gate script changed',why:path});}
+    if(gates.has('text')&&ignoreFull)reasons.push({ignoredForTest:'would force text full',why:path});
+    else if(gates.has('text')){
+      if(TEXT_SHARED.has(path)){textFull=true;reasons.push({textFull:'text runner or shared text machinery changed',why:path});}
+      else if(nativeCode.has(path)){textNativeAll=true;reasons.push({textNative:'native-path code input changed: every native tuple runs',why:path});}
+      else reasons.push({textFamily:'text family/core script changed; no native tuple reads it (core jobs run per their own route)',why:path});
+    }
     const other=[...gates].filter(g=>g!=='register'&&g!=='text');
     if(other.length)reasons.push({shared:'shared/model/native gate script changed ('+other.join(',')+'); those gates always run in full',why:path});
   }
@@ -179,15 +211,73 @@ if(!registerFull){
   else if(receiptChanged)positiveWhy='receipt changed';
 }
 
+// ---------------------------------------------------------------- text native plans (#197)
+const TEXT_PLAN_INPUTS=['scripts/edit-native-plans.mjs','scripts/mutation-scope.mjs','src/edit.rs','src/event_layer.rs','src/event_shell.rs'];
+const MODFILE=/^(Nickel|Nickel_crdt)\.[A-Za-z_0-9]+\.fst$/;
+function readTextPlans(file,label,ref){
+  if(!file)return {error:label+' text plan export not supplied'};
+  let bytes,j;try{bytes=readFileSync(file);j=JSON.parse(bytes.toString('utf8'));}catch(e){return {error:label+' text plan export unreadable: '+e.message};}
+  const bad=why=>({error:label+' text plan export '+why});
+  if(!j||typeof j!=='object'||Object.keys(j).sort().join()!=='gate,plans,schema,sources')return bad('has unrecognised top-level fields');
+  if(j.schema!==1||j.gate!=='text'||!Array.isArray(j.plans))return bad('has an unrecognised shape');
+  if(!j.sources||typeof j.sources!=='object'||Object.keys(j.sources).sort().join()!==[...TEXT_PLAN_INPUTS].sort().join())return bad('does not carry exactly the text plan input digests');
+  for(const f of TEXT_PLAN_INPUTS){const b=blob(ref,f);if(b===null)return bad('names '+f+', absent at '+ref.slice(0,12));if(j.sources[f]!==sha(b))return bad('was not built from '+ref.slice(0,12)+' ('+f+' differs)');}
+  const byId=new Map();let positives=0,identity=0;
+  const strings=a=>Array.isArray(a)&&a.every(x=>typeof x==='string');
+  for(const p of j.plans){
+    if(!p||typeof p!=='object'||typeof p.id!=='string'||byId.has(p.id))return bad('has a malformed or repeated plan id');
+    if(p.kind==='positive'){positives++;if(Object.keys(p).sort().join()!=='expect,id,kind,mutation,native,owner,roots'||p.expect!=='verify'||p.owner!==null||p.mutation!==null||!strings(p.roots)||!p.roots.every(r=>MODFILE.test(r))||!p.native||!strings(p.native.cargoArgs)||!Array.isArray(p.native.baselines)||p.native.extraction!==true)return bad('has a malformed positive');}
+    else if(p.kind==='identity-control'){identity++;if(Object.keys(p).sort().join()!=='id,kind,modes'||!strings(p.modes)||p.modes.length!==2)return bad('has a malformed identity control');}
+    else if(p.kind==='native-mode'){
+      if(Object.keys(p).sort().join()!=='expect,id,index,kind,mutation,native,owner,roots'||p.expect!=='reject'||!Number.isSafeInteger(p.index)||typeof p.owner!=='string'||!/^[A-Za-z]+\.[A-Za-z_0-9']+$/.test(p.owner))return bad('has a malformed native mode '+p.id);
+      if(!strings(p.roots)||p.roots.length!==2||p.roots[0]!=='Nickel_crdt.Edit.fst'||!MODFILE.test(p.roots[1]))return bad('has malformed roots for '+p.id);
+      if(!Array.isArray(p.mutation)||p.mutation.length!==1||!TEXT_PLAN_INPUTS.includes(p.mutation[0].file)||!HEX.test(p.mutation[0].sha256??''))return bad('has a malformed mutation for '+p.id);
+      if(!p.native||!strings(p.native.cargoArgs)||!Array.isArray(p.native.baselines)||p.native.baselines.length!==0||p.native.extraction!==true)return bad('has malformed native inputs for '+p.id);
+    } else return bad('has unknown plan kind '+String(p.kind));
+    byId.set(p.id,p);
+  }
+  if(positives!==1||identity!==1)return bad('must contain exactly one positive and one identity control');
+  const natives=j.plans.filter(p=>p.kind==='native-mode');
+  if(natives.some((p,k)=>p.index!==k))return bad('has native indices out of order');
+  return {plans:j.plans,byId,natives,digest:sha(bytes)};
+}
+let text={run:'none'};
+{
+  const tb=readTextPlans(opt('--text-base-plans'),'base',base),th=readTextPlans(opt('--text-head-plans'),'head',head);
+  const err=[tb,th].find(r=>r.error);
+  if(full||textFull)text={run:'full'};
+  else if(err){reasons.push({textFull:err.error});text={run:'full'};}
+  else {
+    const semantic=p=>{const {index,...rest}=p;return JSON.stringify(rest);};
+    // An owner theorem is only judged if F* checks its module, i.e. if that module is in the dependency closure
+    // of the tuple's roots. Check it on the head graph: a violation means this selector's graph is missing an edge,
+    // so text runs full. (Given it, the owner rule below is implied by the root rule; it stays as defence in depth.)
+    const depsClosure=mods=>{const seen=new Set(),stack=[...mods];while(stack.length){const m=stack.pop();if(seen.has(m))continue;seen.add(m);for(const d of graphs[1].get(m)??[])stack.push(d);}return seen;};
+    const outside=th.natives.filter(p=>!depsClosure(p.roots.map(rootModule)).has(theoremModule('Nickel.'+p.owner))).map(p=>p.id);
+    const sel=[];
+    for(const p of th.natives){
+      const b=tb.byId.get(p.id);
+      if(!b)sel.push([p.id,'new native tuple']);
+      else if(semantic(b)!==semantic(p))sel.push([p.id,'native tuple changed']);
+      else if(textNativeAll)sel.push([p.id,'crate, test or native-path code input changed']);
+      else if(affected.has(theoremModule('Nickel.'+p.owner)))sel.push([p.id,'owner module affected']);
+      else if(p.roots.some(r=>affected.has(rootModule(r))))sel.push([p.id,'verification root affected']);
+    }
+    const removed=tb.natives.filter(p=>!th.byId.has(p.id)).map(p=>p.id);
+    const hp=th.byId.get('positive'),bp=tb.byId.get('positive');
+    const positive=textNativeAll?'crate, test or native-path code input changed':semantic(hp)!==semantic(bp)?'positive tuple changed':hp.roots.some(r=>affected.has(rootModule(r)))?'positive root affected':null;
+    if(outside.length){reasons.push({textFull:'owner module outside its roots\' dependency closure (graph incomplete)',why:outside.slice(0,5).join(',')});text={run:'full'};}
+    else text={run:sel.length?'selected':'none',positive,modes:sel.map(([n])=>n),why:Object.fromEntries(sel),removed,total:th.natives.length,headPlans:th.digest,basePlans:tb.digest,nativeCode:Object.fromEntries([...nativeCode].sort().map(f=>[f,blob(head,f)===null?null:sha(blob(head,f))]))};
+  }
+}
+
 // ---------------------------------------------------------------- text and shared gates
-const textGateModule=m=>textModules.has(m);
-const textAffected=[...affected].some(textGateModule);
 
 // basePlans/headPlans: digests of the export files used. A consumer must recompute its own head export
 // and refuse unless it matches headPlans exactly.
 const record={schema:1,base,head,diagnosticOnly:ignoreFull,basePlans:basePlans.digest??null,headPlans:headPlans.digest??null,full,reasons,affected:[...affected].sort(),
   register:full||registerFull?{run:'full'}:{run:registerSelected.length||positiveWhy?'selected':'none',positive:positiveWhy,
     modes:registerSelected.map(([n])=>n),why:Object.fromEntries(registerSelected),removed:registerRemoved,total:registerTotal},
-  text:{run:full||textFull||textAffected?'full':'none'},
+  text,
   shared:{run:'full'}};
 console.log(JSON.stringify(record,null,1));

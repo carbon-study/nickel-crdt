@@ -30,11 +30,13 @@
     "check-vector-contracts.mjs",
     "check-writer-contracts.mjs",
     "delete-control-fixtures.mjs",
+    "edit-native-plans.mjs",
     "fstar-mutation-scope.mjs",
     "mutation-scope.mjs",
     "negative-proof-evidence.mjs",
     "proof-cache.mjs",
-    "proof-reform.mjs"
+    "proof-reform.mjs",
+    "text-families.mjs"
   ],
   "shared": [
     "check-causal-envelope.mjs",
