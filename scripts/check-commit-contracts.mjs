@@ -1,11 +1,8 @@
 // The source-bound commit laws compose the exact receive and counter contracts.
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import {put,verify} from './proof-cache.mjs';
-import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
-export async function checkCommitContracts({proof,output,fstar,models,modelCache}) {
-  const file=path.join(proof,'Nickel.EditCommit.fst'),original=await fs.readFile(file,'utf8');
+import {viewUnits} from './text-family-run.mjs';
+export function commitUnits(read) {
+  const file='Nickel.EditCommit.fst',original=read(file);
   function change(name,needle,replacement) {
     const start=original.indexOf('let '+name+' ');assert(start>=0);
     const next=/\nlet (?:rec )?\w+ /.exec(original.slice(start+4)),end=next?start+4+next.index:original.length;
@@ -24,12 +21,6 @@ export async function checkCommitContracts({proof,output,fstar,models,modelCache
     ['delivery-without-admission',derived,'admission_ignores_private_state before remote fact;','() ;'],
     ['delivery-without-private',derived,'receive_preserves_private_state remote fact;','() ;'],
   ];
-  for(const[name,theorem,needle,replacement]of cases) {
-    const view=change(theorem,needle,replacement);
-    try {await put(file,view);const r=await verify({dir:proof,roots:[file],fstar,models,modelCache});
-      await fs.writeFile(path.join(output,name+'.proof.log'),r.log);
-      assert(hasOrdinaryTheoremRejection({status:r.status,log:r.log,theorem:'Nickel.EditCommit.'+theorem,view}),'require ordinary commit contract rejection: '+r.log);
-      console.log('PASS '+name+': caller needs its checked contract');
-    }finally{await put(file,original);}
-  }
+  return viewUnits('commit',cases.map(([name,theorem,needle,replacement])=>({name,files:{[file]:change(theorem,needle,replacement)},roots:[file],theorem:'Nickel.EditCommit.'+theorem,inPlace:true,
+    log:name+'.proof.log',pass:name+': caller needs its checked contract',failure:'require ordinary commit contract rejection'})),read);
 }

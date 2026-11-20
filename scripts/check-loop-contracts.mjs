@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {put,verify} from './proof-cache.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
+import {viewUnits} from './text-family-run.mjs';
 function declaration(view,name) {
   const match=new RegExp('^let (?:rec )?'+name+' ','m').exec(view);assert(match,'missing declaration '+name);
   const start=match.index,rest=view.slice(start+match[0].length);
@@ -69,20 +70,16 @@ export async function checkDirectLoop({proof,output,fstar,models,modelCache,mode
 }
 
 // Actual scalar validator boundaries must use the fallible invariant rule.
-export async function checkScalarContracts({proof,output,fstar,models,modelCache}) {
-  const file=path.join(proof,'Nickel.EditWellFormed.fst'),original=await fs.readFile(file,'utf8');
+export function scalarUnits(read) {
+  const file='Nickel.EditWellFormed.fst',original=read(file);
+  const units=[];
   for(const lemma of ['scalar_validation_is_sound','valid_scalar_input_succeeds']) {
     const [a,b]=declaration(original,lemma),body=original.slice(a,b);
     const calls=body.match(/Nickel\.LoopUtil\.result_preserve_any[^;]+;/g);
     assert.equal(calls?.length,1,'one fallible rule call at '+lemma);
     const view=removeCall(original,lemma,calls[0]);
-    try {
-      await put(file,view);
-      const result=await verify({dir:proof,roots:[file],fstar,models,modelCache});
-      await fs.writeFile(path.join(output,lemma+'.without-rule.proof.log'),result.log);
-      assert(hasOrdinaryTheoremRejection({status:result.status,log:result.log,theorem:'Nickel.EditWellFormed.'+lemma,view}),
-        'require ordinary scalar contract-dependency rejection: '+result.log);
-      console.log('PASS '+lemma+': actual validator requires the fallible invariant rule');
-    } finally { await put(file,original); }
+    units.push({name:lemma,files:{[file]:view},roots:[file],theorem:'Nickel.EditWellFormed.'+lemma,inPlace:true,
+      log:lemma+'.without-rule.proof.log',pass:lemma+': actual validator requires the fallible invariant rule',failure:'require ordinary scalar contract-dependency rejection'});
   }
+  return viewUnits('scalar',units,read);
 }

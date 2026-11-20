@@ -38,6 +38,7 @@
     "proof-cache.mjs",
     "proof-reform.mjs",
     "text-families.mjs",
+    "text-family-run.mjs",
     "text-native-code.mjs"
   ],
   "shared": [

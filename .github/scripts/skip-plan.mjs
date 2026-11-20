@@ -27,7 +27,7 @@ export const BUNDLES = Object.freeze({
   'proofs-shard-2': [P('proofs-shard-2')],
 });
 
-// A pull-request register or text shard runs the head tree's selector through a selection boundary. Those
+// A pull-request register shard, text shard or core-b (#199) runs the head tree's selector through a selection boundary. Those
 // inputs are outside the full shard's derivation, so a change to any of them must run the boundary.
 // check-gate-inputs.mjs is the selector's import parser; edit-native-plans.mjs is the text plan export.
 export const SELECTION_PATHS = Object.freeze(['scripts/select-affected.mjs', 'scripts/selection-boundary.mjs',
@@ -73,7 +73,7 @@ export function decide({ job, event, baseSha, headSha, checkedHead, changedPaths
   record.changedPaths = changedPaths.length;
   const github = changedPaths.filter((p) => p.startsWith('.github/'));
   if (github.length) return run(`workflow/skip machinery changed (${github.slice(0, 5).join(', ')}): always full`);
-  if (job.startsWith('register-proofs-shard-') || job.startsWith('proofs-shard-')) {
+  if (job.startsWith('register-proofs-shard-') || job.startsWith('proofs-shard-') || job === 'proofs-core-b') {
     const sel = changedPaths.filter((p) => SELECTION_PATHS.includes(p));
     if (sel.length) return run(`selection machinery changed (${sel.join(', ')}): the boundary must run`);
   }

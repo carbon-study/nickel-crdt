@@ -1,11 +1,9 @@
 // Actual text callers must require the generic algorithm contract with that
 // algorithm's body withheld. These are dependency controls, not Rust mutants.
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import {put,verify} from './proof-cache.mjs';
-import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
-export async function checkEventContracts({proof,output,fstar,models,modelCache,select=()=>true}) {
+import {viewUnits} from './text-family-run.mjs';
+export function eventUnits(read) {
+  const units=[];
   const cases=[
     ['duplicate','EditAtomic','plan_preserves_duplicate_result','Nickel.EventShell.planning_is_exact'],
     ['validation','EditAtomic','successful_plan_requires_validation','Nickel.EventShell.planning_is_exact'],
@@ -16,8 +14,8 @@ export async function checkEventContracts({proof,output,fstar,models,modelCache,
     ['classifier','EditIdentity','duplicate_matches_lookup','Nickel.EventClassifier.classification_is_exact'],
   ];
   for(const [label,module,owner,contract] of cases) {
-    const name='event-without-'+label,file='Nickel.'+module+'.fst';if(!select(name))continue;
-    const original=await fs.readFile(path.join(proof,file),'utf8');
+    const name='event-without-'+label,file='Nickel.'+module+'.fst';
+    const original=read(file);
     const declaration=new RegExp('^let '+owner+' ','m').exec(original);assert(declaration,name+' owner declaration');
     const start=declaration.index,next=/\nlet (?:rec )?\w+ /.exec(original.slice(start+declaration[0].length));
     const end=next?start+declaration[0].length+next.index:original.length;
@@ -29,13 +27,8 @@ export async function checkEventContracts({proof,output,fstar,models,modelCache,
       assert.equal(body.split(use).length,2,name+' explicit contract use');body=body.replace(use,'');
     }
     const view=original.slice(0,start)+body+original.slice(end);
-    const dir=path.join(path.dirname(proof),name);
-    await fs.rm(dir,{recursive:true,force:true});await fs.cp(proof,dir,{recursive:true,preserveTimestamps:true});
-    await put(path.join(dir,file),view);
-    const result=await verify({dir,roots:[path.join(dir,file)],fstar,models,modelCache});
-    await fs.writeFile(path.join(output,name+'.proof.log'),result.log);
-    assert(hasOrdinaryTheoremRejection({status:result.status,log:result.log,theorem:'Nickel.'+module+'.'+owner,view}),name+': require the exact ordinary caller rejection: '+result.log);
-    console.log('PASS '+name+': concrete caller requires '+contract);
+    units.push({name,files:{[file]:view},roots:[file],theorem:'Nickel.'+module+'.'+owner,inPlace:false,
+      log:name+'.proof.log',pass:name+': concrete caller requires '+contract,failure:name+': require the exact ordinary caller rejection'});
   }
   // These consumers already withhold the native/generic callee at every final
   // query. Delete the explicit use, preserving all existing statement domains.
@@ -47,16 +40,15 @@ export async function checkEventContracts({proof,output,fstar,models,modelCache,
     ['stream-public-without-plan-validation','EditWellFormed','receive_added_checks_stream','  Nickel.EditAtomic.successful_plan_requires_validation before fact;'],
     ['stream-public-without-receive-plan','EditWellFormed','receive_added_checks_stream','  Nickel.EditCommit.receive_uses_plan before fact;'],
   ]) {
-    if(!select(name))continue;
-    const file=path.join(proof,'Nickel.'+module+'.fst'),original=await fs.readFile(file,'utf8');
+    const file='Nickel.'+module+'.fst',original=read(file);
     const start=original.indexOf('let '+owner+' ');assert(start>=0);
     const next=/\nlet (?:rec )?\w+ /.exec(original.slice(start+4));const end=next?start+4+next.index:original.length;
     let decl=original.slice(start,end);
     if(use){assert.equal(decl.split(use).length,2,name+' one explicit use');decl=decl.replace(use,'  ();');}
     else {const from=decl.indexOf('Nickel.LoopUtil.result_preserve_any '),to=decl.indexOf(';',from);assert(from>=0&&to>from);decl=decl.slice(0,from)+'()'+decl.slice(to);}
     const view=original.slice(0,start)+decl+original.slice(end);
-    try {await put(file,view);const r=await verify({dir:proof,roots:[file],fstar,models,modelCache});await fs.writeFile(path.join(output,name+'.proof.log'),r.log);assert(hasOrdinaryTheoremRejection({status:r.status,log:r.log,theorem:'Nickel.'+module+'.'+owner,view}),name+': ordinary named rejection required: '+r.log);console.log('PASS '+name+': checked stream contract is load-bearing');}
-    finally{await put(file,original);}
+    units.push({name,files:{[file]:view},roots:[file],theorem:'Nickel.'+module+'.'+owner,inPlace:true,
+      log:name+'.proof.log',pass:name+': checked stream contract is load-bearing',failure:name+': ordinary named rejection required'});
   }
-
+  return viewUnits('event',units,read);
 }

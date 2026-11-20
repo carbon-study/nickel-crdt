@@ -1,10 +1,7 @@
 // Load-bearing connections for the new actual-past soundness boundary.
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import {put,verify} from './proof-cache.mjs';
-import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
-export async function checkPastContracts({proof,output,fstar,models,modelCache,select=()=>true}) {
+import {viewUnits} from './text-family-run.mjs';
+export function pastUnits(read) {
   const controls=[
     ['text-total-without-shared-missing-stored-id-leaves-room', /  Nickel\.PastExact\.missing_stored_id_leaves_room[^\n]+;\n/, 'Nickel.EditPastTotal.missing_stored_id_leaves_room', '', 'missing_stored_id_leaves_room'],
     ['text-total-without-shared-fresh-append-is-unique', /  Nickel\.PastExact\.fresh_append_is_unique[^\n]+;\n/, 'Nickel.EditPastTotal.fresh_append_is_unique', '', 'fresh_append_is_unique'],
@@ -98,9 +95,10 @@ export async function checkPastContracts({proof,output,fstar,models,modelCache,s
     ['past-receivers-without-other-totality', /  causally_closed_history_computes_exact_past other roots;\n/, 'Nickel.EditPastTotal.two_closed_receivers_select_same_past'],
     ['past-receivers-without-selection', /  shared_ancestry_selects_same_past into other roots;\n/, 'Nickel.EditPastTotal.two_closed_receivers_select_same_past'],
   ];
-  for(const [control,pattern,theorem,replacement='',scope] of controls.filter(([name])=>select(name))) {
+  const units=[];
+  for(const [control,pattern,theorem,replacement='',scope] of controls) {
     const name=theorem.split('.').slice(0,2).join('.')+'.fst';
-    const original=await fs.readFile(path.join(proof,name),'utf8');
+    const original=read(name);
     let start=0,end=original.length;
     if(scope) {
       const declaration=new RegExp('^let (?:rec )?'+scope+' ','m').exec(original);assert(declaration,control+' declaration');
@@ -110,9 +108,6 @@ export async function checkPastContracts({proof,output,fstar,models,modelCache,s
     }
     const body=original.slice(start,end);
     assert.equal([...body.matchAll(new RegExp(pattern.source,pattern.flags.includes('g')?pattern.flags:pattern.flags+'g'))].length,1,control+' anchor must be unique');
-    const dir=path.join(path.dirname(proof),control);
-    await fs.rm(dir,{recursive:true,force:true});
-    await fs.cp(proof,dir,{recursive:true,preserveTimestamps:true});
     let changed=body.replace(pattern,replacement);
     if(control==='past-membership-without-generic-contract') {
       // Also withhold the callee's automatic SMT-pattern route.
@@ -120,11 +115,9 @@ export async function checkPastContracts({proof,output,fstar,models,modelCache,s
       assert.equal(changed.split(anchor).length,2,control+' callee-prune anchor');
       changed=changed.replace(anchor,anchor+'\n    Tactics.prune "Nickel.EventGraph.membership_is_exact";');
     }
-    const view=original.slice(0,start)+changed+original.slice(end);await put(path.join(dir,name),view);
-    const result=await verify({dir,roots:[path.join(dir,name)],fstar,models,modelCache});
-    await fs.writeFile(path.join(output,control+'.proof.log'),result.log);
-    assert(hasOrdinaryTheoremRejection({status:result.status,log:result.log,theorem,view}),
-      'require ordinary owning theorem rejection for '+control+': '+result.log);
-    console.log('PASS '+control+': source/loop contract is load-bearing');
+    const view=original.slice(0,start)+changed+original.slice(end);
+    units.push({name:control,files:{[name]:view},roots:[name],theorem,inPlace:false,
+      log:control+'.proof.log',pass:control+': source/loop contract is load-bearing',failure:'require ordinary owning theorem rejection for '+control});
   }
+  return viewUnits('past',units,read);
 }

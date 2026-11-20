@@ -18,8 +18,8 @@
 //   selects the full suite. Gate script ownership is read from nix/gate-scripts.json at both refs.
 // - Module dependencies are read statically from the committed F* files at BOTH base and head; the
 //   affected set is the reverse closure over the union of both graphs.
-// - The text gate and the shared gates are not plan-exported yet: text runs in full whenever a
-//   text-gate module is affected or a text gate script changed; shared gates always run in full.
+// - Text: native modes (#197) and core-b's contract families (#199) are selected from each ref's own text plan and
+//   family plan exports (below); core-a's families are not selected (#198). Shared gates always run in full.
 // --test-ignore-full-paths is a diagnostic aid only: it reports module-level selection with the
 // full-forcing paths ignored; its record carries diagnosticOnly:true and a consumer must reject it.
 import {execFileSync} from 'node:child_process';
@@ -30,7 +30,7 @@ import assert from 'node:assert/strict';
 const args=process.argv.slice(2);
 const opt=name=>{const i=args.indexOf(name);return i>=0?args[i+1]:null;};
 const repo=opt('--repo')??process.cwd();
-const valued=new Set(['--repo','--base-plans','--head-plans','--text-base-plans','--text-head-plans']);
+const valued=new Set(['--repo','--base-plans','--head-plans','--text-base-plans','--text-head-plans','--text-base-family-plans','--text-head-family-plans']);
 const positional=args.filter((a,i)=>!a.startsWith('--')&&!valued.has(args[i-1]));
 const [baseRef,headRef]=positional;
 assert(baseRef&&headRef&&positional.length===2,'usage: select-affected.mjs <base-ref> <head-ref> [--repo dir] [--base-plans f --head-plans f]');
@@ -88,7 +88,7 @@ if(gateScripts.some(j=>j===null))forceFull('unreadable nix/gate-scripts.json at 
 // modules they actually load against this set. Shared machinery and the runner itself force full.
 const TEXT_RUNNER='scripts/check-edit-proofs.mjs',TEXT_FAMILIES='scripts/text-families.mjs';
 const TEXT_SHARED=new Set([TEXT_RUNNER,'scripts/proof-cache.mjs','scripts/negative-proof-evidence.mjs','scripts/mutation-scope.mjs',
-  'scripts/fstar-mutation-scope.mjs','scripts/proof-reform.mjs','nix/gate-scripts.json','flake.nix']);
+  'scripts/fstar-mutation-scope.mjs','scripts/proof-reform.mjs','scripts/text-family-run.mjs','nix/gate-scripts.json','flake.nix']);
 // The closure itself is text-native-code.mjs (shared with the consumer; check-gate-inputs' parser, which needs node
 // --experimental-vm-modules). Change detection uses the union of base and head; the record carries the head closure.
 let nativeCodeClosure=null;try{({nativeCodeClosure}=await import('./text-native-code.mjs'));}catch{}
@@ -124,7 +124,7 @@ for(const path of changes){
     else if(gates.has('text')){
       if(TEXT_SHARED.has(path)){textFull=true;reasons.push({textFull:'text runner or shared text machinery changed',why:path});}
       else if(nativeCode.has(path)){textNativeAll=true;reasons.push({textNative:'native-path code input changed: every native tuple runs',why:path});}
-      else reasons.push({textFamily:'text family/core script changed; no native tuple reads it (core jobs run per their own route)',why:path});
+      else reasons.push({textFamily:'text family/core script changed; no native tuple reads it (families are selected by their code closures; core-a runs per its own route)',why:path});
     }
     const other=[...gates].filter(g=>g!=='register'&&g!=='text');
     if(other.length)reasons.push({shared:'shared/model/native gate script changed ('+other.join(',')+'); those gates always run in full',why:path});
@@ -239,6 +239,72 @@ function readTextPlans(file,label,ref){
   if(natives.some((p,k)=>p.index!==k))return bad('has native indices out of order');
   return {plans:j.plans,byId,natives,digest:sha(bytes)};
 }
+// ---------------------------------------------------------------- text family plans (#199)
+// Family control tuples come from each ref's own family export (check-edit-proofs.mjs export-plans, family-plans.json),
+// built by the same per-family enumeration execution consumes. Families are selected whole: one selected tuple
+// schedules the family's complete inventory. A family is selected when any of its tuples is new, changed or removed;
+// a changed module lies in the dependency closure of a tuple's roots or its owner's module; a crate or test input
+// changed and the family has native tuples; its code (its module's literal import closure, at either ref) changed; or
+// the family index changed. Unreadable or malformed family exports, or an owner outside its roots' closure, select
+// every family job in full. Shared machinery and the runner already select all text work in full.
+const FAMILY_KEYS='expect,family,id,kind,mutation,native,owner,roots';
+function readFamilyPlans(file,label,ref){
+  if(!file)return {error:label+' family plan export not supplied'};
+  let bytes,j;try{bytes=readFileSync(file);j=JSON.parse(bytes.toString('utf8'));}catch(e){return {error:label+' family plan export unreadable: '+e.message};}
+  const bad=why=>({error:label+' family plan export '+why});
+  if(!j||typeof j!=='object'||Object.keys(j).sort().join()!=='gate,modules,order,plans,schema,sources,unconverted')return bad('has unrecognised top-level fields');
+  if(j.schema!==1||j.gate!=='text-families'||!Array.isArray(j.plans)||!Array.isArray(j.order)||!Array.isArray(j.unconverted))return bad('has an unrecognised shape');
+  if(!j.order.every(n=>typeof n==='string'&&NAME.test(n))||new Set(j.order).size!==j.order.length||!j.unconverted.every(n=>j.order.includes(n)))return bad('has a malformed family order');
+  if(!j.modules||typeof j.modules!=='object'||Object.keys(j.modules).sort().join()!==[...j.order].sort().join()||!Object.values(j.modules).every(m=>typeof m==='string'&&/^[a-z0-9-]+\.mjs$/.test(m)))return bad('has malformed family modules');
+  if(!j.sources||typeof j.sources!=='object'||!Object.keys(j.sources).length)return bad('names no sources');
+  for(const [f,d] of Object.entries(j.sources)){const b=blob(ref,f);if(b===null)return bad('names '+f+', absent at '+ref.slice(0,12));if(d!==sha(b))return bad('was not built from '+ref.slice(0,12)+' ('+f+' differs)');}
+  const converted=j.order.filter(n=>!j.unconverted.includes(n)),byId=new Map(),byFamily=new Map(converted.map(n=>[n,[]]));
+  const strings=a=>Array.isArray(a)&&a.every(x=>typeof x==='string');
+  for(const p of j.plans){
+    if(!p||typeof p!=='object'||Object.keys(p).sort().join()!==FAMILY_KEYS||p.kind!=='family-control')return bad('has a malformed family tuple');
+    if(!byFamily.has(p.family)||typeof p.id!=='string'||!p.id.startsWith(p.family+':')||byId.has(p.id))return bad('has a malformed, repeated or unconverted-family id '+String(p.id));
+    if(!(p.expect==='reject'&&typeof p.owner==='string'&&/^(Nickel|Nickel_crdt)\.[A-Za-z_0-9]+\.[A-Za-z_0-9']+$/.test(p.owner))&&!(p.expect==='verify'&&p.owner===null))return bad('has a malformed expectation or owner for '+p.id);
+    if(!strings(p.roots)||!p.roots.length||!p.roots.every(r=>MODFILE.test(r)))return bad('has malformed roots for '+p.id);
+    if(!Array.isArray(p.mutation)||!p.mutation.length||!p.mutation.every(m=>m&&Object.keys(m).sort().join()==='file,sha256'&&typeof m.file==='string'&&HEX.test(m.sha256)))return bad('has a malformed mutation for '+p.id);
+    if(p.native!==null&&(!p.native||Object.keys(p.native).sort().join()!=='baselines,cargoArgs,extraction'||!strings(p.native.cargoArgs)||!Array.isArray(p.native.baselines)||p.native.baselines.length!==0||p.native.extraction!==true))return bad('has malformed native inputs for '+p.id);
+    byId.set(p.id,p);byFamily.get(p.family).push(p);
+  }
+  for(const [n,ps] of byFamily)if(!ps.length)return bad('has no tuples for converted family '+n);
+  return {j,converted,byId,byFamily,digest:sha(bytes)};
+}
+let familyCodeClosure=null;try{({familyCodeClosure}=await import('./text-native-code.mjs'));}catch{}
+async function selectFamilies(){
+  const fb=readFamilyPlans(opt('--text-base-family-plans'),'base',base),fh=readFamilyPlans(opt('--text-head-family-plans'),'head',head);
+  const err=[fb,fh].find(r=>r.error);if(err){reasons.push({textFamiliesFull:err.error});return {run:'full'};}
+  if(!familyCodeClosure){reasons.push({textFamiliesFull:'family code closure unavailable (run the selector with node --experimental-vm-modules)'});return {run:'full'};}
+  // Family code at both refs, from each ref's own module table.
+  const code={base:{},head:{}};
+  try{for(const [side,ref,r] of [['base',base,fb],['head',head,fh]])for(const n of r.converted)code[side][n]=(await familyCodeClosure(async f=>show(ref,'scripts/'+f),r.j.modules[n])).map(f=>'scripts/'+f);}
+  catch(e){reasons.push({textFamiliesFull:'family code inputs unreadable',why:String(e?.message??e).slice(0,200)});return {run:'full'};}
+  const depsClosure=mods=>{const seen=new Set(),stack=[...mods];while(stack.length){const m=stack.pop();if(seen.has(m))continue;seen.add(m);for(const d of graphs[1].get(m)??[])stack.push(d);}return seen;};
+  const outside=[...fh.byId.values()].filter(p=>p.owner!==null&&!depsClosure(p.roots.map(rootModule)).has(theoremModule(p.owner))).map(p=>p.id);
+  if(outside.length){reasons.push({textFamiliesFull:'family owner module outside its roots\' dependency closure (graph incomplete)',why:outside.slice(0,5).join(',')});return {run:'full'};}
+  const changed=new Set(changes),crate=changes.some(p=>CRATE.test(p)),index=changed.has(TEXT_FAMILIES);
+  const why={};
+  for(const n of fh.converted){
+    const hp=fh.byFamily.get(n),bp=fb.byFamily.get(n);
+    const codeHit=[...new Set([...(code.base[n]??[]),...code.head[n]])].filter(f=>changed.has(f));
+    let r=null;
+    if(!bp)r='new or newly converted family';
+    else if(JSON.stringify(bp)!==JSON.stringify(hp))r='family tuples changed (new, changed or removed controls)';
+    else if(index)r='family index changed ('+TEXT_FAMILIES+')';
+    else if(codeHit.length)r='family code changed: '+codeHit.join(',');
+    else if(crate&&hp.some(p=>p.native!==null))r='crate or test input changed and the family has native tuples';
+    else{const p=hp.find(p=>p.roots.some(x=>affected.has(rootModule(x)))||(p.owner!==null&&affected.has(theoremModule(p.owner))));
+      if(p)r=(p.roots.some(x=>affected.has(rootModule(x)))?'verification root affected':'owner module affected')+' ('+p.id+')';}
+    if(r)why[n]=r;
+  }
+  const selected=fh.converted.filter(n=>Object.hasOwn(why,n));
+  const removed=[...fb.byId.keys()].filter(id=>!fh.byId.has(id));
+  return {run:selected.length?'selected':'none',selected,why,removed,total:fh.byId.size,headPlans:fh.digest,basePlans:fb.digest,
+    digests:Object.fromEntries(fh.converted.map(n=>[n,sha(JSON.stringify(fh.byFamily.get(n)))])),
+    familyCode:Object.fromEntries(fh.converted.map(n=>[n,Object.fromEntries(code.head[n].map(f=>[f,sha(blob(head,f))]))]))};
+}
 let text={run:'none'};
 {
   const tb=readTextPlans(opt('--text-base-plans'),'base',base),th=readTextPlans(opt('--text-head-plans'),'head',head);
@@ -268,7 +334,8 @@ let text={run:'none'};
     else text={run:sel.length?'selected':'none',positive,modes:sel.map(([n])=>n),why:Object.fromEntries(sel),removed,total:th.natives.length,headPlans:th.digest,basePlans:tb.digest,nativeCode:Object.fromEntries(headNativeCode.map(f=>[f,sha(blob(head,f))])),
       // Every head file under the selection-relevant roots, so a consumer refuses a record made for other proof, crate
       // or script content (a stale record replayed on a changed tree), not only other plans or native code.
-      headInputs:Object.fromEntries(git('ls-tree','-r','--name-only',head,'--',...TEXT_INPUT_ROOTS).split('\n').filter(Boolean).sort().map(f=>[f,sha(blob(head,f))]))};
+      headInputs:Object.fromEntries(git('ls-tree','-r','--name-only',head,'--',...TEXT_INPUT_ROOTS).split('\n').filter(Boolean).sort().map(f=>[f,sha(blob(head,f))])),
+      families:await selectFamilies()};
   }
 }
 

@@ -1,11 +1,8 @@
 // Complete helper-produced operation replay and its public erasure boundary.
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import {put,verify} from './proof-cache.mjs';
-import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
-export async function checkOperationContracts({proof,output,fstar,models,modelCache}) {
-  const name='Nickel.EditSchedule.fst', original=await fs.readFile(path.join(proof,name),'utf8');
+import {viewUnits} from './text-family-run.mjs';
+export function operationUnits(read) {
+  const name='Nickel.EditSchedule.fst', original=read(name);
   const controls=[
     ['operation-success-without-loop',/  Nickel\.LoopUtil\.result_preserve_any [^\n]+;\n/,'successful_schedule_has_complete_event_work','successful_schedule_has_complete_event_work'],
     ['operation-success-without-empty',/  prefix_starts_at_actual_empty facts;\n/,'successful_schedule_has_complete_event_work','successful_schedule_has_complete_event_work'],
@@ -17,6 +14,7 @@ export async function checkOperationContracts({proof,output,fstar,models,modelCa
     ['operation-public-without-labels',/    actual_prefix_groups_match_trace facts \(Seq\.length facts\) done operations tree;\n/,'successful_interpretation_has_operation_provenance','successful_interpretation_has_operation_provenance'],
   ];
 
+  const units=[];
   for(const [control,pattern,owner,scope,replacement=''] of controls) {
     let start=0,end=original.length;
     if(scope) {
@@ -27,12 +25,9 @@ export async function checkOperationContracts({proof,output,fstar,models,modelCa
     }
     const body=original.slice(start,end);
     assert.equal([...body.matchAll(new RegExp(pattern.source,'g'))].length,1,control+' anchor');
-    const dir=path.join(path.dirname(proof),control);await fs.rm(dir,{recursive:true,force:true});
-    await fs.cp(proof,dir,{recursive:true,preserveTimestamps:true});
-    const view=original.slice(0,start)+body.replace(pattern,replacement)+original.slice(end);await put(path.join(dir,name),view);
-    const r=await verify({dir,roots:[path.join(dir,name)],fstar,models,modelCache});
-    await fs.writeFile(path.join(output,control+'.proof.log'),r.log);
-    assert(hasOrdinaryTheoremRejection({status:r.status,log:r.log,theorem:'Nickel.EditSchedule.'+owner,view}),control+': '+r.log);
-    console.log('PASS '+control+': ordinary owning rejection');
+    const view=original.slice(0,start)+body.replace(pattern,replacement)+original.slice(end);
+    units.push({name:control,files:{[name]:view},roots:[name],theorem:'Nickel.EditSchedule.'+owner,inPlace:false,
+      log:control+'.proof.log',pass:control+': ordinary owning rejection',failure:control});
   }
+  return viewUnits('operation',units,read);
 }
