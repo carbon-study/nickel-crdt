@@ -139,3 +139,5 @@ proof closed_event_basis_is_exact(facts: facts_vec, event: Native.t_Fact): unit
     Tactics.smt_sync'(1, 1)
   }
 }
+
+// #197 selective activation demo only (never merge): comment, view unchanged
