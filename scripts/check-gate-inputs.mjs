@@ -16,21 +16,8 @@ export const entries = {
   register: ['check-register-proofs.mjs'],
   selection: ['selection-boundary.mjs'],
 };
-export function dependencies(source, name) {
-  const specs = [...new vm.SourceTextModule(source, {identifier:name}).dependencySpecifiers];
-  // Conservative: also finds apparent imports in comments/strings. Unsupported
-  // forms refuse rather than silently missing a runtime dependency.
-  const dynamic = /\bimport(?:(?:\s+)|(?:\/\/[^\r\n\u2028\u2029]*[\r\n\u2028\u2029])|(?:\/\*[\s\S]*?\*\/))*\(/g;
-  for (const m of source.matchAll(dynamic)) {
-    const literal = /^\s*(['"])([^'"\\\r\n]+)\1\s*\)/.exec(source.slice(m.index+m[0].length));
-    assert(literal, name+': unsupported dynamic import; use a plain literal');
-    specs.push(literal[2]);
-  }
-  return [...new Set(specs.filter(s=>!isBuiltin(s)).map(s=>{
-    assert(/^\.\/[a-z0-9-]+\.mjs$/.test(s), name+': unsupported non-builtin dependency '+s);
-    return s.slice(2);
-  }))].sort();
-}
+import {dependencies} from './gate-imports.mjs';
+export {dependencies};
 export async function closure(seeds, read) {
   const found=new Set(), pending=[...seeds];
   while(pending.length) {

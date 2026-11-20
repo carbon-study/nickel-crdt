@@ -53,13 +53,11 @@
         ${modelEnv}
         node ${proofTools}/build-proof-models.mjs "$out"
       '';
+      # The text gate's packaged inputs are declared once in nix/text-inputs.json (also read by the selection consumer).
+      textInputs = builtins.fromJSON (builtins.readFile ./nix/text-inputs.json);
       proofSource = pkgs.lib.fileset.toSource {
         root = ./.;
-        fileset = pkgs.lib.fileset.unions [
-          ./Cargo.toml ./Cargo.lock ./src ./tests ./proof-smoke
-          ./proofs/generated ./proofs/EditDeletePermutation.lt ./proofs/EditDeleteAnswer.lt ./proofs/EditDeleteHeap.lt ./proofs/EditDeleteComplete.lt ./proofs/register-view/Nickel.Canonical.fst ./proofs/PastExact.lt ./proofs/Canonical.lt ./proofs/EventGraph.lt ./proofs/EventGraphText.lt ./proofs/EventShell.lt ./proofs/EventClassifier.lt ./proofs/LoopEquality.lt ./proofs/Prelude.lt ./proofs/LoopUtil.lt ./proofs/Vector.lt ./proofs/Smoke.lt ./proofs/EditAtomic.lt ./proofs/EditCommit.lt ./proofs/EditIdentity.lt ./proofs/EditAccepted.lt ./proofs/EditWellFormed.lt ./proofs/Spec.lt ./proofs/EditCausal.lt ./proofs/EditPast.lt ./proofs/EditPastTotal.lt ./proofs/EditSchedule.lt ./proofs/EditBasis.lt ./proofs/EditReplay.lt
-          (scriptsFor "text")
-        ];
+        fileset = pkgs.lib.fileset.unions ((map (p: ./. + "/${p}") textInputs.paths) ++ [ (scriptsFor "text") ]);
       };
       # One proof derivation per argument list. The full gate (no arguments) stays
       # the local `nix flake check`; CI builds the core and mode shards in parallel.
@@ -216,6 +214,40 @@ ${extra}        node scripts/check-register-proofs.mjs "$out"${pkgs.lib.optional
           cp ${registerSelection}/identity.json "$out/selection-identity.json"
         '';
       }) registerShards);
+      # Text native-mode selection (#197): the same declared boundary, --gate=text. The head tree is this tree
+      # (self, accepted only with a matching selection-head override), the base is selection-base; every doubt
+      # selects the full shard. Selected shards consume the record, which the runner refuses unless it matches
+      # this tree's own text plan export and native code digests.
+      textSelection = pkgs.runCommand "nickel-text-selection" {
+        nativeBuildInputs = tools ++ [ pkgs.git ];
+      } ''
+        export HOME="$TMPDIR/home"
+        mkdir -p "$HOME"
+        node ${selectionSource}/selection-boundary.mjs "$out" ${self} ${selection-base} ${pkgs.lib.escapeShellArg (if selection-head.outPath == self.outPath then selection-head.rev or "" else "")} ${pkgs.lib.escapeShellArg (selection-base.rev or "")} --gate=text
+      '';
+      proofSelectedShardChecks = builtins.listToAttrs (builtins.genList (i: let shardArg = "shard:${toString i}/${toString proofShards}"; in {
+        name = "proofs-selected-shard-${toString i}";
+        value = pkgs.runCommand "nickel-proof-selected-shard-${toString i}" {
+          nativeBuildInputs = tools;
+        } ''
+          export HOME="$TMPDIR/home"
+          mkdir -p "$HOME"
+          cp -r ${proofSource} work
+          chmod -R u+w work
+          cd work
+          ${modelEnv}
+          export NICKEL_HAX_BIN="${haxBin}/bin/cargo-hax"
+          export NICKEL_FSTAR_MODEL_CACHE="${models}"
+          mode="$(cat ${textSelection}/mode)"
+          case "$mode" in
+            full) node scripts/check-edit-proofs.mjs "$out/edit" ${shardArg} ;;
+            # The consumer recomputes its native-code closure with node's module parser (--experimental-vm-modules).
+            selected) node --experimental-vm-modules --no-warnings scripts/check-edit-proofs.mjs "$out/edit" "selection:${textSelection}/selection.json" ${shardArg} ;;
+            *) echo "unknown selection mode: $mode" >&2; exit 1 ;;
+          esac
+          cp ${textSelection}/identity.json "$out/selection-identity.json"
+        '';
+      }) proofShards);
       editReferenceSource = pkgs.lib.fileset.toSource {
         root = ./.;
         fileset = pkgs.lib.fileset.unions [
@@ -268,7 +300,8 @@ ${extra}        node scripts/check-register-proofs.mjs "$out"${pkgs.lib.optional
         hax-fstar = fstar;
         register-proofs-shard-coverage = registerShardCoverage;
         register-selection = registerSelection;
-      } // proofShardChecks // registerShardChecks // registerSelectedChecks;
+        text-selection = textSelection;
+      } // proofShardChecks // registerShardChecks // registerSelectedChecks // proofSelectedShardChecks;
       checks.${system} = { inherit native; gate-inputs = gateInputs; register-native = registerNative; register-proofs = registerProof; shared-native = sharedNative; shared-proofs = sharedProof; proofs = proofCheck; edit-reference = editReference; };
       devShells.${system} = {
         default = pkgs.mkShell {

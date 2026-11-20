@@ -1,69 +1,61 @@
 import {checkFstarMutationScope} from './check-fstar-mutation-scope.mjs';
-import {checkDeleteContracts,checkDeletePreparation,editProofHaxArgs} from './check-delete-contracts.mjs';
-import {checkEventContracts} from './check-event-contracts.mjs';
-import {checkOperationContracts} from './check-operation-contracts.mjs';
-import {checkReplayContracts} from './check-replay-contracts.mjs';
+import {checkDeletePreparation,editProofHaxArgs} from './check-delete-contracts.mjs';
 import {itemSpan,scopedAnchor,checkMutationScopeControls} from './mutation-scope.mjs';
-import {checkBasisContracts} from './check-basis-contracts.mjs';
 // Actual edit/admit extraction: return paths, commit coherence and identity laws.
 // This gate does not prove valid-fact acceptance, convergence or FugueMax.
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {mkdirSync} from 'node:fs';
+import {mkdirSync,appendFileSync,readFileSync,existsSync,writeFileSync} from 'node:fs';
+import {register} from 'node:module';
+import {spawnSync} from 'node:child_process';
+import {tmpdir} from 'node:os';
+import {mkdtempSync,rmSync} from 'node:fs';
 import {digest,holdLock,runAsync,verify,put} from './proof-cache.mjs';
 import {hasOrdinaryTheoremRejection} from './negative-proof-evidence.mjs';
+import {sourceFiles,modes,mutationDefinitions,definitionByMode,prepareMutation as prepareMutationIn,theorems,mutationOwners,positiveBaselines,cargoBase,nativeArgs as nativeArgsOf,proofRoot,verifyRoots,positivePlan,nativeModePlans,identityControlPlan,auditUnits,checkAuditControls,TEXT_PLAN_INPUTS} from './edit-native-plans.mjs';
 import {checkProofReform} from './proof-reform.mjs';
-import {checkRemainingCallLocator,checkRemainingContracts} from './check-remaining-contracts.mjs';
-import {checkPushContracts} from './check-push-contracts.mjs';
-import {checkVectorContracts} from './check-vector-contracts.mjs';
-import {checkIdentityContracts} from './check-identity-contracts.mjs';
-import {checkContainmentContracts} from './check-containment-contracts.mjs';
-import {checkAcceptedContracts} from './check-accepted-contracts.mjs';
-import {checkSpecContracts} from './check-spec-contracts.mjs';
-import {checkPrivateContracts} from './check-private-contracts.mjs';
-import {checkSharedContracts} from './check-shared-contracts.mjs';
-import {checkCommitContracts} from './check-commit-contracts.mjs';
-import {checkPlanContracts} from './check-plan-contracts.mjs';
-import {checkWriterContracts} from './check-writer-contracts.mjs';
+import {nativeCodeClosure,checkNativeCodeRecord,checkNativeCodeControls,checkHeadInputs,checkHeadInputControls} from './text-native-code.mjs';
 import {checkNegativeProofEvidence} from './check-negative-proof-evidence.mjs';
-import {checkScalarContracts} from './check-loop-contracts.mjs';
-import {checkScheduleContracts} from './check-schedule-contracts.mjs';
-import {checkPastContracts} from './check-past-contracts.mjs';
-import {checkCounterContracts} from './check-counter-contracts.mjs';
-import {checkCacheSafety} from './check-cache-safety.mjs';
 const root=fileURLToPath(new URL('..',import.meta.url));
+// Runtime load audit (#197). A selected shard run records every module it loads after this point (the static imports
+// above are native code inputs by construction); the consumer refuses the run if any loaded gate script lies outside
+// the selector's recorded native-code set, so "family modules are not native inputs" is checked, not assumed.
+const selectionArg=process.argv.slice(3).find(arg=>arg.startsWith('selection:'));
+const loadLog=selectionArg&&process.argv[2]?path.join(process.argv[2],'loaded-modules.log'):null;
 // One invocation per checkout. Mode workspaces (.cache/edit-proofs), Cargo targets
 // (target/edit-proof-check) and the positive seed are shared mutable state, so an
 // overlapping invocation is rejected before it writes any of them. This process
 // takes the lock itself and every command it starts inherits it (holdLock), so a
 // killed runner's surviving writers keep the checkout locked until they exit.
 // Never delete the lock file: its inode is the lock.
+// A plan export (`<out> export-plans`, exclusive) writes only its output directory and runs on read-only trees
+// (the selection boundary exports base and head from the Nix store), so it takes no checkout lock.
+const exportOnly=process.argv.length===4&&process.argv[3]==='export-plans';
 const lock=path.join(root,'.cache','edit-proofs.lock');
+if(!exportOnly){
 mkdirSync(path.dirname(lock),{recursive:true});
 if(!holdLock(lock)) {
   console.error('another check-edit-proofs invocation holds '+lock+'; overlapping runs would share workspaces and extractions');
   process.exit(75);
 }
+}
+// Selected-run output and the load hook are set up only once this invocation owns the checkout lock, so a refused
+// overlapping invocation (exit 75 above) never truncates an active run's evidence.
+if(loadLog){
+  mkdirSync(process.argv[2],{recursive:true});writeFileSync(loadLog,'');
+  const hooks='import {appendFileSync} from "node:fs";let log;export function initialize(d){log=d.log;}'+
+    'export async function resolve(s,c,n){const r=await n(s,c);if(r.url.startsWith("file:"))appendFileSync(log,r.url+"\\n");return r;}';
+  register('data:text/javascript,'+encodeURIComponent(hooks),{parentURL:import.meta.url,data:{log:loadLog}});
+}
+
 // Self-checks run once the lock is held.
 await import('./check-proof-reform.mjs');
 checkNegativeProofEvidence();
 await checkProofReform(root);
-const sourceFiles=['src/edit.rs','src/event_layer.rs','src/event_shell.rs'];
+const prepareMutation=(mode,sources=original)=>prepareMutationIn(mode,sources);
 const original=Object.fromEntries(await Promise.all(sourceFiles.map(async name=>[name,await fs.readFile(path.join(root,name),'utf8')])));
-const modes=["stream-admission-skips-predecessor","stream-admission-skips-forbidden","stream-admission-swaps-forbidden-args","stream-text-omits-predecessor-policy",'plan-skips-validation',"tree-publication-uses-private-writer","tree-publication-clears-private-counter","plan-clears-private-counter",'positive','plan-ignores-duplicate','plan-swallows-classifier-error','receive-plan-rewrites-counter','invalid-forgets-reason','writer-index-collides','native-push-discards-value','native-push-prepends','causal-validator-passes-empty','causal-accepts-missing','causal-call-passes-empty','causal-refuses-present','plan-interprets-uncanonical','scalar-validation-bypasses-on-history','scalar-accepts-invalid','scalar-call-passes-empty','scalar-refuses-valid','canonical-step-refuses','canonical-refuses','plan-keeps-old-tree','plan-passes-old-tree','order-key-ignores-writer','order-chooses-largest','order-discards-canonical','local-return-after','edit-call-passes-old-counter','edit-commit-ignores-counter','receive-error-corrupts-counter','edit-error-corrupts-counter','edit-success-reuses-counter',
-  'local-return-gap','local-stale-tree','receive-success-counter','author-forgets-gap','receive-private-gate',
-  'identity-forgets-gap','identity-accepts-conflict','identity-skips-later','identity-counter-range','identity-event-equality',
-  'identity-scan-key','identity-birth-equality','identity-writer-equality',
-  'accepted-reuses-member','accepted-wrong-canonical-push','accepted-publication-duplicates',
-  'content-changes-whole-fact','content-omits-facts','past-drops-roots','past-invents-id','past-membership-always-false','past-skips-predecessors','past-skips-passes','past-refuses-closure','duplicate-scan-skips-pairs','scheduler-ready-skips-dependency','scheduler-reselects-done','scheduler-refuses-ready','scheduler-checks-empty-after','scheduler-records-wrong-id','scheduler-stops-early','scheduler-erases-wrong-trace','scheduler-invents-bookkeeping-error','basis-includes-unselected','basis-omits-selected','basis-event-ignores-roots','replay-nodes-skip-first','replay-nodes-reverse','replay-groups-include-all','replay-groups-skip-all','replay-context-passes-empty','replay-context-invents-error','replay-context-contaminates-basis','scheduler-forgets-completed-tree'];
-modes.push('plan-interprets-uncanonical-call', ...["shared-plan-skips-validation","shared-plan-ignores-duplicate","shared-plan-swallows-classifier-error","identity-call-passes-empty","identity-call-ignores-payload","past-membership-call-passes-empty","scheduler-readiness-call-passes-empty","scheduler-choice-call-passes-empty"]);
-modes.push('past-guard-refuses-present','past-extension-refuses-selection');
-modes.push("past-extend-call-clears-selection","past-pass-call-skips-facts","past-call-clears-roots");
-// #107: past stops at its fixpoint and each pass scans newest-first.
-modes.push("past-closes-after-one-pass","past-pass-rescans-last");
-modes.push('text-policy-swaps-eq-lt','graph-policy-swaps-eq-lt','admission-policy-swaps-errors');
 // Contract-dependency families run after the positive chain verifies. With no
 // arguments (CI) every mode and every family runs. Development runs may select
 // `positive-only`, `contracts:<family>` (implies the positive chain) and any
@@ -74,16 +66,22 @@ modes.push('text-policy-swaps-eq-lt','graph-policy-swaps-eq-lt','admission-polic
 // also picks up any family added later. `jobs:<n>` (default 1) checks up to n
 // selected mutation modes concurrently, after the positive chain and its
 // families; it selects nothing by itself.
-const families={delete:checkDeleteContracts,event:checkEventContracts,operation:checkOperationContracts,replay:checkReplayContracts,basis:checkBasisContracts,schedule:checkScheduleContracts,past:checkPastContracts,remaining:checkRemainingContracts,counter:checkCounterContracts,push:checkPushContracts,vector:checkVectorContracts,
-  scalar:checkScalarContracts,identity:checkIdentityContracts,writer:checkWriterContracts,plan:checkPlanContracts,containment:checkContainmentContracts,accepted:checkAcceptedContracts,spec:checkSpecContracts,private:checkPrivateContracts,shared:checkSharedContracts,commit:checkCommitContracts};
+// Family names in execution order; the modules themselves live in text-families.mjs, loaded only when needed.
+const FAMILY_NAMES=["delete","event","operation","replay","basis","schedule","past","remaining","counter","push","vector","scalar","identity","writer","plan","containment","accepted","spec","private","shared","commit"];
+let familyModule=null;
+const familiesModule=async()=>familyModule??=await import('./text-families.mjs');
 const jobArgs=process.argv.slice(3).filter(arg=>arg.startsWith('jobs:')),args=process.argv.slice(3).filter(arg=>!arg.startsWith('jobs:'));
 assert(jobArgs.length<=1&&jobArgs.every(arg=>/^jobs:[1-9]\d*$/.test(arg)),'use at most one jobs:<n> with n >= 1');
 const jobs=jobArgs.length?Number(jobArgs[0].slice(5)):1;
 const familyRuns=new Set();let wantPositive=args.length===0,cacheSafety=args.length===0;
 const mutations=[];
+// `export-plans` (exclusive) writes <out>/plans.json from the exact units this runner executes (the shared
+// enumeration in edit-native-plans.mjs), after the pure self-checks and before any toolchain is required.
+const exportPlans=args.includes('export-plans');
+assert(!exportPlans||args.length===1,'export-plans is exclusive');
 for(const arg of args) {
-  if(arg==='gatepreflight'){}
-  else if(arg==='positive'){wantPositive=true;for(const name of Object.keys(families))familyRuns.add(name);}
+  if(arg==='gatepreflight'||arg==='export-plans'||arg.startsWith('selection:')){}
+  else if(arg==='positive'){wantPositive=true;for(const name of FAMILY_NAMES)familyRuns.add(name);}
   else if(arg==='positive-only')wantPositive=true;
   else if(arg==='cache-safety'){wantPositive=true;cacheSafety=true;}
   else if(/^shard:\d+\/\d+$/.test(arg)){
@@ -91,292 +89,14 @@ for(const arg of args) {
     wantPositive=true;mutations.push(...modes.filter(mode=>mode!=='positive').filter((_,k)=>k%n===i));
   }
   else if(arg.startsWith('contracts-except:')){
-    const skip=arg.slice(17).split(',');for(const name of skip)assert(Object.hasOwn(families,name),'unknown contract family '+name);
-    wantPositive=true;for(const name of Object.keys(families))if(!skip.includes(name))familyRuns.add(name);
+    const skip=arg.slice(17).split(',');for(const name of skip)assert(FAMILY_NAMES.includes(name),'unknown contract family '+name);
+    wantPositive=true;for(const name of FAMILY_NAMES)if(!skip.includes(name))familyRuns.add(name);
   }
-  else if(arg.startsWith('contracts:')){const name=arg.slice(10);assert(Object.hasOwn(families,name),'unknown contract family '+name);wantPositive=true;familyRuns.add(name);}
+  else if(arg.startsWith('contracts:')){const name=arg.slice(10);assert(FAMILY_NAMES.includes(name),'unknown contract family '+name);wantPositive=true;familyRuns.add(name);}
   else {assert(modes.includes(arg),'unknown mode '+arg);if(arg.startsWith('basis-')||arg.startsWith('replay-')||arg==='scheduler-forgets-completed-tree')wantPositive=true;mutations.push(arg);}
 }
 assert(!args.includes('gatepreflight')||args.length===1,'gatepreflight is an exclusive preparation-only mode');
-if(args.length===0){for(const name of Object.keys(families))familyRuns.add(name);mutations.push(...modes.filter(mode=>mode!=='positive'));}
-// A fresh mutation workspace starts from the verified positive workspace: same
-// views and caches, then fresh hax output replaces Nickel_crdt.Edit.fst. Its
-// digest change (and F*'s own dependency check) forces the extracted module and
-// every dependent proof to recheck; only modules independent of it are reused.
-// Each mutation edits exactly one anchored site of the actual Rust source.
-// Each row is [mode, source owner, item header, anchor, replacement]. This is
-// the sole mutation definition table; the lookup below is only its index.
-const mutationDefinitions=[
-  ["stream-admission-skips-predecessor","src/event_layer.rs","fn validate_event<","if !has_id(&selected, &previous, ops) {","if false {"],
-  ["stream-admission-skips-forbidden","src/event_layer.rs","fn validate_event<","&& forbidden(&id(e), &id(fact))","&& false"],
-  ["stream-admission-swaps-forbidden-args","src/event_layer.rs","fn validate_event<","forbidden(&id(e), &id(fact))","forbidden(&id(fact), &id(e))"],
-  ["stream-text-omits-predecessor-policy","src/edit.rs","fn validate_new(","&TEXT_OPS)","&crate::event_layer::event_ops(TEXT_OPS.0, |_| None, forbidden_ancestor, duplicate_dependency_error, predecessor_error))"],
-  ["plan-skips-validation","src/edit.rs","fn plan_validate(","Replica::validate_new(&before.facts, fact)","Ok(())"],
-  ["tree-publication-uses-private-writer","src/edit.rs","fn with_tree(","self.tree = tree;","if self.writer.is_some() { self.tree = tree; }"],
-  ["tree-publication-clears-private-counter","src/edit.rs","fn with_tree(","self.tree = tree;","self.tree = tree; self.next_counter = 0;"],
-  ["plan-clears-private-counter","src/edit.rs","fn plan_prepare(","push(&mut next.facts, fact.clone())?;","next.next_counter = 0; push(&mut next.facts, fact.clone())?;"],
-  ["plan-ignores-duplicate","src/edit.rs","fn plan_duplicate(","Replica::duplicate(&before.facts, fact)","let _ = Replica::duplicate(&before.facts, fact)?; Ok(false)"],
-  ["plan-swallows-classifier-error","src/edit.rs","fn plan_duplicate(","Replica::duplicate(&before.facts, fact)","match Replica::duplicate(&before.facts, fact) { Ok(found) => Ok(found), Err(_) => Ok(false) }"],
-  ["receive-plan-rewrites-counter","src/edit.rs","fn receive_plan(","before.plan(fact)","let mut offered = fact.clone(); offered.id.counter = 1; before.plan(&offered)"],
-  ["invalid-forgets-reason","src/edit.rs","fn invalid(","Error::Invalid(reason)","Error::Invalid(Invalid::Counter)"],
-  ["writer-index-collides","src/edit.rs","fn writer_index(","Writer::Bo => 1","Writer::Bo => 0"],
-  ["native-push-discards-value","src/event_layer.rs","fn push<","xs.push(value);","let _ = value;"],
-  ["native-push-prepends","src/event_layer.rs","fn push<","xs.push(value);","xs.insert(0, value);"],
-  ["causal-validator-passes-empty","src/edit.rs","fn validate_new(","&TEXT_OPS)","&crate::event_layer::event_ops(crate::event_layer::graph_ops(fact_id, |_| &[], same_event_id, earlier_event_id, clone_selected_fact, fact_equal, internal_error, missing_error), required_predecessor, forbidden_ancestor, duplicate_dependency_error, predecessor_error))"],
-  ["causal-accepts-missing","src/event_layer.rs","fn validate_after<","if !has_fact(facts, &after[i], ops) {","if false {"],
-  ["causal-call-passes-empty","src/event_layer.rs","fn past<","validate_after(facts, after_ids, ops)?;","validate_after(facts, &[], ops)?;"],
-  ["causal-refuses-present","src/event_layer.rs","fn validate_after<","Ok(())","Err(missing())"],
-  ["plan-interprets-uncanonical","src/event_shell.rs","fn plan<","let next = prepare(context, next, fact)?;\n    let next = execute(context, next)?;","let next = execute(context, next)?;\n    let next = prepare(context, next, fact)?;"],
-  ["scalar-validation-bypasses-on-history","src/edit.rs","fn validate_new(","validate_scalars(&fact.insert)?;","if facts.is_empty() { validate_scalars(&fact.insert)?; }"],
-  ["scalar-accepts-invalid","src/edit.rs","fn validate_scalars(","if scalar > 0x10ffff || (scalar >= 0xd800 && scalar <= 0xdfff) {","if false {"],
-  ["scalar-call-passes-empty","src/edit.rs","fn validate_new(","validate_scalars(&fact.insert)?;","validate_scalars(&[])?;"],
-  ["scalar-refuses-valid","src/edit.rs","fn validate_scalars(","Ok(())","Err(invalid(Invalid::Scalar))"],
-  ["canonical-step-refuses","src/event_layer.rs","fn canonical_step<","Ok(out)","Err(internal())"],
-  ["canonical-refuses","src/event_layer.rs","fn canonical<","Ok(out)","Err((ops.1.0)())"],
-  ["plan-keeps-old-tree","src/edit.rs","fn with_tree(","self.tree = tree;","let _ = tree;"],
-  ["plan-passes-old-tree","src/edit.rs","fn plan_execute(","Ok(next.with_tree(tree))","Ok(next.clone().with_tree(next.tree.clone()))"],
-  ["order-key-ignores-writer","src/edit.rs","fn event_lt(","writer_index(a.writer) < writer_index(b.writer)\n        || (a.writer == b.writer && a.counter < b.counter)","a.counter < b.counter"],
-  ["order-chooses-largest","src/event_layer.rs","fn choose_unseen<","if id_lt(&id(&facts[j]), &id(&facts[k])) {","if id_lt(&id(&facts[k]), &id(&facts[j])) {"],
-  ["order-discards-canonical","src/edit.rs","fn plan_prepare(","next.facts = canonical(&next.facts)?;","let _ = canonical(&next.facts)?;"],
-  ["local-return-after","src/edit.rs","pub fn edit(","(next, Ok(Local::Authored(fact)))","{ let mut changed = fact; changed.after = Vec::new(); (next, Ok(Local::Authored(changed))) }"],
-  ["edit-call-passes-old-counter","src/edit.rs","pub fn edit(","next = next.with_counter(next_counter);","next = next.with_counter(self.next_counter);"],
-  ["edit-commit-ignores-counter","src/edit.rs","fn with_counter(","self.next_counter = counter;","self.next_counter = self.next_counter;"],
-  ["receive-error-corrupts-counter","src/edit.rs","fn receive(","crate::event_shell::receive(\n            self,\n            fact,\n            &(),\n            receive_plan,\n            Admission::Added,\n            Admission::Duplicate,\n        )","{ let (mut next, result) = crate::event_shell::receive(\n            self,\n            fact,\n            &(),\n            receive_plan,\n            Admission::Added,\n            Admission::Duplicate,\n        ); if matches!(result, Err(_)) { next.next_counter = 0; } (next, result) }"],
-  ["edit-error-corrupts-counter","src/edit.rs","pub fn edit(","Err(error) => (self, Err(error)),","Err(error) => { let mut damaged = self; damaged.next_counter = 0; (damaged, Err(error)) },"],
-  ["edit-success-reuses-counter","src/edit.rs","fn next_counter_after(","Ok(counter + 1)","Ok(counter)"],
-  ["local-return-gap","src/edit.rs","pub fn edit(","(next, Ok(Local::Authored(fact)))","{ let mut changed = fact; changed.gap = Some(0); (next, Ok(Local::Authored(changed))) }"],
-  ["local-stale-tree","src/edit.rs","pub fn edit(","next = next.with_counter(next_counter);","next = next.with_counter(next_counter); next.tree = self.tree.clone();"],
-  ["receive-success-counter","src/edit.rs","fn receive(","crate::event_shell::receive(\n            self,\n            fact,\n            &(),\n            receive_plan,\n            Admission::Added,\n            Admission::Duplicate,\n        )","{ let (mut next, result) = crate::event_shell::receive(\n            self,\n            fact,\n            &(),\n            receive_plan,\n            Admission::Added,\n            Admission::Duplicate,\n        ); if matches!(result, Ok(Admission::Added)) { next.next_counter = 0; } (next, result) }"],
-  ["author-forgets-gap","src/edit.rs","pub fn edit(","Some(gap)","Some(0)"],
-  ["receive-private-gate","src/edit.rs","fn plan_validate(","Replica::validate_new(&before.facts, fact)","Replica::validate_new(&before.facts, fact)?; if before.writer.is_none() { return Err(Error::Missing); } Ok(())"],
-  ["identity-forgets-gap","src/edit.rs","fn fact_equal(","&& left.gap == right.gap","&& true"],
-  ["identity-accepts-conflict","src/event_layer.rs","fn classify<","return Some(fact_eq(old, fact));","return Some(fact_eq(old, fact) || id_eq(&id(old), &id(fact)));"],
-  ["identity-skips-later","src/event_layer.rs","fn classify<","for i in 0..facts.len() {","for i in 0..0 {"],
-  ["identity-counter-range","src/edit.rs","fn duplicate(","if fact.id.counter == 0 || fact.id.counter > MAX_COUNTER {","if false {"],
-  ["identity-event-equality","src/edit.rs","impl PartialEq for EventId","self.writer == other.writer && self.counter == other.counter","self.writer == other.writer"],
-  ["identity-scan-key","src/edit.rs","fn duplicate(","crate::event_layer::classify(facts, fact, &TEXT_OPS.0)","crate::event_layer::classify(facts, fact, &crate::event_layer::graph_ops(|f| EventId { writer: Writer::Alice, counter: f.id.counter }, fact_after, same_event_id, earlier_event_id, clone_selected_fact, fact_equal, internal_error, missing_error))"],
-  ["identity-birth-equality","src/edit.rs","impl PartialEq for BirthId","self.event == other.event && self.index == other.index","self.event == other.event"],
-  ["identity-writer-equality","src/edit.rs","impl PartialEq for Writer","writer_index(*self) == writer_index(*other)","writer_index(*self) == writer_index(*self)"],
-  ["accepted-reuses-member","src/event_layer.rs","fn choose_unseen<","if !has_fact(out, &id(&facts[j]), ops) {","if true {"],
-  ["accepted-wrong-canonical-push","src/event_layer.rs","fn canonical_step<","push(&mut out, clone_selected_fact(&facts[i], clone_fact), internal)?;","push(&mut out, clone_selected_fact(&facts[0], clone_fact), internal)?;"],
-  ["accepted-publication-duplicates","src/edit.rs","fn with_tree(","self.tree = tree;","self.tree = tree; if !self.facts.is_empty() && self.facts.len() < usize::MAX { let copy = self.facts[0].clone(); self.facts.push(copy); }"],
-  ["content-changes-whole-fact","src/edit.rs","fn clone_selected_fact(","fact.clone()","let mut changed = fact.clone(); changed.gap = None; changed"],
-  ["content-omits-facts","src/event_layer.rs","fn canonical<","for _ in 0..facts.len() {","for _ in 0..0usize {"],
-  ["past-extend-call-clears-selection","src/edit.rs","fn extend_past(","crate::event_layer::extend_past(fact, selected, &TEXT_OPS.0)","crate::event_layer::extend_past(fact, Vec::new(), &TEXT_OPS.0)"],
-  ["past-pass-call-skips-facts","src/edit.rs","fn past_pass(","crate::event_layer::past_pass(facts, selected, &TEXT_OPS.0)","crate::event_layer::past_pass(&[], selected, &TEXT_OPS.0)"],
-  ["past-call-clears-roots","src/edit.rs","fn past(","crate::event_layer::past(facts, after, &TEXT_OPS.0)","crate::event_layer::past(facts, &[], &TEXT_OPS.0)"],
-  ["past-drops-roots","src/event_layer.rs","fn past<","let mut selected = after_ids.to_vec();","let mut selected = Vec::new();"],
-  ["past-invents-id","src/event_layer.rs","fn extend_past<","if has_id(&selected, &id(fact), ops) {","if true {"],
-  ["past-membership-always-false","src/event_layer.rs","fn has_id<","if id_eq(&ids[i], wanted) {","if false {"],
-  ["past-skips-predecessors","src/event_layer.rs","fn extend_past<","if has_id(&selected, &id(fact), ops) {","if false {"],
-  ["past-skips-passes","src/event_layer.rs","fn past<","for _ in 0..facts.len() {","for _ in 0..0usize {"],
-  ["past-closes-after-one-pass","src/event_layer.rs","fn past<","closed = selected.len() == before;","closed = true;"],
-  ["past-pass-rescans-last","src/event_layer.rs","fn past_pass<","let i = facts.len() - 1 - offset;","let i = facts.len() - 1;"],
-  ["past-guard-refuses-present","src/event_layer.rs","fn validate_after<","if !has_fact(facts, &after[i], ops)","if has_fact(facts, &after[i], ops)"],
-  ["past-extension-refuses-selection","src/event_layer.rs","fn extend_past<","Ok(selected)","Err(internal())"],
-  ["past-refuses-closure","src/event_layer.rs","fn past<","Ok(selected)","Err((ops.1.0)())"],
-  ["duplicate-scan-skips-pairs","src/event_layer.rs","fn duplicate_ids<","if id_eq(&xs[i], &xs[j]) {","if false {"],
-  ["scheduler-ready-skips-dependency","src/event_layer.rs","fn ready<","if has_id(done, &after[i], ops) {","if true {"],
-  ["scheduler-reselects-done","src/event_layer.rs","fn choose_ready<","if has_id(done, &id(&facts[i]), ops) {","if false {"],
-  ["scheduler-refuses-ready","src/event_layer.rs","fn choose_ready<","return Some(i);","return None;"],
-  ["scheduler-checks-empty-after","src/event_layer.rs","fn choose_ready<","ready(after(&facts[i]), done, ops)","ready(&[], done, ops)"],
-  ["scheduler-records-wrong-id","src/edit.rs","fn interpret_scheduled(","fact_id,","|_| EventId { writer: Writer::Alice, counter: 0 },"],
-  ["scheduler-stops-early","src/event_shell.rs","fn scheduled<","for _ in 0..facts.len() {","for _ in 0..0usize {"],
-  ["scheduler-erases-wrong-trace","src/edit.rs","fn interpret(","let pair = interpret_scheduled(facts)?;","let pair = interpret_scheduled(&[])?;"],
-  ["scheduler-invents-bookkeeping-error","src/event_shell.rs","fn scheduled<","let event_id = id(event);","if operations.len() == 0 { return Err(internal()); } let event_id = id(event);"],
-  ["basis-includes-unselected","src/event_layer.rs","fn select_basis<","if has_id(selected, &id(fact), ops) {","if true {"],
-  ["basis-omits-selected","src/event_layer.rs","fn select_basis<","if has_id(selected, &id(fact), ops) {","if false {"],
-  ["basis-event-ignores-roots","src/event_layer.rs","fn event_basis<","past(facts, after(event), ops)?","past(facts, &[], ops)?"],
-  ["replay-nodes-skip-first","src/edit.rs","fn replay_nodes(","for i in 0..nodes.len() {","for i in 1..nodes.len() {"],
-  ["replay-nodes-reverse","src/edit.rs","fn replay_nodes(","tree.add(nodes[i].clone())?;","tree.add(nodes[nodes.len() - 1 - i].clone())?;"],
-  ["replay-groups-include-all","src/edit.rs","fn replay_author(","if has_event(selected, id) {","if !has_event(&[], id) {"],
-  ["replay-groups-skip-all","src/edit.rs","fn replay_author(","if has_event(selected, id) {","if has_event(&[], id) {"],
-  ["replay-context-passes-empty","src/edit.rs","fn author_context(","replay_author(operations, &selected)?","replay_author(&[], &selected)?"],
-  ["replay-context-invents-error","src/edit.rs","fn author_context(","let author = replay_author(operations, &selected)?;","let author = replay_author(operations, &selected)?; if operations.is_empty() { return Err(Error::Internal); }"],
-  ["replay-context-contaminates-basis","src/edit.rs","fn author_context(","let (selected, basis) = event_basis(facts, event)?;","let (selected, mut basis) = event_basis(facts, event)?; if !event.after.is_empty() && facts.len() > 2 { push(&mut basis, facts[1].clone())?; }"],
-  ["scheduler-forgets-completed-tree","src/edit.rs","fn interpret_scheduled(","crate::event_shell::scheduled(\n        facts,\n        Tree::default(),\n        &(),\n        fact_id,\n        scheduled_choose,\n        scheduled_apply,\n        internal_error,\n    )","crate::event_shell::scheduled(\n        facts,\n        Tree::default(),\n        &(),\n        fact_id,\n        scheduled_choose,\n        scheduled_apply,\n        internal_error,\n    ).map(|(_, done)| (Tree::default(), done))"],
-  ["plan-interprets-uncanonical-call","src/edit.rs","fn plan(","plan_prepare,","|_, next, fact| { let mut prepared = next; push(&mut prepared.facts, fact.clone())?; Ok(prepared) },"],
-  ["shared-plan-skips-validation","src/event_shell.rs","fn plan<","validate(context, before, fact)?;","let _ = validate(context, before, fact);"],
-  ["shared-plan-ignores-duplicate","src/event_shell.rs","fn plan<","if duplicate(context, before, fact)? {","if duplicate(context, before, fact)? && false {"],
-  ["shared-plan-swallows-classifier-error","src/event_shell.rs","fn plan<","if duplicate(context, before, fact)? {","if match duplicate(context, before, fact) { Ok(found) => found, Err(_) => false } {"],
-  ["identity-call-passes-empty","src/edit.rs","fn duplicate(","crate::event_layer::classify(facts, fact, &TEXT_OPS.0)","crate::event_layer::classify(&[], fact, &TEXT_OPS.0)"],
-  ["identity-call-ignores-payload","src/edit.rs","fn duplicate(","crate::event_layer::classify(facts, fact, &TEXT_OPS.0)","crate::event_layer::classify(facts, fact, &crate::event_layer::graph_ops(fact_id, fact_after, same_event_id, earlier_event_id, clone_selected_fact, |left, right| left.id == right.id, internal_error, missing_error))"],
-  ["past-membership-call-passes-empty","src/edit.rs","fn has_event(","crate::event_layer::has_id(ids, &id, &TEXT_OPS.0)","crate::event_layer::has_id(&[], &id, &TEXT_OPS.0)"],
-  ["scheduler-readiness-call-passes-empty","src/edit.rs","fn ready(","crate::event_layer::ready(after, done, &TEXT_OPS.0)","crate::event_layer::ready(&[], done, &TEXT_OPS.0)"],
-  ["scheduler-choice-call-passes-empty","src/edit.rs","fn choose_ready(","crate::event_layer::choose_ready(facts, done, &TEXT_OPS.0)","crate::event_layer::choose_ready(&[], done, &TEXT_OPS.0)"],
-  ["text-policy-swaps-eq-lt","src/edit.rs","const TEXT_OPS:","same_event_id, earlier_event_id,","earlier_event_id, same_event_id,"],
-  ["graph-policy-swaps-eq-lt","src/event_layer.rs","const fn graph_ops<","(id, after, id_eq, id_lt, clone_fact, fact_eq)","(id, after, id_lt, id_eq, clone_fact, fact_eq)"],
-  ["admission-policy-swaps-errors","src/event_layer.rs","const fn event_ops<","(duplicate_error, predecessor_error)","(predecessor_error, duplicate_error)"]
-];
-const definitionByMode=new Map(mutationDefinitions.map(([mode,...definition])=>[mode,definition]));
-const registeredMutations=modes.filter(mode=>mode!=='positive');
-assert.equal(new Set(registeredMutations).size,registeredMutations.length,'duplicate registered mutation mode');
-assert.equal(definitionByMode.size,mutationDefinitions.length,'duplicate mutation definition');
-assert.deepEqual([...definitionByMode.keys()].sort(),[...registeredMutations].sort(),'mutation definitions must exactly cover registered modes');
-for(const [mode,owner,header,needle,replacement] of mutationDefinitions) {
-  assert.equal(definitionByMode.get(mode).length,4,'mutation definition must have four fields: '+mode);
-  assert(sourceFiles.includes(owner),'unknown mutation source owner: '+mode);
-  assert([header,needle,replacement].every(value=>typeof value==='string'&&value.length>0),'mutation fields must be nonempty strings: '+mode);
-}
-function prepareMutation(mode,sources=original) {
-  const definition=definitionByMode.get(mode);
-  assert(definition,'mutation without a registered definition: '+mode);
-  const [owner,header,needle,replacement]=definition;
-  const source=typeof sources==='string'?sources:sources[owner];
-  const at=scopedAnchor(source,header,needle,mode);
-  const mutant=source.slice(0,at)+source.slice(at).replace(needle,replacement);
-  assert.notEqual(mutant,source);
-  return typeof sources==='string'?mutant:{...sources,[owner]:mutant};
-}
-const theorems={
-"stream-admission-skips-predecessor":"EventGraph.validated_stream_checks",
-"stream-admission-skips-forbidden":"EventGraph.validated_stream_checks",
-"stream-admission-swaps-forbidden-args":"EventGraph.validated_stream_checks",
-"stream-text-omits-predecessor-policy":"EditWellFormed.successful_validation_has_stream_checks",
-  'scheduler-forgets-completed-tree':'EditSchedule.successful_schedule_has_complete_event_work',
-  'replay-nodes-skip-first':'EditReplay.actual_nodes_replay_in_order',
-  'replay-nodes-reverse':'EditReplay.actual_nodes_replay_in_order',
-  'replay-groups-include-all':'EditReplay.actual_author_replays_selected_groups',
-  'replay-groups-skip-all':'EditReplay.actual_author_replays_selected_groups',
-  'replay-context-passes-empty':'EditReplay.closed_author_context_is_exact',
-  'replay-context-invents-error':'EditReplay.closed_author_context_is_exact',
-  'replay-context-contaminates-basis':'EditReplay.closed_author_context_is_exact',
-  'basis-includes-unselected':'EditBasis.actual_basis_is_exact_filter',
-  'basis-omits-selected':'EditBasis.actual_basis_is_exact_filter',
-  'basis-event-ignores-roots':'EditBasis.closed_event_basis_is_exact',
-  'scheduler-ready-skips-dependency':'EditSchedule.readiness_is_exact',
-  'scheduler-reselects-done':'EditSchedule.scheduler_choice_is_exact',
-  'scheduler-refuses-ready':'EditSchedule.scheduler_choice_is_exact',
-  'scheduler-checks-empty-after':'EditSchedule.scheduler_choice_is_exact',
-  'scheduler-records-wrong-id':'EditSchedule.successful_schedule_is_once_only_and_causal',
-  'scheduler-stops-early':'EditSchedule.successful_schedule_is_once_only_and_causal',
-  'scheduler-erases-wrong-trace':'EditSchedule.interpret_erases_only_schedule',
-  'scheduler-invents-bookkeeping-error':'EditSchedule.ranked_outer_errors_come_from_tree_work',
-'plan-skips-validation':'EditAtomic.successful_plan_requires_validation',
-"tree-publication-uses-private-writer":"EditCommit.tree_publication_respects_shared",
-"tree-publication-clears-private-counter":"EditCommit.tree_publication_keeps_private",
-"plan-clears-private-counter":"EditCommit.plan_preserves_private_state",
-
-  'plan-ignores-duplicate':'EditAtomic.plan_preserves_duplicate_result',
-  'plan-swallows-classifier-error':'EditAtomic.plan_preserves_duplicate_result',
-  "receive-plan-rewrites-counter":"EditCommit.receive_uses_plan",
-  'native-push-discards-value':'EditAccepted.push_result_is_exact',
-  'native-push-prepends':'EditAccepted.push_result_is_exact',
-  'causal-validator-passes-empty':'EditWellFormed.successful_validation_has_stream_checks',
-  'causal-accepts-missing':'EditWellFormed.dependency_validation_is_sound',
-  'past-guard-refuses-present':'PastExact.present_dependencies_pass_guard',
-  'past-extension-refuses-selection':'PastExact.extend_stored_selection_succeeds',
-  'past-refuses-closure':'PastExact.fitting_closed_history_computes_past',
-  'past-closes-after-one-pass':'PastExact.past_covers_bounded_predecessor_paths',
-  'past-pass-rescans-last':'PastExact.past_pass_covers_edges',
-  'duplicate-scan-skips-pairs':'EditPastTotal.duplicate_scan_is_exact',
-  'past-skips-passes':'EditPast.past_stays_in_closed_set',
-  'past-skips-predecessors':'EditPast.extend_past_covers_predecessors',
-  'past-drops-roots':'EditPast.past_stays_in_closed_set',
-  'past-invents-id':'EditPast.extend_past_preserves',
-  'past-membership-always-false':'EditPast.event_membership_is_exact',
-  'causal-call-passes-empty':'EditWellFormed.successful_past_has_direct_dependencies',
-  'causal-refuses-present':'EditWellFormed.present_dependencies_pass_guard',
-  'scalar-validation-bypasses-on-history':'EditWellFormed.successful_validation_has_valid_scalars',
-  'scalar-accepts-invalid':'EditWellFormed.scalar_validation_is_sound',
-  'scalar-call-passes-empty':'EditWellFormed.successful_validation_has_valid_scalars',
-  'scalar-refuses-valid':'EditWellFormed.valid_scalar_input_succeeds',
-  'canonical-step-refuses':'EditAccepted.canonical_step_succeeds',
-  'canonical-refuses':'EditAccepted.canonical_uses_complete_range',
-  'plan-keeps-old-tree':'EditAccepted.tree_installation_installs_tree',
-  'plan-passes-old-tree':'EditAccepted.plan_publishes_interpretation',
-  'plan-interprets-uncanonical':'EditAccepted.plan_publishes_interpretation',
-  'order-chooses-largest':'EditAccepted.selected_id_is_least',
-  'order-key-ignores-writer':'EditAccepted.event_order_is_key_order',
-  'order-discards-canonical':'EditAccepted.plan_publishes_canonical_facts',
-  'edit-call-passes-old-counter':'EditAtomic.authored_edit_advances_once',
-  'local-return-after':'EditCommit.authored_fact_replays_same_commit',
-  'edit-commit-ignores-counter':'EditAtomic.counter_installation_is_exact',
-  'content-changes-whole-fact':'EditAccepted.selected_fact_is_exact',
-  'content-omits-facts':'EditAccepted.canonical_uses_complete_range',
-  'accepted-reuses-member':'EditAccepted.selected_id_is_unseen',
-  'accepted-wrong-canonical-push':'EditAccepted.canonical_step_preserves_unique',
-  'accepted-publication-duplicates':'EditAccepted.tree_installation_preserves_facts',
-  'invalid-forgets-reason':'EditIdentity.invalid_is_exact',
-  'writer-index-collides':'EditIdentity.writer_index_is_exact',
-  'identity-writer-equality':'EditIdentity.writer_equality_exact',
-  'identity-birth-equality':'EditIdentity.birth_equality_exact',
-  'identity-scan-key':'EditIdentity.duplicate_matches_lookup',
-  'identity-event-equality':'EditIdentity.event_equality_exact',
-  'identity-forgets-gap':'EditIdentity.fact_equality_exact',
-  'identity-accepts-conflict':'EditIdentity.duplicate_matches_lookup',
-  'identity-skips-later':'EditIdentity.duplicate_matches_lookup',
-  'identity-counter-range':'EditIdentity.duplicate_matches_lookup',
-  'receive-error-corrupts-counter':'EditAtomic.receive_rejection_unchanged',
-  'edit-error-corrupts-counter':'EditAtomic.edit_rejection_or_empty_unchanged',
-  'edit-success-reuses-counter':'EditAtomic.counter_result_advances_once',
-  'local-return-gap':'EditCommit.authored_fact_binds_request',
-  'local-stale-tree':'EditCommit.authored_fact_replays_same_commit',
-  "receive-success-counter":"EditCommit.receive_uses_plan",
-  'author-forgets-gap':'EditCommit.authored_fact_binds_request',
-  "receive-private-gate":"EditCommit.plan_ignores_private_state",
-};
-
-// Explicit semantic ownership transfers. The old statements and their domains
-// remain checked; additional concrete callback/call-argument controls above keep
-// caller composition sensitive. Only the exact named new owner may reject a
-// moved-body control; an arbitrary earlier dependency failure is never credited.
-theorems['plan-interprets-uncanonical-call']='EditAccepted.plan_publishes_interpretation';
-theorems['past-extend-call-clears-selection']='EventGraphText.extend_past_is_text_call';
-theorems['past-pass-call-skips-facts']='EventGraphText.past_pass_is_text_call';
-theorems['past-call-clears-roots']='EventGraphText.past_is_text_call';
-theorems['text-policy-swaps-eq-lt']='EventGraphText.text_policy_is_exact';
-theorems['graph-policy-swaps-eq-lt']='EventGraph.graph_ops_preserve_callbacks';
-theorems['admission-policy-swaps-errors']='EventGraph.event_ops_preserve_callbacks';
-const priorOwners={...theorems};
-const ownerMigrations={
-  'past-skips-predecessors':['PastExact.extend_past_covers_predecessors','direct-predecessor coverage of the actual generic loop is shared; old concrete text statement remains'],
-  'past-drops-roots':['PastExact.past_stays_in_closed_set','root-retention induction is shared; preserve the old concrete text law as a thin composition'],
-  'past-invents-id':['PastExact.extend_past_preserves','the actual extend body is checked in the shared closed-set owner'],
-  'past-skips-passes':['PastExact.past_covers_bounded_predecessor_paths','zero passes preserve closed-set soundness but violate completeness; keep the Rust range usize and require ordinary rejection in the depth owner, not an earlier true soundness law'],
-  "plan-interprets-uncanonical-call":["EditAccepted.plan_publishes_canonical_facts","added wrong-prepare callback omits canonicalization; exact canonical fact publication owns this fault, while interpretation of the returned facts can still agree"],
-  "plan-interprets-uncanonical":["EventShell.planning_is_exact","callback ordering moved from concrete plan to generic plan"],
-  "past-membership-always-false": [
-    "EventGraph.membership_is_exact",
-    "membership loop moved unchanged to comparison-relative has_id"
-  ],
-  "scheduler-ready-skips-dependency": [
-    "EventGraph.readiness_is_exact",
-    "dependency scan moved unchanged to comparison-relative ready"
-  ],
-  "scheduler-reselects-done": [
-    "EventGraph.scheduler_choice_is_exact",
-    "actual first-ready scan moved to generic choose_ready"
-  ],
-  "scheduler-refuses-ready": [
-    "EventGraph.scheduler_choice_is_exact",
-    "actual first-ready scan moved to generic choose_ready"
-  ],
-  "scheduler-checks-empty-after": [
-    "EventGraph.scheduler_choice_is_exact",
-    "actual dependency argument belongs to generic choose_ready"
-  ],
-  "identity-accepts-conflict": [
-    "EventClassifier.classification_is_exact",
-    "actual first matching identity classification moved to generic classify"
-  ],
-  "identity-skips-later": [
-    "EventClassifier.classification_is_exact",
-    "indexed first-match scan moved to generic classify"
-  ]
-};
-Object.assign(theorems,{
-  "shared-plan-skips-validation": "EventShell.planning_is_exact",
-  "shared-plan-ignores-duplicate": "EventShell.planning_is_exact",
-  "shared-plan-swallows-classifier-error": "EventShell.planning_is_exact",
-  "identity-call-passes-empty": "EditIdentity.duplicate_matches_lookup",
-  "identity-call-ignores-payload": "EditIdentity.duplicate_matches_lookup",
-  "past-membership-call-passes-empty": "EditPast.event_membership_is_exact",
-  "scheduler-readiness-call-passes-empty": "EditSchedule.readiness_is_exact",
-  "scheduler-choice-call-passes-empty": "EditSchedule.scheduler_choice_is_exact"
-});
-for(const [mode,[owner]] of Object.entries(ownerMigrations))theorems[mode]=owner;
-const mutationOwners=Object.fromEntries(modes.filter(mode=>mode!=='positive').map(mode=>[mode,{owner:theorems[mode],priorOwner:priorOwners[mode]??null,reason:ownerMigrations[mode]?.[1]??(priorOwners[mode]?'owning concrete statement retained':'additional generic-body or concrete-caller control'),source:definitionByMode.get(mode)[0]}]));
+if(args.length===0){for(const name of FAMILY_NAMES)familyRuns.add(name);mutations.push(...modes.filter(mode=>mode!=='positive'));}
 
 // Registration consistency: every selected mutation must have an anchored edit and a
 // named owning theorem before any native test, extraction or compiler starts.
@@ -405,10 +125,99 @@ for(const mode of ['native-push-discards-value','plan-skips-validation']) {
 await checkDeletePreparation(root);
 checkMutationScopeControls(prepareMutation,original['src/edit.rs'],'scalar-refuses-valid','fn validate_scalars(','Ok(())','fn validate_new(');
 checkFstarMutationScope();
-checkRemainingCallLocator();
-console.log('PASS remaining call locator: calls only in code (line/nested comments, strings), code-only occurrence indexing, inline fallback unhidden, comment/string-only callee refused, mixed call lines refused');
+// The Remaining locator controls belong to the Remaining family: they run with it, and in gatepreflight.
+if(familyRuns.has('remaining')||args.includes('gatepreflight')){(await familiesModule()).checkRemainingCallLocator();
+console.log('PASS remaining call locator: calls only in code (line/nested comments, strings), code-only occurrence indexing, inline fallback unhidden, comment/string-only callee refused, mixed call lines refused');}
+checkAuditControls(original);
+checkNativeCodeControls();
+checkHeadInputControls();
+console.log('PASS head input controls: added, changed, deleted declared (file and directory member) and declaration-hidden deletion refused; undeclared absence counted');
+// Lock order control: while this invocation owns the checkout lock, an overlapping selected invocation must be refused
+// (75) before it touches its output, so an existing load log (an active run's evidence) survives byte for byte.
+if(!exportOnly){
+  const tmp=mkdtempSync(path.join(tmpdir(),'edit-lock-order-')),out=path.join(tmp,'out'),sentinel=path.join(out,'loaded-modules.log');
+  try{
+    mkdirSync(out,{recursive:true});writeFileSync(sentinel,'sentinel: an active run\'s load log\n');
+    const r=spawnSync(process.execPath,[fileURLToPath(import.meta.url),out,'selection:'+path.join(tmp,'absent.json'),'shard:0/3'],{encoding:'utf8',env:process.env});
+    assert.equal(r.status,75,'an overlapping selected invocation must be refused by the checkout lock: '+(r.stderr||'').slice(-300));
+    assert.equal(readFileSync(sentinel,'utf8'),'sentinel: an active run\'s load log\n','a refused invocation must not touch an existing load log');
+    console.log('PASS lock order: an overlapping selected invocation is refused (75) before touching an existing load log');
+  }finally{rmSync(tmp,{recursive:true,force:true});}
+}
+console.log('PASS native code record controls: complete set accepted; omitted static helper, extra entry, wrong digest and runner-only set refused');
+console.log('PASS exact-tuple audit controls: hidden unit, unexecuted plan, changed roots, wrong expectation (both kinds), mutation digest, cargo arguments, baselines and owner each refused');
 console.log('PASS mutation scopes: every registered mode resolves to one in-scope anchor; moved/duplicate/comment-only anchor, missing/comment/string/duplicated header, literal braces, C raw strings across items and unsupported-lexeme controls');
 if(args.length===1&&args[0]==='gatepreflight')process.exit(0);
+// Source identity: the files the native and positive units are built from, so a selector can check an export
+// against the commit it claims to describe, and a consumer can check a record against its own tree.
+async function exportText(){
+  const sources={};for(const f of TEXT_PLAN_INPUTS)sources[f]=digest(await fs.readFile(path.join(root,f)));
+  return JSON.stringify({schema:1,gate:'text',sources,plans:[positivePlan(),...nativeModePlans(original),identityControlPlan()]},null,1)+'\n';
+}
+if(exportPlans){
+  const out=process.argv[2];assert(out,'output directory required');
+  await fs.mkdir(out,{recursive:true});
+  await fs.writeFile(path.join(out,'plans.json'),await exportText());
+  console.log('exported '+(modes.length-1)+' native-mode plans, the positive and the identity control to '+path.join(out,'plans.json'));
+  process.exit(0);
+}
+// Selection consumer (#197). `selection:<file> shard:<i>/<n>` runs what a selector record chose for this shard. The
+// record is refused unless it was made from exactly this tree's text plans (its headPlans digest equals this
+// runner's own export) and is not diagnostic. full runs the plain shard; none runs nothing; selected runs this
+// shard's share of the selected native modes plus this job's own positive seed (only when it runs a mode).
+let textSelection=null;
+if(selectionArg){
+  const file=selectionArg.slice('selection:'.length);assert(file.length>0,'selection needs a record path');
+  const shardArgs=args.filter(arg=>arg.startsWith('shard:'));
+  assert(shardArgs.length===1&&args.length===2,'selection combines only with exactly one shard');
+  const [i,n]=shardArgs[0].slice(6).split('/').map(Number);
+  let rec;try{rec=JSON.parse(await fs.readFile(file,'utf8'));}catch(e){assert.fail('selection record unreadable: '+e.message);}
+  const keys=['schema','base','head','diagnosticOnly','basePlans','headPlans','full','reasons','affected','register','text','shared'];
+  assert(rec&&typeof rec==='object'&&!Array.isArray(rec)&&Object.keys(rec).length===keys.length&&keys.every(k=>Object.hasOwn(rec,k)),'selection record has an unrecognised shape');
+  assert.equal(rec.schema,1,'selection record schema');
+  assert.equal(rec.diagnosticOnly,false,'a diagnostic selection record cannot be consumed');
+  const t=rec.text;assert(t&&typeof t==='object'&&!Array.isArray(t),'selection record text entry');
+  if(rec.full===true||t.run==='full'){assert.deepEqual(Object.keys(t),['run'],'a full text selection carries only run');assert.equal(t.run,'full');textSelection={run:'full'};}
+  else{
+    const tkeys=['run','positive','modes','why','removed','total','headPlans','basePlans','nativeCode','headInputs'];
+    assert(Object.keys(t).length===tkeys.length&&tkeys.every(k=>Object.hasOwn(t,k)),'selection record text entry has an unrecognised shape');
+    assert.equal(t.headPlans,digest(await exportText()),'selection record was not made for this tree (head text plan export differs)');
+    const natives=modes.filter(mode=>mode!=='positive');
+    assert(Array.isArray(t.modes)&&t.modes.every(m=>natives.includes(m)),'selection names unknown native modes');
+    assert.equal(new Set(t.modes).size,t.modes.length,'selection names a mode twice');
+    assert.equal(t.total,natives.length,'selection record counts a different plan total');
+    // Bind the record to this tree's native code: its entries must be exactly this tree's own closure (computed here,
+    // so an omitted input cannot pass), each with this tree's digest. Checked before the no-work exit.
+    const closure=await nativeCodeClosure(async f=>{try{return await fs.readFile(path.join(root,'scripts',f),'utf8');}catch{return null;}});
+    checkNativeCodeRecord(t.nativeCode,closure,f=>digest(readFileSync(path.join(root,f))));
+    // Bind the decision to this tree's selection-relevant content: every file this tree holds under those roots must be
+    // recorded with this digest (a changed or added proof, crate or script file refuses). Recorded files this
+    // packaged tree does not hold cannot be read by any unit run here; they are counted, not checked.
+    {
+      assert(t.headInputs&&typeof t.headInputs==='object'&&!Array.isArray(t.headInputs),'selection record head inputs');
+      const present=[];const walk=async rel=>{let st;try{st=await fs.lstat(path.join(root,rel));}catch{return;}
+        if(st.isDirectory()){for(const e of (await fs.readdir(path.join(root,rel))).sort())await walk(rel+'/'+e);}else if(st.isFile())present.push(rel);};
+      for(const r of ['proofs','src','tests','proof-smoke','scripts','Cargo.toml','Cargo.lock','nix/text-inputs.json','nix/gate-scripts.json'])await walk(r);
+      const decl=JSON.parse(readFileSync(path.join(root,'nix/text-inputs.json'),'utf8')),gates=JSON.parse(readFileSync(path.join(root,'nix/gate-scripts.json'),'utf8'));
+      assert(Array.isArray(decl.paths)&&decl.paths.every(p=>typeof p==='string')&&Array.isArray(gates.text),'packaged input declarations');
+      // The declarations themselves are bound (they are present inputs), so a deletion cannot be hidden by editing them.
+      const undeclared=checkHeadInputs(t.headInputs,present,f=>digest(readFileSync(path.join(root,f))),[...decl.paths,...gates.text.map(n=>'scripts/'+n)]);
+      console.log('selection inputs: '+present.length+' files of this tree bound to the record; '+undeclared+' recorded files outside the declared packaged inputs');
+    }
+    assert(t.run==='selected'?t.modes.length>0:t.run==='none'&&t.modes.length===0,'selection run and modes agree');
+    const mine=natives.filter((mode,k)=>k%n===i&&t.modes.includes(mode));
+    textSelection={run:t.run,mine,nativeCode:new Set(Object.keys(t.nativeCode))};
+    // This job runs exactly its share: no families, no cache-safety, its own positive seed iff it runs a mode.
+    mutations.length=0;mutations.push(...mine);wantPositive=mine.length>0;cacheSafety=false;familyRuns.clear();
+    console.log('selection '+t.run+': '+mine.length+' of '+t.modes.length+' selected native modes in shard '+i+'/'+n+(wantPositive?' plus this job\'s positive seed':''));
+    if(!mine.length){
+      const out=process.argv[2];await fs.mkdir(out,{recursive:true});
+      await fs.writeFile(path.join(out,'planned.json'),'[]\n');await fs.writeFile(path.join(out,'results.json'),'[]\n');
+      console.log('selection runs nothing in this job: not affected (no build of these units ran; no result is claimed)');
+      process.exit(0);
+    }
+  }
+}
 const {NICKEL_HAX_BIN:hax,NICKEL_PROOF_FSTAR:fstar,NICKEL_HAX_SOURCE:models,NICKEL_FSTAR_MODEL_CACHE:modelCache}=process.env;
 assert(hax&&fstar&&models&&modelCache,'use the locked .#proofs environment');
 const output=process.argv[2];assert(output,'output directory required');
@@ -454,35 +263,37 @@ async function sameExtraction(label,crate,extract,scratch) {
 }
 const fresh=async proof=>{try{await fs.access(path.join(proof,'sources.json'));return false;}catch{return true;}};
 let positive,positiveProof;
+// Exact-tuple audit (#197): every executed unit records what it actually ran (roots passed to the
+// verifier, cargo arguments and baselines, the mutated file it wrote, the owner it judged and the
+// expected outcome it asserted). At the end these must equal the planned tuples field for field.
+const executed=new Map();
+const nativeIndex=new Map(modes.filter(mode=>mode!=='positive').map((mode,index)=>[mode,index]));
 async function check(mode) {
   const work=path.join(root,'.cache','edit-proofs',mode),crate=path.join(work,'crate'),proof=path.join(work,'proof');
+  const ran={id:mode,kind:mode==='positive'?'positive':'native-mode',...(mode==='positive'?{}:{index:nativeIndex.get(mode)}),owner:null,expect:null,roots:null,mutation:null,native:{cargoArgs:null,baselines:[],extraction:false}};
   if(positiveProof&&await fresh(proof))await fs.cp(positiveProof,proof,{recursive:true,preserveTimestamps:true});
   await fs.mkdir(proof,{recursive:true});
   await copyCrate(crate,mode==='positive'?undefined:prepared.get(mode));
+  if(mode!=='positive'){const [file]=definitionByMode.get(mode);ran.mutation=[{file,sha256:digest(await fs.readFile(path.join(crate,file)))}];}
   // Each mode has its own Cargo target: hax names its metadata by package, not by
   // source tree, so crate copies sharing a target read each other's extraction.
   const env={...process.env,CARGO_TARGET_DIR:path.join(root,'target','edit-proof-check','modes',mode)};
-  const nativeArgs=['test','--offline','--locked','-p','nickel-crdt',...(mode.startsWith('stream-')?[]:(mode==='scheduler-forgets-completed-tree'?['--lib','operation_provenance_tests']:mode.startsWith('replay-')?['--lib','author_replay_tests']:mode.startsWith('basis-')?['--lib','basis_filter_tests']:((mode.startsWith('past-')||mode.startsWith('scheduler-'))?['--lib','causal_basis_tests']:['--test','edit_admit'])))];
+  const nativeArgs=nativeArgsOf(mode);ran.native.cargoArgs=[...nativeArgs];
   const native=await runAsync('edit native '+mode,'cargo',nativeArgs,crate,{env});
   await fs.writeFile(path.join(output,mode+'.native.log'),native.log);
   if(mode==='positive') {
     assert.equal(native.status,0,native.log);
-    const basisNative=await runAsync('edit basis native baseline','cargo',['test','--offline','--locked','-p','nickel-crdt','--lib','basis_filter_tests'],crate,{env});
-    await fs.writeFile(path.join(output,'positive.basis-native.log'),basisNative.log);
-    assert.equal(basisNative.status,0,basisNative.log);
-    assert.match(basisNative.log,/test result: ok\. [1-9]\d* passed;/,'basis native baseline must discover and pass tests: '+basisNative.log);
-    const operationNative=await runAsync('edit operation native baseline','cargo',['test','--offline','--locked','-p','nickel-crdt','--lib','operation_provenance_tests'],crate,{env});
-    await fs.writeFile(path.join(output,'positive.operation-native.log'),operationNative.log);
-    assert.equal(operationNative.status,0,operationNative.log);
-    assert.match(operationNative.log,/test result: ok\. [1-9]\d* passed;/,'operation native baseline must discover and pass tests: '+operationNative.log);
-    const replayNative=await runAsync('edit replay native baseline','cargo',['test','--offline','--locked','-p','nickel-crdt','--lib','author_replay_tests'],crate,{env});
-    await fs.writeFile(path.join(output,'positive.replay-native.log'),replayNative.log);
-    assert.equal(replayNative.status,0,replayNative.log);
-    assert.match(replayNative.log,/test result: ok\. [1-9]\d* passed;/,'replay native baseline must discover and pass tests: '+replayNative.log);
+    for(const {name,test} of positiveBaselines){
+      const baseline=await runAsync('edit '+name+' native baseline','cargo',[...cargoBase,'--lib',test],crate,{env});
+      await fs.writeFile(path.join(output,'positive.'+name+'-native.log'),baseline.log);
+      assert.equal(baseline.status,0,baseline.log);
+      assert.match(baseline.log,/test result: ok\. [1-9]\d* passed;/,name+' native baseline must discover and pass tests: '+baseline.log);
+      ran.native.baselines.push([...cargoBase,'--lib',test]);
+    }
   }
   else {assert.equal(native.status,101,native.log);assert.match(native.log,/test result: FAILED/);}
   const extract=path.join(work,'extract');await fs.rm(extract,{recursive:true,force:true});await fs.mkdir(extract,{recursive:true});
-  const extracted=await runAsync('edit hax '+mode,hax,haxArgs(extract),crate,{env});
+  const extracted=await runAsync('edit hax '+mode,hax,haxArgs(extract),crate,{env});ran.native.extraction=true;
   await fs.writeFile(path.join(output,mode+'.hax.log'),extracted.log);
   assert.equal(extracted.status,0,extracted.log);
   assert(await sameExtraction(mode,crate,extract,path.join(work,'reference')),'extraction identity: '+mode+"'s extraction differs from a private-target extraction of its own crate");
@@ -530,21 +341,24 @@ async function check(mode) {
   const extractionChanged=extractionIdentity.filter(([name,hash])=>recorded[name]!==hash).map(([name])=>name);
   // Counter calculation/installation/wiring controls need only their owning module. The positive path still
   // checks both the public Spec surface and the existing ghost causal-rank family.
-  const proofRoot=/^(PastExact|EventGraph|EventGraphText|EventShell|EventClassifier)\./.test(theorems[mode]??'')?'Nickel.'+theorems[mode].split('.')[0]+'.fst':mode==='positive'?'Nickel.Spec.fst':mode.startsWith('replay-')?'Nickel.EditReplay.fst':mode.startsWith('basis-')?'Nickel.EditBasis.fst':mode.startsWith('scheduler-')?'Nickel.EditSchedule.fst':['past-refuses-closure','duplicate-scan-skips-pairs'].includes(mode)?'Nickel.EditPastTotal.fst':mode.startsWith('past-')?'Nickel.EditPast.fst':['edit-success-reuses-counter','edit-commit-ignores-counter','edit-call-passes-old-counter'].includes(mode)?'Nickel.EditAtomic.fst':'Nickel.EditWellFormed.fst';
-  const checked=await verify({label:mode,dir:proof,roots:(mode==='positive'?['Nickel.EditDeleteComplete.fst','Nickel.EventGraph.fst','Nickel.EventGraphText.fst','Nickel.EventShell.fst','Nickel.EventClassifier.fst','Nickel.Spec.fst','Nickel.EditCausal.fst','Nickel.EditPastTotal.fst','Nickel.EditSchedule.fst','Nickel.EditBasis.fst','Nickel.EditReplay.fst']:['Nickel_crdt.Edit.fst',proofRoot]).map(name=>path.join(proof,name)),fstar,models,modelCache});
+  const roots=verifyRoots(mode);ran.roots=[...roots];
+  const checked=await verify({label:mode,dir:proof,roots:roots.map(name=>path.join(proof,name)),fstar,models,modelCache});
   await fs.writeFile(path.join(output,mode+'.proof.log'),checked.log);
   if(mode==='positive') {
-    assert.equal(checked.status,0,checked.log);
+    assert.equal(checked.status,0,checked.log);ran.expect='verify';
     positiveProof=proof;
     // Each family edits its own copy of the verified positive workspace, so the
     // positive cache stays clean and families cannot see each other's probes.
+    // The family module loads only when a family runs (native-only runs never load it; selected runs audit that).
+    const {families}=familyRuns.size?await familiesModule():{families:{}};
+    if(familyRuns.size)assert.deepEqual(Object.keys(families),FAMILY_NAMES,'family table and names agree');
     for(const [name,check] of Object.entries(families))if(familyRuns.has(name)) {
       const copy=path.join(root,'.cache','edit-proofs','contracts-'+name,'proof');
       await fs.rm(copy,{recursive:true,force:true});
       await fs.cp(proof,copy,{recursive:true,preserveTimestamps:true});
       await check({proof:copy,output,fstar,models,modelCache});
     }
-    if(cacheSafety)await checkCacheSafety({positiveProof:proof,workRoot:path.join(root,'.cache','edit-proofs'),output,fstar,models,modelCache});
+    if(cacheSafety)await (await familiesModule()).checkCacheSafety({positiveProof:proof,workRoot:path.join(root,'.cache','edit-proofs'),output,fstar,models,modelCache});
     for(const name of inventory)await fs.copyFile(path.join(proof,name),path.join(output,name));
   } else {
     assert.equal(checked.status,2,'require ordinary proof rejection, not extraction failure/timeout');
@@ -557,7 +371,9 @@ async function check(mode) {
       assert(checked.modules.includes(changed),changed+' was not compiled for '+mode+': '+(checked.modules.join(',')||'nothing'));
     assert(hasOrdinaryTheoremRejection({status:checked.status,log:checked.log,theorem,view:views.get(file)}),
       'require a final ordinary named query rejection and a semantic error in its source declaration: '+checked.log);
+    ran.expect='reject';ran.owner=theorems[mode];
   }
+  assert(!executed.has(mode),'unit executed twice: '+mode);executed.set(mode,ran);
   console.log(`PASS ${mode}: native and unchanged actual-Rust theorem ${mode==='positive'?'verified':'reject the mutation'}`);
 }
 // The positive chain (and its families) completes first: it seeds every fresh
@@ -567,7 +383,7 @@ if(wantPositive)await check('positive');
 // Identity control: two mutants of one function (one owner theorem rejects both).
 // A's crate with B's extraction must fail the identity check; B's own must pass.
 if(mutations.length) {
-  const control=path.join(root,'.cache','edit-proofs','identity-control'),[a,b]=['scheduler-reselects-done','scheduler-refuses-ready'];
+  const control=path.join(root,'.cache','edit-proofs','identity-control'),[a,b]=identityControlPlan().modes;
   await fs.rm(control,{recursive:true,force:true});
   await copyCrate(path.join(control,'a'),prepareMutation(a));await copyCrate(path.join(control,'b'),prepareMutation(b));
   await fs.mkdir(path.join(control,'extract'),{recursive:true});
@@ -576,6 +392,7 @@ if(mutations.length) {
   assert(!await sameExtraction('control wrong mutant',path.join(control,'a'),path.join(control,'extract'),path.join(control,'reference')),'identity control: another mutant\'s extraction passed the identity check');
   assert(await sameExtraction('control own mutant',path.join(control,'b'),path.join(control,'extract'),path.join(control,'reference')),'identity control: a mutant\'s own extraction failed the identity check');
   await fs.rm(control,{recursive:true,force:true});
+  executed.set('extraction-identity-control',{id:'extraction-identity-control',kind:'identity-control',modes:[a,b]});
   console.log('PASS extraction identity control: a wrong mutant\'s extraction fails identity; its own passes');
 }
 // A mode selected twice (for example by a shard and by name) runs once: two
@@ -586,3 +403,21 @@ await Promise.all(Array.from({length:Math.min(jobs,queue.length)},async()=>{
   while(!failure&&next<queue.length) {const mode=queue[next++];try{await check(mode);}catch(error){failure??={mode,error};}}
 }));
 if(failure)throw failure.error;
+// Planned units for this invocation, from the shared enumeration; executed units must equal them exactly.
+{
+  const native=nativeModePlans(original).filter(plan=>queue.includes(plan.id));
+  const planned=[...(wantPositive?[positivePlan()]:[]),...native,...(queue.length?[identityControlPlan()]:[])];
+  await fs.writeFile(path.join(output,'planned.json'),JSON.stringify(planned,null,1)+'\n');
+  const ran=[...executed.values()];
+  await fs.writeFile(path.join(output,'results.json'),JSON.stringify(ran,null,1)+'\n');
+  auditUnits(planned,executed);
+  console.log('PASS exact-tuple audit: '+planned.length+' planned units executed exactly as planned (ids, expectations, roots, mutations, cargo arguments, baselines, owners)');
+}
+if(textSelection&&textSelection.run!=='full'){
+  const loaded=[...new Set(readFileSync(loadLog,'utf8').split('\n').filter(Boolean).map(url=>fileURLToPath(url)))]
+    .filter(f=>f.startsWith(path.join(root,'scripts')+path.sep)).map(f=>'scripts/'+path.relative(path.join(root,'scripts'),f)).sort();
+  await fs.writeFile(path.join(output,'loaded-modules.json'),JSON.stringify(loaded,null,1)+'\n');
+  const outside=loaded.filter(f=>!textSelection.nativeCode.has(f));
+  assert.deepEqual(outside,[],'a selected shard loaded gate scripts outside the recorded native code set: '+outside.join(', '));
+  console.log('PASS load audit: '+loaded.length+' gate scripts loaded after startup, all inside the recorded native code set');
+}

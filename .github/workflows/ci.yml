@@ -169,6 +169,22 @@ jobs:
             if [ -e selection-result/selection.json ]; then cp selection-result/selection.json selection-evidence/; fi
             .github/scripts/check.sh "$TARGET" 9000 nix build -L --no-write-lock-file --out-link selected-result \
               ".#packages.aarch64-linux.register-proofs-selected-shard-$i" "${overrides[@]}"
+          elif [ "$EVENT" = pull_request ] && [[ "$TARGET" =~ ^proofs-shard-([0-9]+)$ ]]; then
+            # Pull-request text shards go through the text selection boundary (#197; flake.nix text-selection,
+            # scripts/selection-boundary.mjs --gate=text): same identity rules as the register route above. The
+            # consumer runs only this shard's selected native modes, plus its own positive seed when it runs one.
+            i="${BASH_REMATCH[1]}"
+            [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "pull_request base sha missing or malformed: $BASE_SHA"; exit 1; }
+            [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] || { echo "checkout HEAD is not GITHUB_SHA"; exit 1; }
+            overrides=(--override-input selection-head "git+file://$PWD?rev=$GITHUB_SHA&shallow=1"
+                       --override-input selection-base "github:carbon-study/nickel-crdt/$BASE_SHA")
+            mkdir -p text-selection-evidence
+            .github/scripts/check.sh "$TARGET-selection" 1800 nix build -L --no-write-lock-file --out-link text-selection-result \
+              .#packages.aarch64-linux.text-selection "${overrides[@]}"
+            cp text-selection-result/identity.json text-selection-result/mode text-selection-evidence/
+            if [ -e text-selection-result/selection.json ]; then cp text-selection-result/selection.json text-selection-evidence/; fi
+            .github/scripts/check.sh "$TARGET" 9000 nix build -L --no-write-lock-file --out-link text-selected-result \
+              ".#packages.aarch64-linux.proofs-selected-shard-$i" "${overrides[@]}"
           else
             .github/scripts/check.sh ${{ matrix.target }} 9000 nix build -L --no-link .#packages.aarch64-linux.${{ matrix.target }}
           fi
@@ -191,6 +207,24 @@ jobs:
         with:
           name: register-selection-${{ matrix.target }}
           path: selection-evidence/
+          if-no-files-found: warn
+      # Identity (exact base/head, toolchain digests, route), planned and executed tuples, and the modules a selected
+      # text shard loaded (#197). Collected whether or not the build passed.
+      - name: collect text selection evidence
+        if: always() && github.event_name == 'pull_request' && startsWith(matrix.target, 'proofs-shard-')
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          mkdir -p text-selection-evidence
+          for f in "/tmp/$TARGET-selection.log" "/tmp/$TARGET.log"; do if [ -e "$f" ]; then cp "$f" text-selection-evidence/; fi; done
+          for f in selection-identity.json edit/planned.json edit/results.json edit/loaded-modules.json; do if [ -e "text-selected-result/$f" ]; then cp "text-selected-result/$f" text-selection-evidence/; fi; done
+          ls -la text-selection-evidence
+      - name: keep text selection evidence
+        if: always() && github.event_name == 'pull_request' && startsWith(matrix.target, 'proofs-shard-')
+        uses: actions/upload-artifact@v4
+        with:
+          name: text-selection-${{ matrix.target }}
+          path: text-selection-evidence/
           if-no-files-found: warn
       # Save even when the check failed or timed out, so finished toolchain
       # paths are not rebuilt next time. The key is new for every run.
